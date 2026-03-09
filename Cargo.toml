@@ -1,0 +1,7 @@
+[package]
+name = "aipm"
+version = "0.1.0"
+edition = "2021"
+description = "AI Plugin Manager"
+
+[dependencies]
