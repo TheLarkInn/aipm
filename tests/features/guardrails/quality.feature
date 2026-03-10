@@ -1,4 +1,4 @@
-@p1 @guardrails
+@p2 @guardrails
 Feature: AI-assisted plugin quality guardrails
   As a plugin ecosystem maintainer,
   I want the CLI to help AI agents create quality plugins,
@@ -7,7 +7,7 @@ Feature: AI-assisted plugin quality guardrails
   Rule: Plugin scaffolding enforces best practices
 
     Scenario: AI-generated plugin is validated on creation
-      Given an AI agent runs "aipm init --type skill"
+      Given an AI agent runs "aipm-pack init --type skill"
       When the scaffolding is generated
       Then the generated SKILL.md contains required frontmatter fields
       And the generated SKILL.md has a description under 1024 characters
@@ -24,28 +24,28 @@ Feature: AI-assisted plugin quality guardrails
 
     Scenario: Lint detects missing required SKILL.md frontmatter
       Given a skill package with a SKILL.md missing the "description" field
-      When the user runs "aipm lint"
+      When the user runs "aipm-pack lint"
       Then a warning is reported: "SKILL.md missing required field: description"
 
     Scenario: Lint detects oversized SKILL.md
       Given a skill package with a SKILL.md exceeding 5000 tokens
-      When the user runs "aipm lint"
+      When the user runs "aipm-pack lint"
       Then a warning is reported: "SKILL.md exceeds recommended 5000 token limit"
 
     Scenario: Lint detects agent without tools declaration
       Given an agent package with an agent markdown missing the "tools" frontmatter
-      When the user runs "aipm lint"
+      When the user runs "aipm-pack lint"
       Then a warning is reported: "agent definition missing tools declaration"
 
     Scenario: Lint validates hook event names
       Given a hook package with a hook referencing event "InvalidEvent"
-      When the user runs "aipm lint"
+      When the user runs "aipm-pack lint"
       Then an error is reported: "unknown hook event: InvalidEvent"
       And the error lists valid hook events
 
     Scenario: Lint passes for a well-formed plugin
       Given a plugin following all quality conventions
-      When the user runs "aipm lint"
+      When the user runs "aipm-pack lint"
       Then the command succeeds with "no issues found"
 
   Rule: Publish gate enforces minimum quality
@@ -53,14 +53,14 @@ Feature: AI-assisted plugin quality guardrails
     @serial
     Scenario: Publish rejects packages that fail lint
       Given a package with lint errors
-      When the user runs "aipm publish"
+      When the user runs "aipm-pack publish"
       Then the command fails with "package has quality issues"
       And the lint errors are displayed
-      And a hint suggests running "aipm lint --fix"
+      And a hint suggests running "aipm-pack lint --fix"
 
     Scenario: Lint auto-fix corrects common issues
       Given a SKILL.md with a name field exceeding 64 characters
-      When the user runs "aipm lint --fix"
+      When the user runs "aipm-pack lint --fix"
       Then the name is truncated to 64 characters
       And the user is informed of the change
 

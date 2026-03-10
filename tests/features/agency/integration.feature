@@ -52,7 +52,7 @@ Feature: Agency integration
 
     Scenario: Generate .mcp.json from Agency declarations
       Given a manifest declaring Agency MCP server "bluebird" with organization "onedrive"
-      When the user runs "aipm generate-mcp-config"
+      When the user runs "aipm-pack generate-mcp-config"
       Then a file ".mcp.json" is created with:
         """json
         {
@@ -68,7 +68,7 @@ Feature: Agency integration
 
     Scenario: Generate .mcp.json with multiple Agency servers
       Given a manifest declaring Agency MCP servers "ado", "bluebird", and "es-chat"
-      When the user runs "aipm generate-mcp-config"
+      When the user runs "aipm-pack generate-mcp-config"
       Then the generated ".mcp.json" contains entries for all three servers
       And each entry uses the "dev agency mcp" command pattern
 
@@ -77,7 +77,7 @@ Feature: Agency integration
         | type           | server      |
         | agency         | ado         |
         | standard       | sqlite-mcp  |
-      When the user runs "aipm generate-mcp-config"
+      When the user runs "aipm-pack generate-mcp-config"
       Then the generated ".mcp.json" contains both Agency and standard MCP entries
       And the Agency entry uses "dev agency mcp ado"
       And the standard entry uses the package's own MCP command
@@ -124,13 +124,13 @@ Feature: Agency integration
     Scenario: Multiple packages requiring the same Agency MCP server
       Given package "plugin-a" declares Agency MCP "ado" with organization "onedrive"
       And package "plugin-b" declares Agency MCP "ado" with organization "onedrive"
-      When the user runs "aipm generate-mcp-config"
+      When the user runs "aipm-pack generate-mcp-config"
       Then only one "ado" entry appears in ".mcp.json"
 
     Scenario: Conflict when packages require same server with different configs
       Given package "plugin-a" declares Agency MCP "ado" with organization "onedrive"
       And package "plugin-b" declares Agency MCP "ado" with organization "office"
-      When the user runs "aipm generate-mcp-config"
+      When the user runs "aipm-pack generate-mcp-config"
       Then the command warns about conflicting configurations for "ado"
       And both configurations are generated with disambiguated names
 
@@ -138,6 +138,6 @@ Feature: Agency integration
 
     Scenario: Export as Claude Code plugin preserves Agency MCP config
       Given a project with installed Agency MCP server dependencies
-      When the user runs "aipm export --format claude-plugin"
+      When the user runs "aipm-pack export --format claude-plugin"
       Then the generated plugin.json references the Agency MCP servers
       And the generated .mcp.json uses "dev agency mcp" commands

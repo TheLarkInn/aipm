@@ -9,9 +9,9 @@
 
 ## 1. Executive Summary
 
-AIPM is an AI-native package manager — like npm/Cargo but for AI plugin building blocks (skills, agents, MCP servers, hooks). It is built as a self-contained Rust binary that works across .NET, Python, Node.js, and Rust monorepos without requiring any specific runtime. AIPM introduces a content-addressable global store (pnpm-inspired), strict dependency isolation, and a workspace model that coexists with existing local plugin directories (e.g. `claude-plugins/`). Registry-installed plugins are symlinked into the local plugins directory so Claude Code discovers them naturally. The manifest format is TOML (`aipm.toml`) with a custom schema — chosen for human-editability, comment support, and AI-generation safety (no indentation traps, no escaping issues).
+AIPM is an AI-native package manager — like npm/Cargo but for AI plugin building blocks (skills, agents, MCP servers, hooks). It ships as **two separate Rust binaries**: `aipm` (read-only consumer: install, validate, doctor) and `aipm-pack` (author tooling: pack, publish, yank). This separation follows the security principle of least privilege — consumers who only install plugins never need the publish binary, reducing attack surface. Both binaries work across .NET, Python, Node.js, and Rust monorepos without requiring any specific runtime. AIPM introduces a content-addressable global store (pnpm-inspired), strict dependency isolation, and a workspace model that coexists with existing local plugin directories (e.g. `claude-plugins/`). Registry-installed plugins are symlinked into the local plugins directory so Claude Code discovers them naturally. The manifest format is TOML (`aipm.toml`) with a custom schema — chosen for human-editability, comment support, and AI-generation safety (no indentation traps, no escaping issues). Packages are transferred as `.aipm` archives (gzip-compressed tar with a defined internal layout).
 
-**Test-first approach**: 19 cucumber-rs feature files with 205+ BDD scenarios have been written before any implementation. Implementation will proceed feature-by-feature, driven by these specifications.
+**Test-first approach**: 20 cucumber-rs feature files with 230+ BDD scenarios have been written before any implementation. Implementation will proceed feature-by-feature, driven by these specifications.
 
 ## 2. Context and Motivation
 
@@ -57,11 +57,11 @@ There is no package manager for AI plugin primitives. Today:
 - [ ] Catalogs for shared version ranges across workspace members
 - [ ] Workspace filtering (`--filter`) by name, path, git-diff, dependency graph
 - [ ] Compositional reuse: skills, agents, MCP servers, hooks as independently publishable packages
-- [ ] AI quality guardrails: lint, quality scores, machine-readable errors, scaffolding
+- [ ] ~~AI quality guardrails~~ → moved to P2 (see Non-Goals)
 - [ ] Built-in dependency patching (`aipm patch`)
 - [ ] Dependency overrides with path-scoped selectors
 - [ ] Optional features system (additive unification)
-- [ ] Environment dependency declarations (tools, env vars, platform constraints)
+- [ ] Environment dependency declarations: **hard requirements** for system tools (git, docker, node, python, bash, powershell), env vars, and platform constraints. Key enabler for cross-team adoption — allows SPO, LightRail, and teams using any scripting language to declare what their plugins need.
 - [ ] Agency integration: generate `.mcp.json` for Agency-wrapped MCP servers
 - [ ] Monorepo orchestrator integration (Rush, Turborepo, BuildXL, MSBuild)
 - [ ] Cross-platform self-contained binary (linux-x64, linux-arm64, macos-x64, macos-arm64, windows-x64)
@@ -73,6 +73,7 @@ There is no package manager for AI plugin primitives. Today:
 - [ ] We will NOT manage MCP server runtime dependencies (npm packages, Python packages) — only reference them
 - [ ] We will NOT fork or modify Claude Code's plugin discovery mechanism — we match it via symlinks
 - [ ] We will NOT bundle or install Agency's `dev` CLI — only warn when it's missing
+- [ ] We will NOT implement lint, quality scores, or machine-readable error guidance in this phase (P2). Basic structural validation happens at publish time; richer quality tooling is deferred.
 - [ ] We will NOT support PDF export, GUI, or IDE extensions in this phase
 
 ## 4. Proposed Solution (High-Level Design)
@@ -106,11 +107,15 @@ flowchart TB
         GitIgnore["claude-plugins/.gitignore<br><i>managed by aipm</i>"]:::local
     end
 
-    subgraph AIPMCLI["aipm CLI (Rust binary)"]
+    subgraph AIPMCLI["aipm (consumer binary)"]
         Resolver["Dependency<br>Resolver"]:::cli
         Installer["Installer<br>+ Linker"]:::cli
         Validator["Manifest<br>Validator"]:::cli
-        Linter["Quality<br>Linter"]:::cli
+    end
+
+    subgraph AIPMPack["aipm-pack (author binary)"]
+        Packer["Pack<br>+ Publish"]:::cli
+        Scaffolder["Init<br>+ Scaffold"]:::cli
     end
 
     GlobalStore[("Global Store<br>~/.aipm/store<br><i>content-addressable</i>")]:::store
@@ -118,9 +123,12 @@ flowchart TB
     ClaudeCode{{"Claude Code<br><i>discovers plugins</i>"}}:::external
     Agency{{"Agency (1ES)<br><i>MCP auth proxy</i>"}}:::external
 
-    Dev -->|"aipm install / publish / patch"| AIPMCLI
-    AI -->|"aipm init / lint / validate"| AIPMCLI
+    Dev -->|"aipm install / validate / doctor"| AIPMCLI
+    Dev -->|"aipm-pack init / publish / lint"| AIPMPack
+    AI -->|"aipm install / validate"| AIPMCLI
+    AI -->|"aipm-pack init / lint"| AIPMPack
     AIPMCLI -->|"resolve + fetch"| Registry
+    AIPMPack -->|"pack + publish"| Registry
     AIPMCLI -->|"store files by hash"| GlobalStore
     AIPMCLI -->|"hard-link into"| DotAipm
     AIPMCLI -->|"symlink + gitignore"| PluginsDir
@@ -130,11 +138,12 @@ flowchart TB
     SymlinkedPlugin -.->|"points to"| DotAipm
     DotAipm -.->|"hard-links to"| GlobalStore
     LocalPlugin -.->|"may declare deps on"| Registry
-    AIPMCLI -.->|"generate .mcp.json for"| Agency
+    AIPMPack -.->|"generate .mcp.json for"| Agency
 
     style ProjectRepo fill:#ffffff,stroke:#cbd5e0,stroke-width:2px,stroke-dasharray:8 4
     style PluginsDir fill:#f7fafc,stroke:#a0aec0,stroke-width:1px
     style AIPMCLI fill:#f0f4ff,stroke:#5a67d8,stroke-width:2px
+    style AIPMPack fill:#fff5f0,stroke:#ed8936,stroke-width:2px
 ```
 
 ### 4.2 Architectural Patterns
@@ -152,14 +161,15 @@ flowchart TB
 
 | Component | Responsibility | Technology | Justification |
 |-----------|---------------|------------|---------------|
-| **aipm CLI** | All user-facing commands | Rust (clap) | Self-contained binary, cross-platform, no runtime deps |
+| **aipm CLI** | Consumer commands: install, update, uninstall, validate, doctor, search, audit, list | Rust (clap) | Read-only binary for plugin consumers; no publish capability reduces attack surface |
+| **aipm-pack CLI** | Author commands: init, pack, publish, yank, login/logout, export, generate-mcp-config | Rust (clap) | Separate binary for plugin authors; only needed by developers creating/publishing plugins |
 | **Manifest parser** | Parse/validate `aipm.toml` | Rust (toml crate) | Same parser that powers Cargo; battle-tested ([ref](../research/docs/2026-03-09-manifest-format-comparison.md)) |
 | **Dependency resolver** | Backtracking version solver | Rust (custom, inspired by pubgrub) | Must handle AI component types + standard semver |
 | **Content store** | Global content-addressable file storage | Rust (filesystem, SHA-512) | Hard links for zero-copy installs |
 | **Registry client** | HTTP client for registry API | Rust (reqwest) | Publish, fetch, search, auth |
 | **Lockfile manager** | Deterministic lockfile read/write | Rust (custom TOML serializer) | Must capture full tree structure + integrity hashes |
 | **Symlink manager** | Create/remove plugin symlinks + gitignore management | Rust (std::os) | Bridges registry installs to Claude Code discovery |
-| **Quality linter** | Validate skills, agents, hooks against standards | Rust | Enforces Agent Skills spec, frontmatter validation |
+| **Quality linter** | Validate skills, agents, hooks against standards | Rust | P2 — deferred. Basic structural validation at publish time only. |
 | **BDD test harness** | cucumber-rs feature tests | Rust (cucumber crate v0.22) | Test-first development; 205+ scenarios written |
 
 ## 5. Detailed Design
@@ -264,13 +274,27 @@ Backtracking constraint solver inspired by Cargo and pubgrub ([ref](../research/
 1. Build the dependency graph from root manifest + all workspace members
 2. For each unresolved dependency, try the **highest compatible version** first
 3. Attempt to **unify** with an already-activated version if semver-compatible (single version per semver-major where possible)
-4. If a conflict is found, **backtrack** and try the next candidate
-5. Apply **overrides** before resolution (forced versions bypass normal solving)
-6. **Auto-install** missing non-optional peer dependencies
+4. If two packages require semver-**incompatible** ranges of the same dependency (e.g. `^1.0` and `^2.0`), **both major versions coexist** in the graph (Cargo model)
+5. If a conflict is found within the same major, **backtrack** and try the next candidate
+6. Apply **overrides** before resolution (forced versions bypass normal solving)
 7. Exclude **yanked** versions unless pinned in the lockfile
 8. On success, generate `aipm.lock` with exact versions, integrity hashes, and tree structure
 
+**Version coexistence (Cargo model, no peer dependencies)**: AIPM does not have peer dependencies. Instead, the resolver uses aggressive version unification: within the same semver-major, all consumers get one version. Across semver-major boundaries, multiple versions coexist in the graph. This eliminates the npm "peer dependency hell" problem entirely. Since AI plugins are markdown/JSON/config (not compiled code with type systems), coexisting major versions means both sets of files are available — consumers explicitly declare which major version they depend on.
+
 **AI component type awareness**: The resolver understands that a skill can depend on an MCP server, which can depend on another skill. Component types are metadata — they don't affect resolution semantics, only validation (e.g., a hook package must contain valid hook JSON).
+
+### 5.3.1 Lockfile Behavior (Cargo Model)
+
+AIPM follows Cargo's enterprise-grade lockfile model: the lockfile update command never re-resolves existing pins unless explicitly told to.
+
+| Command | Behavior |
+|---------|----------|
+| `aipm install` | If `aipm.lock` exists, uses locked versions. If manifest has changed (added/removed deps), does **minimal reconciliation**: resolves only new/changed entries, keeps all existing pins untouched. Never upgrades existing deps even if newer compatible versions exist. |
+| `aipm install --locked` | **CI mode**. Fails immediately if `aipm.lock` doesn't match `aipm.toml`. Zero tolerance for drift. Equivalent to `npm ci` / `cargo build --locked`. |
+| `aipm update [pkg]` | Explicitly pulls latest compatible versions. `aipm update skill-a` updates only `skill-a`. `aipm update` (no args) re-resolves everything to latest. This is the **only** command that upgrades locked versions. |
+
+This separation ensures: (1) `aipm install` in CI is fast and deterministic, (2) developers control exactly when version upgrades happen, (3) lockfile drift is impossible unless you explicitly run `aipm update`.
 
 ### 5.4 Content-Addressable Store
 
@@ -289,7 +313,7 @@ aipm install @company/code-review@^1.0
   ├─ 1. Resolve: find highest compatible version (1.2.0)
   │     └─ resolve transitive deps recursively
   │
-  ├─ 2. Fetch: download archives not in global store
+  ├─ 2. Fetch: download .aipm archives not in global store
   │     └─ verify SHA-512 integrity against registry index
   │
   ├─ 3. Store: extract files into global store by content hash
@@ -306,7 +330,67 @@ aipm install @company/code-review@^1.0
   └─ 7. Lock: update aipm.lock with exact versions + integrity hashes
 ```
 
-### 5.6 Lockfile Format (`aipm.lock`)
+### 5.6 Transfer Format (`.aipm` Archive)
+
+Packages are transferred between authors, the registry, and consumers as `.aipm` archives. This is the output of `aipm-pack pack` and the input consumed by the registry and `aipm install`.
+
+**Format**: gzip-compressed tar (`.tar.gz` internally, `.aipm` extension). Chosen over zip for streaming decompression and Unix metadata preservation. Same approach as npm (`.tgz`) and Cargo (`.crate` = `.tar.gz`).
+
+**Internal layout**:
+
+```
+package-name-1.0.0.aipm
+├── aipm.toml              # normalized manifest (workspace refs resolved, catalog refs expanded)
+├── checksum.sha512        # SHA-512 digest of the archive contents (excluding this file)
+├── skills/
+│   └── review/SKILL.md
+├── agents/
+│   └── reviewer.md
+├── hooks/
+│   └── pre-commit.json
+├── mcp/
+│   └── sqlite.json
+└── ...                    # only files matching [package.files] allowlist
+```
+
+**Key properties**:
+
+| Property | Detail |
+|----------|--------|
+| **File allowlist** | Only files declared in `[package].files` (or matching default conventions) are included. Secrets, `.git/`, build artifacts excluded by default. |
+| **Normalized manifest** | `workspace = "^"` refs replaced with real version ranges. `catalog:` refs expanded. The published `aipm.toml` is self-contained. |
+| **Max archive size** | Configurable registry limit (default: 10 MB). `aipm-pack pack --dry-run` reports size before upload. |
+| **Deterministic packing** | Files sorted alphabetically, timestamps zeroed, consistent compression level. Same source → same archive bytes → same checksum. |
+| **Integrity** | Registry computes and stores SHA-512 of the archive. Lockfile records this hash. `aipm install` verifies before extracting. |
+
+**Pack flow** (`aipm-pack pack`):
+
+```
+source directory
+  │
+  ├─ 1. Validate: aipm.toml is valid, required components exist
+  │
+  ├─ 2. Normalize: resolve workspace/catalog refs to concrete versions
+  │
+  ├─ 3. Filter: apply [package].files allowlist, exclude secrets/build artifacts
+  │
+  ├─ 4. Archive: tar + gzip with deterministic ordering and zeroed timestamps
+  │
+  ├─ 5. Checksum: compute SHA-512 of archive, embed in checksum.sha512
+  │
+  └─ 6. Output: package-name-1.0.0.aipm (ready for publish or manual distribution)
+```
+
+**Publish flow** (`aipm-pack publish`):
+
+1. Run the pack flow above
+2. Authenticate with registry (bearer token)
+3. Upload `.aipm` archive via `PUT /api/v1/packages/{name}/{version}`
+4. Registry verifies: name/version not already published, checksum matches, archive within size limit
+5. Registry extracts and indexes the normalized `aipm.toml` for dependency resolution
+6. Returns the published package URL
+
+### 5.7 Lockfile Format (`aipm.lock`)
 
 TOML format for consistency with the manifest. Captures:
 
@@ -329,9 +413,22 @@ source = "registry+https://registry.aipm.dev"
 checksum = "sha512-def456..."
 ```
 
-Design: locks exact versions AND integrity hashes (npm principle — [ref](../research/docs/2026-03-09-npm-core-principles.md)). `aipm install --locked` aborts if lockfile is out of date (mirrors `npm ci`).
+Design: locks exact versions AND integrity hashes (npm principle — [ref](../research/docs/2026-03-09-npm-core-principles.md)). See [5.3.1 Lockfile Behavior](#531-lockfile-behavior-cargo-model) for the Cargo-model install/update/locked semantics.
 
-### 5.7 Workspace Protocol and Catalogs
+### 5.8 Local Development Overrides (`aipm link`)
+
+`aipm link <path>` replaces a registry dependency's symlink with a symlink to a local directory. This enables rapid development iteration without publishing.
+
+**Key properties**:
+- Lives in the **consumer binary** (`aipm`, not `aipm-pack`) — it's a dev workflow tool
+- Does **not** modify the lockfile or manifest — the override is local and ephemeral
+- `aipm install --locked` removes all links and restores registry versions (CI-safe)
+- `aipm unlink <pkg>` restores the original registry symlink
+- `aipm list --linked` shows all active link overrides
+
+This eliminates the main argument for combining install and publish into one binary: you can develop against a local version of a dependency without needing any publish capability.
+
+### 5.9 Workspace Protocol and Catalogs
 
 **Workspace protocol** (pnpm-inspired — [ref](../research/docs/2026-03-09-pnpm-core-principles.md)):
 
@@ -358,20 +455,19 @@ common-skill = "catalog:"          # resolves to ^2.0.0 from root
 
 Named catalogs supported via `[catalogs.stable]` / `[catalogs.next]` sections.
 
-### 5.8 CLI Commands
+### 5.10 CLI Commands
+
+AIPM ships as two separate binaries. `aipm` is the read-only consumer binary — safe for any developer or CI system. `aipm-pack` is the author binary — needed only by plugin creators who pack and publish. This split follows the principle of least privilege: consumers never need publish capabilities, and the smaller `aipm` binary has a reduced attack surface.
+
+**`aipm` — Consumer binary (read-only operations)**
 
 | Command | Description | Priority |
 |---------|-------------|----------|
-| `aipm init [--type <type>]` | Initialize a new plugin package | P0 |
 | `aipm install [pkg[@version]]` | Install dependencies (all or specific) | P0 |
 | `aipm install --locked` | Deterministic install from lockfile | P0 |
 | `aipm update [pkg]` | Update lockfile (all or specific) | P0 |
 | `aipm uninstall <pkg>` | Remove a dependency | P0 |
-| `aipm publish [--dry-run]` | Publish to registry | P0 |
-| `aipm yank <pkg@version>` | Yank a published version | P0 |
 | `aipm validate` | Validate manifest and components | P0 |
-| `aipm login` / `aipm logout` | Registry authentication | P0 |
-| `aipm lint [--fix]` | Quality checks for AI components | P1 |
 | `aipm search <query>` | Search registry | P1 |
 | `aipm info <pkg>` | Display package details | P1 |
 | `aipm list [--outdated]` | List installed packages | P1 |
@@ -380,11 +476,26 @@ Named catalogs supported via `[catalogs.stable]` / `[catalogs.next]` sections.
 | `aipm patch-commit <dir>` | Commit a patch | P1 |
 | `aipm vendor <pkg>` | Copy registry package locally | P1 |
 | `aipm audit` | Security vulnerability check | P1 |
-| `aipm export --format <fmt>` | Export as Claude plugin / A2A agent card | P1 |
-| `aipm generate-mcp-config` | Generate .mcp.json for Agency servers | P1 |
+| `aipm link <path>` | Override a registry dep with a local directory for development | P0 |
+| `aipm unlink <pkg>` | Remove a local dev override, restore registry version | P0 |
 | `aipm build --filter <pattern>` | Filtered workspace commands | P1 |
 
-### 5.9 Agency Integration (P1)
+**`aipm-pack` — Author binary (create + publish operations)**
+
+| Command | Description | Priority |
+|---------|-------------|----------|
+| `aipm-pack init [--type <type>]` | Initialize a new plugin package | P0 |
+| `aipm-pack pack [--dry-run]` | Create `.aipm` archive from package source | P0 |
+| `aipm-pack publish [--dry-run]` | Pack and publish to registry | P0 |
+| `aipm-pack yank <pkg@version>` | Yank a published version | P0 |
+| `aipm-pack login` / `logout` | Registry authentication | P0 |
+| `aipm-pack lint [--fix]` | Quality checks for AI components | P2 |
+| `aipm-pack export --format <fmt>` | Export as Claude plugin / A2A agent card | P1 |
+| `aipm-pack generate-mcp-config` | Generate .mcp.json for Agency servers | P1 |
+
+**Shared library**: Both binaries link against a shared `libaipm` Rust crate containing the manifest parser, resolver, store, and lockfile logic. Only the CLI entry points and command routing differ.
+
+### 5.11 Agency Integration (P1)
 
 Agency is a Microsoft 1ES internal tool that wraps agent CLIs with Azure auth for MCP servers ([ref](../research/docs/2026-03-09-agency-and-ai-orchestration.md)).
 
@@ -395,15 +506,18 @@ AIPM's role:
 4. **Deduplicate** when multiple packages require the same Agency MCP server
 5. **Warn** when `dev` CLI or `az login` is not available
 
-### 5.10 Security Model
+### 5.12 Security Model
 
 | Layer | Mechanism | Inspiration |
 |-------|-----------|-------------|
+| **Binary separation** | `aipm` (consumer, read-only) and `aipm-pack` (author, publish) are separate binaries. Consumers never have publish capability. Reduces attack surface and prevents accidental/malicious publishes from CI systems that only need install. | Principle of least privilege |
 | Integrity verification | SHA-512 checksums in lockfile, verified on install | npm SRI hashes ([ref](../research/docs/2026-03-09-npm-core-principles.md)) |
+| Deterministic archives | `.aipm` archives are deterministic (sorted files, zeroed timestamps). Same source → same bytes → same hash. | Reproducible builds |
 | Lifecycle script blocking | Dependencies' scripts blocked by default; explicit allowlist | pnpm v10 ([ref](../research/docs/2026-03-09-pnpm-core-principles.md)) |
 | Immutable versions | Published versions can never be overwritten or deleted | Cargo ([ref](../research/docs/2026-03-09-cargo-core-principles.md)) |
+| File allowlist on pack | Only declared files included in `.aipm` archive. Secrets, `.git/`, build artifacts excluded by default. Pre-publish secrets detection. | npm `files` field |
 | Audit | `aipm audit` checks against advisory database | npm audit |
-| Auth | API tokens with restricted permissions, stored securely | npm token model |
+| Auth | API tokens with restricted permissions, stored in OS credential store. Only `aipm-pack` has login/publish commands. | npm token model |
 | Phantom dep prevention | Strict isolation; undeclared deps are inaccessible | pnpm |
 
 ## 6. Alternatives Considered
@@ -415,6 +529,10 @@ AIPM's role:
 | **Plugin discovery** | Symlink into `claude-plugins/` | Separate discovery path, config-based | Cannot control Claude Code's scanning behavior. Symlinks are the only approach that works without modifying Claude Code. |
 | **Registry install location** | `.aipm/` (gitignored) + symlinks | `node_modules/`-style flat dir, vendor-all | `.aipm/` is clean separation; symlinks bridge to Claude Code. Vendoring everything defeats the purpose of a package manager. |
 | **Lockfile format** | TOML (`aipm.lock`) | JSON, YAML | Consistency with manifest; TOML is human-readable for debugging without the YAML pitfalls. |
+| **Binary split** | Separate `aipm` (consumer) and `aipm-pack` (author) | Single binary with all commands | Least privilege: consumers don't need publish. Smaller install for CI. Prevents accidental publishes. Separate auth surface. Shared `libaipm` crate means no code duplication. |
+| **Transfer format** | `.aipm` (gzip tar, `.tar.gz` internally) | Zip, OCI image, bare directory upload | Gzip tar: streaming decompression, Unix metadata, same as npm `.tgz` / Cargo `.crate`. Zip: no streaming. OCI: over-engineered for text+markdown plugins. |
+| **Version coexistence** | Cargo model: unify within major, coexist across majors. No peer deps. | npm peer dependencies, single-version-per-package | Peer deps create "dependency hell" in npm. Cargo model is simpler, proven, eliminates a whole class of conflicts. AI plugins are config/markdown so coexisting majors are safe. |
+| **Lockfile behavior** | Cargo model: `install` never upgrades, `update` explicitly pulls latest, `--locked` fails on drift | npm model (install can resolve), Yarn (auto-dedup on install) | Enterprise-grade determinism. Developers control exactly when upgrades happen. CI is fast and predictable with `--locked`. |
 | **Implementation language** | Rust | Go, TypeScript, Python | Self-contained binary (P1 portability goal), no runtime deps on target machines, Cargo ecosystem for TOML/semver parsing. |
 | **Dependency resolution** | Backtracking solver (Cargo-inspired) | SAT solver (advanced), simple greedy | Backtracking is proven in Cargo; SAT is over-engineered for current scale; greedy can't handle real-world conflicts. |
 
@@ -463,7 +581,7 @@ AIPM's role:
 
 ### 8.3 Test Plan
 
-**BDD tests (cucumber-rs)**: 19 feature files, 205+ scenarios covering all P0 and P1 behavior. Test harness configured as:
+**BDD tests (cucumber-rs)**: 20 feature files, 230+ scenarios covering all P0, P1, and P2 behavior. Test harness configured as:
 
 ```toml
 [dev-dependencies]
@@ -483,8 +601,8 @@ Feature file structure:
 tests/
   features/
     manifest/          # init, validation, versioning (19 scenarios)
-    registry/          # install, publish, yank, search, security, local+registry (62 scenarios)
-    dependencies/      # resolution, lockfile, features, patching (37 scenarios)
+    registry/          # install, publish, yank, search, security, local+registry, link (72 scenarios)
+    dependencies/      # resolution, lockfile, features, patching (41 scenarios)
     agency/            # Agency MCP integration (13 scenarios)
     reuse/             # compositional reuse (9 scenarios)
     guardrails/        # quality linting (10 scenarios)
@@ -520,4 +638,4 @@ tests/
 
 ## Appendix B: Feature File Inventory
 
-19 files, 205+ scenarios. Full listing in [aipm-cucumber-feature-spec.md](../research/docs/2026-03-09-aipm-cucumber-feature-spec.md#feature-file-inventory).
+20 files, 230+ scenarios. Full listing in [aipm-cucumber-feature-spec.md](../research/docs/2026-03-09-aipm-cucumber-feature-spec.md#feature-file-inventory).

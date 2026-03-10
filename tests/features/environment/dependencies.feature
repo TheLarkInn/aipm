@@ -1,8 +1,14 @@
 @p1 @environment
 Feature: Environment dependency declarations
   As a plugin author,
-  I want to declare what environment my plugin requires,
+  I want to declare hard requirements for system tools, runtimes, and env vars,
   so that consumers know upfront if their system meets the requirements.
+
+  Environment dependencies are NOT optional dependencies. They are hard
+  requirements declaring what must exist on the system for the plugin to work.
+  This is a key enabler for cross-team adoption: teams using bash, python,
+  powershell, node, or any scripting language can all declare their needs,
+  allowing repos like SPO, LightRail, and odsp-web to share the same tool.
 
   Rule: Declare required environment capabilities
 

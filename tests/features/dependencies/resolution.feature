@@ -91,24 +91,30 @@ Feature: Dependency resolution
       When dependencies are resolved
       Then every occurrence of "broken-lib" is replaced with "fixed-lib"
 
-  Rule: Peer dependency handling (inspired by pnpm strictness)
+  Rule: Version coexistence (Cargo model — no peer dependencies)
 
-    Scenario: Missing peer dependencies are auto-installed
-      Given package "plugin-a" declares a peer dependency on "framework" at "^2.0"
-      And "framework" is not in the project's dependencies
-      When the user runs "aipm install plugin-a"
-      Then "framework" is automatically installed
-      And a notice is displayed: "auto-installed peer dependency: framework@2.x"
+    AIPM does not have peer dependencies. Instead, the resolver uses
+    aggressive version unification within the same semver-major. Across
+    semver-major boundaries, multiple versions coexist in the graph.
 
-    Scenario: Conflicting peer dependencies produce a warning
-      Given "plugin-a" declares peer dependency "framework" at "^2.0"
-      And "plugin-b" declares peer dependency "framework" at "^3.0"
-      When both are installed
-      Then a warning is displayed about the conflicting peer requirements
+    Scenario: Same-major dependencies are unified to one version
+      Given "plugin-a" depends on "common-util" at "^2.0"
+      And "plugin-b" depends on "common-util" at "^2.5"
+      And the registry contains "common-util" at versions "2.0.0", "2.5.0", "2.8.0"
+      When dependencies are resolved
+      Then "common-util" appears exactly once at version "2.8.0"
+      And both "plugin-a" and "plugin-b" use the same version
 
-    Scenario: Strict peer mode fails on missing peers
-      Given the setting "strict_peer_dependencies" is enabled
-      And package "plugin-a" declares a peer dependency on "framework" at "^2.0"
-      And "framework" is not in the project's dependencies
-      When the user runs "aipm install plugin-a"
-      Then the command fails with "missing required peer dependency: framework"
+    Scenario: Cross-major dependencies coexist in the graph
+      Given "plugin-a" depends on "framework" at "^1.0"
+      And "plugin-b" depends on "framework" at "^2.0"
+      When dependencies are resolved
+      Then both "framework" 1.x and "framework" 2.x are in the resolution
+      And "plugin-a" links to "framework" 1.x
+      And "plugin-b" links to "framework" 2.x
+
+    Scenario: Coexisting major versions are stored independently
+      Given the resolution contains "framework" at "1.5.0" and "2.1.0"
+      When packages are installed
+      Then both versions exist in the content-addressable store
+      And each consumer's symlink tree contains only their declared major version

@@ -9,7 +9,7 @@ tags: [research, bdd, cucumber-rs, feature-files, package-manager, aipm]
 status: complete
 last_updated: 2026-03-09
 last_updated_by: Claude Opus 4.6
-last_updated_note: "Added local+registry plugin coexistence architecture: symlink-into-plugins-dir, gitignore management, vendoring, non-workspace mode"
+last_updated_note: "Cargo-model lockfile/resolution, version coexistence (no peer deps), link command, env deps strengthened, lint/quality moved to P2"
 ---
 
 # Research: BDD Feature Specification for AIPM
@@ -20,7 +20,7 @@ Design a comprehensive set of cucumber-rs feature files describing the behavior 
 
 ## Summary
 
-19 cucumber-rs `.feature` files were created across 7 domain areas, covering 205+ scenarios that describe the expected behavior of AIPM. The features are organized by priority (P0/P1) and domain concept, drawing from NPM, Cargo, and **pnpm** design principles while adapting them for AI-native plugin management.
+20 cucumber-rs `.feature` files were created across 7 domain areas, covering 230+ scenarios that describe the expected behavior of AIPM. The features are organized by priority (P0/P1) and domain concept, drawing from NPM, Cargo, and **pnpm** design principles while adapting them for AI-native plugin management.
 
 **Agency** (Microsoft 1ES/StartRight internal tool) has been moved from P0 to P1 per user direction. Agency wraps agent CLIs (Claude Code, Copilot) and provides automatic Azure authentication for internal MCP servers (ADO, Bluebird, WorkIQ, ES-Chat, Kusto, etc.).
 
@@ -33,13 +33,14 @@ Design a comprehensive set of cucumber-rs feature files describing the behavior 
 | `tests/features/manifest/init.feature` | 6 | Package initialization, scaffolding, naming conventions |
 | `tests/features/manifest/validation.feature` | 8 | Manifest validation, component path verification |
 | `tests/features/manifest/versioning.feature` | 5 | Semver enforcement, version ranges, pre-release handling |
-| `tests/features/registry/publish.feature` | 8 | Publishing, immutability, scoped packages, file allowlists |
+| `tests/features/registry/publish.feature` | 18 | Pack format (.aipm archive), deterministic packing, publishing, immutability, scoped packages, file allowlists, binary separation |
+| `tests/features/registry/link.feature` | 10 | Local dev overrides via aipm link, unlink, list --linked, CI-safe restore |
 | `tests/features/registry/install.feature` | 22 | Installation, locked installs, integrity, content-addressable store, strict isolation, side-effects cache |
 | `tests/features/registry/local-and-registry.feature` | 20 | Local + registry coexistence, symlinks, gitignore, vendoring, non-workspace mode |
 | `tests/features/registry/yank.feature` | 5 | Yanking, un-yanking, deprecation |
 | `tests/features/registry/security.feature` | 7 | Integrity checksums, audit, authentication |
-| `tests/features/dependencies/resolution.feature` | 14 | Dependency resolution, unification, conflicts, overrides, peer deps |
-| `tests/features/dependencies/lockfile.feature` | 7 | Lockfile creation, determinism, targeted updates |
+| `tests/features/dependencies/resolution.feature` | 13 | Dependency resolution, unification, conflicts, overrides, version coexistence (Cargo model, no peer deps) |
+| `tests/features/dependencies/lockfile.feature` | 12 | Lockfile creation, determinism, Cargo-model minimal reconciliation, CI-mode --locked, explicit update |
 
 ### P1 — Extended Capabilities
 
@@ -129,6 +130,11 @@ repo/
 - **Built-in patching**: Native `aipm patch` command for modifying dependencies without forking
 - **Dependency overrides**: Path-scoped overrides (`"skill-a>common-util" = "=2.1.0"`) for surgical version control
 - **Auto-install peers**: Missing peer dependencies installed automatically with clear conflict warnings
+
+### Security-First Design
+- **Binary separation**: `aipm` (consumer, read-only) and `aipm-pack` (author, pack/publish/lint) are separate binaries. Consumers never need publish capability.
+- **Transfer format**: `.aipm` archive (gzip-compressed tar). Deterministic packing (sorted files, zeroed timestamps). Max size enforced. Secrets excluded by default.
+- **Normalized manifests**: Workspace and catalog references replaced with concrete versions on pack. Published manifests are self-contained.
 
 ### AI-Native Extensions (Beyond NPM/Cargo)
 - **Component type system**: Skills, Agents, MCP servers, Hooks as first-class types
