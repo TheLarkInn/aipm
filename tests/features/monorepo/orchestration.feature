@@ -21,7 +21,7 @@ Feature: Monorepo orchestrator integration
       When the user runs "aipm install" from the workspace root
       Then dependencies for all local plugins are resolved together
       And a single lockfile is created at the workspace root
-      And registry-installed plugins are symlinked into "claude-plugins/"
+      And registry-installed plugins are linked into "claude-plugins/"
 
     Scenario: Workspace members share a single lockfile
       Given a workspace with members "plugin-a" and "plugin-b"

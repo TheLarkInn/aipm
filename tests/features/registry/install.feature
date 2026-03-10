@@ -13,7 +13,7 @@ Feature: Package installation
     Then the package "code-review" is added to the manifest dependencies
     And the package files are stored in the global content-addressable store
     And a working copy is hard-linked into ".aipm/links/code-review"
-    And a symlink is created in the plugins directory for Claude Code discovery
+    And a directory link is created in the plugins directory for Claude Code discovery
     And the lockfile is updated with the exact resolved version
 
   Scenario: Install a specific version
@@ -145,3 +145,26 @@ Feature: Package installation
       When the user installs "native-tool"
       Then the postinstall script runs
       And the results are cached
+
+  Rule: Cross-platform directory linking (symlinks on macOS/Linux, junctions on Windows)
+
+    Scenario: Install creates a symlink on macOS/Linux
+      Given the current platform is "macos" or "linux"
+      When the user runs "aipm install code-review"
+      Then the plugins directory entry "code-review" is a symbolic link
+      And the symlink target is ".aipm/links/code-review"
+
+    Scenario: Install creates a directory junction on Windows
+      Given the current platform is "windows"
+      When the user runs "aipm install code-review"
+      Then the plugins directory entry "code-review" is a directory junction
+      And the junction target is the absolute path to ".aipm/links/code-review"
+      And no Administrator elevation or Developer Mode is required
+
+    Scenario: Install succeeds on Windows without Developer Mode
+      Given the current platform is "windows"
+      And Developer Mode is not enabled
+      And the user is not running as Administrator
+      When the user runs "aipm install code-review"
+      Then the installation succeeds
+      And the plugins directory entry uses a directory junction

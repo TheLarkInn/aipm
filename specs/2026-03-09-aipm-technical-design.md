@@ -289,7 +289,7 @@ flowchart TB
 | **Content store** | Global content-addressable file storage | Rust (filesystem, SHA-512) | Hard links for zero-copy installs |
 | **Registry client** | HTTP client for registry API | Rust (reqwest) | Publish, fetch, search, auth |
 | **Lockfile manager** | Deterministic lockfile read/write | Rust (custom TOML serializer) | Must capture full tree structure + integrity hashes |
-| **Symlink manager** | Create/remove plugin symlinks + gitignore management | Rust (std::os) | Bridges registry installs to Claude Code discovery |
+| **Link manager** | Create/remove plugin directory links + gitignore management | Rust (std::os + junction crate) | Symlinks on macOS/Linux, junctions on Windows (no elevation). Bridges registry installs to Claude Code discovery. |
 | **Quality linter** | Validate skills, agents, hooks against standards | Rust | P2 — deferred. Basic structural validation at publish time only. |
 | **BDD test harness** | cucumber-rs feature tests | Rust (cucumber crate v0.22) | Test-first development; 205+ scenarios written |
 
@@ -422,8 +422,8 @@ This separation ensures: (1) `aipm install` in CI is fast and deterministic, (2)
 Inspired by pnpm ([ref](../research/docs/2026-03-09-pnpm-core-principles.md)):
 
 - **Global store**: `~/.aipm/store/` (configurable). Files indexed by SHA-512 hash with 2-char prefix directories for filesystem performance.
-- **Project working set**: `.aipm/links/` in each repo. Contains assembled package directories with files **hard-linked** from the global store.
-- **Symlinks into plugins dir**: `claude-plugins/<package-name>` symlinks to `.aipm/links/<package-name>`.
+- **Project working set**: `.aipm/links/` in each repo. Contains assembled package directories with files **hard-linked** from the global store. Hard links require no elevation on any platform (same volume).
+- **Directory links into plugins dir**: `claude-plugins/<package-name>` links to `.aipm/links/<package-name>`. Uses symlinks on macOS/Linux, directory junctions on Windows (no elevation required — see [5.5.1](#551-windows-linking-strategy)).
 - **Deduplication**: Identical files across versions/packages stored exactly once. New version changing 1 of 100 files stores only 1 new file.
 
 ### 5.5 Install Flow
@@ -443,13 +443,51 @@ aipm install @company/code-review@^1.0
   ├─ 4. Link: assemble .aipm/links/@company/code-review/
   │     └─ hard-link each file from global store
   │
-  ├─ 5. Symlink: create claude-plugins/@company/code-review → .aipm/links/...
+  ├─ 5. Link into plugins dir: create claude-plugins/@company/code-review → .aipm/links/...
+  │     ├─ macOS/Linux: symlink
+  │     ├─ Windows: directory junction (no elevation required)
   │     └─ add @company/code-review to claude-plugins/.gitignore
   │
   ├─ 6. Manifest: add to [dependencies] in aipm.toml
   │
   └─ 7. Lock: update aipm.lock with exact versions + integrity hashes
 ```
+
+### 5.5.1 Windows Linking Strategy
+
+Windows symlinks require Developer Mode or Administrator elevation — neither can be assumed in enterprise environments (domain GPO can block Developer Mode entirely, WSUS blocks the Developer Mode package by default). AIPM follows the proven approach used by pnpm and rustup:
+
+**Strategy: junctions on Windows, symlinks on macOS/Linux.**
+
+| Link Type | Used For | Platform | Elevation Required |
+|-----------|----------|----------|-------------------|
+| **Directory junction** | `claude-plugins/foo → .aipm/links/foo` | Windows | **No** |
+| **Symlink** | `claude-plugins/foo → .aipm/links/foo` | macOS, Linux | No |
+| **Hard link** | Individual files: `.aipm/links/foo/SKILL.md → ~/.aipm/store/ab/cd12...` | All | No (same volume) |
+
+**Why junctions work for AIPM**: Directory junctions have two limitations vs. symlinks — they require absolute paths and don't work across network volumes. Neither matters for AIPM: plugin links are always local (`claude-plugins/` → `.aipm/links/` within the same repo on the same volume) and AIPM controls the path resolution internally.
+
+**Implementation** (Rust):
+
+```
+fn link_plugin_dir(source: &Path, target: &Path) -> Result<()> {
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(source, target)?;
+
+    #[cfg(windows)]
+    junction::create(source, target)?;  // junction crate — no elevation needed
+
+    Ok(())
+}
+```
+
+**Precedent**:
+- **pnpm**: Uses junctions on Windows for all `node_modules` directory links. The `symlink` config setting is explicitly ignored on Windows.
+- **npm**: Uses `fs.symlink(from, to, 'junction')` on Windows — junctions, not true symlinks.
+- **rustup**: Attempts symlinks first, falls back to junctions on `ERROR_PRIVILEGE_NOT_HELD` (code 1314).
+- **Git for Windows**: Disables symlinks by default (`core.symlinks=false`), creates file copies instead.
+
+**Developer setup required**: **None.** Junctions work out of the box on all NTFS volumes with no special permissions, no Developer Mode, no Group Policy changes.
 
 ### 5.6 Transfer Format (`.aipm` Archive)
 
@@ -647,7 +685,7 @@ AIPM's role:
 |----------|----------|----------------|-----------|
 | **Manifest format** | TOML (`aipm.toml`) | JSON, JSONC, YAML | TOML: comments, human-editable, AI-safe generation, PEP 518 validated. JSON: no comments. YAML: Norway problem (`3.10`→`3.1`), security CVEs. JSONC: fragmented specs, no C# parser. ([ref](../research/docs/2026-03-09-manifest-format-comparison.md)) |
 | **Store model** | Content-addressable global + local hard links | Copy-on-install (npm), virtual fs (Yarn PnP) | pnpm model proven: 70-80% disk savings, 4x faster clean install. Yarn PnP breaks too many tools. |
-| **Plugin discovery** | Symlink into `claude-plugins/` | Separate discovery path, config-based | Cannot control Claude Code's scanning behavior. Symlinks are the only approach that works without modifying Claude Code. |
+| **Plugin discovery** | Directory links into `claude-plugins/` (symlinks on macOS/Linux, junctions on Windows) | Separate discovery path, config-based, true symlinks everywhere | Cannot control Claude Code's scanning behavior. Directory links are the only approach that works without modifying Claude Code. Junctions on Windows require no elevation — proven by pnpm and npm. |
 | **Registry install location** | `.aipm/` (gitignored) + symlinks | `node_modules/`-style flat dir, vendor-all | `.aipm/` is clean separation; symlinks bridge to Claude Code. Vendoring everything defeats the purpose of a package manager. |
 | **Lockfile format** | TOML (`aipm.lock`) | JSON, YAML | Consistency with manifest; TOML is human-readable for debugging without the YAML pitfalls. |
 | **Binary split** | Separate `aipm` (consumer) and `aipm-pack` (author) | Single binary with all commands | Least privilege: consumers don't need publish. Smaller install for CI. Prevents accidental publishes. Separate auth surface. Shared `libaipm` crate means no code duplication. |
@@ -741,7 +779,7 @@ tests/
 - [ ] **MCP server runtime dependencies**: Should aipm manage npm/Python deps that MCP servers need, or only declare them in `[environment]`?
 - [ ] **Claude Code marketplace interop**: Should aipm packages be publishable as Claude Code marketplace plugins? What format translation is needed?
 - [ ] **Agency `dev` CLI**: Only warn when missing, or provide a fallback mechanism?
-- [ ] **Windows symlink permissions**: Windows requires developer mode or elevated permissions for symlinks. Fallback to directory junctions? Copy as last resort?
+- [x] ~~**Windows symlink permissions**~~: **RESOLVED** — Use directory junctions on Windows (no elevation required), true symlinks on macOS/Linux. Follows pnpm and rustup's proven approach. See [5.5.1 Windows Linking Strategy](#551-windows-linking-strategy).
 - [ ] **Schema publication**: When and where to publish the `aipm.toml` JSON Schema for SchemaStore/Taplo IDE integration?
 - [ ] **Side-effects cache scope**: Cache lifecycle results globally (shared across repos) or per-project?
 

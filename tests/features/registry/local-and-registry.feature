@@ -7,12 +7,17 @@ Feature: Local and registry plugin coexistence
 
   Repos today have local plugin directories (e.g. claude-plugins/) that
   Claude Code discovers automatically. AIPM must integrate with this
-  existing pattern: registry-installed plugins get symlinked into the
+  existing pattern: registry-installed plugins get linked into the
   same directory so Claude Code finds them without any special config.
+  Links are symlinks on macOS/Linux, directory junctions on Windows.
 
-  Rule: Registry-installed plugins are symlinked into the plugins directory
+  Rule: Registry-installed plugins are linked into the plugins directory
 
-    Scenario: Installing a registry plugin creates a symlink in the plugins directory
+    Registry plugins appear in the plugins directory via directory links:
+    symlinks on macOS/Linux, directory junctions on Windows. Junctions
+    require no elevation, no Developer Mode, no Group Policy changes.
+
+    Scenario: Installing a registry plugin creates a directory link in the plugins directory
       Given a workspace root with manifest:
         """toml
         [workspace]
@@ -22,32 +27,32 @@ Feature: Local and registry plugin coexistence
       When the user runs "aipm install @company/code-review"
       Then the package is downloaded to the global content-addressable store
       And a working copy is assembled in ".aipm/links/@company/code-review"
-      And a symlink is created at "claude-plugins/@company/code-review"
-      And the symlink target is ".aipm/links/@company/code-review"
+      And a directory link is created at "claude-plugins/@company/code-review"
+      And the link target is ".aipm/links/@company/code-review"
 
-    Scenario: Symlinked plugins are gitignored automatically
+    Scenario: Linked plugins are gitignored automatically
       Given a workspace with plugins_dir "claude-plugins"
       When the user runs "aipm install code-review-skill"
       Then the entry "code-review-skill" is added to "claude-plugins/.gitignore"
-      And the symlink "claude-plugins/code-review-skill" is not tracked by git
+      And the directory link "claude-plugins/code-review-skill" is not tracked by git
 
-    Scenario: Local plugins remain git-tracked alongside symlinked installs
+    Scenario: Local plugins remain git-tracked alongside linked installs
       Given a workspace with plugins_dir "claude-plugins"
       And a local plugin at "claude-plugins/my-local-tool" checked into git
       When the user runs "aipm install @company/code-review"
       Then "claude-plugins/my-local-tool" remains a real directory tracked by git
-      And "claude-plugins/@company/code-review" is a symlink not tracked by git
+      And "claude-plugins/@company/code-review" is a directory link not tracked by git
 
-    Scenario: Uninstalling removes the symlink and gitignore entry
-      Given "code-review-skill" is installed with a symlink in "claude-plugins/"
+    Scenario: Uninstalling removes the directory link and gitignore entry
+      Given "code-review-skill" is installed with a directory link in "claude-plugins/"
       When the user runs "aipm uninstall code-review-skill"
-      Then the symlink "claude-plugins/code-review-skill" is removed
+      Then the directory link "claude-plugins/code-review-skill" is removed
       And the entry is removed from "claude-plugins/.gitignore"
       And the dependency is removed from the root manifest
 
-    Scenario: Claude Code discovers both local and symlinked plugins
+    Scenario: Claude Code discovers both local and linked plugins
       Given a local plugin at "claude-plugins/my-local-tool"
-      And a symlinked registry plugin at "claude-plugins/code-review-skill"
+      And a linked registry plugin at "claude-plugins/code-review-skill"
       When Claude Code scans the "claude-plugins" directory
       Then both "my-local-tool" and "code-review-skill" are discovered
       And both have their skills, agents, and hooks loaded
@@ -108,12 +113,12 @@ Feature: Local and registry plugin coexistence
         """
       When the user runs "aipm install"
       Then "code-review-skill" is installed to the default plugins directory
-      And a symlink is created for Claude Code discovery
+      And a directory link is created for Claude Code discovery
 
     Scenario: Default plugins directory when no workspace is configured
       Given a project without a [workspace] section
       When the user runs "aipm install code-review-skill"
-      Then the symlink is created at "claude-plugins/code-review-skill"
+      Then the directory link is created at "claude-plugins/code-review-skill"
       And "claude-plugins/.gitignore" is created or updated
 
     Scenario: Custom plugins directory in non-workspace mode
@@ -124,7 +129,7 @@ Feature: Local and registry plugin coexistence
         plugins_dir = ".claude/plugins"
         """
       When the user runs "aipm install code-review-skill"
-      Then the symlink is created at ".claude/plugins/code-review-skill"
+      Then the directory link is created at ".claude/plugins/code-review-skill"
 
   Rule: Vendored (forked) plugins from registry
 
@@ -142,7 +147,7 @@ Feature: Local and registry plugin coexistence
         registry = "default"
         version = "1.0.0"
         """
-      And the directory is a real directory tracked by git (not a symlink)
+      And the directory is a real directory tracked by git (not a link)
 
     Scenario: Vendored plugin becomes a workspace member
       Given a vendored plugin at "claude-plugins/code-review-skill"
