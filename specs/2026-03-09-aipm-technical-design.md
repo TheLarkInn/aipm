@@ -157,7 +157,128 @@ flowchart TB
 | Convention-over-configuration | Standard directory layout, default `claude-plugins/` path | Cargo |
 | Immutable archive | Published versions are permanent; yank but never delete | Cargo + npm post-left-pad ([ref](../research/docs/2026-03-09-npm-core-principles.md)) |
 
-### 4.3 Key Components
+### 4.3 Compositional Reuse — Real-Life Example
+
+Consider three teams at different levels of the org all working with Claude Code plugins:
+
+**Published packages on the registry:**
+
+| Package | Type | Contents | Author |
+|---------|------|----------|--------|
+| `@odsp/ado-pr-skill` | skill | SKILL.md for creating/reviewing ADO pull requests | Platform team |
+| `@odsp/kusto-mcp` | mcp | MCP server definition for querying Kusto clusters | Platform team |
+| `@odsp/security-hooks` | hook | Pre-push hooks: secret scanning, branch protection checks | Security team |
+| `@odsp/ci-agent` | agent | Agent definition that orchestrates CI validation steps | Platform team |
+
+**Team A (odsp-web)** — has a local plugin for their repo-specific workflows, plus pulls shared packages:
+
+```
+odsp-web/
+  aipm.toml                              # workspace root
+  claude-plugins/
+    onedrive-deploy/                     # LOCAL plugin (git tracked, team-specific)
+      aipm.toml
+        # [package]
+        # name = "onedrive-deploy"
+        # type = "composite"
+        #
+        # [dependencies]
+        # "@odsp/ado-pr-skill" = "^1.0"     ← reuses the shared PR skill
+        # "@odsp/kusto-mcp" = "^2.0"        ← reuses shared Kusto MCP config
+        # "@odsp/security-hooks" = "^1.0"   ← reuses shared security hooks
+        #
+        # [components]
+        # skills = ["skills/deploy/SKILL.md"]  ← their own deploy skill
+        # agents = ["agents/release.md"]       ← their own release agent
+      skills/
+        deploy/SKILL.md                  # team-specific deployment skill
+      agents/
+        release.md                       # team-specific release agent
+    @odsp/
+      ado-pr-skill/                      # SYMLINK → .aipm/links/... (gitignored)
+      kusto-mcp/                         # SYMLINK → .aipm/links/... (gitignored)
+      security-hooks/                    # SYMLINK → .aipm/links/... (gitignored)
+```
+
+**Team B (SPO)** — different repo, different local plugin, same shared packages:
+
+```
+spo/
+  aipm.toml
+  claude-plugins/
+    spo-diagnostics/                     # LOCAL (their own)
+      aipm.toml
+        # [dependencies]
+        # "@odsp/kusto-mcp" = "^2.0"        ← same Kusto MCP as Team A
+        # "@odsp/ci-agent" = "^1.0"         ← shared CI agent
+      skills/
+        diagnose/SKILL.md               # SPO-specific diagnostic skill
+    @odsp/
+      kusto-mcp/                         # SYMLINK (same package, resolved once globally)
+      ci-agent/                          # SYMLINK
+```
+
+**What's happening here:**
+
+```mermaid
+%%{init: {'theme':'base', 'themeVariables': { 'primaryColor':'#f8f9fa','primaryTextColor':'#2c3e50','primaryBorderColor':'#4a5568','lineColor':'#4a90e2','secondaryColor':'#ffffff','tertiaryColor':'#e9ecef'}}}%%
+
+flowchart TB
+    classDef registry fill:#ed8936,stroke:#dd6b20,stroke-width:2px,color:#ffffff,font-weight:600
+    classDef local fill:#4a90e2,stroke:#357abd,stroke-width:2px,color:#ffffff,font-weight:600
+    classDef shared fill:#48bb78,stroke:#38a169,stroke-width:2px,color:#ffffff,font-weight:600
+    classDef team fill:#5a67d8,stroke:#4c51bf,stroke-width:2px,color:#ffffff,font-weight:600
+
+    subgraph Registry["AIPM Registry"]
+        PRSkill["@odsp/ado-pr-skill<br><i>skill</i>"]:::registry
+        KustoMCP["@odsp/kusto-mcp<br><i>mcp</i>"]:::registry
+        SecHooks["@odsp/security-hooks<br><i>hook</i>"]:::registry
+        CIAgent["@odsp/ci-agent<br><i>agent</i>"]:::registry
+    end
+
+    subgraph TeamA["odsp-web repo"]
+        direction TB
+        DeployPlugin["onedrive-deploy<br><i>local composite plugin</i>"]:::local
+        DeploySkill["skills/deploy/SKILL.md<br><i>team-specific</i>"]:::team
+        ReleaseAgent["agents/release.md<br><i>team-specific</i>"]:::team
+    end
+
+    subgraph TeamB["spo repo"]
+        direction TB
+        DiagPlugin["spo-diagnostics<br><i>local composite plugin</i>"]:::local
+        DiagSkill["skills/diagnose/SKILL.md<br><i>team-specific</i>"]:::team
+    end
+
+    DeployPlugin -->|"depends on"| PRSkill
+    DeployPlugin -->|"depends on"| KustoMCP
+    DeployPlugin -->|"depends on"| SecHooks
+    DeployPlugin --- DeploySkill
+    DeployPlugin --- ReleaseAgent
+
+    DiagPlugin -->|"depends on"| KustoMCP
+    DiagPlugin -->|"depends on"| CIAgent
+    DiagPlugin --- DiagSkill
+
+    style Registry fill:#fff8f0,stroke:#ed8936,stroke-width:2px
+    style TeamA fill:#f0f4ff,stroke:#4a90e2,stroke-width:2px
+    style TeamB fill:#f0f4ff,stroke:#4a90e2,stroke-width:2px
+```
+
+**Key reuse patterns illustrated:**
+
+1. **Skill reuse**: `@odsp/ado-pr-skill` is authored once by the platform team. Team A's `onedrive-deploy` plugin depends on it — Claude Code sees both the team-specific deploy skill AND the shared PR skill.
+
+2. **MCP server sharing**: `@odsp/kusto-mcp` is used by both Team A and Team B. The content-addressable store means the files exist once on disk. Each repo gets a symlink.
+
+3. **Hook composition**: `@odsp/security-hooks` provides pre-push hooks. Team A pulls them in as a dependency — the hooks activate alongside any team-specific hooks.
+
+4. **Agent reuse**: `@odsp/ci-agent` is a shared CI orchestration agent. Team B uses it directly; Team A has their own release agent instead.
+
+5. **Local + registry composition**: Each team has their own local plugin (git-tracked, team-specific) that _depends on_ shared registry packages. The local plugin adds team-specific skills/agents while inheriting shared components.
+
+6. **Cross-type dependencies**: A composite plugin can depend on a skill, an MCP server, a hook set, and an agent — all as first-class typed dependencies resolved together.
+
+### 4.4 Key Components
 
 | Component | Responsibility | Technology | Justification |
 |-----------|---------------|------------|---------------|
