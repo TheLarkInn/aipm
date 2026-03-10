@@ -9,20 +9,19 @@ tags: [research, bdd, cucumber-rs, feature-files, package-manager, aipm]
 status: complete
 last_updated: 2026-03-09
 last_updated_by: Claude Opus 4.6
-last_updated_note: "All open questions resolved. Agency removed (out of scope). Registry=API. No marketplace interop. Schema→SchemaStore. Side-effects cache=global. Windows=junctions."
+last_updated_note: "All open questions resolved. Anonymized for open source. Registry=API. No marketplace interop. Schema→SchemaStore. Side-effects cache=global. Windows=junctions."
 ---
 
 # Research: BDD Feature Specification for AIPM
 
 ## Research Question
 
-Design a comprehensive set of cucumber-rs feature files describing the behavior of an AI-native package manager (AIPM). Feature files should cover NPM/Cargo core principles mapped to 7 priority challenges: core package manager, compositional reuse, AI quality guardrails, monorepo orchestration, Agency integration, cross-stack portability, and environment dependencies.
+Design a comprehensive set of cucumber-rs feature files describing the behavior of an AI-native package manager (AIPM). Feature files should cover NPM/Cargo core principles mapped to priority challenges: core package manager, compositional reuse, AI quality guardrails, monorepo orchestration, cross-stack portability, and environment dependencies.
 
 ## Summary
 
 19 cucumber-rs `.feature` files were created across 7 domain areas, covering 220+ scenarios that describe the expected behavior of AIPM. The features are organized by priority (P0/P1) and domain concept, drawing from NPM, Cargo, and **pnpm** design principles while adapting them for AI-native plugin management.
 
-**Agency** (Microsoft 1ES/StartRight internal tool) has been moved from P0 to P1 per user direction. Agency wraps agent CLIs (Claude Code, Copilot) and provides automatic Azure authentication for internal MCP servers (ADO, Bluebird, WorkIQ, ES-Chat, Kusto, etc.).
 
 ## Feature File Inventory
 
@@ -54,7 +53,6 @@ Design a comprehensive set of cucumber-rs feature files describing the behavior 
 | `tests/features/portability/cross-stack.feature` | 10 | .NET/Python/Rust/Node compatibility, self-contained CLI, offline installs |
 | `tests/features/environment/dependencies.feature` | 10 | System tool requirements, env vars, platform constraints, doctor command |
 | `tests/features/registry/search.feature` | 5 | Package discovery, search by type, outdated checks |
-| ~~`tests/features/agency/integration.feature`~~ | ~~13~~ | ~~Removed — Agency out of scope~~ |
 
 ## Architecture Decision: Local + Registry Plugin Coexistence
 
@@ -144,14 +142,12 @@ repo/
 - **Multi-format export**: Claude plugin, A2A agent cards
 - **`aipm doctor`**: Cross-package environment requirement checker
 - **Technology-stack agnosticism**: No runtime requirement (self-contained Rust binary)
-- **Agency integration**: Generate `.mcp.json` configs for Microsoft 1ES Agency-wrapped MCP servers (ADO, Bluebird, WorkIQ, ES-Chat, Kusto), with auth delegation and deduplication
 
 ## Mapping Challenges to Feature Files
 
 | Priority | Challenge | Feature Files |
 |----------|-----------|---------------|
 | P0 | Package manager + registry model | `manifest/*`, `registry/*`, `dependencies/*` |
-| ~~P1~~ | ~~Agency integration~~ | ~~Removed — out of scope~~ |
 | P1 | Compositional reuse | `reuse/compositional-reuse.feature` |
 | P1 | AI quality guardrails | `guardrails/quality.feature` |
 | P1 | Monorepo orchestrator integration | `monorepo/orchestration.feature` |
@@ -164,13 +160,10 @@ repo/
 - `research/docs/2026-03-09-cargo-core-principles.md` — Cargo design decisions and architectural principles
 - `research/docs/2026-03-09-cucumber-rs-conventions.md` — cucumber-rs Gherkin syntax and project setup
 - `research/docs/2026-03-09-pnpm-core-principles.md` — pnpm design decisions: store, isolation, catalogs, filtering, patching
-- `research/docs/2026-03-09-agency-and-ai-orchestration.md` — Agency (Microsoft 1ES), MCP, Agent Skills, A2A protocol
 
 ## Open Questions
 
-1. ~~**What is "Agency"?**~~ **RESOLVED**: Agency is a Microsoft 1ES/StartRight internal tool that wraps agent CLIs and provides automatic Azure auth for internal MCP servers. Moved to P1.
 2. **Registry backend**: Self-hosted vs. existing infrastructure (crates.io-style index, or API-based like npm)?
 3. **MCP server packaging**: Should aipm manage MCP server runtime dependencies (npm packages, Python packages) or only reference them?
 4. **Plugin marketplace integration**: Should aipm interop with Claude Code's marketplace format, or define its own?
 5. **Feature file step implementation order**: Recommend implementing P0 manifest/registry steps first, then dependency resolution, then P1 features.
-6. **Agency `dev` CLI availability**: Should aipm bundle or install the `dev` CLI, or only warn when it's missing?

@@ -19,7 +19,7 @@ AIPM is an AI-native package manager — like npm/Cargo but for AI plugin buildi
 
 There is no package manager for AI plugin primitives. Today:
 
-- Claude Code plugins are directories of markdown, JSON, and scripts checked into repos ([ref: agency-and-ai-orchestration.md](../research/docs/2026-03-09-agency-and-ai-orchestration.md))
+- Claude Code plugins are directories of markdown, JSON, and scripts checked into repos
 - Plugin components (skills, agents, hooks, MCP server configs) are copied between repos manually
 - No versioning, no dependency resolution, no registry for discovery
 - Repos maintain local plugin "marketplaces" (e.g. `claude-plugins/` directories in ADO repos) with no tooling for composition or reuse
@@ -33,7 +33,6 @@ There is no package manager for AI plugin primitives. Today:
 | **P1** | No compositional reuse of plugin internals | Hooks, skills, MCP definitions are copy/pasted across plugins |
 | **P1** | AI agents (Claude/Copilot) produce low-quality plugins by default | No validation, linting, or scaffolding guardrails |
 | **P1** | No monorepo orchestrator integration | Plugin installs/validation don't fit into Rush, Turborepo, BuildXL, MSBuild workflows |
-| ~~P1~~ | ~~Agency integration~~ | ~~Removed — out of scope~~ |
 | **P1** | Cross-tech-stack portability | Plugins must work in .NET/C# monorepos where Node/TS isn't the default |
 | **P1** | No environment dependency declarations | Plugins can't declare they need `git`, `docker`, or specific env vars |
 
@@ -60,8 +59,7 @@ There is no package manager for AI plugin primitives. Today:
 - [ ] Built-in dependency patching (`aipm patch`)
 - [ ] Dependency overrides with path-scoped selectors
 - [ ] Optional features system (additive unification)
-- [ ] Environment dependency declarations: **hard requirements** for system tools (git, docker, node, python, bash, powershell), env vars, and platform constraints. Key enabler for cross-team adoption — allows SPO, LightRail, and teams using any scripting language to declare what their plugins need.
-- [ ] ~~Agency integration~~ → removed (out of scope)
+- [ ] Environment dependency declarations: **hard requirements** for system tools (git, docker, node, python, bash, powershell), env vars, and platform constraints. Key enabler for cross-team adoption — allows teams using any scripting language to declare what their plugins need.
 - [ ] Monorepo orchestrator integration (Rush, Turborepo, BuildXL, MSBuild)
 - [ ] Cross-platform self-contained binary (linux-x64, linux-arm64, macos-x64, macos-arm64, windows-x64)
 
@@ -71,7 +69,6 @@ There is no package manager for AI plugin primitives. Today:
 - [ ] We will NOT implement a custom transport protocol (HTTPS + JSON API for registry)
 - [ ] We will NOT manage MCP server runtime dependencies (npm packages, Python packages) — only reference them
 - [ ] We will NOT fork or modify Claude Code's plugin discovery mechanism — we match it via symlinks
-- [ ] We will NOT implement Agency integration — entirely out of scope for AIPM
 - [ ] We will NOT implement lint, quality scores, or machine-readable error guidance in this phase (P2). Basic structural validation happens at publish time; richer quality tooling is deferred.
 - [ ] We will NOT support PDF export, GUI, or IDE extensions in this phase
 
@@ -161,27 +158,27 @@ Consider three teams at different levels of the org all working with Claude Code
 
 | Package | Type | Contents | Author |
 |---------|------|----------|--------|
-| `@odsp/ado-pr-skill` | skill | SKILL.md for creating/reviewing ADO pull requests | Platform team |
-| `@odsp/kusto-mcp` | mcp | MCP server definition for querying Kusto clusters | Platform team |
-| `@odsp/security-hooks` | hook | Pre-push hooks: secret scanning, branch protection checks | Security team |
-| `@odsp/ci-agent` | agent | Agent definition that orchestrates CI validation steps | Platform team |
+| `@acme/pr-review-skill` | skill | SKILL.md for creating/reviewing pull requests | Platform team |
+| `@acme/db-query-mcp` | mcp | MCP server definition for querying analytics databases | Platform team |
+| `@acme/security-hooks` | hook | Pre-push hooks: secret scanning, branch protection checks | Security team |
+| `@acme/ci-agent` | agent | Agent definition that orchestrates CI validation steps | Platform team |
 
-**Team A (odsp-web)** — has a local plugin for their repo-specific workflows, plus pulls shared packages:
+**Team A (web-app)** — has a local plugin for their repo-specific workflows, plus pulls shared packages:
 
 ```
-odsp-web/
+web-app/
   aipm.toml                              # workspace root
   claude-plugins/
-    onedrive-deploy/                     # LOCAL plugin (git tracked, team-specific)
+    deploy-tools/                        # LOCAL plugin (git tracked, team-specific)
       aipm.toml
         # [package]
-        # name = "onedrive-deploy"
+        # name = "deploy-tools"
         # type = "composite"
         #
         # [dependencies]
-        # "@odsp/ado-pr-skill" = "^1.0"     ← reuses the shared PR skill
-        # "@odsp/kusto-mcp" = "^2.0"        ← reuses shared Kusto MCP config
-        # "@odsp/security-hooks" = "^1.0"   ← reuses shared security hooks
+        # "@acme/pr-review-skill" = "^1.0"   ← reuses the shared PR skill
+        # "@acme/db-query-mcp" = "^2.0"      ← reuses shared DB query MCP config
+        # "@acme/security-hooks" = "^1.0"    ← reuses shared security hooks
         #
         # [components]
         # skills = ["skills/deploy/SKILL.md"]  ← their own deploy skill
@@ -190,28 +187,28 @@ odsp-web/
         deploy/SKILL.md                  # team-specific deployment skill
       agents/
         release.md                       # team-specific release agent
-    @odsp/
-      ado-pr-skill/                      # SYMLINK → .aipm/links/... (gitignored)
-      kusto-mcp/                         # SYMLINK → .aipm/links/... (gitignored)
-      security-hooks/                    # SYMLINK → .aipm/links/... (gitignored)
+    @acme/
+      pr-review-skill/                   # LINK → .aipm/links/... (gitignored)
+      db-query-mcp/                      # LINK → .aipm/links/... (gitignored)
+      security-hooks/                    # LINK → .aipm/links/... (gitignored)
 ```
 
-**Team B (SPO)** — different repo, different local plugin, same shared packages:
+**Team B (backend-api)** — different repo, different local plugin, same shared packages:
 
 ```
-spo/
+backend-api/
   aipm.toml
   claude-plugins/
-    spo-diagnostics/                     # LOCAL (their own)
+    api-diagnostics/                     # LOCAL (their own)
       aipm.toml
         # [dependencies]
-        # "@odsp/kusto-mcp" = "^2.0"        ← same Kusto MCP as Team A
-        # "@odsp/ci-agent" = "^1.0"         ← shared CI agent
+        # "@acme/db-query-mcp" = "^2.0"      ← same DB query MCP as Team A
+        # "@acme/ci-agent" = "^1.0"          ← shared CI agent
       skills/
-        diagnose/SKILL.md               # SPO-specific diagnostic skill
-    @odsp/
-      kusto-mcp/                         # SYMLINK (same package, resolved once globally)
-      ci-agent/                          # SYMLINK
+        diagnose/SKILL.md               # team-specific diagnostic skill
+    @acme/
+      db-query-mcp/                      # LINK (same package, resolved once globally)
+      ci-agent/                          # LINK
 ```
 
 **What's happening here:**
@@ -226,32 +223,32 @@ flowchart TB
     classDef team fill:#5a67d8,stroke:#4c51bf,stroke-width:2px,color:#ffffff,font-weight:600
 
     subgraph Registry["AIPM Registry"]
-        PRSkill["@odsp/ado-pr-skill<br><i>skill</i>"]:::registry
-        KustoMCP["@odsp/kusto-mcp<br><i>mcp</i>"]:::registry
-        SecHooks["@odsp/security-hooks<br><i>hook</i>"]:::registry
-        CIAgent["@odsp/ci-agent<br><i>agent</i>"]:::registry
+        PRSkill["@acme/pr-review-skill<br><i>skill</i>"]:::registry
+        DBMCP["@acme/db-query-mcp<br><i>mcp</i>"]:::registry
+        SecHooks["@acme/security-hooks<br><i>hook</i>"]:::registry
+        CIAgent["@acme/ci-agent<br><i>agent</i>"]:::registry
     end
 
-    subgraph TeamA["odsp-web repo"]
+    subgraph TeamA["web-app repo"]
         direction TB
-        DeployPlugin["onedrive-deploy<br><i>local composite plugin</i>"]:::local
+        DeployPlugin["deploy-tools<br><i>local composite plugin</i>"]:::local
         DeploySkill["skills/deploy/SKILL.md<br><i>team-specific</i>"]:::team
         ReleaseAgent["agents/release.md<br><i>team-specific</i>"]:::team
     end
 
-    subgraph TeamB["spo repo"]
+    subgraph TeamB["backend-api repo"]
         direction TB
-        DiagPlugin["spo-diagnostics<br><i>local composite plugin</i>"]:::local
+        DiagPlugin["api-diagnostics<br><i>local composite plugin</i>"]:::local
         DiagSkill["skills/diagnose/SKILL.md<br><i>team-specific</i>"]:::team
     end
 
     DeployPlugin -->|"depends on"| PRSkill
-    DeployPlugin -->|"depends on"| KustoMCP
+    DeployPlugin -->|"depends on"| DBMCP
     DeployPlugin -->|"depends on"| SecHooks
     DeployPlugin --- DeploySkill
     DeployPlugin --- ReleaseAgent
 
-    DiagPlugin -->|"depends on"| KustoMCP
+    DiagPlugin -->|"depends on"| DBMCP
     DiagPlugin -->|"depends on"| CIAgent
     DiagPlugin --- DiagSkill
 
@@ -262,13 +259,13 @@ flowchart TB
 
 **Key reuse patterns illustrated:**
 
-1. **Skill reuse**: `@odsp/ado-pr-skill` is authored once by the platform team. Team A's `onedrive-deploy` plugin depends on it — Claude Code sees both the team-specific deploy skill AND the shared PR skill.
+1. **Skill reuse**: `@acme/pr-review-skill` is authored once by the platform team. Team A's `deploy-tools` plugin depends on it — Claude Code sees both the team-specific deploy skill AND the shared PR skill.
 
-2. **MCP server sharing**: `@odsp/kusto-mcp` is used by both Team A and Team B. The content-addressable store means the files exist once on disk. Each repo gets a symlink.
+2. **MCP server sharing**: `@acme/db-query-mcp` is used by both Team A and Team B. The content-addressable store means the files exist once on disk. Each repo gets a directory link.
 
-3. **Hook composition**: `@odsp/security-hooks` provides pre-push hooks. Team A pulls them in as a dependency — the hooks activate alongside any team-specific hooks.
+3. **Hook composition**: `@acme/security-hooks` provides pre-push hooks. Team A pulls them in as a dependency — the hooks activate alongside any team-specific hooks.
 
-4. **Agent reuse**: `@odsp/ci-agent` is a shared CI orchestration agent. Team B uses it directly; Team A has their own release agent instead.
+4. **Agent reuse**: `@acme/ci-agent` is a shared CI orchestration agent. Team B uses it directly; Team A has their own release agent instead.
 
 5. **Local + registry composition**: Each team has their own local plugin (git-tracked, team-specific) that _depends on_ shared registry packages. The local plugin adds team-specific skills/agents while inheriting shared components.
 
@@ -326,7 +323,7 @@ aipm = ">=0.5.0"
 [package]
 name = "my-ci-tools"
 version = "0.1.0"
-description = "CI automation skills for ODSP"
+description = "CI automation skills for my team"
 type = "composite"                    # skill | agent | mcp | hook | composite
 
 [dependencies]
@@ -757,10 +754,9 @@ tests/
 
 All open questions have been resolved:
 
-- [x] ~~**Registry backend**~~: **RESOLVED** — API service. Each registry is a single base URL with scoped routing (`@org/*` → org registry). Standard bearer token auth per registry. Supports multiple registries (org-private, Microsoft-wide, public mirror with CG scanning).
+- [x] ~~**Registry backend**~~: **RESOLVED** — API service. Each registry is a single base URL with scoped routing (`@org/*` → org registry). Standard bearer token auth per registry. Supports multiple registries (org-private, company-wide, public mirror with compliance scanning).
 - [x] ~~**MCP server runtime dependencies**~~: **RESOLVED** — Declare only. `[environment]` declares requirements (e.g. `node >= 18`), `aipm doctor` warns if missing. AIPM does not manage other package managers' dependency trees.
 - [x] ~~**Claude Code marketplace interop**~~: **RESOLVED** — No interop. AIPM and Claude Code marketplace are separate ecosystems. Revisit if/when Claude Code opens a marketplace API. `aipm-pack export` command removed.
-- [x] ~~**Agency integration**~~: **RESOLVED** — Out of scope entirely. Removed from spec, manifest format, CLI commands, and feature files.
 - [x] ~~**Windows symlink permissions**~~: **RESOLVED** — Use directory junctions on Windows (no elevation required), true symlinks on macOS/Linux. Follows pnpm and rustup's proven approach. See [5.5.1 Windows Linking Strategy](#551-windows-linking-strategy).
 - [x] ~~**Schema publication**~~: **RESOLVED** — Submit JSON Schema to SchemaStore.org as part of first public release. Editors (Taplo, VS Code) pick it up automatically.
 - [x] ~~**Side-effects cache scope**~~: **RESOLVED** — Global. Cached in `~/.aipm/store/` alongside the content-addressable store (pnpm model). One cache shared across all projects.
@@ -772,7 +768,6 @@ All open questions have been resolved:
 | [npm-core-principles.md](../research/docs/2026-03-09-npm-core-principles.md) | Registry model, lockfile design, publish flow, security, workspaces |
 | [cargo-core-principles.md](../research/docs/2026-03-09-cargo-core-principles.md) | TOML manifest, features system, resolution algorithm, yanking, immutability |
 | [pnpm-core-principles.md](../research/docs/2026-03-09-pnpm-core-principles.md) | Content-addressable store, strict isolation, catalogs, filtering, patching |
-| [agency-and-ai-orchestration.md](../research/docs/2026-03-09-agency-and-ai-orchestration.md) | Agency CLI, MCP server config, auth delegation, Agent Skills spec |
 | [cucumber-rs-conventions.md](../research/docs/2026-03-09-cucumber-rs-conventions.md) | Test harness setup, Gherkin syntax, project structure |
 | [manifest-format-comparison.md](../research/docs/2026-03-09-manifest-format-comparison.md) | TOML vs JSON vs YAML: PEP 518 rationale, LLM accuracy data, parser availability |
 | [aipm-cucumber-feature-spec.md](../research/docs/2026-03-09-aipm-cucumber-feature-spec.md) | Synthesis: feature inventory, architecture decisions, design principles |

@@ -8,7 +8,7 @@ Feature: Environment dependency declarations
   requirements declaring what must exist on the system for the plugin to work.
   This is a key enabler for cross-team adoption: teams using bash, python,
   powershell, node, or any scripting language can all declare their needs,
-  allowing repos like SPO, LightRail, and odsp-web to share the same tool.
+  allowing teams across any tech stack to share the same tool.
 
   Rule: Declare required environment capabilities
 

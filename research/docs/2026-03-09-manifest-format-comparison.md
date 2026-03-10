@@ -19,7 +19,7 @@ Is TOML the best file format for AIPM's manifest? What are the arguments for JSO
 
 ## Summary
 
-TOML is well-validated for `aipm.toml` but the decision is not clear-cut. The data shows format choice depends on the audience (humans vs machines vs AI agents) and the integration surface. AIPM's unique challenge is that its **entire target ecosystem (Claude Code, MCP, Agency) uses JSON** while its **implementation language (Rust) natively favors TOML**.
+TOML is well-validated for `aipm.toml` but the decision is not clear-cut. The data shows format choice depends on the audience (humans vs machines vs AI agents) and the integration surface. AIPM's unique challenge is that its **entire target ecosystem (Claude Code, MCP, adjacent tools) uses JSON** while its **implementation language (Rust) natively favors TOML**.
 
 ---
 
@@ -43,7 +43,7 @@ TOML is well-validated for `aipm.toml` but the decision is not clear-cut. The da
 |---|---|---|
 | Claude Code plugins | JSON (plugin.json) | Strict JSON, no comments |
 | MCP servers | JSON (.mcp.json) | Machine-friendly |
-| Agency | JSON (.mcp.json) | Claude Code compat |
+| adjacent tools | JSON (.mcp.json) | Claude Code compat |
 | Claude Code hooks | JSON (hooks.json) | Machine-friendly |
 | Agent Skills | YAML frontmatter + markdown | Human-readable |
 | Claude Code agents | YAML frontmatter + markdown | Human-readable |
@@ -100,7 +100,7 @@ Cargo chose TOML at inception. Per PEP 518: "The Rust community... have been qui
 | Zero learning curve | No trailing commas |
 | JSON Schema is mature & widely adopted | Verbose (closing braces, quoted keys) |
 | Best IDE support (SchemaStore) | Poor multiline strings |
-| What Claude Code/MCP/Agency already use | Not human-friendly for editing |
+| What Claude Code/MCP/adjacent tools already use | Not human-friendly for editing |
 
 ### JSONC (JSON with Comments)
 
@@ -176,7 +176,7 @@ YAML wins for reading in 2/3 models. TOML was not tested.
 
 ### The Case for JSON
 
-1. **Ecosystem alignment**: Every tool AIPM integrates with (Claude Code, MCP, Agency) uses JSON
+1. **Ecosystem alignment**: Every tool AIPM integrates with (Claude Code, MCP, adjacent tools) uses JSON
 2. **Universal parsing**: Stdlib in every language; zero dependencies for consumers
 3. **JSON Schema**: Mature validation, IDE autocomplete, SchemaStore integration
 4. **AI familiarity**: LLMs have the most training data on JSON structures
@@ -229,7 +229,6 @@ YAML wins for reading in 2/3 models. TOML was not tested.
 - `research/docs/2026-03-09-npm-core-principles.md` — npm uses JSON (package.json)
 - `research/docs/2026-03-09-cargo-core-principles.md` — Cargo uses TOML (Cargo.toml)
 - `research/docs/2026-03-09-pnpm-core-principles.md` — pnpm uses YAML + JSON
-- `research/docs/2026-03-09-agency-and-ai-orchestration.md` — Agency/MCP/Claude Code all use JSON
 
 ## Sources
 
