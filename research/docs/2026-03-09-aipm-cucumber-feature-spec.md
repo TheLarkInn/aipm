@@ -9,7 +9,7 @@ tags: [research, bdd, cucumber-rs, feature-files, package-manager, aipm]
 status: complete
 last_updated: 2026-03-09
 last_updated_by: Claude Opus 4.6
-last_updated_note: "Cargo-model lockfile/resolution, version coexistence (no peer deps), link command, env deps strengthened, lint/quality moved to P2"
+last_updated_note: "All open questions resolved. Agency removed (out of scope). Registry=API. No marketplace interop. Schema→SchemaStore. Side-effects cache=global. Windows=junctions."
 ---
 
 # Research: BDD Feature Specification for AIPM
@@ -20,7 +20,7 @@ Design a comprehensive set of cucumber-rs feature files describing the behavior 
 
 ## Summary
 
-20 cucumber-rs `.feature` files were created across 7 domain areas, covering 230+ scenarios that describe the expected behavior of AIPM. The features are organized by priority (P0/P1) and domain concept, drawing from NPM, Cargo, and **pnpm** design principles while adapting them for AI-native plugin management.
+19 cucumber-rs `.feature` files were created across 7 domain areas, covering 220+ scenarios that describe the expected behavior of AIPM. The features are organized by priority (P0/P1) and domain concept, drawing from NPM, Cargo, and **pnpm** design principles while adapting them for AI-native plugin management.
 
 **Agency** (Microsoft 1ES/StartRight internal tool) has been moved from P0 to P1 per user direction. Agency wraps agent CLIs (Claude Code, Copilot) and provides automatic Azure authentication for internal MCP servers (ADO, Bluebird, WorkIQ, ES-Chat, Kusto, etc.).
 
@@ -54,7 +54,7 @@ Design a comprehensive set of cucumber-rs feature files describing the behavior 
 | `tests/features/portability/cross-stack.feature` | 10 | .NET/Python/Rust/Node compatibility, self-contained CLI, offline installs |
 | `tests/features/environment/dependencies.feature` | 10 | System tool requirements, env vars, platform constraints, doctor command |
 | `tests/features/registry/search.feature` | 5 | Package discovery, search by type, outdated checks |
-| `tests/features/agency/integration.feature` | 13 | Agency MCP server declarations, .mcp.json generation, auth delegation, deduplication |
+| ~~`tests/features/agency/integration.feature`~~ | ~~13~~ | ~~Removed — Agency out of scope~~ |
 
 ## Architecture Decision: Local + Registry Plugin Coexistence
 
@@ -151,7 +151,7 @@ repo/
 | Priority | Challenge | Feature Files |
 |----------|-----------|---------------|
 | P0 | Package manager + registry model | `manifest/*`, `registry/*`, `dependencies/*` |
-| P1 | Agency integration (moved from P0) | `agency/integration.feature` |
+| ~~P1~~ | ~~Agency integration~~ | ~~Removed — out of scope~~ |
 | P1 | Compositional reuse | `reuse/compositional-reuse.feature` |
 | P1 | AI quality guardrails | `guardrails/quality.feature` |
 | P1 | Monorepo orchestrator integration | `monorepo/orchestration.feature` |

@@ -11,7 +11,7 @@
 
 AIPM is an AI-native package manager — like npm/Cargo but for AI plugin building blocks (skills, agents, MCP servers, hooks). It ships as **two separate Rust binaries**: `aipm` (read-only consumer: install, validate, doctor) and `aipm-pack` (author tooling: pack, publish, yank). This separation follows the security principle of least privilege — consumers who only install plugins never need the publish binary, reducing attack surface. Both binaries work across .NET, Python, Node.js, and Rust monorepos without requiring any specific runtime. AIPM introduces a content-addressable global store (pnpm-inspired), strict dependency isolation, and a workspace model that coexists with existing local plugin directories (e.g. `claude-plugins/`). Registry-installed plugins are symlinked into the local plugins directory so Claude Code discovers them naturally. The manifest format is TOML (`aipm.toml`) with a custom schema — chosen for human-editability, comment support, and AI-generation safety (no indentation traps, no escaping issues). Packages are transferred as `.aipm` archives (gzip-compressed tar with a defined internal layout).
 
-**Test-first approach**: 20 cucumber-rs feature files with 230+ BDD scenarios have been written before any implementation. Implementation will proceed feature-by-feature, driven by these specifications.
+**Test-first approach**: 19 cucumber-rs feature files with 220+ BDD scenarios have been written before any implementation. Implementation will proceed feature-by-feature, driven by these specifications.
 
 ## 2. Context and Motivation
 
@@ -23,7 +23,6 @@ There is no package manager for AI plugin primitives. Today:
 - Plugin components (skills, agents, hooks, MCP server configs) are copied between repos manually
 - No versioning, no dependency resolution, no registry for discovery
 - Repos maintain local plugin "marketplaces" (e.g. `claude-plugins/` directories in ADO repos) with no tooling for composition or reuse
-- Agency (Microsoft 1ES) provides MCP server auth wrapping but no dependency management
 
 ### 2.2 The Problem
 
@@ -34,7 +33,7 @@ There is no package manager for AI plugin primitives. Today:
 | **P1** | No compositional reuse of plugin internals | Hooks, skills, MCP definitions are copy/pasted across plugins |
 | **P1** | AI agents (Claude/Copilot) produce low-quality plugins by default | No validation, linting, or scaffolding guardrails |
 | **P1** | No monorepo orchestrator integration | Plugin installs/validation don't fit into Rush, Turborepo, BuildXL, MSBuild workflows |
-| **P1** | Agency integration requirement | AI dependency management must work with Agency's MCP auth proxy |
+| ~~P1~~ | ~~Agency integration~~ | ~~Removed — out of scope~~ |
 | **P1** | Cross-tech-stack portability | Plugins must work in .NET/C# monorepos where Node/TS isn't the default |
 | **P1** | No environment dependency declarations | Plugins can't declare they need `git`, `docker`, or specific env vars |
 
@@ -62,7 +61,7 @@ There is no package manager for AI plugin primitives. Today:
 - [ ] Dependency overrides with path-scoped selectors
 - [ ] Optional features system (additive unification)
 - [ ] Environment dependency declarations: **hard requirements** for system tools (git, docker, node, python, bash, powershell), env vars, and platform constraints. Key enabler for cross-team adoption — allows SPO, LightRail, and teams using any scripting language to declare what their plugins need.
-- [ ] Agency integration: generate `.mcp.json` for Agency-wrapped MCP servers
+- [ ] ~~Agency integration~~ → removed (out of scope)
 - [ ] Monorepo orchestrator integration (Rush, Turborepo, BuildXL, MSBuild)
 - [ ] Cross-platform self-contained binary (linux-x64, linux-arm64, macos-x64, macos-arm64, windows-x64)
 
@@ -72,7 +71,7 @@ There is no package manager for AI plugin primitives. Today:
 - [ ] We will NOT implement a custom transport protocol (HTTPS + JSON API for registry)
 - [ ] We will NOT manage MCP server runtime dependencies (npm packages, Python packages) — only reference them
 - [ ] We will NOT fork or modify Claude Code's plugin discovery mechanism — we match it via symlinks
-- [ ] We will NOT bundle or install Agency's `dev` CLI — only warn when it's missing
+- [ ] We will NOT implement Agency integration — entirely out of scope for AIPM
 - [ ] We will NOT implement lint, quality scores, or machine-readable error guidance in this phase (P2). Basic structural validation happens at publish time; richer quality tooling is deferred.
 - [ ] We will NOT support PDF export, GUI, or IDE extensions in this phase
 
@@ -121,7 +120,6 @@ flowchart TB
     GlobalStore[("Global Store<br>~/.aipm/store<br><i>content-addressable</i>")]:::store
     Registry[("AIPM Registry<br><i>packages + index</i>")]:::registry
     ClaudeCode{{"Claude Code<br><i>discovers plugins</i>"}}:::external
-    Agency{{"Agency (1ES)<br><i>MCP auth proxy</i>"}}:::external
 
     Dev -->|"aipm install / validate / doctor"| AIPMCLI
     Dev -->|"aipm-pack init / publish / lint"| AIPMPack
@@ -138,8 +136,6 @@ flowchart TB
     SymlinkedPlugin -.->|"points to"| DotAipm
     DotAipm -.->|"hard-links to"| GlobalStore
     LocalPlugin -.->|"may declare deps on"| Registry
-    AIPMPack -.->|"generate .mcp.json for"| Agency
-
     style ProjectRepo fill:#ffffff,stroke:#cbd5e0,stroke-width:2px,stroke-dasharray:8 4
     style PluginsDir fill:#f7fafc,stroke:#a0aec0,stroke-width:1px
     style AIPMCLI fill:#f0f4ff,stroke:#5a67d8,stroke-width:2px
@@ -355,8 +351,6 @@ requires = ["docker"]
 [environment.variables]
 required = ["CI_TOKEN"]
 
-[agency.mcp_servers.ado]              # Agency integration (P1)
-organization = "onedrive"
 ```
 
 ### 5.2 Directory Layout
@@ -649,23 +643,10 @@ AIPM ships as two separate binaries. `aipm` is the read-only consumer binary —
 | `aipm-pack yank <pkg@version>` | Yank a published version | P0 |
 | `aipm-pack login` / `logout` | Registry authentication | P0 |
 | `aipm-pack lint [--fix]` | Quality checks for AI components | P2 |
-| `aipm-pack export --format <fmt>` | Export as Claude plugin / A2A agent card | P1 |
-| `aipm-pack generate-mcp-config` | Generate .mcp.json for Agency servers | P1 |
 
 **Shared library**: Both binaries link against a shared `libaipm` Rust crate containing the manifest parser, resolver, store, and lockfile logic. Only the CLI entry points and command routing differ.
 
-### 5.11 Agency Integration (P1)
-
-Agency is a Microsoft 1ES internal tool that wraps agent CLIs with Azure auth for MCP servers ([ref](../research/docs/2026-03-09-agency-and-ai-orchestration.md)).
-
-AIPM's role:
-1. **Declare** Agency MCP server requirements in `aipm.toml` under `[agency.mcp_servers.*]`
-2. **Generate** valid `.mcp.json` files with `"command": "dev", "args": ["agency", "mcp", "<server>", ...flags]`
-3. **Delegate** authentication entirely to Agency (never store Azure credentials)
-4. **Deduplicate** when multiple packages require the same Agency MCP server
-5. **Warn** when `dev` CLI or `az login` is not available
-
-### 5.12 Security Model
+### 5.11 Security Model
 
 | Layer | Mechanism | Inspiration |
 |-------|-----------|-------------|
@@ -728,7 +709,7 @@ AIPM's role:
 - [ ] **Phase 1**: Core CLI (init, validate, install from local, lockfile) — no registry needed
 - [ ] **Phase 2**: Registry (publish, install from registry, yank, search) — requires registry service
 - [ ] **Phase 3**: Workspace features (workspace protocol, catalogs, filtering) — builds on Phase 2
-- [ ] **Phase 4**: P1 features (Agency, guardrails, patching, portability) — incremental additions
+- [ ] **Phase 4**: P1 features (patching, portability, environment deps) — incremental additions
 
 ### 8.2 Adoption Path
 
@@ -740,7 +721,7 @@ AIPM's role:
 
 ### 8.3 Test Plan
 
-**BDD tests (cucumber-rs)**: 20 feature files, 230+ scenarios covering all P0, P1, and P2 behavior. Test harness configured as:
+**BDD tests (cucumber-rs)**: 19 feature files, 220+ scenarios covering all P0, P1, and P2 behavior. Test harness configured as:
 
 ```toml
 [dev-dependencies]
@@ -762,7 +743,6 @@ tests/
     manifest/          # init, validation, versioning (19 scenarios)
     registry/          # install, publish, yank, search, security, local+registry, link (72 scenarios)
     dependencies/      # resolution, lockfile, features, patching (41 scenarios)
-    agency/            # Agency MCP integration (13 scenarios)
     reuse/             # compositional reuse (9 scenarios)
     guardrails/        # quality linting (10 scenarios)
     monorepo/          # workspaces, orchestrators, filtering (28 scenarios)
@@ -775,13 +755,15 @@ tests/
 
 ## 9. Open Questions / Unresolved Issues
 
-- [ ] **Registry backend**: Self-hosted API service? Crates.io-style git index? Azure DevOps Artifacts integration? Decision needed before Phase 2.
-- [ ] **MCP server runtime dependencies**: Should aipm manage npm/Python deps that MCP servers need, or only declare them in `[environment]`?
-- [ ] **Claude Code marketplace interop**: Should aipm packages be publishable as Claude Code marketplace plugins? What format translation is needed?
-- [ ] **Agency `dev` CLI**: Only warn when missing, or provide a fallback mechanism?
+All open questions have been resolved:
+
+- [x] ~~**Registry backend**~~: **RESOLVED** — API service. Each registry is a single base URL with scoped routing (`@org/*` → org registry). Standard bearer token auth per registry. Supports multiple registries (org-private, Microsoft-wide, public mirror with CG scanning).
+- [x] ~~**MCP server runtime dependencies**~~: **RESOLVED** — Declare only. `[environment]` declares requirements (e.g. `node >= 18`), `aipm doctor` warns if missing. AIPM does not manage other package managers' dependency trees.
+- [x] ~~**Claude Code marketplace interop**~~: **RESOLVED** — No interop. AIPM and Claude Code marketplace are separate ecosystems. Revisit if/when Claude Code opens a marketplace API. `aipm-pack export` command removed.
+- [x] ~~**Agency integration**~~: **RESOLVED** — Out of scope entirely. Removed from spec, manifest format, CLI commands, and feature files.
 - [x] ~~**Windows symlink permissions**~~: **RESOLVED** — Use directory junctions on Windows (no elevation required), true symlinks on macOS/Linux. Follows pnpm and rustup's proven approach. See [5.5.1 Windows Linking Strategy](#551-windows-linking-strategy).
-- [ ] **Schema publication**: When and where to publish the `aipm.toml` JSON Schema for SchemaStore/Taplo IDE integration?
-- [ ] **Side-effects cache scope**: Cache lifecycle results globally (shared across repos) or per-project?
+- [x] ~~**Schema publication**~~: **RESOLVED** — Submit JSON Schema to SchemaStore.org as part of first public release. Editors (Taplo, VS Code) pick it up automatically.
+- [x] ~~**Side-effects cache scope**~~: **RESOLVED** — Global. Cached in `~/.aipm/store/` alongside the content-addressable store (pnpm model). One cache shared across all projects.
 
 ## Appendix A: Research References
 
@@ -797,4 +779,4 @@ tests/
 
 ## Appendix B: Feature File Inventory
 
-20 files, 230+ scenarios. Full listing in [aipm-cucumber-feature-spec.md](../research/docs/2026-03-09-aipm-cucumber-feature-spec.md#feature-file-inventory).
+19 files, 220+ scenarios. Full listing in [aipm-cucumber-feature-spec.md](../research/docs/2026-03-09-aipm-cucumber-feature-spec.md#feature-file-inventory).
