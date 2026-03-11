@@ -17,12 +17,38 @@ AIPM is an AI-native package manager — like npm/Cargo but for AI plugin buildi
 
 ### 2.1 Current State
 
-There is no package manager for AI plugin primitives. Today:
+There is no production-grade package manager for AI plugin primitives. Today:
 
 - Claude Code plugins are directories of markdown, JSON, and scripts checked into repos
 - Plugin components (skills, agents, hooks, MCP server configs) are copied between repos manually
 - No versioning, no dependency resolution, no registry for discovery
-- Repos maintain local plugin "marketplaces" (e.g. `claude-plugins/` directories in ADO repos) with no tooling for composition or reuse
+- Repos maintain local plugin "marketplaces" (e.g. `claude-plugins/` directories) with no tooling for composition or reuse
+- The only existing tool ([microsoft/apm](https://github.com/microsoft/apm)) is a Python prototype with no registry, no semver resolution, no integrity verification, and no storage deduplication (see [2.1.1](#211-prior-art-microsoftapm-agent-package-manager))
+
+### 2.1.1 Prior Art: microsoft/apm (Agent Package Manager)
+
+[microsoft/apm](https://github.com/microsoft/apm) is an open-source Python CLI (`apm-cli` on PyPI, v0.7.7) that manages AI agent primitives (instructions, prompts, agents, skills, hooks, MCP servers). It uses `apm.yml` (YAML) as its manifest and git repositories as the package source. While it addresses the same problem space as AIPM, it has significant architectural shortcomings that AIPM is designed to solve:
+
+| Area | microsoft/apm Limitation | AIPM Design |
+|------|------------------------|-------------|
+| **Runtime dependency** | Requires Python 3.9+ and 13 pip dependencies (click, GitPython, pyyaml, requests, llm, rich, watchdog, etc.). Installation via `pip install apm-cli` or `curl \| sh`. | Self-contained Rust binary. Zero runtime dependencies. Drop into any repo regardless of tech stack. |
+| **Manifest format** | YAML (`apm.yml`). Subject to the Norway problem (`3.10` → `3.1`), active security CVEs in YAML parsers, and implicit type coercion. | TOML (`aipm.toml`). No implicit coercion, comment support, AI-generation safe. |
+| **Registry model** | No registry. Packages are git repositories. "Publishing" is `git push`. No publish/yank lifecycle, no immutability guarantees. Anyone with write access can force-push and silently change what a dependency resolves to. | Dedicated API registry with publish, yank, scoped packages, immutable versions. Supply chain integrity by design. |
+| **Version resolution** | No semver ranges. Pinning is by git ref (branch, tag, or commit SHA). No `^1.0` or `~2.0` ranges, no backtracking resolver, no version unification. Two packages depending on different versions of the same dep get two copies — no deduplication. | Full semver resolution with caret/tilde ranges, backtracking solver, version unification within major, cross-major coexistence (Cargo model). |
+| **Integrity verification** | Lockfile records commit SHAs but no file-level integrity hashes. No checksums on downloaded content. A compromised git host or force-push can serve different content for the same SHA. | SHA-512 checksums per file in the content-addressable store. Lockfile records integrity hashes. Install verifies before extracting. |
+| **Storage model** | Downloads full git repos into `apm_modules/` per project (like early npm's `node_modules/`). No deduplication across projects, no global cache. | Content-addressable global store with hard links (pnpm model). 70%+ disk savings. Files stored once, shared across all projects. |
+| **Dependency isolation** | No isolation. Everything in `apm_modules/` is accessible. No phantom dependency prevention. | Strict isolation — only declared dependencies are accessible. Undeclared transitive deps are hidden (pnpm model). |
+| **Security model** | No lifecycle script blocking. No audit command. Self-defined MCP servers from transitive deps are skipped by default (workaround for trust issues). Single binary has both install and publish capability. | Lifecycle scripts blocked by default (allowlist required). `aipm audit` against advisory databases. Separate consumer/author binaries (principle of least privilege). |
+| **Transfer format** | None. Packages are raw git repos or subdirectories within repos. No archive format, no deterministic packing, no file allowlist. Secrets in repos could be pulled. | `.aipm` archive (gzip tar). Deterministic packing, file allowlist, secrets excluded by default, max size enforced. |
+| **Offline support** | Requires network for every install (git clone/fetch). No offline mode. | `aipm install --offline` works from the global content-addressable cache. |
+| **Lockfile behavior** | `apm install` always uses lockfile if present, but `--update` re-resolves everything. No equivalent to `--locked` CI mode that fails on drift. | Cargo-model: `install` never upgrades, `update` explicitly pulls latest, `--locked` fails on any drift (enterprise-grade CI). |
+| **Windows support** | No mention of Windows symlink/junction handling. Python dependency adds complexity on Windows. | Directory junctions on Windows (no elevation needed). Self-contained binary, no Python required. |
+| **Workspace features** | No workspace protocol, no catalogs, no dependency inheritance, no filtering. | Workspace protocol (`workspace:^`), catalogs for shared versions, dependency inheritance, `--filter` for targeted commands. |
+| **Environment declarations** | Not supported. No way for a package to declare it needs `docker`, `node >= 18`, or specific env vars. | `[environment]` section declares hard requirements for system tools, runtimes, env vars. `aipm doctor` checks everything. |
+| **Local dev workflow** | No `link` command for overriding a dependency with a local directory during development. | `aipm link <path>` / `aipm unlink` for local dev overrides without publishing. |
+| **Compilation coupling** | Tightly coupled to a "compile" step that generates `AGENTS.md` / `CLAUDE.md`. Package format and discovery are inseparable from the compilation engine. | Decoupled. AIPM manages packages; Claude Code discovers them naturally via directory scanning. No compilation step required. |
+
+**Summary**: microsoft/apm is a useful v0.x prototype that validates the problem space, but it lacks the foundational infrastructure required for enterprise-grade dependency management: no registry, no semver resolution, no integrity verification, no storage deduplication, no dependency isolation, no transfer format, and a Python runtime dependency that limits cross-stack adoption.
 
 ### 2.2 The Problem
 
