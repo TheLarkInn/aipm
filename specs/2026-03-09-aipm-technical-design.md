@@ -355,9 +355,14 @@ deep-analysis = ["dep:heavy-analyzer"]
 
 [components]
 skills = ["skills/lint/SKILL.md", "skills/format/SKILL.md"]
+commands = ["commands/status.md"]           # legacy skill format
 agents = ["agents/ci-runner.md"]
 hooks = ["hooks/pre-push.json"]
 mcp_servers = ["mcp/sqlite.json"]
+lsp_servers = [".lsp.json"]                 # LSP server configs for code intelligence
+scripts = ["scripts/format-code.sh"]        # utility scripts for hooks
+output_styles = ["styles/custom.css"]       # output style overrides
+settings = ["settings.json"]               # default plugin settings
 
 [environment]
 requires = ["docker"]

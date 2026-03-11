@@ -171,9 +171,14 @@ fn validate_component_paths(
 ) {
     let all_paths = [
         components.skills.as_deref(),
+        components.commands.as_deref(),
         components.agents.as_deref(),
         components.hooks.as_deref(),
         components.mcp_servers.as_deref(),
+        components.lsp_servers.as_deref(),
+        components.scripts.as_deref(),
+        components.output_styles.as_deref(),
+        components.settings.as_deref(),
     ];
 
     for paths in all_paths.iter().flatten() {

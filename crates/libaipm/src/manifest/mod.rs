@@ -341,7 +341,7 @@ version = "1.0.0"
 
     #[test]
     fn all_plugin_types_valid() {
-        for pt in &["skill", "agent", "mcp", "hook", "composite"] {
+        for pt in &["skill", "agent", "mcp", "hook", "lsp", "composite"] {
             let toml = format!(
                 r#"
 [package]
@@ -404,6 +404,51 @@ version = "1.0.0-beta.1"
 [package]
 name = "my-plugin"
 version = "1.0.0+build.123"
+"#;
+        let result = parse_and_validate(toml, None);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn full_components_with_lsp_and_scripts() {
+        let toml = r#"
+[package]
+name = "enterprise-plugin"
+version = "1.0.0"
+type = "composite"
+
+[components]
+skills = ["skills/code-review/SKILL.md"]
+commands = ["commands/status.md"]
+agents = ["agents/reviewer.md"]
+hooks = ["hooks/hooks.json"]
+mcp_servers = [".mcp.json"]
+lsp_servers = [".lsp.json"]
+scripts = ["scripts/format-code.sh"]
+output_styles = ["styles/custom.css"]
+settings = ["settings.json"]
+"#;
+        let result = parse_and_validate(toml, None);
+        assert!(result.is_ok());
+        let m = result.ok();
+        assert!(m.is_some());
+        let components = m.and_then(|m| m.components);
+        assert!(components.is_some());
+        let c = components.as_ref();
+        assert!(c.is_some_and(|c| c.lsp_servers.is_some()));
+        assert!(c.is_some_and(|c| c.scripts.is_some()));
+        assert!(c.is_some_and(|c| c.commands.is_some()));
+        assert!(c.is_some_and(|c| c.output_styles.is_some()));
+        assert!(c.is_some_and(|c| c.settings.is_some()));
+    }
+
+    #[test]
+    fn lsp_plugin_type_valid() {
+        let toml = r#"
+[package]
+name = "rust-lsp"
+version = "0.1.0"
+type = "lsp"
 "#;
         let result = parse_and_validate(toml, None);
         assert!(result.is_ok());

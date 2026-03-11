@@ -109,19 +109,37 @@ pub struct DetailedDependency {
 }
 
 /// `[components]` section — declares plugin component files.
+///
+/// Mirrors the Claude Code plugin component model: skills, commands (legacy),
+/// agents, hooks, MCP servers, LSP servers, scripts, output styles, and settings.
 #[derive(Debug, Default, Deserialize)]
 pub struct Components {
-    /// Skill definition paths.
+    /// Skill definition paths (`skills/<name>/SKILL.md`).
     pub skills: Option<Vec<String>>,
 
-    /// Agent definition paths.
+    /// Command file paths (`commands/*.md`) — legacy skill format.
+    pub commands: Option<Vec<String>>,
+
+    /// Agent definition paths (`agents/*.md`).
     pub agents: Option<Vec<String>>,
 
-    /// Hook definition paths (JSON).
+    /// Hook configuration paths (`hooks/hooks.json`).
     pub hooks: Option<Vec<String>>,
 
-    /// MCP server config paths (JSON).
+    /// MCP server config paths (`.mcp.json`).
     pub mcp_servers: Option<Vec<String>>,
+
+    /// LSP server config paths (`.lsp.json`).
+    pub lsp_servers: Option<Vec<String>>,
+
+    /// Utility script paths (`scripts/`).
+    pub scripts: Option<Vec<String>>,
+
+    /// Output style paths.
+    pub output_styles: Option<Vec<String>>,
+
+    /// Settings file path (`settings.json`).
+    pub settings: Option<Vec<String>>,
 }
 
 /// `[environment]` section — system and runtime requirements.
@@ -185,17 +203,19 @@ pub struct Install {
     pub allowed_build_scripts: Option<Vec<String>>,
 }
 
-/// Valid plugin types.
+/// Valid plugin types — matches Claude Code's component model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PluginType {
-    /// A skill definition.
+    /// A skill definition (`skills/<name>/SKILL.md`).
     Skill,
-    /// An agent definition.
+    /// An agent definition (`agents/*.md`).
     Agent,
-    /// An MCP server.
+    /// An MCP server (`.mcp.json`).
     Mcp,
-    /// A hook definition.
+    /// A hook definition (`hooks/hooks.json`).
     Hook,
+    /// An LSP server (`.lsp.json`) for code intelligence.
+    Lsp,
     /// A composite package with multiple component types.
     Composite,
 }
@@ -209,9 +229,10 @@ impl std::str::FromStr for PluginType {
             "agent" => Ok(Self::Agent),
             "mcp" => Ok(Self::Mcp),
             "hook" => Ok(Self::Hook),
+            "lsp" => Ok(Self::Lsp),
             "composite" => Ok(Self::Composite),
             other => Err(format!(
-                "invalid plugin type: {other} — expected one of: skill, agent, mcp, hook, composite"
+                "invalid plugin type: {other} — expected one of: skill, agent, mcp, hook, lsp, composite"
             )),
         }
     }

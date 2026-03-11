@@ -45,9 +45,14 @@ Feature: Manifest validation
       """toml
       [components]
       skills = ["skills/code-review/SKILL.md", "skills/lint/SKILL.md"]
+      commands = ["commands/status.md"]
       agents = ["agents/reviewer.md"]
       hooks = ["hooks/pre-commit.json"]
       mcp_servers = ["mcp/sqlite.json"]
+      lsp_servers = [".lsp.json"]
+      scripts = ["scripts/format-code.sh"]
+      output_styles = ["styles/custom.css"]
+      settings = ["settings.json"]
       """
     When the user runs "aipm validate"
     Then the command succeeds
@@ -58,3 +63,8 @@ Feature: Manifest validation
     And the file "skills/nonexistent/SKILL.md" does not exist
     When the user runs "aipm validate"
     Then the command fails with "component not found: skills/nonexistent/SKILL.md"
+
+  Scenario: LSP server type is valid
+    Given the manifest has type "lsp"
+    When the user runs "aipm validate"
+    Then the command succeeds

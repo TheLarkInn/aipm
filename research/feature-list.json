@@ -44,11 +44,11 @@
     "steps": [
       "Define Rust structs in libaipm for manifest schema: Package, Workspace, Dependencies, Environment, Components, Features, Install, Overrides",
       "Implement deserialization from TOML using serde + toml crate",
-      "Support [package] fields: name, version, description, type (skill|agent|mcp|hook|composite)",
+      "Support [package] fields: name, version, description, type (skill|agent|mcp|hook|lsp|composite)",
       "Support [workspace] fields: members glob patterns, plugins_dir (default 'claude-plugins')",
       "Support [dependencies] with version strings ('^1.0'), workspace refs ({workspace = '^'}), optional deps ({version, optional = true})",
       "Support [workspace.dependencies] catalog section and [catalog]/[catalogs.*] named catalogs",
-      "Support [components] section: skills, agents, hooks, mcp_servers arrays",
+      "Support [components] section: skills, commands, agents, hooks, mcp_servers, lsp_servers, scripts, output_styles, settings arrays",
       "Support [environment] section: requires, aipm version, platforms, variables, runtime",
       "Support [overrides] section with path-scoped overrides",
       "Support [install] section: allowed_build_scripts allowlist",
