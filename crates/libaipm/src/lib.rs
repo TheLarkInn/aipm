@@ -4,6 +4,8 @@
 //! and the `aipm-pack` author binary: manifest parsing, dependency resolution,
 //! content-addressable store, lockfile management, and linking.
 
+pub mod manifest;
+
 /// Returns the library version.
 #[must_use]
 pub const fn version() -> &'static str {

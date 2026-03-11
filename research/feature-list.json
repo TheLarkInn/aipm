@@ -58,7 +58,7 @@
       "Wire into both aipm and aipm-pack binaries via libaipm",
       "Pass cucumber scenarios in tests/features/manifest/validation.feature"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

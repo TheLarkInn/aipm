@@ -4,7 +4,7 @@
 
 All lints are configured in `Cargo.toml` under `[workspace.lints]`. The key rules:
 
-1. **NEVER add `#[allow(...)]`, `#[expect(...)]`, or `#![allow(...)]` attributes.** The `allow_attributes` lint is set to `forbid` — the compiler will reject any attempt to suppress lints via attributes. There are zero exceptions.
+1. **NEVER add `#[allow(...)]`, `#[expect(...)]`, or `#![allow(...)]` attributes.** The `allow_attributes` lint is set to `deny` — the compiler will reject any hand-written lint suppression. Derive macros (serde, thiserror) are permitted to emit internal `#[allow]`.
 
 2. **NEVER use `.unwrap()`, `.expect()`, `panic!()`, `todo!()`, `unimplemented!()`, `unreachable!()`** — these are all `forbid`. Use proper error handling with `Result`/`Option` combinators, `?` operator, or `if let`/`match`.
 
