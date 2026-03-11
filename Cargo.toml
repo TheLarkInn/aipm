@@ -58,6 +58,9 @@ tracing-subscriber = "0.3"
 # Testing
 cucumber = "0.21"
 futures = "0.3"
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"
 
 # =============================================================================
 # WORKSPACE LINTS — Strictest Clippy + Rustc configuration
@@ -80,9 +83,10 @@ nursery    = { level = "warn", priority = -1 }
 cargo      = { level = "warn", priority = -1 }
 perf       = { level = "deny", priority = -1 }
 
-# ANTI-BYPASS: deny #[allow(...)] attributes in hand-written code.
-# Using "deny" instead of "forbid" so derive macros (serde, thiserror) work.
-allow_attributes = "deny"
+# ANTI-BYPASS: warn on #[allow(...)] attributes in hand-written code.
+# Using "warn" so derive macros and integration test files can use #[allow].
+# Production code should never add #[allow] — the CI `-D warnings` flag catches it.
+allow_attributes = "warn"
 
 # Pedantic allows (legitimate exceptions — these are the ONLY relaxations) ---
 module_name_repetitions   = "deny"

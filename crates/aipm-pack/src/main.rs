@@ -60,9 +60,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-fn main() {
+fn main() -> std::process::ExitCode {
     if let Err(e) = run() {
         let mut stderr = std::io::stderr();
         let _ = writeln!(stderr, "error: {e}");
+        return std::process::ExitCode::FAILURE;
     }
+    std::process::ExitCode::SUCCESS
 }
