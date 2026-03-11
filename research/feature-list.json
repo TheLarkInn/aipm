@@ -17,7 +17,7 @@
       "Run 'cargo clippy --workspace -- -D warnings' across entire workspace — zero violations",
       "Add CI step: cargo fmt --check && cargo clippy --workspace -- -D warnings (gate on both)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -36,7 +36,7 @@
       "Verify 'cargo test --workspace' runs the BDD harness",
       "Verify 'cargo fmt --check' and 'cargo clippy --workspace' pass with zero violations"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

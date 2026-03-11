@@ -1,0 +1,28 @@
+# AIPM Implementation Progress
+
+## 2026-03-11 — Session 1: Workspace Scaffolding & Lint Guardrails
+
+### Completed Features
+
+**Feature 1: P0 — Workspace-wide strict linting, formatting, and performance guardrails** ✅
+- Configured all lints in root `Cargo.toml` under `[workspace.lints.*]`
+- All three member crates inherit via `[lints] workspace = true`
+- `rustfmt.toml` (100 char width, Unix newlines) and `clippy.toml` (strict thresholds, test exemptions) at workspace root
+- `allow_attributes = "forbid"` prevents any AI agent from suppressing lints
+- `cargo fmt --check` and `cargo clippy --workspace -- -D warnings` both pass with zero violations
+
+**Feature 2: P0 — Project scaffolding and Cargo workspace setup for two-binary architecture** ✅
+- Created virtual workspace with three crates: `crates/libaipm`, `crates/aipm`, `crates/aipm-pack`
+- All workspace dependencies defined in `[workspace.dependencies]` for version consistency
+- `libaipm` is the shared library; `aipm` is the consumer CLI; `aipm-pack` is the author CLI
+- BDD test harness in `crates/libaipm/tests/bdd.rs` discovers 19 feature files (245 scenarios, all skipped pending step impls)
+- Both binaries compile and run: `aipm 0.1.0`, `aipm-pack 0.1.0`
+- Old `src/` directory deleted
+
+### Environment Notes
+- Using MSVC toolchain (`stable-x86_64-pc-windows-msvc`) on Windows 11
+- Requires VS 2022 Enterprise env vars (LIB, INCLUDE, PATH) for builds from Git Bash
+- `CLAUDE.md` documents all lint rules for AI agents
+
+### Next Up
+- Feature 3: P0 — TOML manifest parser and validator for aipm.toml
