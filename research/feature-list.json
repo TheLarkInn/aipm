@@ -74,7 +74,7 @@
       "Validate naming conventions: lowercase alphanumeric with hyphens, scoped names (@org/name)",
       "Pass cucumber scenarios in tests/features/manifest/init.feature"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

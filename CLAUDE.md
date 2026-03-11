@@ -6,9 +6,9 @@ All lints are configured in `Cargo.toml` under `[workspace.lints]`. The key rule
 
 1. **NEVER add `#[allow(...)]`, `#[expect(...)]`, or `#![allow(...)]` attributes.** The `allow_attributes` lint is set to `deny` — the compiler will reject any hand-written lint suppression. Derive macros (serde, thiserror) are permitted to emit internal `#[allow]`.
 
-2. **NEVER use `.unwrap()`, `.expect()`, `panic!()`, `todo!()`, `unimplemented!()`, `unreachable!()`** — these are all `forbid`. Use proper error handling with `Result`/`Option` combinators, `?` operator, or `if let`/`match`.
+2. **NEVER use `.unwrap()`, `.expect()`, `panic!()`, `todo!()`, `unimplemented!()`, `unreachable!()`** — these are all `deny`. Use proper error handling with `Result`/`Option` combinators, `?` operator, or `if let`/`match`.
 
-3. **NEVER use `println!()`, `eprintln!()`, `print!()`, `eprint!()`** — these are `forbid`. Use `std::io::Write` with `write!()`/`writeln!()` for output, or a logging framework.
+3. **NEVER use `println!()`, `eprintln!()`, `print!()`, `eprint!()`** — these are `deny`. Use `std::io::Write` with `write!()`/`writeln!()` for output, or a logging framework.
 
 4. **NEVER use `dbg!()`** — `forbid`. Remove all debug macros before committing.
 

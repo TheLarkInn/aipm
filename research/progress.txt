@@ -36,5 +36,17 @@
 ### Lint Config Note
 - `forbid` on lint groups (`all`, `pedantic`) prevents individual lint relaxation AND conflicts with derive macros (serde `Deserialize`, `thiserror::Error`) that emit internal `#[allow]`. Changed to `deny` which still errors but allows macro-generated code.
 
+**Feature 4: P0 — aipm-pack init — package initialization and scaffolding** ✅
+- Created `crates/libaipm/src/init.rs` with `Options`, `Error`, and `init()` function
+- Supports `--name`, `--type` flags, defaults to directory name and composite type
+- Generates `aipm.toml` with `[package]` section (name, version 0.1.0, type, edition 2024)
+- Creates conventional directory layout per type: skill→`skills/`, agent→`agents/`, hook→`hooks/`, mcp→`mcp/`, composite→all three
+- Skill type creates `skills/default/SKILL.md` starter template
+- Validates package name (same rules as manifest), rejects if `aipm.toml` already exists
+- Wired into `aipm-pack` CLI via clap with `init` subcommand
+- 10 new unit tests (42 total across workspace)
+- End-to-end binary test confirmed working
+- Restriction lints changed from `forbid` to `deny` (clap derive macros need internal `#[allow]`)
+
 ### Next Up
-- Feature 4: P0 — aipm-pack init — package initialization and scaffolding
+- Feature 5: P0 — Semver parsing, version ranges, and pre-release handling
