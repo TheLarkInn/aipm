@@ -1,0 +1,24 @@
+# rustfmt.toml — Strict formatting (modeled after rust-lang/rust)
+# https://github.com/rust-lang/rustfmt/blob/main/Configurations.md
+
+edition = "2021"
+
+# Width limits
+max_width = 100
+use_small_heuristics = "Max"
+
+# Formatting behavior
+force_explicit_abi = true
+match_arm_leading_pipes = "Never"
+match_block_trailing_comma = true
+merge_derives = false
+newline_style = "Unix"
+remove_nested_parens = true
+reorder_imports = true
+reorder_modules = true
+use_field_init_shorthand = true
+use_try_shorthand = true
+
+# Indentation
+hard_tabs = false
+tab_spaces = 4

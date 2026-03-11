@@ -1,0 +1,20 @@
+# clippy.toml — Strict thresholds and performance guardrails
+# https://doc.rust-lang.org/clippy/configuration.html
+
+# Complexity thresholds
+cognitive-complexity-threshold = 15
+type-complexity-threshold = 200
+too-many-lines-threshold = 100
+single-char-binding-names-threshold = 4
+
+# Performance: stack size threshold for large_enum_variant
+too-large-for-stack = 200
+
+# Performance: trivial copy size
+trivial-copy-size-limit = 8
+
+# Allow unwrap/expect/dbg/print in test code only
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-dbg-in-tests = true
+allow-print-in-tests = true

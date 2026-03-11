@@ -2,6 +2,69 @@
 name = "aipm"
 version = "0.1.0"
 edition = "2021"
-description = "AI Plugin Manager"
+description = "AI Plugin Manager — like npm/Cargo but for AI plugin building blocks"
+license = "MIT"
+repository = "https://github.com/selarkin/aipm"
+readme = "README.md"
+keywords = ["ai", "plugin", "package-manager", "mcp", "skills"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
+
+# =============================================================================
+# WORKSPACE LINTS — Strictest Clippy + Rustc configuration
+# Modeled after rust-lang/rust. Applied workspace-wide so all member crates
+# inherit these via [lints] workspace = true.
+#
+# Groups use priority = -1 so individual overrides (priority 0) take precedence.
+# =============================================================================
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+# Lint groups ---------------------------------------------------------------
+# "forbid" = compiler error, cannot be overridden by #[allow] in code
+all        = { level = "forbid", priority = -1 }
+pedantic   = { level = "forbid", priority = -1 }
+nursery    = { level = "warn", priority = -1 }
+cargo      = { level = "warn", priority = -1 }
+perf       = { level = "forbid", priority = -1 }
+
+# ANTI-BYPASS: forbid #[allow(...)] attributes in code entirely.
+# This is the nuclear option — no code can suppress ANY lint via attributes.
+allow_attributes = "forbid"
+
+# Pedantic allows (legitimate exceptions — these are the ONLY relaxations) ---
+module_name_repetitions   = "deny"
+must_use_candidate        = "allow"
+missing_errors_doc        = "allow"
+missing_panics_doc        = "allow"
+items_after_statements    = "warn"
+no_effect_underscore_binding = "warn"
+cast_precision_loss       = "warn"
+cast_possible_truncation  = "warn"
+cast_sign_loss            = "warn"
+cast_lossless             = "warn"
+default_trait_access      = "warn"
+struct_excessive_bools    = "warn"
+doc_markdown              = "warn"
+
+# Cherry-picked restriction lints (never enable the whole group) -------------
+unwrap_used               = "forbid"
+expect_used               = "forbid"
+panic                     = "forbid"
+dbg_macro                 = "forbid"
+todo                      = "forbid"
+print_stdout              = "forbid"
+print_stderr              = "forbid"
+undocumented_unsafe_blocks = "forbid"
+indexing_slicing           = "warn"
+unwrap_in_result          = "forbid"
+clone_on_ref_ptr          = "warn"
+create_dir                = "warn"
+exit                      = "forbid"
+
+# This crate inherits workspace lints
+[lints]
+workspace = true

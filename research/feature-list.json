@@ -1,0 +1,589 @@
+[
+  {
+    "category": "refactor",
+    "description": "P0: Workspace-wide strict linting, formatting, and performance guardrails",
+    "steps": [
+      "Convert single-crate Cargo.toml to Cargo workspace with [workspace] members = ['crates/*']",
+      "Move existing [lints.rust] and [lints.clippy] sections to [workspace.lints.rust] and [workspace.lints.clippy] in root Cargo.toml",
+      "Ensure workspace lint groups: clippy::all = deny, clippy::pedantic = warn, clippy::nursery = warn, clippy::cargo = warn, clippy::perf = deny",
+      "Ensure workspace lint pedantic allows: module_name_repetitions, must_use_candidate, missing_errors_doc, missing_panics_doc, items_after_statements, no_effect_underscore_binding, cast_precision_loss, cast_possible_truncation, cast_sign_loss, cast_lossless, default_trait_access, struct_excessive_bools, doc_markdown",
+      "Ensure workspace restriction lints (cherry-picked): unwrap_used=warn, expect_used=warn, panic=warn, dbg_macro=deny, todo=warn, print_stdout=warn, print_stderr=warn, undocumented_unsafe_blocks=deny, indexing_slicing=warn, unwrap_in_result=warn, clone_on_ref_ptr=warn, create_dir=warn, exit=warn",
+      "Ensure [workspace.lints.rust] unsafe_code = deny",
+      "Add [lints] workspace = true to each member crate Cargo.toml (libaipm, aipm, aipm-pack)",
+      "Verify rustfmt.toml at workspace root applies to all crates: edition 2021, max_width 100, use_small_heuristics Max, Unix newlines, trailing commas in match blocks, separated derives, field init shorthand, try shorthand, format_code_in_doc_comments",
+      "Verify clippy.toml at workspace root applies to all crates: cognitive-complexity-threshold 15, type-complexity-threshold 200, too-many-lines-threshold 100, too-large-for-stack 200, trivial-copy-size-limit 8",
+      "Verify clippy.toml test exemptions: allow-unwrap-in-tests, allow-expect-in-tests, allow-dbg-in-tests, allow-print-in-tests",
+      "Run 'cargo fmt --check' across entire workspace — zero violations",
+      "Run 'cargo clippy --workspace -- -D warnings' across entire workspace — zero violations",
+      "Add CI step: cargo fmt --check && cargo clippy --workspace -- -D warnings (gate on both)"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: Project scaffolding and Cargo workspace setup for two-binary architecture",
+    "steps": [
+      "Create Cargo workspace root with [workspace] members = ['crates/*']",
+      "Create crates/libaipm/ — shared library crate with manifest parser, resolver, store, lockfile logic",
+      "Create crates/aipm/ — consumer binary crate (install, validate, doctor, link)",
+      "Create crates/aipm-pack/ — author binary crate (init, pack, publish, yank, login)",
+      "Configure each member Cargo.toml with [lints] workspace = true to inherit workspace linting",
+      "Add core shared dependencies in [workspace.dependencies]: clap, toml, serde, serde_json, reqwest, sha2, semver, thiserror, anyhow",
+      "Add platform-specific dependency: junction crate (Windows only) via [target.'cfg(windows)'.dependencies]",
+      "Set up cucumber-rs test harness (cucumber 0.22, futures 0.3) with [[test]] name='bdd' harness=false in libaipm",
+      "Create tests/bdd.rs entry point that discovers tests/features/**/*.feature files",
+      "Verify 'cargo build --workspace' compiles both binaries",
+      "Verify 'cargo test --workspace' runs the BDD harness",
+      "Verify 'cargo fmt --check' and 'cargo clippy --workspace' pass with zero violations"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: TOML manifest parser and validator for aipm.toml",
+    "steps": [
+      "Define Rust structs in libaipm for manifest schema: Package, Workspace, Dependencies, Environment, Components, Features, Install, Overrides",
+      "Implement deserialization from TOML using serde + toml crate",
+      "Support [package] fields: name, version, description, type (skill|agent|mcp|hook|composite)",
+      "Support [workspace] fields: members glob patterns, plugins_dir (default 'claude-plugins')",
+      "Support [dependencies] with version strings ('^1.0'), workspace refs ({workspace = '^'}), optional deps ({version, optional = true})",
+      "Support [workspace.dependencies] catalog section and [catalog]/[catalogs.*] named catalogs",
+      "Support [components] section: skills, agents, hooks, mcp_servers arrays",
+      "Support [environment] section: requires, aipm version, platforms, variables, runtime",
+      "Support [overrides] section with path-scoped overrides",
+      "Support [install] section: allowed_build_scripts allowlist",
+      "Support [package].files allowlist for transfer format",
+      "Implement validation: required fields present, name format valid, version is valid semver, component paths exist on disk",
+      "Return structured errors with file positions for AI-friendly diagnostics",
+      "Wire into both aipm and aipm-pack binaries via libaipm",
+      "Pass cucumber scenarios in tests/features/manifest/validation.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: aipm-pack init — package initialization and scaffolding",
+    "steps": [
+      "Implement 'aipm-pack init' command with clap",
+      "Support --type flag: skill, agent, mcp, hook, composite",
+      "Generate aipm.toml with [package] section populated (name from directory, version 0.1.0)",
+      "Create conventional directory layout based on type: skills/, agents/, hooks/, mcp/ directories",
+      "Generate starter component files (e.g. SKILL.md template for skill type)",
+      "Support init at repo root: generate [workspace] section with members = ['claude-plugins/*']",
+      "Support init inside plugins_dir: generate [package] section only (member manifest)",
+      "Validate naming conventions: lowercase alphanumeric with hyphens, scoped names (@org/name)",
+      "Pass cucumber scenarios in tests/features/manifest/init.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: Semver parsing, version ranges, and pre-release handling",
+    "steps": [
+      "Implement semver parser supporting major.minor.patch format",
+      "Support caret ranges (^1.0 = >=1.0.0 <2.0.0) as the default strategy",
+      "Support tilde ranges (~1.0 = >=1.0.0 <1.1.0)",
+      "Support exact pinning (=1.0.0)",
+      "Support wildcard ranges (1.x, 1.0.x)",
+      "Support pre-release versions (1.0.0-beta.1) with correct ordering",
+      "Implement version compatibility checking (does version X satisfy range Y)",
+      "Pass cucumber scenarios in tests/features/manifest/versioning.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: Content-addressable global store with SHA-512 hashing",
+    "steps": [
+      "Implement global store at ~/.aipm/store/ (configurable via env var or config)",
+      "Hash file contents with SHA-512, use 2-char prefix directories (e.g. ab/cd1234...)",
+      "Implement store_file(content) -> hash: write to store if not exists, return hash",
+      "Implement has_file(hash) -> bool: check if content already stored",
+      "Implement get_file_path(hash) -> Path: resolve hash to filesystem path",
+      "Handle concurrent access safely (atomic writes via temp file + rename)",
+      "Implement store statistics: total files, total size, deduplication ratio",
+      "Test deduplication: storing same content twice produces one file"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: Link manager — symlinks (macOS/Linux) and directory junctions (Windows)",
+    "steps": [
+      "Implement link_plugin_dir(source, target) with platform-specific behavior",
+      "On macOS/Linux: use std::os::unix::fs::symlink for directory links",
+      "On Windows: use junction::create for directory junctions (no elevation needed)",
+      "Implement hard-link creation for individual files (.aipm/links/ -> global store)",
+      "Implement gitignore management: add/remove entries from claude-plugins/.gitignore",
+      "Preserve manual entries in .gitignore (only manage aipm-added entries)",
+      "Implement link removal (unlink symlink/junction and remove gitignore entry)",
+      "Test on Windows: verify junction works without Developer Mode or elevation",
+      "Pass cucumber scenarios in tests/features/registry/install.feature (linking scenarios)"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: Dependency resolution — backtracking constraint solver",
+    "steps": [
+      "Build dependency graph from root manifest + all workspace members",
+      "Implement highest-version-first candidate selection",
+      "Implement version unification within same semver-major (one version per major)",
+      "Implement cross-major coexistence: ^1.0 and ^2.0 of same pkg both resolve",
+      "Implement backtracking on conflict within same major range",
+      "Apply [overrides] before resolution (forced versions bypass normal solving)",
+      "Exclude yanked versions unless pinned in existing lockfile",
+      "Handle cross-type dependencies: skill depending on mcp server, etc.",
+      "Generate resolved dependency tree with exact versions and integrity hashes",
+      "Implement minimal reconciliation: when manifest changes, only resolve new/changed deps, keep existing pins",
+      "Pass cucumber scenarios in tests/features/dependencies/resolution.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: Lockfile creation and management (aipm.lock)",
+    "steps": [
+      "Define lockfile TOML schema: [metadata] section with lockfile_version, generated_by",
+      "Implement [[package]] entries: name, version, source, checksum (SHA-512), dependencies",
+      "Write lockfile deterministically: sorted packages, consistent formatting",
+      "Read existing lockfile and use locked versions when available",
+      "Implement minimal reconciliation: on manifest change, resolve only new/changed entries, preserve existing pins",
+      "Implement --locked mode: fail immediately if aipm.lock doesn't match aipm.toml (zero drift tolerance)",
+      "Implement update command: aipm update [pkg] re-resolves to latest compatible versions",
+      "Ensure lockfile is human-readable for meaningful git diffs",
+      "Pass cucumber scenarios in tests/features/dependencies/lockfile.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: aipm install — full install flow",
+    "steps": [
+      "Implement 'aipm install [pkg[@version]]' command with clap",
+      "Step 1: Resolve dependencies using backtracking solver (or lockfile if present)",
+      "Step 2: Fetch .aipm archives not in global store from registry",
+      "Step 3: Verify SHA-512 integrity against registry index before extracting",
+      "Step 4: Extract files into global store by content hash (skip existing = dedup)",
+      "Step 5: Assemble .aipm/links/<pkg>/ directories with hard links from global store",
+      "Step 6: Create directory links in claude-plugins/ -> .aipm/links/ (symlink or junction)",
+      "Step 7: Add installed packages to claude-plugins/.gitignore",
+      "Step 8: Update aipm.toml [dependencies] if installing a new package",
+      "Step 9: Update aipm.lock with exact versions + integrity hashes",
+      "Implement --locked flag for CI mode (fail on drift)",
+      "Implement --offline flag (install from cache only, no network)",
+      "Implement strict isolation: only declared deps accessible, transitive deps hidden",
+      "Pass cucumber scenarios in tests/features/registry/install.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: aipm update — explicit version upgrade",
+    "steps": [
+      "Implement 'aipm update [pkg]' command",
+      "With package name: re-resolve only that package to latest compatible version",
+      "Without package name: re-resolve all dependencies to latest compatible versions",
+      "Update aipm.lock with new versions",
+      "Re-run install flow for changed packages (fetch, store, link)",
+      "This is the ONLY command that upgrades locked versions"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: aipm uninstall — remove a dependency",
+    "steps": [
+      "Implement 'aipm uninstall <pkg>' command",
+      "Remove package from [dependencies] in aipm.toml",
+      "Remove directory link from claude-plugins/",
+      "Remove entry from claude-plugins/.gitignore",
+      "Remove package from aipm.lock",
+      "Clean up .aipm/links/ (remove hard-linked directory)",
+      "Do NOT remove from global store (may be used by other projects)"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: aipm validate — manifest and component validation",
+    "steps": [
+      "Implement 'aipm validate' command",
+      "Parse and validate aipm.toml against schema",
+      "Verify all component paths in [components] exist on disk",
+      "Check skill files have valid SKILL.md format",
+      "Check hook files are valid JSON",
+      "Check MCP server configs are valid",
+      "Check environment dependencies (tools on PATH, env vars set)",
+      "Return structured error output with file positions",
+      "Support --json flag for machine-readable output",
+      "Pass cucumber scenarios in tests/features/manifest/validation.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: aipm-pack pack — create .aipm archive (transfer format)",
+    "steps": [
+      "Implement 'aipm-pack pack [--dry-run]' command",
+      "Step 1: Validate aipm.toml is valid and required components exist",
+      "Step 2: Normalize manifest: resolve workspace:^ refs to concrete versions, expand catalog: refs",
+      "Step 3: Apply [package].files allowlist, exclude secrets/.git/build artifacts by default",
+      "Step 4: Create gzip-compressed tar with deterministic ordering (sorted files, zeroed timestamps)",
+      "Step 5: Compute SHA-512 of archive, embed in checksum.sha512",
+      "Step 6: Output package-name-version.aipm file",
+      "Implement --dry-run: report files that would be included and archive size without creating",
+      "Enforce max archive size (default 10MB, configurable)",
+      "Implement secrets detection in pre-pack validation",
+      "Pass cucumber scenarios in tests/features/registry/publish.feature (pack-related scenarios)"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: aipm-pack publish — publish to registry",
+    "steps": [
+      "Implement 'aipm-pack publish [--dry-run]' command",
+      "Run pack flow first to create .aipm archive",
+      "Authenticate with registry using stored bearer token",
+      "Upload .aipm archive via PUT /api/v1/packages/{name}/{version}",
+      "Handle registry responses: success, duplicate version (immutable), auth failure, size limit",
+      "Implement --dry-run: run pack + validate but don't upload",
+      "Support scoped packages (@org/name): verify org membership/permissions",
+      "Pass cucumber scenarios in tests/features/registry/publish.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: aipm-pack yank — yank published versions",
+    "steps": [
+      "Implement 'aipm-pack yank <pkg@version>' command",
+      "Send yank request to registry API",
+      "Yanked versions excluded from new resolutions but still available for existing lockfiles",
+      "Support un-yank to reverse the operation",
+      "Never allow deletion — versions are permanent (Cargo model)",
+      "Pass cucumber scenarios in tests/features/registry/yank.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: Registry authentication — aipm-pack login/logout",
+    "steps": [
+      "Implement 'aipm-pack login' command",
+      "Prompt for API token or accept via --token flag",
+      "Store tokens in OS credential store (not plaintext files)",
+      "Support per-registry tokens for multi-registry setups",
+      "Implement 'aipm-pack logout' command to clear stored tokens",
+      "Implement token validation on login (test against registry API)"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: Local + registry plugin coexistence",
+    "steps": [
+      "Support local plugins as git-tracked directories in claude-plugins/",
+      "Support registry plugins as directory links in claude-plugins/ (gitignored)",
+      "Local plugins can declare registry dependencies in their own aipm.toml",
+      "Support non-workspace single-package mode (aipm.toml without [workspace])",
+      "Manage claude-plugins/.gitignore: add symlinked installs, preserve manual entries",
+      "Support vendoring: aipm vendor <pkg> copies registry package into claude-plugins/ as git-tracked",
+      "Pass cucumber scenarios in tests/features/registry/local-and-registry.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: aipm link / unlink — local development overrides",
+    "steps": [
+      "Implement 'aipm link <path>' command in consumer binary",
+      "Replace registry dependency's directory link with link to local directory",
+      "Do NOT modify lockfile or manifest (override is ephemeral)",
+      "Validate that linked directory contains valid aipm.toml",
+      "Implement 'aipm unlink <pkg>' to restore original registry symlink",
+      "Implement 'aipm list --linked' to show all active link overrides",
+      "'aipm install --locked' removes all links and restores registry versions (CI-safe)",
+      "Pass cucumber scenarios in tests/features/registry/link.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P0: Registry client — HTTP client for registry API",
+    "steps": [
+      "Implement HTTP client using reqwest for registry communication",
+      "Support multi-registry with scoped routing (@org/* -> org registry URL)",
+      "Implement package fetch: GET /api/v1/packages/{name}/{version}",
+      "Implement package index query: GET /api/v1/packages/{name}/versions",
+      "Implement package upload: PUT /api/v1/packages/{name}/{version}",
+      "Implement yank/un-yank: PATCH /api/v1/packages/{name}/{version}",
+      "Handle authentication: bearer token per registry",
+      "Handle errors: network failures, auth failures, not found, rate limiting",
+      "Pass cucumber scenarios in tests/features/registry/security.feature (auth scenarios)"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P1: Workspace protocol — workspace:^ references",
+    "steps": [
+      "Support { workspace = '^' } dependency syntax in member manifests",
+      "Resolve workspace refs to actual sibling package versions during install",
+      "On aipm-pack publish: replace workspace:^ with concrete version (e.g. ^2.3.0)",
+      "On aipm-pack publish: replace workspace:= with exact version (e.g. =2.3.0)",
+      "Validate that workspace ref targets exist as workspace members",
+      "Pass relevant cucumber scenarios in tests/features/monorepo/orchestration.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P1: Dependency catalogs — shared version ranges across workspace",
+    "steps": [
+      "Support [catalog] section in root aipm.toml for default catalog",
+      "Support [catalogs.<name>] sections for named catalogs (stable, next, etc.)",
+      "Support 'catalog:' dependency syntax in member manifests to reference catalog versions",
+      "Support 'catalog:<name>' for named catalog references",
+      "On aipm-pack publish: expand catalog: refs to concrete version ranges",
+      "Validate catalog references exist in root manifest",
+      "Pass relevant cucumber scenarios in tests/features/monorepo/orchestration.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P1: Workspace filtering — --filter flag for scoped commands",
+    "steps": [
+      "Implement --filter flag for workspace commands",
+      "Support name globs: --filter 'skill-*'",
+      "Support path patterns: --filter './claude-plugins/my-*'",
+      "Support git-diff selectors: --filter '[origin/main]' (changed packages only)",
+      "Support dependency graph traversal: --filter '...skill-a' (skill-a and its dependents)",
+      "Implement 'aipm build --filter <pattern>' command",
+      "Pass relevant cucumber scenarios in tests/features/monorepo/orchestration.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P1: Optional features system — conditional dependencies",
+    "steps": [
+      "Support [features] section in manifest with named feature groups",
+      "Support 'default' feature list",
+      "Support 'dep:' syntax for optional dependency activation",
+      "Implement additive feature unification across dependency graph (Cargo model)",
+      "Resolve optional dependencies only when their feature is activated",
+      "Pass cucumber scenarios in tests/features/dependencies/features.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P1: Built-in dependency patching",
+    "steps": [
+      "Implement 'aipm patch <pkg@version>' command: extract package to temp dir for editing",
+      "Implement 'aipm patch-commit <dir>' command: generate .patch file from modifications",
+      "Store patches in patches/ directory (git tracked)",
+      "Apply patches during install after extracting from store",
+      "Validate patches still apply cleanly on version updates (warn on conflicts)",
+      "Support removing patches",
+      "Pass cucumber scenarios in tests/features/dependencies/patching.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P1: Dependency overrides — path-scoped version forcing",
+    "steps": [
+      "Support [overrides] section in root manifest",
+      "Support simple overrides: 'vulnerable-lib' = '^2.0.0'",
+      "Support path-scoped overrides: 'skill-a>common-util' = '=2.1.0'",
+      "Apply overrides before dependency resolution",
+      "Warn when overrides are active (they bypass normal resolution safety)",
+      "Pass relevant cucumber scenarios in tests/features/dependencies/resolution.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P1: Compositional reuse — composite packages with cross-type dependencies",
+    "steps": [
+      "Support type = 'composite' packages that contain multiple component types",
+      "Support cross-type dependencies: skill depending on mcp server, hook depending on skill",
+      "Validate component type consistency (hook package must contain valid hook JSON, etc.)",
+      "Support [components] section listing skills, agents, hooks, mcp_servers",
+      "Ensure Claude Code discovers all components via directory scanning",
+      "Pass cucumber scenarios in tests/features/reuse/compositional-reuse.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P1: Environment dependency declarations and aipm doctor",
+    "steps": [
+      "Support [environment].requires for system tool requirements (git, docker, etc.)",
+      "Support [environment].aipm for minimum aipm version requirement",
+      "Support [environment].platforms for supported platform constraints",
+      "Support [environment.variables] for required/optional env var declarations",
+      "Support [environment.runtime] for runtime version requirements (node >= 18)",
+      "Implement 'aipm doctor' command: check all environment requirements across all installed packages",
+      "Generate summary report showing met/missing requirements with suggested fixes",
+      "Warn on install when environment requirements are missing (fail in strict mode)",
+      "Pass cucumber scenarios in tests/features/environment/dependencies.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P1: aipm search — registry package discovery",
+    "steps": [
+      "Implement 'aipm search <query>' command",
+      "Search by name, description, and tags",
+      "Support filtering by component type (--type skill|agent|mcp|hook|composite)",
+      "Display results with name, version, description, download count",
+      "Support --json flag for machine-readable output",
+      "Pass cucumber scenarios in tests/features/registry/search.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P1: aipm info and aipm list — package inspection",
+    "steps": [
+      "Implement 'aipm info <pkg>' command: display package details from registry",
+      "Show name, version, description, dependencies, components, environment requirements",
+      "Implement 'aipm list' command: show all installed packages",
+      "Implement 'aipm list --outdated': show packages with newer versions available",
+      "Implement 'aipm list --linked': show active link overrides",
+      "Support --json flag for machine-readable output"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P1: aipm audit — security vulnerability checking",
+    "steps": [
+      "Implement 'aipm audit' command",
+      "Check installed packages against advisory database",
+      "Report known vulnerabilities with severity and remediation advice",
+      "Support --json flag for CI integration",
+      "Warn on install when installing packages with known vulnerabilities",
+      "Pass cucumber scenarios in tests/features/registry/security.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P1: aipm vendor — copy registry package to local",
+    "steps": [
+      "Implement 'aipm vendor <pkg>' command",
+      "Copy registry package into claude-plugins/ as a git-tracked directory",
+      "Convert from installed (symlink) to vendored (real directory)",
+      "Vendored package becomes workspace member with its own aipm.toml",
+      "Remove symlink and gitignore entry for the vendored package"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P1: Monorepo orchestration integration",
+    "steps": [
+      "Support [workspace] members with glob patterns",
+      "Support virtual workspace (root has [workspace] but no [package])",
+      "Single lockfile at workspace root for all members",
+      "Support dependency inheritance from [workspace.dependencies]",
+      "Detect and handle circular workspace dependencies",
+      "Support lifecycle hooks for orchestrator integration (Rush, Turborepo, etc.)",
+      "Pass cucumber scenarios in tests/features/monorepo/orchestration.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P1: Cross-platform self-contained binary distribution",
+    "steps": [
+      "Set up CI/CD for building release binaries: linux-x64, linux-arm64, macos-x64, macos-arm64, windows-x64",
+      "Configure cross-compilation or per-platform build agents",
+      "Create GitHub release artifacts for each platform",
+      "Implement version self-check: aipm --version",
+      "Test binary works without any runtime dependencies on each platform",
+      "Pass cucumber scenarios in tests/features/portability/cross-stack.feature"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P1: Offline mode — install from cache only",
+    "steps": [
+      "Implement 'aipm install --offline' flag",
+      "Resolve and install using only packages available in global store",
+      "Fail with clear error if required package not in cache",
+      "Useful for air-gapped CI environments"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P1: Lifecycle script blocking and side-effects cache",
+    "steps": [
+      "Block dependency lifecycle scripts by default (pnpm v10 model)",
+      "Support [install].allowed_build_scripts allowlist in root manifest",
+      "Cache lifecycle script outputs in global store (~/.aipm/store/)",
+      "Reuse cached side-effects on subsequent installs (skip recompilation)",
+      "Warn when a dependency declares lifecycle scripts that are blocked"
+    ],
+    "passes": false
+  },
+  {
+    "category": "performance",
+    "description": "P1: Parallel operations — concurrent resolve, fetch, and link",
+    "steps": [
+      "Implement concurrent package fetching (download multiple archives in parallel)",
+      "Implement concurrent file hashing and store operations",
+      "Implement concurrent hard-link creation for .aipm/links/",
+      "Use pnpm three-stage pipeline model: resolve -> fetch -> link (overlapping stages)",
+      "Add progress indicators for long-running operations"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P1: Structured output and verbose mode",
+    "steps": [
+      "Implement --json flag on all commands for machine-readable CI/CD output",
+      "Implement --verbose flag showing resolution decisions, fetch progress, link operations",
+      "Ensure error output includes structured diagnostics for AI agent consumption",
+      "Human-readable lockfile TOML enables meaningful git diffs"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P1: JSON Schema publication for IDE support",
+    "steps": [
+      "Create JSON Schema for aipm.toml manifest format",
+      "Submit schema to SchemaStore.org",
+      "Verify Taplo LSP picks up the schema for VS Code autocomplete",
+      "Verify schema validates all manifest fields including nested sections"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "P2: aipm-pack lint — quality checks for AI components",
+    "steps": [
+      "Implement 'aipm-pack lint [--fix]' command",
+      "Validate skill files against best practice standards",
+      "Validate agent definitions for completeness",
+      "Validate hook configurations for correctness",
+      "Validate MCP server definitions",
+      "Generate quality scores for packages",
+      "Support --fix flag for auto-fixable issues",
+      "Return machine-readable errors for AI agent consumption",
+      "Pass cucumber scenarios in tests/features/guardrails/quality.feature"
+    ],
+    "passes": false
+  }
+]

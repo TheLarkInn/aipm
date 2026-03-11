@@ -1,3 +1,6 @@
+use std::io::Write;
+
 fn main() {
-    println!("Hello, aipm!");
+    let mut stdout = std::io::stdout();
+    let _ = writeln!(stdout, "aipm {}", env!("CARGO_PKG_VERSION"));
 }
