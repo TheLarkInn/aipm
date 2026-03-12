@@ -1133,6 +1133,7 @@ checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 name = "libaipm"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "cucumber",
  "flate2",
  "futures",
@@ -1142,6 +1143,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "tar",
+ "tempfile",
  "thiserror 2.0.18",
  "toml",
  "tracing",

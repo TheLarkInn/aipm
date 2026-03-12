@@ -26,6 +26,8 @@ junction = { workspace = true }
 [dev-dependencies]
 cucumber = { workspace = true }
 futures = { workspace = true }
+assert_cmd = { workspace = true }
+tempfile = { workspace = true }
 
 [[test]]
 name = "bdd"
