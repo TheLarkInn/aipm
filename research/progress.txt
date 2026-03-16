@@ -48,5 +48,32 @@
 - End-to-end binary test confirmed working
 - Restriction lints changed from `forbid` to `deny` (clap derive macros need internal `#[allow]`)
 
+## 2026-03-16 — Session 2: Workspace Init & .ai/ Marketplace
+
+### Completed Features
+
+**Feature 5: P0 — aipm init — workspace and .ai/ marketplace scaffolding** ✅
+- Created `crates/libaipm/src/workspace_init.rs` module with `Options`, `InitResult`, `InitAction`, `Error` types
+- Rewrote `crates/aipm/src/main.rs` from version-only printer to full clap CLI with `init` subcommand
+- `--workspace` flag generates `aipm.toml` with `[workspace] members = [".ai/*"]` and `plugins_dir = ".ai"`
+- `--marketplace` flag scaffolds `.ai/` directory with `starter/` plugin (aipm.toml, .claude-plugin/plugin.json, skills/hello/SKILL.md, .mcp.json, agents/, hooks/)
+- `--marketplace` generates Claude Code settings (`.claude/settings.json` with `extraKnownMarketplaces` → `.ai/`)
+- `--marketplace` generates Copilot VS Code settings (`.vscode/settings.json` with `chat.agentFilesLocations: [".ai"]`)
+- `--marketplace` generates Copilot CLI config (`.copilot/mcp-config.json` stub)
+- Default `aipm init` (no flags) implies `--workspace --marketplace` for zero-friction onboarding
+- Merge-not-clobber behavior: existing `.claude/settings.json` and `.vscode/settings.json` are merged
+- All generated manifests validated via `parse_and_validate()` round-trip
+- 19 unit tests in `workspace_init.rs` (61 total in libaipm)
+- 12 E2E tests in `crates/aipm/tests/init_e2e.rs`
+- 17 BDD scenarios in `tests/features/manifest/workspace-init.feature`
+- Updated feature-list.json: new Feature 5, renamed `claude-plugins/` → `.ai/` across 8 features
+- `cargo fmt --check`, `cargo clippy --workspace`, `cargo test --workspace --lib` all pass with zero violations
+
+### Design Decisions
+- `.ai/` chosen as tool-agnostic marketplace directory (replaces `claude-plugins/`)
+- `InitResult` uses `Vec<InitAction>` enum instead of struct with 5 bools (clippy `struct_excessive_bools`)
+- Merged settings functions extracted to `merge_claude_settings`/`merge_vscode_settings` (clippy `branches_sharing_code`)
+- Skill file written before manifest validation (component paths must exist for `parse_and_validate`)
+
 ### Next Up
-- Feature 5: P0 — Semver parsing, version ranges, and pre-release handling
+- Feature 6: P0 — Semver parsing, version ranges, and pre-release handling

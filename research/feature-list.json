@@ -65,14 +65,41 @@
     "description": "P0: aipm-pack init — package initialization and scaffolding",
     "steps": [
       "Implement 'aipm-pack init' command with clap",
-      "Support --type flag: skill, agent, mcp, hook, composite",
+      "Support --type flag: skill, agent, mcp, hook, lsp, composite",
       "Generate aipm.toml with [package] section populated (name from directory, version 0.1.0)",
       "Create conventional directory layout based on type: skills/, agents/, hooks/, mcp/ directories",
       "Generate starter component files (e.g. SKILL.md template for skill type)",
-      "Support init at repo root: generate [workspace] section with members = ['claude-plugins/*']",
-      "Support init inside plugins_dir: generate [package] section only (member manifest)",
       "Validate naming conventions: lowercase alphanumeric with hyphens, scoped names (@org/name)",
       "Pass cucumber scenarios in tests/features/manifest/init.feature"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "P0: aipm init — workspace and .ai/ marketplace scaffolding",
+    "steps": [
+      "Add clap Parser + Subcommand to the aipm consumer binary (currently prints version only)",
+      "Implement 'aipm init' subcommand with --workspace and --marketplace flags",
+      "Default to --workspace --marketplace when neither flag is specified",
+      "Create new libaipm module: workspace_init.rs with Options, InitResult, Error types",
+      "--workspace: generate aipm.toml with [workspace] members = ['.ai/*'], plugins_dir = '.ai'",
+      "--workspace: validate generated manifest round-trips through parse_and_validate()",
+      "--workspace: error with 'already initialized' if aipm.toml already exists",
+      "--marketplace: scaffold .ai/ directory with .gitignore containing aipm managed markers",
+      "--marketplace: scaffold .ai/starter/ plugin with aipm.toml [package] (name=starter, type=composite)",
+      "--marketplace: generate .ai/starter/.claude-plugin/plugin.json with name, version, description",
+      "--marketplace: generate .ai/starter/skills/hello/SKILL.md with description frontmatter",
+      "--marketplace: generate .ai/starter/.mcp.json stub with empty mcpServers",
+      "--marketplace: create .ai/starter/agents/.gitkeep and .ai/starter/hooks/.gitkeep",
+      "--marketplace: error with 'already exists' if .ai/ directory already exists",
+      "--marketplace: generate .claude/settings.json with extraKnownMarketplaces pointing to .ai/",
+      "--marketplace: generate .vscode/settings.json with chat.agentFilesLocations: ['.ai']",
+      "--marketplace: generate .copilot/mcp-config.json stub with empty mcpServers",
+      "--marketplace: merge (not overwrite) existing .claude/settings.json and .vscode/settings.json",
+      "Validate starter plugin manifest round-trips through parse_and_validate()",
+      "Implement unit tests in workspace_init.rs (19 tests per spec)",
+      "Implement E2E tests in crates/aipm/tests/init_e2e.rs (12 tests per spec)",
+      "Pass cucumber scenarios in tests/features/manifest/workspace-init.feature (17 scenarios)"
     ],
     "passes": true
   },
@@ -114,7 +141,7 @@
       "On macOS/Linux: use std::os::unix::fs::symlink for directory links",
       "On Windows: use junction::create for directory junctions (no elevation needed)",
       "Implement hard-link creation for individual files (.aipm/links/ -> global store)",
-      "Implement gitignore management: add/remove entries from claude-plugins/.gitignore",
+      "Implement gitignore management: add/remove entries from .ai/.gitignore",
       "Preserve manual entries in .gitignore (only manage aipm-added entries)",
       "Implement link removal (unlink symlink/junction and remove gitignore entry)",
       "Test on Windows: verify junction works without Developer Mode or elevation",
@@ -166,8 +193,8 @@
       "Step 3: Verify SHA-512 integrity against registry index before extracting",
       "Step 4: Extract files into global store by content hash (skip existing = dedup)",
       "Step 5: Assemble .aipm/links/<pkg>/ directories with hard links from global store",
-      "Step 6: Create directory links in claude-plugins/ -> .aipm/links/ (symlink or junction)",
-      "Step 7: Add installed packages to claude-plugins/.gitignore",
+      "Step 6: Create directory links in .ai/ -> .aipm/links/ (symlink or junction)",
+      "Step 7: Add installed packages to .ai/.gitignore",
       "Step 8: Update aipm.toml [dependencies] if installing a new package",
       "Step 9: Update aipm.lock with exact versions + integrity hashes",
       "Implement --locked flag for CI mode (fail on drift)",
@@ -196,8 +223,8 @@
     "steps": [
       "Implement 'aipm uninstall <pkg>' command",
       "Remove package from [dependencies] in aipm.toml",
-      "Remove directory link from claude-plugins/",
-      "Remove entry from claude-plugins/.gitignore",
+      "Remove directory link from .ai/",
+      "Remove entry from .ai/.gitignore",
       "Remove package from aipm.lock",
       "Clean up .aipm/links/ (remove hard-linked directory)",
       "Do NOT remove from global store (may be used by other projects)"
@@ -284,12 +311,12 @@
     "category": "functional",
     "description": "P0: Local + registry plugin coexistence",
     "steps": [
-      "Support local plugins as git-tracked directories in claude-plugins/",
-      "Support registry plugins as directory links in claude-plugins/ (gitignored)",
+      "Support local plugins as git-tracked directories in .ai/",
+      "Support registry plugins as directory links in .ai/ (gitignored)",
       "Local plugins can declare registry dependencies in their own aipm.toml",
       "Support non-workspace single-package mode (aipm.toml without [workspace])",
-      "Manage claude-plugins/.gitignore: add symlinked installs, preserve manual entries",
-      "Support vendoring: aipm vendor <pkg> copies registry package into claude-plugins/ as git-tracked",
+      "Manage .ai/.gitignore: add symlinked installs, preserve manual entries",
+      "Support vendoring: aipm vendor <pkg> copies registry package into .ai/ as git-tracked",
       "Pass cucumber scenarios in tests/features/registry/local-and-registry.feature"
     ],
     "passes": false
@@ -358,7 +385,7 @@
     "steps": [
       "Implement --filter flag for workspace commands",
       "Support name globs: --filter 'skill-*'",
-      "Support path patterns: --filter './claude-plugins/my-*'",
+      "Support path patterns: --filter './.ai/my-*'",
       "Support git-diff selectors: --filter '[origin/main]' (changed packages only)",
       "Support dependency graph traversal: --filter '...skill-a' (skill-a and its dependents)",
       "Implement 'aipm build --filter <pattern>' command",
@@ -479,7 +506,7 @@
     "description": "P1: aipm vendor — copy registry package to local",
     "steps": [
       "Implement 'aipm vendor <pkg>' command",
-      "Copy registry package into claude-plugins/ as a git-tracked directory",
+      "Copy registry package into .ai/ as a git-tracked directory",
       "Convert from installed (symlink) to vendored (real directory)",
       "Vendored package becomes workspace member with its own aipm.toml",
       "Remove symlink and gitignore entry for the vendored package"

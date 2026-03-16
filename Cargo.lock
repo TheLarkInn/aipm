@@ -21,10 +21,13 @@ dependencies = [
 name = "aipm"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "clap",
  "libaipm",
+ "predicates",
  "serde",
  "serde_json",
+ "tempfile",
  "toml",
  "tracing",
  "tracing-subscriber",
