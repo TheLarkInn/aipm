@@ -1,0 +1,123 @@
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+# =============================================================================
+# WORKSPACE METADATA — shared across all member crates
+# =============================================================================
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/microsoft/aipm"
+keywords = ["ai", "plugin", "package-manager", "mcp", "skills"]
+categories = ["command-line-utilities", "development-tools"]
+readme = "README.md"
+
+# =============================================================================
+# WORKSPACE DEPENDENCIES — version pins shared across all member crates
+# Members reference these via: dep = { workspace = true }
+# =============================================================================
+
+[workspace.dependencies]
+# Shared library
+libaipm = { path = "crates/libaipm" }
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# Semver
+semver = { version = "1", features = ["serde"] }
+
+# HTTP
+reqwest = { version = "0.12", features = ["json"] }
+
+# Hashing
+sha2 = "0.10"
+
+# Error handling
+thiserror = "2"
+
+# Compression
+flate2 = "1"
+tar = "0.4"
+
+# Filesystem (Windows junctions)
+junction = "1"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# Testing
+cucumber = "0.21"
+futures = "0.3"
+assert_cmd = "2"
+predicates = "3"
+tempfile = "3"
+
+# =============================================================================
+# WORKSPACE LINTS — Strictest Clippy + Rustc configuration
+# Modeled after rust-lang/rust. Applied workspace-wide so all member crates
+# inherit these via [lints] workspace = true.
+#
+# Groups use priority = -1 so individual overrides (priority 0) take precedence.
+# =============================================================================
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+# Lint groups ---------------------------------------------------------------
+# "deny" = compiler error, but derive macros (serde, thiserror) can override
+# via their internal #[allow] attributes. "forbid" would block derive macros.
+all        = { level = "deny", priority = -1 }
+pedantic   = { level = "deny", priority = -1 }
+nursery    = { level = "warn", priority = -1 }
+cargo      = { level = "warn", priority = -1 }
+perf       = { level = "deny", priority = -1 }
+
+# ANTI-BYPASS: warn on #[allow(...)] attributes in hand-written code.
+# Using "warn" so derive macros and integration test files can use #[allow].
+# Production code should never add #[allow] — the CI `-D warnings` flag catches it.
+allow_attributes = "warn"
+
+# Pedantic allows (legitimate exceptions — these are the ONLY relaxations) ---
+module_name_repetitions   = "deny"
+must_use_candidate        = "allow"
+missing_errors_doc        = "allow"
+missing_panics_doc        = "allow"
+items_after_statements    = "warn"
+no_effect_underscore_binding = "warn"
+cast_precision_loss       = "warn"
+cast_possible_truncation  = "warn"
+cast_sign_loss            = "warn"
+cast_lossless             = "warn"
+default_trait_access      = "warn"
+struct_excessive_bools    = "warn"
+doc_markdown              = "warn"
+
+# Cargo lint relaxation — transitive deps we don't control
+multiple_crate_versions   = "allow"
+
+# Cherry-picked restriction lints (never enable the whole group) -------------
+# Using "deny" instead of "forbid" so derive macros (clap, serde) can work.
+unwrap_used               = "deny"
+expect_used               = "deny"
+panic                     = "deny"
+dbg_macro                 = "deny"
+todo                      = "deny"
+print_stdout              = "deny"
+print_stderr              = "deny"
+undocumented_unsafe_blocks = "deny"
+indexing_slicing           = "warn"
+unwrap_in_result          = "deny"
+clone_on_ref_ptr          = "warn"
+create_dir                = "warn"
+exit                      = "deny"
