@@ -1,0 +1,122 @@
+# AIPM Implementation Progress
+
+## 2026-03-11 — Session 1: Workspace Scaffolding & Lint Guardrails
+
+### Completed Features
+
+**Feature 1: P0 — Workspace-wide strict linting, formatting, and performance guardrails** ✅
+- Configured all lints in root `Cargo.toml` under `[workspace.lints.*]`
+- All three member crates inherit via `[lints] workspace = true`
+- `rustfmt.toml` (100 char width, Unix newlines) and `clippy.toml` (strict thresholds, test exemptions) at workspace root
+- `allow_attributes = "forbid"` prevents any AI agent from suppressing lints
+- `cargo fmt --check` and `cargo clippy --workspace -- -D warnings` both pass with zero violations
+
+**Feature 2: P0 — Project scaffolding and Cargo workspace setup for two-binary architecture** ✅
+- Created virtual workspace with three crates: `crates/libaipm`, `crates/aipm`, `crates/aipm-pack`
+- All workspace dependencies defined in `[workspace.dependencies]` for version consistency
+- `libaipm` is the shared library; `aipm` is the consumer CLI; `aipm-pack` is the author CLI
+- BDD test harness in `crates/libaipm/tests/bdd.rs` discovers 19 feature files (245 scenarios, all skipped pending step impls)
+- Both binaries compile and run: `aipm 0.1.0`, `aipm-pack 0.1.0`
+- Old `src/` directory deleted
+
+### Environment Notes
+- Using MSVC toolchain (`stable-x86_64-pc-windows-msvc`) on Windows 11
+- Requires VS 2022 Enterprise env vars (LIB, INCLUDE, PATH) for builds from Git Bash
+- `CLAUDE.md` documents all lint rules for AI agents
+
+**Feature 3: P0 — TOML manifest parser and validator for aipm.toml** ✅
+- Created `crates/libaipm/src/manifest/` module with `types.rs`, `error.rs`, `validate.rs`, `mod.rs`
+- Full schema coverage: `[package]`, `[workspace]`, `[dependencies]`, `[overrides]`, `[components]`, `[features]`, `[environment]`, `[install]`, `[catalog]`, `[catalogs.*]`
+- Dependency specs: simple version strings, detailed objects with `workspace`/`optional`/`features`/`default-features`
+- Validation: name format (`@scope/name` or `name`), semver version, plugin type, dependency version reqs, component path existence
+- Structured error types via `thiserror` with human-readable messages
+- 30 unit tests covering all sections, valid/invalid names, versions, deps, features, environments, catalogs
+- Lint config adjusted: `all`/`pedantic` changed from `forbid` to `deny` (derive macros need internal `#[allow]`), `allow_attributes` from `forbid` to `deny`
+
+### Lint Config Note
+- `forbid` on lint groups (`all`, `pedantic`) prevents individual lint relaxation AND conflicts with derive macros (serde `Deserialize`, `thiserror::Error`) that emit internal `#[allow]`. Changed to `deny` which still errors but allows macro-generated code.
+
+**Feature 4: P0 — aipm-pack init — package initialization and scaffolding** ✅
+- Created `crates/libaipm/src/init.rs` with `Options`, `Error`, and `init()` function
+- Supports `--name`, `--type` flags, defaults to directory name and composite type
+- Generates `aipm.toml` with `[package]` section (name, version 0.1.0, type, edition 2024)
+- Creates conventional directory layout per type: skill→`skills/`, agent→`agents/`, hook→`hooks/`, mcp→`mcp/`, composite→all three
+- Skill type creates `skills/default/SKILL.md` starter template
+- Validates package name (same rules as manifest), rejects if `aipm.toml` already exists
+- Wired into `aipm-pack` CLI via clap with `init` subcommand
+- 10 new unit tests (42 total across workspace)
+- End-to-end binary test confirmed working
+- Restriction lints changed from `forbid` to `deny` (clap derive macros need internal `#[allow]`)
+
+## 2026-03-16 — Session 2: Workspace Init & .ai/ Marketplace
+
+### Completed Features
+
+**Feature 5: P0 — aipm init — workspace and .ai/ marketplace scaffolding** ✅
+- Created `crates/libaipm/src/workspace_init.rs` module with `Options`, `InitResult`, `InitAction`, `Error` types
+- Rewrote `crates/aipm/src/main.rs` from version-only printer to full clap CLI with `init` subcommand
+- `--workspace` flag generates `aipm.toml` with `[workspace] members = [".ai/*"]` and `plugins_dir = ".ai"`
+- `--marketplace` flag scaffolds `.ai/` directory with `starter/` plugin (aipm.toml, .claude-plugin/plugin.json, skills/hello/SKILL.md, .mcp.json, agents/, hooks/)
+- `--marketplace` generates Claude Code settings (`.claude/settings.json` with `extraKnownMarketplaces` → `.ai/`)
+- `--marketplace` generates Copilot VS Code settings (`.vscode/settings.json` with `chat.agentFilesLocations: [".ai"]`)
+- `--marketplace` generates Copilot CLI config (`.copilot/mcp-config.json` stub)
+- Default `aipm init` (no flags) implies `--workspace --marketplace` for zero-friction onboarding
+- Merge-not-clobber behavior: existing `.claude/settings.json` and `.vscode/settings.json` are merged
+- All generated manifests validated via `parse_and_validate()` round-trip
+- 19 unit tests in `workspace_init.rs` (61 total in libaipm)
+- 12 E2E tests in `crates/aipm/tests/init_e2e.rs`
+- 17 BDD scenarios in `tests/features/manifest/workspace-init.feature`
+- Updated feature-list.json: new Feature 5, renamed `claude-plugins/` → `.ai/` across 8 features
+- `cargo fmt --check`, `cargo clippy --workspace`, `cargo test --workspace --lib` all pass with zero violations
+
+### Design Decisions
+- `.ai/` chosen as tool-agnostic marketplace directory (replaces `claude-plugins/`)
+- `InitResult` uses `Vec<InitAction>` enum instead of struct with 5 bools (clippy `struct_excessive_bools`)
+- Merged settings functions extracted to `merge_claude_settings`/`merge_vscode_settings` (clippy `branches_sharing_code`)
+- Skill file written before manifest validation (component paths must exist for `parse_and_validate`)
+
+**Feature 6: P0 — CI/CD, release automation, and cross-platform binary distribution** ✅
+- Switched `reqwest` to `rustls-tls` backend (`default-features = false, features = ["json", "rustls-tls"]`) for musl static builds
+- Added `[profile.release]` to workspace `Cargo.toml`: opt-level 3, lto thin, codegen-units 1, strip symbols
+- Created `.github/workflows/ci.yml`: build, test, clippy -D warnings, fmt --check on push to main and PRs
+- Created `cliff.toml`: git-cliff changelog template with 10 conventional commit group parsers
+- Created `release-plz.toml`: changelog_update, git_tag_enable, git_release_enable = false, semver_check = true
+- Created `CHANGELOG.md` with empty header template
+- Created `.github/workflows/release-plz.yml`: two jobs — release-plz-pr (creates release PR) and release-plz-release (publishes to crates.io + creates git tag using RELEASE_PLZ_TOKEN PAT)
+- Created `.github/workflows/release.yml`: ripgrep-style three-job pipeline — create-release (draft GitHub Release), build-release (5-target matrix: linux x86_64/aarch64 musl via cross v0.2.5, macOS x86_64/aarch64 native, Windows x86_64 native), packaging with SHA256 checksums, upload, and artifact attestations (SLSA L2)
+- `cargo check --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` all pass
+- Manual steps remaining: reserve crate names on crates.io, create fine-grained PAT (RELEASE_PLZ_TOKEN), add CARGO_REGISTRY_TOKEN secret
+- Repository moved from microsoft/aipm to thelarkinn/aipm — all ESRP/1ES/Azure DevOps references removed; crates.io publishing now via release-plz directly
+
+### Design Decisions
+- Chose `rustls-tls` over `native-tls` to avoid OpenSSL dependency on musl static builds
+- Used `[profile.release]` directly (not `[profile.dist]`) so `--release` flag works without custom profile path
+- Used `RELEASE_PLZ_TOKEN` (fine-grained PAT) for release-plz release job to work around GitHub's "GITHUB_TOKEN cannot trigger other workflows" limitation
+- Pinned cross to v0.2.5 following ripgrep's practice
+- Draft releases (not auto-publish) for safety during initial rollout
+
+## 2026-03-17 — Session 3: Semver Parsing & Version Ranges
+
+### Completed Features
+
+**Feature 7: P0 — Semver parsing, version ranges, and pre-release handling** ✅
+- Created `crates/libaipm/src/version.rs` module with `Version`, `Requirement`, and `Error` types wrapping the `semver` crate
+- `Version::parse()` validates MAJOR.MINOR.PATCH format with optional pre-release and build metadata
+- `Requirement::parse()` supports caret (`^1.0`), tilde (`~1.0`), exact (`=1.0.0`), wildcard (`*`), and compound ranges (`>=1.0, <2.0`)
+- `Requirement::matches()` checks if a version satisfies the requirement
+- `Requirement::select_best()` picks the highest matching non-prerelease version from candidates
+- Pre-1.0 caret ranges treat minor as breaking (`^0.2.3` = `>=0.2.3, <0.3.0`) — semver crate handles this natively
+- 16 unit tests covering parsing, matching, ordering, pre-release exclusion, and candidate selection
+- 7 BDD step implementations added to `bdd.rs` for versioning scenarios
+- All 5 BDD scenarios (17 scenario instances, ~45 steps) in `versioning.feature` pass ✔
+- 81 total unit tests pass; `cargo clippy --workspace --tests -- -D warnings` passes
+- Fixed pre-existing `redundant_clone` clippy warning in `workspace_init.rs`
+
+### Design Decisions
+- Named wrapper `Requirement` instead of `VersionReq` to avoid `module_name_repetitions` lint (module is `version`)
+- Used `select_best()` to handle BDD scenarios 4-5 (pre-release exclusion and pre-1.0 caret) without a full resolver
+- BDD registry simulation uses simple `Vec<Version>` — full registry client is a later feature
+- Test helpers `assert_matches`/`assert_no_match` avoid verbose `unwrap_or_else(|| unreachable!())` chains
+
+### Next Up
+- Feature 8: P0 — Content-addressable global store with SHA-512 hashing

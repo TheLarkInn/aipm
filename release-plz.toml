@@ -1,0 +1,24 @@
+[workspace]
+# Use git-cliff for changelog formatting
+changelog_config = "cliff.toml"
+
+# Update CHANGELOG.md in release PRs
+changelog_update = true
+
+# Create git tags when releasing
+git_tag_enable = true
+
+# Do NOT create GitHub Releases — the release.yml workflow handles that
+git_release_enable = false
+
+# Publish crates to crates.io via cargo publish
+publish_allow_dirty = false
+
+# Run cargo-semver-checks to detect breaking changes in libaipm
+semver_check = true
+
+# Label release PRs for easy filtering
+pr_labels = ["release"]
+
+# Require clean working directory
+allow_dirty = false
