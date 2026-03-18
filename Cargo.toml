@@ -10,7 +10,7 @@ resolver = "2"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/microsoft/aipm"
+repository = "https://github.com/thelarkinn/aipm"
 keywords = ["ai", "plugin", "package-manager", "mcp", "skills"]
 categories = ["command-line-utilities", "development-tools"]
 readme = "README.md"
@@ -36,7 +36,7 @@ toml = "0.8"
 semver = { version = "1", features = ["serde"] }
 
 # HTTP
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 # Hashing
 sha2 = "0.10"
@@ -121,3 +121,13 @@ unwrap_in_result          = "deny"
 clone_on_ref_ptr          = "warn"
 create_dir                = "warn"
 exit                      = "deny"
+
+# =============================================================================
+# RELEASE PROFILE — optimized for distribution binaries
+# =============================================================================
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"

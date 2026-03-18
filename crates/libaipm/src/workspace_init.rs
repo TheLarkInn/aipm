@@ -122,7 +122,7 @@ fn init_workspace(dir: &Path) -> Result<(), Error> {
 
 fn generate_workspace_manifest() -> String {
     "# AI Plugin Manager — Workspace Configuration\n\
-     # Docs: https://github.com/microsoft/aipm\n\
+     # Docs: https://github.com/thelarkinn/aipm\n\
      \n\
      [workspace]\n\
      members = [\".ai/*\"]\n\
@@ -413,7 +413,7 @@ mod tests {
             let _ = std::fs::remove_dir_all(&tmp);
         }
         std::fs::create_dir_all(&tmp).ok();
-        (tmp.clone(), None)
+        (tmp, None)
     }
 
     fn cleanup(path: &Path) {

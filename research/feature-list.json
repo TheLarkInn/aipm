@@ -104,6 +104,33 @@
     "passes": true
   },
   {
+    "category": "infra",
+    "description": "P0: CI/CD, release automation, and cross-platform binary distribution",
+    "steps": [
+      "Reserve crate names on crates.io: publish libaipm, aipm, aipm-pack v0.1.0 in dependency order (§8.4)",
+      "Create fine-grained GitHub PAT (RELEASE_PLZ_TOKEN) scoped to thelarkinn/aipm with Contents + PRs + Workflows permissions (§5.11)",
+      "Add repository secrets: CARGO_REGISTRY_TOKEN (crates.io token) and RELEASE_PLZ_TOKEN (fine-grained PAT) (§8.2)",
+      "Switch reqwest dependency to rustls-tls: reqwest = { version = '0.12', default-features = false, features = ['json', 'rustls-tls'] } (§5.10)",
+      "Add [profile.release] to workspace Cargo.toml: opt-level 3, lto thin, codegen-units 1, strip symbols (§5.7)",
+      "Create .github/workflows/ci.yml: cargo build, test, clippy -D warnings, fmt --check on push to main and PRs (§5.2)",
+      "Create cliff.toml: git-cliff changelog template with conventional commit parsers (feat, fix, doc, perf, refactor, test, chore, ci, build) (§5.6)",
+      "Create release-plz.toml: changelog_config = cliff.toml, changelog_update = true, git_tag_enable = true, git_release_enable = false, semver_check = true (§5.4)",
+      "Create CHANGELOG.md with empty header template (§5.8)",
+      "Create .github/workflows/release-plz.yml: two jobs — release-plz-pr (creates release PR on push to main) and release-plz-release (publishes to crates.io + creates git tag using RELEASE_PLZ_TOKEN) (§5.3)",
+      "Create .github/workflows/release.yml job 1 (create-release): trigger on tag v[0-9]+.[0-9]+.[0-9]+, extract version from tag, create draft GitHub Release (§5.5)",
+      "Create .github/workflows/release.yml job 2 (build-release): 5-target matrix — x86_64-unknown-linux-musl, aarch64-unknown-linux-musl, x86_64-apple-darwin, aarch64-apple-darwin, x86_64-pc-windows-msvc (§5.5)",
+      "Install cross (pinned v0.2.5) for Linux musl targets; use native cargo for macOS and Windows (§5.5)",
+      "Build workspace binaries with 'cross build --workspace --release --locked --target $TARGET' (Linux) or 'cargo build --workspace --release --locked --target $TARGET' (macOS/Windows) (§5.5)",
+      "Package each binary (aipm, aipm-pack) per target: create staging dir with binary + README.md + LICENSE, tar.gz for Unix / zip for Windows (§5.5)",
+      "Generate per-archive SHA256 checksums (.sha256 companion files) (§5.5)",
+      "Upload all archives + checksums to the draft GitHub Release via gh release upload (§5.5)",
+      "Sign all artifacts via actions/attest-build-provenance@v2 for SLSA L2 provenance (§5.5)",
+      "Add workflow_dispatch trigger to release.yml for manual re-runs (§5.5)",
+      "Validate end-to-end: push feat: commit to main → release-plz creates PR → merge → tag → release workflow builds 5 targets → draft GitHub Release with 20 artifacts (§8.3)"
+    ],
+    "passes": false
+  },
+  {
     "category": "functional",
     "description": "P0: Semver parsing, version ranges, and pre-release handling",
     "steps": [
@@ -116,7 +143,7 @@
       "Implement version compatibility checking (does version X satisfy range Y)",
       "Pass cucumber scenarios in tests/features/manifest/versioning.feature"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -524,19 +551,6 @@
       "Detect and handle circular workspace dependencies",
       "Support lifecycle hooks for orchestrator integration (Rush, Turborepo, etc.)",
       "Pass cucumber scenarios in tests/features/monorepo/orchestration.feature"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "P1: Cross-platform self-contained binary distribution",
-    "steps": [
-      "Set up CI/CD for building release binaries: linux-x64, linux-arm64, macos-x64, macos-arm64, windows-x64",
-      "Configure cross-compilation or per-platform build agents",
-      "Create GitHub release artifacts for each platform",
-      "Implement version self-check: aipm --version",
-      "Test binary works without any runtime dependencies on each platform",
-      "Pass cucumber scenarios in tests/features/portability/cross-stack.feature"
     ],
     "passes": false
   },

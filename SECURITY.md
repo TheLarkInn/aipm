@@ -1,14 +1,7 @@
-<!-- BEGIN MICROSOFT SECURITY.MD V1.0.0 BLOCK -->
-
 ## Security
-
-Microsoft takes the security of our software products and services seriously, which
-includes all source code repositories in our GitHub organizations.
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
-For security reporting information, locations, contact information, and policies,
-please review the latest guidance for Microsoft repositories at
-[https://aka.ms/SECURITY.md](https://aka.ms/SECURITY.md).
+Instead, please report them via [GitHub Security Advisories](https://github.com/thelarkinn/aipm/security/advisories/new).
 
-<!-- END MICROSOFT SECURITY.MD BLOCK -->
+Include as much detail as possible: steps to reproduce, impact, and any suggested fixes.

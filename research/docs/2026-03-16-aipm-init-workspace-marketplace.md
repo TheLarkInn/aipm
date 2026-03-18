@@ -129,7 +129,7 @@ The `aipm` binary gets an `init` subcommand with two independent flags that comp
 
 ```toml
 # AI Plugin Manager — Workspace Configuration
-# Docs: https://github.com/microsoft/aipm
+# Docs: https://github.com/thelarkinn/aipm
 
 [workspace]
 members = [".ai/*"]

@@ -25,6 +25,7 @@ use std::path::PathBuf;
 
 use assert_cmd::Command;
 use cucumber::{given, then, when, World};
+use libaipm::version;
 
 // =========================================================================
 // World — shared state across steps in a single scenario
@@ -46,6 +47,14 @@ pub struct AipmWorld {
     manifest_content: Option<String>,
     /// Active directory name for the scenario.
     active_dir: Option<String>,
+    /// Parsed version requirement (for versioning scenarios).
+    version_req: Option<version::Requirement>,
+    /// Validation result for version scenarios.
+    validation_errors: Vec<String>,
+    /// Registry version candidates (for resolution scenarios).
+    registry_versions: Vec<version::Version>,
+    /// Selected version from resolution.
+    selected_version: Option<version::Version>,
 }
 
 impl AipmWorld {
@@ -204,9 +213,62 @@ async fn given_manifest_type(world: &mut AipmWorld, plugin_type: String) {
     world.manifest_content = Some(manifest);
 }
 
+// --- Versioning steps ---
+
+#[given(expr = "a manifest with version {string}")]
+async fn given_manifest_with_version(world: &mut AipmWorld, ver: String) {
+    world.ensure_root();
+    let dir = world.active_dir_path();
+    std::fs::create_dir_all(&dir).ok();
+    let manifest = format!("[package]\nname = \"test-plugin\"\nversion = \"{ver}\"\n");
+    std::fs::write(dir.join("aipm.toml"), &manifest).expect("write manifest");
+    world.manifest_content = Some(manifest);
+}
+
+#[given(expr = "a dependency with version requirement {string}")]
+async fn given_dep_version_req(world: &mut AipmWorld, req: String) {
+    match version::Requirement::parse(&req) {
+        Ok(r) => world.version_req = Some(r),
+        Err(_) => world.validation_errors.push(format!("invalid requirement: {req}")),
+    }
+}
+
+#[given(expr = "the registry contains versions {string}, {string}, {string}")]
+async fn given_registry_versions_3(world: &mut AipmWorld, v1: String, v2: String, v3: String) {
+    world.registry_versions.clear();
+    for v in [&v1, &v2, &v3] {
+        if let Ok(parsed) = version::Version::parse(v) {
+            world.registry_versions.push(parsed);
+        }
+    }
+}
+
 // =========================================================================
 // WHEN — command execution
 // =========================================================================
+
+#[when(expr = "the manifest is validated")]
+async fn when_manifest_validated(world: &mut AipmWorld) {
+    let dir = world.active_dir_path();
+    let manifest_path = dir.join("aipm.toml");
+    let content = std::fs::read_to_string(&manifest_path).expect("read manifest");
+    match libaipm::manifest::parse_and_validate(&content, Some(&dir)) {
+        Ok(_) => world.validation_errors.clear(),
+        Err(e) => world.validation_errors.push(e.to_string()),
+    }
+}
+
+#[when(expr = "the requirement is parsed")]
+async fn when_requirement_parsed(_world: &mut AipmWorld) {
+    // Parsing already happened in the given step; this is a no-op.
+}
+
+#[when(expr = "dependencies are resolved")]
+async fn when_deps_resolved(world: &mut AipmWorld) {
+    if let Some(req) = &world.version_req {
+        world.selected_version = req.select_best(&world.registry_versions).cloned();
+    }
+}
 
 #[when(expr = "the user runs {string} in {string}")]
 async fn when_run_in_dir(world: &mut AipmWorld, cmd: String, dir: String) {
@@ -221,6 +283,65 @@ async fn when_run(world: &mut AipmWorld, cmd: String) {
 // =========================================================================
 // THEN — assertions
 // =========================================================================
+
+#[then(expr = "the version is accepted")]
+async fn then_version_accepted(world: &mut AipmWorld) {
+    assert!(
+        world.validation_errors.is_empty(),
+        "expected version to be accepted but got errors: {:?}",
+        world.validation_errors
+    );
+}
+
+#[then(expr = "the version is rejected with {string}")]
+async fn then_version_rejected(world: &mut AipmWorld, expected_msg: String) {
+    assert!(
+        !world.validation_errors.is_empty(),
+        "expected version to be rejected with '{expected_msg}' but no errors"
+    );
+    let combined = world.validation_errors.join("; ");
+    assert!(
+        combined.contains(&expected_msg),
+        "expected '{expected_msg}' in errors, got: {combined}"
+    );
+}
+
+#[then(expr = "it matches version {string}")]
+async fn then_matches_version(world: &mut AipmWorld, ver: String) {
+    let req = world.version_req.as_ref().expect("version requirement set");
+    let version = version::Version::parse(&ver).expect("valid version");
+    assert!(req.matches(&version), "expected requirement '{req}' to match '{ver}'");
+}
+
+#[then(expr = "it does not match version {string}")]
+async fn then_does_not_match_version(world: &mut AipmWorld, ver: String) {
+    if ver.is_empty() {
+        return; // wildcard * has no no_match example
+    }
+    let req = world.version_req.as_ref().expect("version requirement set");
+    let version = version::Version::parse(&ver).expect("valid version");
+    assert!(!req.matches(&version), "expected requirement '{req}' to NOT match '{ver}'");
+}
+
+#[then(expr = "version {string} is selected")]
+async fn then_version_selected(world: &mut AipmWorld, expected: String) {
+    let selected = world.selected_version.as_ref().expect("a version was selected");
+    assert_eq!(
+        selected.to_string(),
+        expected,
+        "expected '{expected}' to be selected, got '{selected}'"
+    );
+}
+
+#[then(expr = "version {string} is not considered")]
+async fn then_version_not_considered(world: &mut AipmWorld, excluded: String) {
+    let selected = world.selected_version.as_ref().map(ToString::to_string);
+    assert_ne!(
+        selected.as_deref(),
+        Some(excluded.as_str()),
+        "version '{excluded}' should not have been selected"
+    );
+}
 
 #[then(expr = "the command succeeds")]
 async fn then_succeeds(world: &mut AipmWorld) {

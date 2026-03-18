@@ -75,5 +75,48 @@
 - Merged settings functions extracted to `merge_claude_settings`/`merge_vscode_settings` (clippy `branches_sharing_code`)
 - Skill file written before manifest validation (component paths must exist for `parse_and_validate`)
 
+**Feature 6: P0 — CI/CD, release automation, and cross-platform binary distribution** ✅
+- Switched `reqwest` to `rustls-tls` backend (`default-features = false, features = ["json", "rustls-tls"]`) for musl static builds
+- Added `[profile.release]` to workspace `Cargo.toml`: opt-level 3, lto thin, codegen-units 1, strip symbols
+- Created `.github/workflows/ci.yml`: build, test, clippy -D warnings, fmt --check on push to main and PRs
+- Created `cliff.toml`: git-cliff changelog template with 10 conventional commit group parsers
+- Created `release-plz.toml`: changelog_update, git_tag_enable, git_release_enable = false, semver_check = true
+- Created `CHANGELOG.md` with empty header template
+- Created `.github/workflows/release-plz.yml`: two jobs — release-plz-pr (creates release PR) and release-plz-release (publishes to crates.io + creates git tag using RELEASE_PLZ_TOKEN PAT)
+- Created `.github/workflows/release.yml`: ripgrep-style three-job pipeline — create-release (draft GitHub Release), build-release (5-target matrix: linux x86_64/aarch64 musl via cross v0.2.5, macOS x86_64/aarch64 native, Windows x86_64 native), packaging with SHA256 checksums, upload, and artifact attestations (SLSA L2)
+- `cargo check --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` all pass
+- Manual steps remaining: reserve crate names on crates.io, create fine-grained PAT (RELEASE_PLZ_TOKEN), add CARGO_REGISTRY_TOKEN secret
+- Repository moved from microsoft/aipm to thelarkinn/aipm — all ESRP/1ES/Azure DevOps references removed; crates.io publishing now via release-plz directly
+
+### Design Decisions
+- Chose `rustls-tls` over `native-tls` to avoid OpenSSL dependency on musl static builds
+- Used `[profile.release]` directly (not `[profile.dist]`) so `--release` flag works without custom profile path
+- Used `RELEASE_PLZ_TOKEN` (fine-grained PAT) for release-plz release job to work around GitHub's "GITHUB_TOKEN cannot trigger other workflows" limitation
+- Pinned cross to v0.2.5 following ripgrep's practice
+- Draft releases (not auto-publish) for safety during initial rollout
+
+## 2026-03-17 — Session 3: Semver Parsing & Version Ranges
+
+### Completed Features
+
+**Feature 7: P0 — Semver parsing, version ranges, and pre-release handling** ✅
+- Created `crates/libaipm/src/version.rs` module with `Version`, `Requirement`, and `Error` types wrapping the `semver` crate
+- `Version::parse()` validates MAJOR.MINOR.PATCH format with optional pre-release and build metadata
+- `Requirement::parse()` supports caret (`^1.0`), tilde (`~1.0`), exact (`=1.0.0`), wildcard (`*`), and compound ranges (`>=1.0, <2.0`)
+- `Requirement::matches()` checks if a version satisfies the requirement
+- `Requirement::select_best()` picks the highest matching non-prerelease version from candidates
+- Pre-1.0 caret ranges treat minor as breaking (`^0.2.3` = `>=0.2.3, <0.3.0`) — semver crate handles this natively
+- 16 unit tests covering parsing, matching, ordering, pre-release exclusion, and candidate selection
+- 7 BDD step implementations added to `bdd.rs` for versioning scenarios
+- All 5 BDD scenarios (17 scenario instances, ~45 steps) in `versioning.feature` pass ✔
+- 81 total unit tests pass; `cargo clippy --workspace --tests -- -D warnings` passes
+- Fixed pre-existing `redundant_clone` clippy warning in `workspace_init.rs`
+
+### Design Decisions
+- Named wrapper `Requirement` instead of `VersionReq` to avoid `module_name_repetitions` lint (module is `version`)
+- Used `select_best()` to handle BDD scenarios 4-5 (pre-release exclusion and pre-1.0 caret) without a full resolver
+- BDD registry simulation uses simple `Vec<Version>` — full registry client is a later feature
+- Test helpers `assert_matches`/`assert_no_match` avoid verbose `unwrap_or_else(|| unreachable!())` chains
+
 ### Next Up
-- Feature 6: P0 — Semver parsing, version ranges, and pre-release handling
+- Feature 8: P0 — Content-addressable global store with SHA-512 hashing

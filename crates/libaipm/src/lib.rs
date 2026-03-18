@@ -6,6 +6,7 @@
 
 pub mod init;
 pub mod manifest;
+pub mod version;
 pub mod workspace_init;
 
 /// Returns the library version.

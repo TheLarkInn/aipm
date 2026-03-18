@@ -1,0 +1,147 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+env:
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUST_BACKTRACE: short
+  CROSS_VERSION: v0.2.5
+
+jobs:
+  # ─── Job 1: Create Draft Release ──────────────────────────
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Create draft GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" --draft --title "$GITHUB_REF_NAME" --generate-notes
+
+  # ─── Job 2: Build Matrix ──────────────────────────────────
+  build-release:
+    name: Build ${{ matrix.target }}
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            cross: true
+            archive: tar.gz
+
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            cross: true
+            archive: tar.gz
+
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            cross: false
+            archive: tar.gz
+
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            cross: false
+            archive: tar.gz
+
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            cross: false
+            archive: zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install cross
+        if: matrix.cross
+        shell: bash
+        run: |
+          curl -fsSL "https://github.com/cross-rs/cross/releases/download/${CROSS_VERSION}/cross-x86_64-unknown-linux-musl.tar.gz" \
+            | tar xz -C "$HOME/.cargo/bin"
+
+      - name: Build
+        shell: bash
+        run: |
+          BUILD_CMD="${{ matrix.cross && 'cross' || 'cargo' }}"
+          $BUILD_CMD build --workspace --release --locked --target "${{ matrix.target }}"
+
+      - name: Package
+        shell: bash
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+          TARGET="${{ matrix.target }}"
+          EXT="${{ matrix.archive }}"
+
+          for BIN in aipm aipm-pack; do
+            STAGING="${BIN}-${VERSION}-${TARGET}"
+            mkdir -p "$STAGING"
+
+            if [ "$EXT" = "zip" ]; then
+              cp "target/${TARGET}/release/${BIN}.exe" "$STAGING/"
+            else
+              cp "target/${TARGET}/release/${BIN}" "$STAGING/"
+            fi
+
+            cp README.md LICENSE "$STAGING/" 2>/dev/null || true
+
+            ARCHIVE="${STAGING}.${EXT}"
+            if [ "$EXT" = "zip" ]; then
+              7z a "$ARCHIVE" "$STAGING"
+            else
+              tar czf "$ARCHIVE" "$STAGING"
+            fi
+
+            if command -v shasum > /dev/null 2>&1; then
+              shasum -a 256 "$ARCHIVE" > "$ARCHIVE.sha256"
+            else
+              sha256sum "$ARCHIVE" > "$ARCHIVE.sha256"
+            fi
+          done
+
+      - name: Upload artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+          TARGET="${{ matrix.target }}"
+          EXT="${{ matrix.archive }}"
+          for BIN in aipm aipm-pack; do
+            ARCHIVE="${BIN}-${VERSION}-${TARGET}.${EXT}"
+            gh release upload "$GITHUB_REF_NAME" "$ARCHIVE" "$ARCHIVE.sha256"
+          done
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            aipm-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }}
+            aipm-pack-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.${{ matrix.archive }}

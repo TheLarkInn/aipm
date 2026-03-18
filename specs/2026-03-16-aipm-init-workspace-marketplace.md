@@ -267,7 +267,7 @@ init(opts)
 
 ```toml
 # AI Plugin Manager — Workspace Configuration
-# Docs: https://github.com/microsoft/aipm
+# Docs: https://github.com/thelarkinn/aipm
 
 [workspace]
 members = [".ai/*"]
