@@ -471,7 +471,7 @@ fn main() {
     futures::executor::block_on(
         AipmWorld::cucumber()
             .with_default_cli()
-            .filter_run(base, |_, feat, _| {
+            .filter_run(base, |feat, _, _| {
                 let path = feat.path.as_deref().unwrap_or_default();
                 let name = path.to_string_lossy();
                 name.contains("init.feature")
