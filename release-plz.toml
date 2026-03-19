@@ -20,7 +20,7 @@ semver_check = true
 # Publish crates to crates.io via cargo publish
 publish_allow_dirty = false
 
-# Auto-merge release PRs after CI passes (requires repo setting: Allow auto-merge)
+# Create release PRs as non-draft so they are eligible for GitHub auto-merge
 pr_draft = false
 
 # Require clean working directory

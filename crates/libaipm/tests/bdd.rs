@@ -468,15 +468,19 @@ fn main() {
     // validation.feature requires `aipm validate` (not yet implemented).
     // See GitHub issues for enabling remaining feature files and directories.
     let base = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/features/manifest");
-    futures::executor::block_on(
-        AipmWorld::cucumber()
-            .with_default_cli()
-            .filter_run(base, |feat, _, _| {
-                let path = feat.path.as_deref().unwrap_or_default();
-                let name = path.to_string_lossy();
-                name.contains("init.feature")
-                    || name.contains("versioning.feature")
-                    || name.contains("workspace-init.feature")
-            }),
-    );
+    futures::executor::block_on(AipmWorld::cucumber().with_default_cli().filter_run(
+        base,
+        |feat, _, _| {
+            let name = feat
+                .path
+                .as_deref()
+                .and_then(|p| p.file_name())
+                .map(|n| n.to_string_lossy())
+                .unwrap_or_default();
+            matches!(
+                name.as_ref(),
+                "init.feature" | "versioning.feature" | "workspace-init.feature"
+            )
+        },
+    ));
 }
