@@ -22,7 +22,6 @@ publish_allow_dirty = false
 
 # Create release PRs as non-draft (eligible for auto-merge)
 pr_draft = false
-pr_auto_merge = "squash"
 
 # Require clean working directory
 allow_dirty = false
