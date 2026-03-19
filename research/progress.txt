@@ -1,13 +1,33 @@
 ## 2026-03-19 — Feature 1: Restructure workspace_init into module directory
+- Moved workspace_init.rs → workspace_init/mod.rs
+- Created adaptors/mod.rs and adaptors/claude.rs stubs
+- All checks pass, no logic changes
+
+## 2026-03-19 — Features 2-6: ToolAdaptor trait, Claude adaptor, delete vscode/copilot, CLI update
 
 ### What was done:
-- Moved crates/libaipm/src/workspace_init.rs → crates/libaipm/src/workspace_init/mod.rs
-- Created crates/libaipm/src/workspace_init/adaptors/mod.rs (pub mod claude)
-- Created crates/libaipm/src/workspace_init/adaptors/claude.rs (doc comment stub)
-- Added `pub mod adaptors;` to workspace_init/mod.rs
+- Created ToolAdaptor trait in workspace_init/mod.rs with name() and apply() methods
+- Created claude::Adaptor implementing ToolAdaptor (moved from write_claude_settings)
+- Created adaptors::defaults() returning vec![Box::new(claude::Adaptor)]
+- Deleted all vscode/copilot code: write_vscode_settings, merge_vscode_settings, write_copilot_config
+- Deleted InitAction::VscodeSettingsWritten and CopilotConfigWritten
+- Replaced InitAction::ClaudeSettingsWritten with ToolConfigured(String)
+- Removed Copy derive from InitAction (String is not Copy)
+- Updated init() to accept &[Box<dyn ToolAdaptor>] and loop over adaptors
+- Updated CLI: default changed from (workspace+marketplace) to (marketplace only)
+- Updated CLI: ToolConfigured(name) match arm
+- Deleted 5 vscode/copilot unit tests, moved 3 Claude tests to adaptors/claude.rs
+- Added init_with_no_adaptors test
+- Deleted 3 BDD scenarios (vscode/copilot), updated default init scenario
+- Made write_file pub(crate) for adaptor access
+
+### Naming adjustments (clippy module_name_repetitions):
+- ClaudeAdaptor → claude::Adaptor
+- default_adaptors() → defaults()
 
 ### Verification:
 - cargo build --workspace: PASS
-- cargo test --workspace: PASS (30 passed, 15 skipped — same as before)
-- cargo clippy --workspace -- -D warnings: PASS (zero warnings)
-- No logic changes — pure file restructure
+- cargo test --workspace: PASS (42 scenarios: 29 passed, 13 skipped)
+- cargo clippy --workspace -- -D warnings: PASS
+- cargo fmt --check: PASS
+- No vscode/copilot references in workspace_init code or BDD features

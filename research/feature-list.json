@@ -2,103 +2,36 @@
   {
     "category": "refactor",
     "description": "Restructure workspace_init.rs into workspace_init/ module directory with mod.rs + adaptors/claude.rs",
-    "steps": [
-      "Rename crates/libaipm/src/workspace_init.rs to crates/libaipm/src/workspace_init/mod.rs",
-      "Create crates/libaipm/src/workspace_init/adaptors/ directory",
-      "Create crates/libaipm/src/workspace_init/adaptors/mod.rs with pub mod claude",
-      "Create crates/libaipm/src/workspace_init/adaptors/claude.rs as an empty file for now",
-      "Verify cargo build --workspace passes with no logic changes",
-      "Verify cargo test --workspace passes with no logic changes",
-      "Verify cargo clippy --workspace -- -D warnings passes"
-    ],
     "passes": true
   },
   {
     "category": "refactor",
     "description": "Create ToolAdaptor trait and ClaudeAdaptor, move Claude settings logic into adaptor",
-    "steps": [
-      "Define the ToolAdaptor trait in workspace_init/mod.rs with name() -> &str and apply(&self, dir: &Path) -> Result<bool, Error>",
-      "Create ClaudeAdaptor struct in workspace_init/adaptors/claude.rs",
-      "Implement ToolAdaptor for ClaudeAdaptor, moving write_claude_settings() and merge_claude_settings() logic into apply()",
-      "Create default_adaptors() function in workspace_init/adaptors/mod.rs returning vec![Box::new(ClaudeAdaptor)]",
-      "Move the 3 Claude unit tests (claude_settings_created_fresh, claude_settings_merge_existing, claude_settings_skip_if_present) to adaptors/claude.rs",
-      "Export the adaptors module and ToolAdaptor trait from workspace_init/mod.rs",
-      "Verify cargo build --workspace passes",
-      "Verify cargo test --workspace passes — Claude tests must still pass in their new location"
-    ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
     "description": "Delete vscode and copilot settings code, tests, and BDD scenarios",
-    "steps": [
-      "Delete write_vscode_settings() function from workspace_init/mod.rs",
-      "Delete merge_vscode_settings() function from workspace_init/mod.rs",
-      "Delete write_copilot_config() function from workspace_init/mod.rs",
-      "Delete InitAction::VscodeSettingsWritten enum variant",
-      "Delete InitAction::CopilotConfigWritten enum variant",
-      "Delete unit tests: vscode_settings_created_fresh, vscode_settings_merge_existing, vscode_settings_skip_duplicate, copilot_config_created_fresh, copilot_config_skip_existing",
-      "Delete BDD scenarios from workspace-init.feature: 'Copilot VS Code settings point to .ai/' (lines 109-114), 'Copilot CLI MCP config stub is created' (lines 116-119), 'Existing VS Code settings are merged not overwritten' (lines 127-132)",
-      "Verify cargo build --workspace passes",
-      "Verify cargo test --workspace passes",
-      "Verify cargo clippy --workspace -- -D warnings passes"
-    ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
     "description": "Update init() to accept adaptors slice and replace InitAction::ClaudeSettingsWritten with ToolConfigured(String)",
-    "steps": [
-      "Replace InitAction::ClaudeSettingsWritten with InitAction::ToolConfigured(String)",
-      "Remove Copy derive from InitAction (String is not Copy), keep Clone and other derives",
-      "Update init() signature to accept adaptors: &[Box<dyn ToolAdaptor>]",
-      "Replace the hard-coded write_claude_settings() call in init() with a loop over adaptors calling adaptor.apply()",
-      "Push InitAction::ToolConfigured(adaptor.name().to_string()) for each successful apply",
-      "Update all tests that reference InitAction::ClaudeSettingsWritten to use ToolConfigured",
-      "Update tests that use InitAction Copy semantics to use Clone or references",
-      "Verify cargo build --workspace passes",
-      "Verify cargo test --workspace passes"
-    ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Update CLI main.rs: pass adaptors to init(), handle ToolConfigured action, change default to marketplace-only",
-    "steps": [
-      "Change default (no flags) behavior from (true, true) to (false, true) for (do_workspace, do_marketplace)",
-      "Import and call default_adaptors() from libaipm::workspace_init::adaptors",
-      "Pass adaptors to libaipm::workspace_init::init()",
-      "Replace InitAction::ClaudeSettingsWritten match arm with ToolConfigured(name) => format!('Configured {name} settings')",
-      "Delete InitAction::VscodeSettingsWritten and CopilotConfigWritten match arms",
-      "Verify cargo build --workspace passes",
-      "Verify cargo clippy --workspace -- -D warnings passes"
-    ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Update BDD scenario: default init creates marketplace only (no aipm.toml)",
-    "steps": [
-      "Update the 'Default init with no flags' scenario in workspace-init.feature",
-      "Change expectation from 'aipm.toml is created' to 'there is no file aipm.toml'",
-      "Keep the expectation that .ai/ and .ai/starter/ directories exist",
-      "Verify cargo test --workspace passes — BDD tests must reflect new default behavior",
-      "Verify cargo fmt --check passes"
-    ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "validation",
     "description": "Full build verification — all four checks pass with zero warnings",
-    "steps": [
-      "Run cargo build --workspace and verify zero errors",
-      "Run cargo test --workspace and verify all tests pass",
-      "Run cargo clippy --workspace -- -D warnings and verify zero warnings",
-      "Run cargo fmt --check and verify formatting is correct",
-      "Verify no .vscode or .copilot references remain in workspace_init code (grep for vscode, copilot)",
-      "Verify ToolAdaptor trait is publicly exported from libaipm",
-      "Verify ClaudeAdaptor is publicly exported from libaipm::workspace_init::adaptors"
-    ],
-    "passes": false
+    "passes": true
   }
 ]
