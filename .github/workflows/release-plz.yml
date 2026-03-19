@@ -32,11 +32,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
 
-      - name: Enable auto-merge on release PR
-        if: steps.release_plz.outputs.pr_number != ''
-        run: gh pr merge ${{ steps.release_plz.outputs.pr_number }} --auto --squash
+      - name: Enable auto-merge on release PRs
+        if: steps.release_plz.outputs.prs_created != '[]'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
+          PRS_CREATED: ${{ steps.release_plz.outputs.prs_created }}
+        run: |
+          echo "$PRS_CREATED" | jq -r '.[].number' | while read -r pr; do
+            gh pr merge "$pr" --auto --squash
+          done
 
   # Job 2: Publish to crates.io + create git tag when release-plz bumped versions.
   # release-plz release is a no-op if the local version already matches crates.io,
