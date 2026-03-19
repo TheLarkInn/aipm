@@ -20,5 +20,8 @@ semver_check = true
 # Publish crates to crates.io via cargo publish
 publish_allow_dirty = false
 
+# Auto-merge release PRs after CI passes (requires repo setting: Allow auto-merge)
+pr_draft = false
+
 # Require clean working directory
 allow_dirty = false
