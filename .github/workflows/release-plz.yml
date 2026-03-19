@@ -4,16 +4,15 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
   # Job 1: Create/update a release PR with version bumps + CHANGELOG
   # cargo-semver-checks determines the version bump from API changes
   release-pr:
     name: Release PR
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     concurrency:
       group: release-pr-${{ github.ref }}
       cancel-in-progress: false
@@ -31,11 +30,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
 
-  # Job 2: After a release PR is merged, publish to crates.io + create git tag
-  # The tag triggers release.yml for binary builds
+  # Job 2: Publish to crates.io + create git tag when release-plz bumped versions.
+  # release-plz release is a no-op if the local version already matches crates.io,
+  # so it only publishes after a release PR merge bumps the version.
+  # The tag triggers release.yml for binary builds.
   release:
     name: Publish & Tag
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     concurrency:
       group: release-${{ github.ref }}
       cancel-in-progress: false
