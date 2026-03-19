@@ -4,13 +4,41 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: write
-
 jobs:
-  release:
-    name: Release
+  # Job 1: Create/update a release PR with version bumps + CHANGELOG
+  # cargo-semver-checks determines the version bump from API changes
+  release-pr:
+    name: Release PR
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    concurrency:
+      group: release-pr-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: release-plz/action@v0.5
+        with:
+          command: release-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Job 2: Publish to crates.io + create git tag when release-plz bumped versions.
+  # release-plz release is a no-op if the local version already matches crates.io,
+  # so it only publishes after a release PR merge bumps the version.
+  # The tag triggers release.yml for binary builds.
+  release:
+    name: Publish & Tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     concurrency:
       group: release-${{ github.ref }}
       cancel-in-progress: false
@@ -22,8 +50,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Bump version, update changelog, publish, tag
-        uses: release-plz/action@v0.5
+      - uses: release-plz/action@v0.5
         with:
           command: release
         env:
