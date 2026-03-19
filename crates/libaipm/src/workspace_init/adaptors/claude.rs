@@ -28,12 +28,10 @@ impl ToolAdaptor for Adaptor {
         crate::workspace_init::write_file(
             &settings_path,
             "{\n\
-             \x20 \"permissions\": {},\n\
-             \x20 \"enabledPlugins\": [],\n\
              \x20 \"extraKnownMarketplaces\": {\n\
              \x20   \"local\": {\n\
              \x20     \"source\": {\n\
-             \x20       \"source\": \"local\",\n\
+             \x20       \"source\": \"directory\",\n\
              \x20       \"path\": \".ai\"\n\
              \x20     }\n\
              \x20   }\n\
@@ -65,7 +63,7 @@ fn merge_claude_settings(settings_path: &Path) -> Result<bool, Error> {
 
     let marketplace_entry = serde_json::json!({
         "source": {
-            "source": "local",
+            "source": "directory",
             "path": ".ai"
         }
     });
@@ -148,7 +146,7 @@ mod tests {
         std::fs::create_dir_all(tmp.join(".claude")).ok();
         std::fs::write(
             tmp.join(".claude/settings.json"),
-            "{\"extraKnownMarketplaces\": {\"local\": {\"source\": {\"source\": \"local\", \"path\": \".ai\"}}}}",
+            "{\"extraKnownMarketplaces\": {\"local\": {\"source\": {\"source\": \"directory\", \"path\": \".ai\"}}}}",
         ).ok();
 
         let adaptor = Adaptor;
