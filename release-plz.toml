@@ -2,7 +2,7 @@
 # Use git-cliff for changelog formatting
 changelog_config = "cliff.toml"
 
-# Update CHANGELOG.md in release PRs
+# Update CHANGELOG.md on release
 changelog_update = true
 
 # Create git tags when releasing
@@ -11,14 +11,14 @@ git_tag_enable = true
 # Do NOT create GitHub Releases — the release.yml workflow handles that
 git_release_enable = false
 
-# Publish crates to crates.io via cargo publish
-publish_allow_dirty = false
-
-# Run cargo-semver-checks to detect breaking changes in libaipm
+# Run cargo-semver-checks to detect API breaking changes and auto-calculate semver
+# - New public types/functions/methods → minor bump
+# - Breaking API changes → major bump (or minor pre-1.0)
+# - Everything else → patch bump
 semver_check = true
 
-# Label release PRs for easy filtering
-pr_labels = ["release"]
+# Publish crates to crates.io via cargo publish
+publish_allow_dirty = false
 
 # Require clean working directory
 allow_dirty = false
