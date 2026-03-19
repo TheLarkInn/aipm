@@ -131,3 +131,11 @@ opt-level = 3
 lto = "thin"
 codegen-units = 1
 strip = "symbols"
+
+# =============================================================================
+# DIST PROFILE — used by cargo-dist for distribution builds
+# Inherits all settings from [profile.release] above
+# =============================================================================
+
+[profile.dist]
+inherits = "release"

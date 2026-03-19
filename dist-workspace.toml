@@ -1,0 +1,42 @@
+[workspace]
+members = ["cargo:."]
+
+[dist]
+# Pin cargo-dist version for reproducible CI
+cargo-dist-version = "0.31.0"
+
+# Generate GitHub Actions workflow
+ci = "github"
+
+# Installer scripts: shell (Unix), powershell (Windows)
+installers = ["shell", "powershell"]
+
+# Build targets (4 platforms)
+targets = [
+  "x86_64-unknown-linux-gnu",
+  "x86_64-apple-darwin",
+  "aarch64-apple-darwin",
+  "x86_64-pc-windows-msvc",
+]
+
+# Only run planning on PRs (not full builds)
+pr-run-mode = "plan"
+
+# Install to ~/.cargo/bin (standard Rust convention)
+install-path = "CARGO_HOME"
+
+# Enable self-updater binary (axoupdater)
+install-updater = true
+
+# Enable GitHub Artifact Attestations (matches current release.yml behavior)
+github-attestations = true
+
+# Enable manual workflow_dispatch trigger (matches current release.yml)
+dispatch-releases = true
+
+# Archive formats
+unix-archive = ".tar.xz"
+windows-archive = ".zip"
+
+# SHA256 checksums per archive
+checksum = "sha256"
