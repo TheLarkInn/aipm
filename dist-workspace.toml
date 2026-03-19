@@ -31,8 +31,10 @@ install-updater = true
 # Enable GitHub Artifact Attestations (matches current release.yml behavior)
 github-attestations = true
 
-# Enable manual workflow_dispatch trigger (matches current release.yml)
-dispatch-releases = true
+# Use tag-push triggers (compatible with release-plz tag creation)
+# dispatch-releases is intentionally NOT set — the default push:tags trigger
+# is what release-plz's RELEASE_PLZ_TOKEN PAT tag pushes activate
+dispatch-releases = false
 
 # Archive formats
 unix-archive = ".tar.xz"

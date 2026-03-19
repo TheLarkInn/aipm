@@ -28,3 +28,27 @@
 - NEW: dist-workspace.toml
 - MODIFIED: Cargo.toml (added [profile.dist])
 - REPLACED: .github/workflows/release.yml (cargo-dist generated)
+
+## 2026-03-19 — Feature 2: Verify cargo-dist generated workflow
+
+### What was done:
+- Fixed dispatch-releases config: changed from `true` to `false`
+  - `dispatch-releases = true` generates workflow_dispatch-only triggers (no push:tags)
+  - release-plz pushes git tags via PAT, which requires push:tags trigger
+  - `dispatch-releases = false` generates `push: tags: ['**[0-9]+.[0-9]+.[0-9]+*']` — compatible with release-plz v* tags
+- Regenerated release.yml with `dist generate`
+
+### Verification checklist:
+- [x] Tag trigger: `push: tags: ['**[0-9]+.[0-9]+.[0-9]+*']` matches v0.1.1 format
+- [x] PR plan: `pull_request` trigger runs plan-only on PRs
+- [x] Permissions: top-level `contents: write`, build job has `attestations: write`, `id-token: write`
+- [x] Jobs: plan, build-local-artifacts, build-global-artifacts, host, announce
+- [x] Release published: `gh release create` has no `--draft` flag
+- [x] release-plz.yml unchanged
+- [x] release-plz.toml unchanged
+- [x] ci.yml unchanged
+- [~] workflow_dispatch: Not available with push:tags mode. cargo-dist doesn't support both simultaneously. Manual re-runs via `gh workflow run` if needed.
+
+### Files changed:
+- MODIFIED: dist-workspace.toml (dispatch-releases = false)
+- REGENERATED: .github/workflows/release.yml
