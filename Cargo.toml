@@ -22,7 +22,7 @@ readme = "README.md"
 
 [workspace.dependencies]
 # Shared library
-libaipm = { path = "crates/libaipm" }
+libaipm = { path = "crates/libaipm", version = "0.1.0" }
 
 # CLI
 clap = { version = "4", features = ["derive"] }
