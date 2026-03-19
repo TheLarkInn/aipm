@@ -464,9 +464,19 @@ async fn then_components_verified(_world: &mut AipmWorld) {
 // =========================================================================
 
 fn main() {
-    // Only run feature files with wired step implementations.
-    // See GitHub issues for enabling remaining feature directories:
-    //   dependencies/, registry/, monorepo/, environment/, guardrails/, reuse/, portability/
-    let features_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/features/manifest");
-    futures::executor::block_on(AipmWorld::run(features_dir));
+    // Only run feature files with fully wired step implementations.
+    // validation.feature requires `aipm validate` (not yet implemented).
+    // See GitHub issues for enabling remaining feature files and directories.
+    let base = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/features/manifest");
+    futures::executor::block_on(
+        AipmWorld::cucumber()
+            .with_default_cli()
+            .filter_run(base, |_, feat, _| {
+                let path = feat.path.as_deref().unwrap_or_default();
+                let name = path.to_string_lossy();
+                name.contains("init.feature")
+                    || name.contains("versioning.feature")
+                    || name.contains("workspace-init.feature")
+            }),
+    );
 }
