@@ -4,6 +4,8 @@
 //! marketplace directory with a starter plugin and tool settings files for
 //! Claude Code and Copilot.
 
+pub mod adaptors;
+
 use std::io::Write;
 use std::path::{Path, PathBuf};
 

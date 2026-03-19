@@ -1,113 +1,103 @@
 [
   {
-    "category": "infrastructure",
-    "description": "Initialize cargo-dist in workspace — create dist-workspace.toml, add [profile.dist] to Cargo.toml, generate release.yml",
+    "category": "refactor",
+    "description": "Restructure workspace_init.rs into workspace_init/ module directory with mod.rs + adaptors/claude.rs",
     "steps": [
-      "Install cargo-dist locally: cargo install cargo-dist --locked",
-      "Run `cargo dist init` in workspace root with options: ci=github, installers=[shell, powershell], targets=[x86_64-unknown-linux-gnu, x86_64-apple-darwin, aarch64-apple-darwin, x86_64-pc-windows-msvc]",
-      "Verify dist-workspace.toml is created with correct settings per spec §5.2",
-      "Verify [profile.dist] inherits = 'release' is added to Cargo.toml per spec §5.3",
-      "Verify .github/workflows/release.yml is generated (replaces hand-rolled version)",
-      "Configure additional settings in dist-workspace.toml: install-updater = true, github-attestations = true, dispatch-releases = true, unix-archive = '.tar.xz', windows-archive = '.zip', checksum = 'sha256', install-path = 'CARGO_HOME'",
-      "Run `cargo dist plan` locally to verify both aipm and aipm-pack are listed as apps and libaipm is excluded",
-      "Verify 4 target triples are listed in plan output"
+      "Rename crates/libaipm/src/workspace_init.rs to crates/libaipm/src/workspace_init/mod.rs",
+      "Create crates/libaipm/src/workspace_init/adaptors/ directory",
+      "Create crates/libaipm/src/workspace_init/adaptors/mod.rs with pub mod claude",
+      "Create crates/libaipm/src/workspace_init/adaptors/claude.rs as an empty file for now",
+      "Verify cargo build --workspace passes with no logic changes",
+      "Verify cargo test --workspace passes with no logic changes",
+      "Verify cargo clippy --workspace -- -D warnings passes"
     ],
     "passes": true
   },
   {
-    "category": "infrastructure",
-    "description": "Remove hand-rolled release.yml and replace with cargo-dist generated workflow",
+    "category": "refactor",
+    "description": "Create ToolAdaptor trait and ClaudeAdaptor, move Claude settings logic into adaptor",
     "steps": [
-      "Back up current .github/workflows/release.yml for reference",
-      "Verify the cargo-dist generated release.yml triggers on tags matching v[0-9]+.[0-9]+.[0-9]+ (compatible with release-plz tags)",
-      "Verify the generated workflow includes workflow_dispatch trigger (dispatch-releases = true)",
-      "Verify the generated workflow has permissions: contents write, id-token write, attestations write",
-      "Verify the workflow has plan, build, host, and announce jobs",
-      "Verify the announce job publishes the release (not draft)",
-      "Confirm release-plz.yml and release-plz.toml remain unchanged"
+      "Define the ToolAdaptor trait in workspace_init/mod.rs with name() -> &str and apply(&self, dir: &Path) -> Result<bool, Error>",
+      "Create ClaudeAdaptor struct in workspace_init/adaptors/claude.rs",
+      "Implement ToolAdaptor for ClaudeAdaptor, moving write_claude_settings() and merge_claude_settings() logic into apply()",
+      "Create default_adaptors() function in workspace_init/adaptors/mod.rs returning vec![Box::new(ClaudeAdaptor)]",
+      "Move the 3 Claude unit tests (claude_settings_created_fresh, claude_settings_merge_existing, claude_settings_skip_if_present) to adaptors/claude.rs",
+      "Export the adaptors module and ToolAdaptor trait from workspace_init/mod.rs",
+      "Verify cargo build --workspace passes",
+      "Verify cargo test --workspace passes — Claude tests must still pass in their new location"
     ],
-    "passes": true
+    "passes": false
   },
   {
-    "category": "functional",
-    "description": "Shell installer script generation — aipm-installer.sh and aipm-pack-installer.sh uploaded as release assets",
+    "category": "refactor",
+    "description": "Delete vscode and copilot settings code, tests, and BDD scenarios",
     "steps": [
-      "Verify 'shell' is in the installers list in dist-workspace.toml",
-      "Run `cargo dist plan` and confirm shell installer is listed in the plan output",
-      "After first release: verify aipm-installer.sh is uploaded as a GitHub Release asset",
-      "After first release: verify aipm-pack-installer.sh is uploaded as a GitHub Release asset",
-      "Test: curl --proto '=https' --tlsv1.2 -LsSf .../aipm-installer.sh | sh installs aipm to ~/.cargo/bin",
-      "Test: installed binary runs correctly (aipm --version)",
-      "Test: installer adds binary to PATH correctly"
+      "Delete write_vscode_settings() function from workspace_init/mod.rs",
+      "Delete merge_vscode_settings() function from workspace_init/mod.rs",
+      "Delete write_copilot_config() function from workspace_init/mod.rs",
+      "Delete InitAction::VscodeSettingsWritten enum variant",
+      "Delete InitAction::CopilotConfigWritten enum variant",
+      "Delete unit tests: vscode_settings_created_fresh, vscode_settings_merge_existing, vscode_settings_skip_duplicate, copilot_config_created_fresh, copilot_config_skip_existing",
+      "Delete BDD scenarios from workspace-init.feature: 'Copilot VS Code settings point to .ai/' (lines 109-114), 'Copilot CLI MCP config stub is created' (lines 116-119), 'Existing VS Code settings are merged not overwritten' (lines 127-132)",
+      "Verify cargo build --workspace passes",
+      "Verify cargo test --workspace passes",
+      "Verify cargo clippy --workspace -- -D warnings passes"
+    ],
+    "passes": false
+  },
+  {
+    "category": "refactor",
+    "description": "Update init() to accept adaptors slice and replace InitAction::ClaudeSettingsWritten with ToolConfigured(String)",
+    "steps": [
+      "Replace InitAction::ClaudeSettingsWritten with InitAction::ToolConfigured(String)",
+      "Remove Copy derive from InitAction (String is not Copy), keep Clone and other derives",
+      "Update init() signature to accept adaptors: &[Box<dyn ToolAdaptor>]",
+      "Replace the hard-coded write_claude_settings() call in init() with a loop over adaptors calling adaptor.apply()",
+      "Push InitAction::ToolConfigured(adaptor.name().to_string()) for each successful apply",
+      "Update all tests that reference InitAction::ClaudeSettingsWritten to use ToolConfigured",
+      "Update tests that use InitAction Copy semantics to use Clone or references",
+      "Verify cargo build --workspace passes",
+      "Verify cargo test --workspace passes"
     ],
     "passes": false
   },
   {
     "category": "functional",
-    "description": "PowerShell installer script generation — aipm-installer.ps1 and aipm-pack-installer.ps1 uploaded as release assets",
+    "description": "Update CLI main.rs: pass adaptors to init(), handle ToolConfigured action, change default to marketplace-only",
     "steps": [
-      "Verify 'powershell' is in the installers list in dist-workspace.toml",
-      "Run `cargo dist plan` and confirm PowerShell installer is listed in the plan output",
-      "After first release: verify aipm-installer.ps1 is uploaded as a GitHub Release asset",
-      "After first release: verify aipm-pack-installer.ps1 is uploaded as a GitHub Release asset",
-      "Test: irm .../aipm-installer.ps1 | iex installs aipm on Windows",
-      "Test: installed binary runs correctly (aipm --version)",
-      "Test: installer updates PATH via registry correctly"
+      "Change default (no flags) behavior from (true, true) to (false, true) for (do_workspace, do_marketplace)",
+      "Import and call default_adaptors() from libaipm::workspace_init::adaptors",
+      "Pass adaptors to libaipm::workspace_init::init()",
+      "Replace InitAction::ClaudeSettingsWritten match arm with ToolConfigured(name) => format!('Configured {name} settings')",
+      "Delete InitAction::VscodeSettingsWritten and CopilotConfigWritten match arms",
+      "Verify cargo build --workspace passes",
+      "Verify cargo clippy --workspace -- -D warnings passes"
     ],
     "passes": false
   },
   {
     "category": "functional",
-    "description": "Self-updater (axoupdater) — updater binary included in release archives",
+    "description": "Update BDD scenario: default init creates marketplace only (no aipm.toml)",
     "steps": [
-      "Verify install-updater = true is set in dist-workspace.toml",
-      "Run `cargo dist plan` and confirm updater is listed in the plan output",
-      "After first release: verify updater binary is included inside platform archives alongside main binary",
-      "Test: updater binary detects current version",
-      "Test: updater checks for newer releases on GitHub"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Published GitHub Releases — releases are published (not draft) with all artifacts",
-    "steps": [
-      "Verify the cargo-dist generated workflow creates published releases (not draft)",
-      "After first release: verify GitHub Release is visible on the public Releases page",
-      "Verify release contains 8 archives (2 binaries x 4 targets) per spec §5.8",
-      "Verify release contains 8 SHA256 checksum files",
-      "Verify release contains 4 installer scripts (shell + powershell for each binary)",
-      "Verify release contains source tarball",
-      "Test: gh attestation verify ./aipm --owner thelarkinn succeeds"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "cargo-binstall auto-discovery validation — verify cargo binstall aipm works without explicit metadata",
-    "steps": [
-      "After first release: run cargo binstall aipm on a clean machine",
-      "Verify cargo-binstall auto-discovers the GitHub Release artifacts from cargo-dist",
-      "Verify correct platform binary is downloaded (not compiled from source)",
-      "If auto-discovery fails: add [package.metadata.binstall] to crates/aipm/Cargo.toml and crates/aipm-pack/Cargo.toml as fallback per spec §5.4",
-      "Test: cargo binstall aipm-pack also works"
+      "Update the 'Default init with no flags' scenario in workspace-init.feature",
+      "Change expectation from 'aipm.toml is created' to 'there is no file aipm.toml'",
+      "Keep the expectation that .ai/ and .ai/starter/ directories exist",
+      "Verify cargo test --workspace passes — BDD tests must reflect new default behavior",
+      "Verify cargo fmt --check passes"
     ],
     "passes": false
   },
   {
     "category": "validation",
-    "description": "End-to-end release pipeline test — trigger a test release and verify full pipeline",
+    "description": "Full build verification — all four checks pass with zero warnings",
     "steps": [
-      "Ensure all cargo-dist config is committed and pushed to main",
-      "Either push a test tag (v0.1.1) or use workflow_dispatch to trigger the release",
-      "Verify release-plz.yml is NOT affected (still works for version bumps)",
-      "Verify cargo-dist release.yml triggers and all 4 platform builds succeed",
-      "Verify GitHub Release is published with all expected artifacts (spec §5.8)",
-      "Download and run each binary on its target platform",
-      "Test shell installer on macOS and Linux",
-      "Test PowerShell installer on Windows",
-      "Verify SHA256 checksums match: shasum -a 256 -c *.sha256",
-      "Verify attestation: gh attestation verify ./aipm --owner thelarkinn"
+      "Run cargo build --workspace and verify zero errors",
+      "Run cargo test --workspace and verify all tests pass",
+      "Run cargo clippy --workspace -- -D warnings and verify zero warnings",
+      "Run cargo fmt --check and verify formatting is correct",
+      "Verify no .vscode or .copilot references remain in workspace_init code (grep for vscode, copilot)",
+      "Verify ToolAdaptor trait is publicly exported from libaipm",
+      "Verify ClaudeAdaptor is publicly exported from libaipm::workspace_init::adaptors"
     ],
     "passes": false
   }
