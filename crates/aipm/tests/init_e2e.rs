@@ -16,23 +16,18 @@ fn aipm() -> assert_cmd::Command {
 }
 
 // =========================================================================
-// Scenario: Default init with no flags creates both workspace and marketplace
+// Scenario: Default init with no flags creates marketplace only
 // =========================================================================
 #[test]
-fn init_default_creates_workspace_and_marketplace() {
+fn init_default_creates_marketplace_only() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("my-project");
 
     aipm().args(["init", &dir.display().to_string()]).assert().success();
 
-    assert!(dir.join("aipm.toml").exists(), "aipm.toml should exist");
+    assert!(!dir.join("aipm.toml").exists(), "aipm.toml should NOT exist");
     assert!(dir.join(".ai/starter/aipm.toml").exists(), ".ai/starter/aipm.toml should exist");
     assert!(dir.join(".claude/settings.json").exists(), ".claude/settings.json should exist");
-    assert!(dir.join(".vscode/settings.json").exists(), ".vscode/settings.json should exist");
-    assert!(dir.join(".copilot/mcp-config.json").exists(), ".copilot/mcp-config.json should exist");
-
-    let manifest = std::fs::read_to_string(dir.join("aipm.toml")).unwrap();
-    assert!(manifest.contains("[workspace]"), "should contain [workspace] section");
 }
 
 // =========================================================================
@@ -130,34 +125,6 @@ fn init_claude_settings_generated() {
     let content = std::fs::read_to_string(dir.join(".claude/settings.json")).unwrap();
     assert!(content.contains("extraKnownMarketplaces"));
     assert!(content.contains(".ai"));
-}
-
-// =========================================================================
-// Scenario: VS Code settings generated
-// =========================================================================
-#[test]
-fn init_vscode_settings_generated() {
-    let tmp = tempfile::TempDir::new().unwrap();
-    let dir = tmp.path().join("vscode-gen");
-
-    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
-
-    let content = std::fs::read_to_string(dir.join(".vscode/settings.json")).unwrap();
-    assert!(content.contains("chat.agentFilesLocations"));
-    assert!(content.contains(".ai"));
-}
-
-// =========================================================================
-// Scenario: Copilot config generated
-// =========================================================================
-#[test]
-fn init_copilot_config_generated() {
-    let tmp = tempfile::TempDir::new().unwrap();
-    let dir = tmp.path().join("copilot-gen");
-
-    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
-
-    assert!(dir.join(".copilot/mcp-config.json").exists());
 }
 
 // =========================================================================
