@@ -464,6 +464,9 @@ async fn then_components_verified(_world: &mut AipmWorld) {
 // =========================================================================
 
 fn main() {
-    let features_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/features");
+    // Only run feature files with wired step implementations.
+    // See GitHub issues for enabling remaining feature directories:
+    //   dependencies/, registry/, monorepo/, environment/, guardrails/, reuse/, portability/
+    let features_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/features/manifest");
     futures::executor::block_on(AipmWorld::run(features_dir));
 }
