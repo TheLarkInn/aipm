@@ -24,11 +24,19 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: release-plz/action@v0.5
+      - name: Create/update release PR
+        id: release_plz
+        uses: release-plz/action@v0.5
         with:
           command: release-pr
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
+
+      - name: Enable auto-merge on release PR
+        if: steps.release_plz.outputs.pr_number != ''
+        run: gh pr merge ${{ steps.release_plz.outputs.pr_number }} --auto --squash
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
 
   # Job 2: Publish to crates.io + create git tag when release-plz bumped versions.
   # release-plz release is a no-op if the local version already matches crates.io,
