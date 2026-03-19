@@ -81,15 +81,14 @@ Feature: Workspace initialization
     Then a file "aipm.toml" is created in "my-project"
     And there is no directory ".ai/starter" in "my-project"
 
-  Scenario: Default init with no flags creates both workspace and marketplace
+  Scenario: Default init with no flags creates marketplace only
     Given an empty directory "my-project"
     When the user runs "aipm init" in "my-project"
-    Then a file "aipm.toml" is created in "my-project"
-    And the manifest contains a "[workspace]" section
-    And the following directories exist in "my-project":
+    Then the following directories exist in "my-project":
       | directory      |
       | .ai/           |
       | .ai/starter/   |
+    And there is no file "aipm.toml" in "my-project"
 
   Scenario: Starter plugin manifest is valid TOML that round-trips through parser
     Given an empty directory "my-project"
@@ -106,27 +105,8 @@ Feature: Workspace initialization
       And the Claude settings contain "extraKnownMarketplaces"
       And the Claude settings reference ".ai" as the marketplace path
 
-    Scenario: Copilot VS Code settings point to .ai/ for agent discovery
-      Given an empty directory "my-project"
-      When the user runs "aipm init --marketplace" in "my-project"
-      Then a file ".vscode/settings.json" exists in "my-project"
-      And the VS Code settings contain "chat.agentFilesLocations"
-      And the VS Code settings reference ".ai" in the agent file locations
-
-    Scenario: Copilot CLI MCP config stub is created
-      Given an empty directory "my-project"
-      When the user runs "aipm init --marketplace" in "my-project"
-      Then a file ".copilot/mcp-config.json" exists in "my-project"
-
     Scenario: Existing Claude settings are not overwritten
       Given an empty directory "my-project"
       And a file ".claude/settings.json" with custom content exists in "my-project"
       When the user runs "aipm init --marketplace" in "my-project"
       Then the Claude settings file preserves the custom content
-
-    Scenario: Existing VS Code settings are merged not overwritten
-      Given an empty directory "my-project"
-      And a file ".vscode/settings.json" with custom content exists in "my-project"
-      When the user runs "aipm init --marketplace" in "my-project"
-      Then the VS Code settings file preserves the custom content
-      And the VS Code settings contain "chat.agentFilesLocations"

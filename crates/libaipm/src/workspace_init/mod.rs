@@ -1,13 +1,32 @@
 //! Workspace initialization and `.ai/` marketplace scaffolding for `aipm init`.
 //!
 //! Creates a workspace `aipm.toml` at the repo root and/or a `.ai/` local
-//! marketplace directory with a starter plugin and tool settings files for
-//! Claude Code and Copilot.
+//! marketplace directory with a starter plugin. Tool-specific settings are
+//! applied by [`ToolAdaptor`] implementations in the [`adaptors`] module.
 
 pub mod adaptors;
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
+
+/// An adaptor integrates aipm's `.ai/` marketplace with a specific AI coding tool.
+///
+/// Each adaptor is responsible for writing or merging tool-specific configuration
+/// files that point the tool at the `.ai/` marketplace directory.
+pub trait ToolAdaptor {
+    /// Human-readable name for user-facing output (e.g., "Claude Code").
+    fn name(&self) -> &'static str;
+
+    /// Apply tool-specific settings to the workspace directory.
+    ///
+    /// Returns `true` if files were written or modified, `false` if the tool
+    /// was already configured and no changes were needed.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Error` if I/O operations fail or existing config files cannot be parsed.
+    fn apply(&self, dir: &Path) -> Result<bool, Error>;
+}
 
 /// Options for workspace initialization.
 pub struct Options<'a> {
@@ -22,18 +41,15 @@ pub struct Options<'a> {
 /// Actions taken during initialization — used for user feedback.
 ///
 /// Each variant represents a file or directory that was created.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InitAction {
     /// The workspace manifest (`aipm.toml`) was created.
     WorkspaceCreated,
     /// The `.ai/` marketplace directory was scaffolded.
     MarketplaceCreated,
-    /// `.claude/settings.json` was written or merged.
-    ClaudeSettingsWritten,
-    /// `.vscode/settings.json` was written or merged.
-    VscodeSettingsWritten,
-    /// `.copilot/mcp-config.json` was written.
-    CopilotConfigWritten,
+    /// A tool-specific configuration was written or merged.
+    /// The string is the human-readable tool name (e.g., "Claude Code").
+    ToolConfigured(String),
 }
 
 /// Result of workspace initialization — list of actions taken.
@@ -69,11 +85,14 @@ pub enum Error {
 
 /// Initialize workspace and/or marketplace.
 ///
+/// Tool-specific settings are applied by the provided adaptors after
+/// marketplace scaffolding.
+///
 /// # Errors
 ///
 /// Returns `Error` if the workspace manifest or `.ai/` directory already
 /// exists, or if I/O operations fail.
-pub fn init(opts: &Options<'_>) -> Result<InitResult, Error> {
+pub fn init(opts: &Options<'_>, adaptors: &[Box<dyn ToolAdaptor>]) -> Result<InitResult, Error> {
     let mut actions = Vec::new();
 
     if opts.workspace {
@@ -85,14 +104,10 @@ pub fn init(opts: &Options<'_>) -> Result<InitResult, Error> {
         scaffold_marketplace(opts.dir)?;
         actions.push(InitAction::MarketplaceCreated);
 
-        if write_claude_settings(opts.dir)? {
-            actions.push(InitAction::ClaudeSettingsWritten);
-        }
-        if write_vscode_settings(opts.dir)? {
-            actions.push(InitAction::VscodeSettingsWritten);
-        }
-        if write_copilot_config(opts.dir)? {
-            actions.push(InitAction::CopilotConfigWritten);
+        for adaptor in adaptors {
+            if adaptor.apply(opts.dir)? {
+                actions.push(InitAction::ToolConfigured(adaptor.name().to_string()));
+            }
         }
     }
 
@@ -241,161 +256,10 @@ fn generate_mcp_stub() -> String {
 }
 
 // =============================================================================
-// Tool settings generation
-// =============================================================================
-
-/// Write or merge `.claude/settings.json` with `extraKnownMarketplaces` pointing to `.ai/`.
-/// Returns `true` if the file was written/modified, `false` if skipped.
-fn write_claude_settings(dir: &Path) -> Result<bool, Error> {
-    let settings_dir = dir.join(".claude");
-    let settings_path = settings_dir.join("settings.json");
-
-    if settings_path.exists() {
-        return merge_claude_settings(&settings_path);
-    }
-
-    // Create fresh
-    std::fs::create_dir_all(&settings_dir)?;
-    write_file(
-        &settings_path,
-        "{\n\
-         \x20 \"permissions\": {},\n\
-         \x20 \"enabledPlugins\": [],\n\
-         \x20 \"extraKnownMarketplaces\": {\n\
-         \x20   \"local\": {\n\
-         \x20     \"source\": {\n\
-         \x20       \"source\": \"local\",\n\
-         \x20       \"path\": \".ai\"\n\
-         \x20     }\n\
-         \x20   }\n\
-         \x20 }\n\
-         }\n",
-    )?;
-    Ok(true)
-}
-
-fn merge_claude_settings(settings_path: &Path) -> Result<bool, Error> {
-    let content = std::fs::read_to_string(settings_path)?;
-    let mut json: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|source| Error::JsonParse { path: settings_path.to_path_buf(), source })?;
-
-    let obj = json.as_object_mut().ok_or_else(|| Error::JsonParse {
-        path: settings_path.to_path_buf(),
-        source: serde_json::Error::io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "expected JSON object",
-        )),
-    })?;
-
-    // Check if extraKnownMarketplaces.local already exists
-    if let Some(ekm) = obj.get("extraKnownMarketplaces") {
-        if ekm.get("local").is_some() {
-            return Ok(false);
-        }
-    }
-
-    // Add extraKnownMarketplaces.local
-    let marketplace_entry = serde_json::json!({
-        "source": {
-            "source": "local",
-            "path": ".ai"
-        }
-    });
-
-    if let Some(ekm) = obj.get_mut("extraKnownMarketplaces") {
-        if let Some(ekm_obj) = ekm.as_object_mut() {
-            ekm_obj.insert("local".to_string(), marketplace_entry);
-        }
-    } else {
-        obj.insert(
-            "extraKnownMarketplaces".to_string(),
-            serde_json::json!({ "local": marketplace_entry }),
-        );
-    }
-
-    let output = serde_json::to_string_pretty(&json)
-        .map_err(|source| Error::JsonParse { path: settings_path.to_path_buf(), source })?;
-    let mut file = std::fs::File::create(settings_path)?;
-    file.write_all(output.as_bytes())?;
-    file.write_all(b"\n")?;
-
-    Ok(true)
-}
-
-/// Write or merge `.vscode/settings.json` with `chat.agentFilesLocations`.
-/// Returns `true` if the file was written/modified, `false` if skipped.
-fn write_vscode_settings(dir: &Path) -> Result<bool, Error> {
-    let settings_dir = dir.join(".vscode");
-    let settings_path = settings_dir.join("settings.json");
-
-    if settings_path.exists() {
-        return merge_vscode_settings(&settings_path);
-    }
-
-    // Create fresh
-    std::fs::create_dir_all(&settings_dir)?;
-    write_file(&settings_path, "{\n  \"chat.agentFilesLocations\": [\".ai\"]\n}\n")?;
-    Ok(true)
-}
-
-fn merge_vscode_settings(settings_path: &Path) -> Result<bool, Error> {
-    let content = std::fs::read_to_string(settings_path)?;
-    let mut json: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|source| Error::JsonParse { path: settings_path.to_path_buf(), source })?;
-
-    let obj = json.as_object_mut().ok_or_else(|| Error::JsonParse {
-        path: settings_path.to_path_buf(),
-        source: serde_json::Error::io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "expected JSON object",
-        )),
-    })?;
-
-    if let Some(locations) = obj.get("chat.agentFilesLocations") {
-        if let Some(arr) = locations.as_array() {
-            if arr.iter().any(|v| v.as_str() == Some(".ai")) {
-                return Ok(false);
-            }
-        }
-    }
-
-    if let Some(locations) = obj.get_mut("chat.agentFilesLocations") {
-        if let Some(arr) = locations.as_array_mut() {
-            arr.push(serde_json::Value::String(".ai".to_string()));
-        }
-    } else {
-        obj.insert("chat.agentFilesLocations".to_string(), serde_json::json!([".ai"]));
-    }
-
-    let output = serde_json::to_string_pretty(&json)
-        .map_err(|source| Error::JsonParse { path: settings_path.to_path_buf(), source })?;
-    let mut file = std::fs::File::create(settings_path)?;
-    file.write_all(output.as_bytes())?;
-    file.write_all(b"\n")?;
-
-    Ok(true)
-}
-
-/// Write `.copilot/mcp-config.json` stub if it doesn't already exist.
-/// Returns `true` if the file was written, `false` if skipped.
-fn write_copilot_config(dir: &Path) -> Result<bool, Error> {
-    let copilot_dir = dir.join(".copilot");
-    let config_path = copilot_dir.join("mcp-config.json");
-
-    if config_path.exists() {
-        return Ok(false);
-    }
-
-    std::fs::create_dir_all(&copilot_dir)?;
-    write_file(&config_path, &generate_mcp_stub())?;
-    Ok(true)
-}
-
-// =============================================================================
 // Helpers
 // =============================================================================
 
-fn write_file(path: &Path, content: &str) -> Result<(), std::io::Error> {
+pub(crate) fn write_file(path: &Path, content: &str) -> Result<(), std::io::Error> {
     let mut file = std::fs::File::create(path)?;
     file.write_all(content.as_bytes())?;
     Ok(())
@@ -422,6 +286,10 @@ mod tests {
         let _ = std::fs::remove_dir_all(path);
     }
 
+    fn default_adaptors() -> Vec<Box<dyn ToolAdaptor>> {
+        adaptors::defaults()
+    }
+
     #[test]
     fn workspace_manifest_round_trips() {
         let content = generate_workspace_manifest();
@@ -433,7 +301,6 @@ mod tests {
 
     #[test]
     fn starter_manifest_round_trips() {
-        // We need the skill file to exist for component path validation
         let (tmp, _guard) = make_temp_dir("starter-rt");
         let skill_dir = tmp.join("skills").join("hello");
         std::fs::create_dir_all(&skill_dir).ok();
@@ -449,7 +316,8 @@ mod tests {
     #[test]
     fn init_workspace_creates_manifest() {
         let (tmp, _guard) = make_temp_dir("ws-create");
-        let result = init(&Options { dir: &tmp, workspace: true, marketplace: false });
+        let adaptors = default_adaptors();
+        let result = init(&Options { dir: &tmp, workspace: true, marketplace: false }, &adaptors);
         assert!(result.is_ok());
         assert!(result.is_ok_and(|r| r.actions.contains(&InitAction::WorkspaceCreated)));
         assert!(tmp.join("aipm.toml").exists());
@@ -463,7 +331,8 @@ mod tests {
     #[test]
     fn init_marketplace_creates_tree() {
         let (tmp, _guard) = make_temp_dir("mp-create");
-        let result = init(&Options { dir: &tmp, workspace: false, marketplace: true });
+        let adaptors = default_adaptors();
+        let result = init(&Options { dir: &tmp, workspace: false, marketplace: true }, &adaptors);
         assert!(result.is_ok());
         assert!(result.is_ok_and(|r| r.actions.contains(&InitAction::MarketplaceCreated)));
 
@@ -484,7 +353,8 @@ mod tests {
         let (tmp, _guard) = make_temp_dir("ws-exists");
         std::fs::File::create(tmp.join("aipm.toml")).ok();
 
-        let result = init(&Options { dir: &tmp, workspace: true, marketplace: false });
+        let adaptors = default_adaptors();
+        let result = init(&Options { dir: &tmp, workspace: true, marketplace: false }, &adaptors);
         assert!(result.is_err());
         let err = result.err();
         assert!(err.is_some_and(|e| e.to_string().contains("already initialized")));
@@ -497,7 +367,8 @@ mod tests {
         let (tmp, _guard) = make_temp_dir("mp-exists");
         std::fs::create_dir_all(tmp.join(".ai")).ok();
 
-        let result = init(&Options { dir: &tmp, workspace: false, marketplace: true });
+        let adaptors = default_adaptors();
+        let result = init(&Options { dir: &tmp, workspace: false, marketplace: true }, &adaptors);
         assert!(result.is_err());
         let err = result.err();
         assert!(err.is_some_and(|e| e.to_string().contains("already exists")));
@@ -508,7 +379,8 @@ mod tests {
     #[test]
     fn init_both_creates_everything() {
         let (tmp, _guard) = make_temp_dir("both");
-        let result = init(&Options { dir: &tmp, workspace: true, marketplace: true });
+        let adaptors = default_adaptors();
+        let result = init(&Options { dir: &tmp, workspace: true, marketplace: true }, &adaptors);
         assert!(result.is_ok());
         let r = result.ok();
         assert!(r.as_ref().is_some_and(|r| r.actions.contains(&InitAction::WorkspaceCreated)));
@@ -520,117 +392,14 @@ mod tests {
     }
 
     #[test]
-    fn claude_settings_created_fresh() {
-        let (tmp, _guard) = make_temp_dir("claude-fresh");
-        let result = write_claude_settings(&tmp);
-        assert!(result.is_ok_and(|v| v));
-        assert!(tmp.join(".claude/settings.json").exists());
-
-        let content = std::fs::read_to_string(tmp.join(".claude/settings.json"));
-        assert!(content.is_ok_and(|c| c.contains("extraKnownMarketplaces")));
-
-        cleanup(&tmp);
-    }
-
-    #[test]
-    fn claude_settings_merge_existing() {
-        let (tmp, _guard) = make_temp_dir("claude-merge");
-        std::fs::create_dir_all(tmp.join(".claude")).ok();
-        std::fs::write(
-            tmp.join(".claude/settings.json"),
-            "{\"permissions\": {\"allow\": [\"Read\"]}}",
-        )
-        .ok();
-
-        let result = write_claude_settings(&tmp);
-        assert!(result.is_ok_and(|v| v));
-
-        let content = std::fs::read_to_string(tmp.join(".claude/settings.json"));
-        assert!(content.as_ref().is_ok_and(|c| c.contains("extraKnownMarketplaces")));
-        // Existing key preserved
-        assert!(content.is_ok_and(|c| c.contains("allow")));
-
-        cleanup(&tmp);
-    }
-
-    #[test]
-    fn claude_settings_skip_if_present() {
-        let (tmp, _guard) = make_temp_dir("claude-skip");
-        std::fs::create_dir_all(tmp.join(".claude")).ok();
-        std::fs::write(
-            tmp.join(".claude/settings.json"),
-            "{\"extraKnownMarketplaces\": {\"local\": {\"source\": {\"source\": \"local\", \"path\": \".ai\"}}}}",
-        ).ok();
-
-        let result = write_claude_settings(&tmp);
-        assert!(result.is_ok_and(|v| !v));
-
-        cleanup(&tmp);
-    }
-
-    #[test]
-    fn vscode_settings_created_fresh() {
-        let (tmp, _guard) = make_temp_dir("vscode-fresh");
-        let result = write_vscode_settings(&tmp);
-        assert!(result.is_ok_and(|v| v));
-        assert!(tmp.join(".vscode/settings.json").exists());
-
-        let content = std::fs::read_to_string(tmp.join(".vscode/settings.json"));
-        assert!(content.is_ok_and(|c| c.contains("chat.agentFilesLocations")));
-
-        cleanup(&tmp);
-    }
-
-    #[test]
-    fn vscode_settings_merge_existing() {
-        let (tmp, _guard) = make_temp_dir("vscode-merge");
-        std::fs::create_dir_all(tmp.join(".vscode")).ok();
-        std::fs::write(tmp.join(".vscode/settings.json"), "{\"editor.tabSize\": 4}").ok();
-
-        let result = write_vscode_settings(&tmp);
-        assert!(result.is_ok_and(|v| v));
-
-        let content = std::fs::read_to_string(tmp.join(".vscode/settings.json"));
-        assert!(content.as_ref().is_ok_and(|c| c.contains("chat.agentFilesLocations")));
-        assert!(content.is_ok_and(|c| c.contains("editor.tabSize")));
-
-        cleanup(&tmp);
-    }
-
-    #[test]
-    fn vscode_settings_skip_duplicate() {
-        let (tmp, _guard) = make_temp_dir("vscode-dup");
-        std::fs::create_dir_all(tmp.join(".vscode")).ok();
-        std::fs::write(
-            tmp.join(".vscode/settings.json"),
-            "{\"chat.agentFilesLocations\": [\".ai\"]}",
-        )
-        .ok();
-
-        let result = write_vscode_settings(&tmp);
-        assert!(result.is_ok_and(|v| !v));
-
-        cleanup(&tmp);
-    }
-
-    #[test]
-    fn copilot_config_created_fresh() {
-        let (tmp, _guard) = make_temp_dir("copilot-fresh");
-        let result = write_copilot_config(&tmp);
-        assert!(result.is_ok_and(|v| v));
-        assert!(tmp.join(".copilot/mcp-config.json").exists());
-
-        cleanup(&tmp);
-    }
-
-    #[test]
-    fn copilot_config_skip_existing() {
-        let (tmp, _guard) = make_temp_dir("copilot-skip");
-        std::fs::create_dir_all(tmp.join(".copilot")).ok();
-        std::fs::write(tmp.join(".copilot/mcp-config.json"), "{}").ok();
-
-        let result = write_copilot_config(&tmp);
-        assert!(result.is_ok_and(|v| !v));
+    fn init_with_no_adaptors() {
+        let (tmp, _guard) = make_temp_dir("no-adaptors");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let result = init(&Options { dir: &tmp, workspace: false, marketplace: true }, &adaptors);
+        assert!(result.is_ok());
+        assert!(tmp.join(".ai").is_dir());
+        // No .claude/ directory should exist
+        assert!(!tmp.join(".claude").exists());
 
         cleanup(&tmp);
     }
@@ -638,7 +407,8 @@ mod tests {
     #[test]
     fn gitignore_has_managed_markers() {
         let (tmp, _guard) = make_temp_dir("gitignore");
-        let result = init(&Options { dir: &tmp, workspace: false, marketplace: true });
+        let adaptors = default_adaptors();
+        let result = init(&Options { dir: &tmp, workspace: false, marketplace: true }, &adaptors);
         assert!(result.is_ok());
 
         let content = std::fs::read_to_string(tmp.join(".ai/.gitignore"));

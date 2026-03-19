@@ -39,9 +39,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         Some(Commands::Init { workspace, marketplace, dir }) => {
             let dir = if dir.as_os_str() == "." { std::env::current_dir()? } else { dir };
 
-            // If neither flag is set, default to both
+            // If neither flag is set, default to marketplace only
             let (do_workspace, do_marketplace) =
-                if !workspace && !marketplace { (true, true) } else { (workspace, marketplace) };
+                if !workspace && !marketplace { (false, true) } else { (workspace, marketplace) };
+
+            let adaptors = libaipm::workspace_init::adaptors::defaults();
 
             let opts = libaipm::workspace_init::Options {
                 dir: &dir,
@@ -49,7 +51,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 marketplace: do_marketplace,
             };
 
-            let result = libaipm::workspace_init::init(&opts)?;
+            let result = libaipm::workspace_init::init(&opts, &adaptors)?;
 
             let mut stdout = std::io::stdout();
             for action in &result.actions {
@@ -60,14 +62,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     libaipm::workspace_init::InitAction::MarketplaceCreated => {
                         "Created .ai/ marketplace with starter plugin".to_string()
                     },
-                    libaipm::workspace_init::InitAction::ClaudeSettingsWritten => {
-                        "Configured Claude Code settings (.claude/settings.json)".to_string()
-                    },
-                    libaipm::workspace_init::InitAction::VscodeSettingsWritten => {
-                        "Configured Copilot settings (.vscode/settings.json)".to_string()
-                    },
-                    libaipm::workspace_init::InitAction::CopilotConfigWritten => {
-                        "Created Copilot CLI config (.copilot/mcp-config.json)".to_string()
+                    libaipm::workspace_init::InitAction::ToolConfigured(name) => {
+                        format!("Configured {name} settings")
                     },
                 };
                 let _ = writeln!(stdout, "{msg}");
