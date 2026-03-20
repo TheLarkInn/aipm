@@ -197,11 +197,8 @@ fn init_settings_json_marketplace_name_and_enabled_plugins() {
     let content = std::fs::read_to_string(dir.join(".claude/settings.json")).unwrap();
     let v: serde_json::Value = serde_json::from_str(&content).unwrap();
     assert!(v["extraKnownMarketplaces"]["local-repo-plugins"].is_object());
-    assert_eq!(v["extraKnownMarketplaces"]["local-repo-plugins"]["source"]["path"], ".ai");
-    assert_eq!(
-        v["extraKnownMarketplaces"]["local-repo-plugins"]["enabledPlugins"][0],
-        "starter-aipm-plugin"
-    );
+    assert_eq!(v["extraKnownMarketplaces"]["local-repo-plugins"]["source"]["path"], "./.ai");
+    assert_eq!(v["enabledPlugins"]["starter-aipm-plugin@local-repo-plugins"], true);
 }
 
 // =========================================================================
