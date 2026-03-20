@@ -36,6 +36,8 @@ pub struct Options<'a> {
     pub workspace: bool,
     /// Generate `.ai/` marketplace + tool settings.
     pub marketplace: bool,
+    /// Skip the starter plugin (bare `.ai/` directory only).
+    pub no_starter: bool,
 }
 
 /// Actions taken during initialization — used for user feedback.
@@ -101,7 +103,7 @@ pub fn init(opts: &Options<'_>, adaptors: &[Box<dyn ToolAdaptor>]) -> Result<Ini
     }
 
     if opts.marketplace {
-        scaffold_marketplace(opts.dir)?;
+        scaffold_marketplace(opts.dir, opts.no_starter)?;
         actions.push(InitAction::MarketplaceCreated);
 
         for adaptor in adaptors {
@@ -162,21 +164,14 @@ fn generate_workspace_manifest() -> String {
 // Marketplace scaffolding
 // =============================================================================
 
-fn scaffold_marketplace(dir: &Path) -> Result<(), Error> {
+fn scaffold_marketplace(dir: &Path, no_starter: bool) -> Result<(), Error> {
     let ai_dir = dir.join(".ai");
     if ai_dir.exists() {
         return Err(Error::MarketplaceAlreadyExists(dir.to_path_buf()));
     }
 
-    let starter = ai_dir.join("starter");
-
-    // Create directory tree
-    std::fs::create_dir_all(starter.join(".claude-plugin"))?;
-    std::fs::create_dir_all(starter.join("skills").join("hello"))?;
-    std::fs::create_dir_all(starter.join("agents"))?;
-    std::fs::create_dir_all(starter.join("hooks"))?;
-
-    // .ai/.gitignore
+    // Always create .ai/ and .gitignore
+    std::fs::create_dir_all(&ai_dir)?;
     write_file(
         &ai_dir.join(".gitignore"),
         "# Managed by aipm — registry-installed plugins are symlinked here.\n\
@@ -185,8 +180,27 @@ fn scaffold_marketplace(dir: &Path) -> Result<(), Error> {
          # === aipm managed end ===\n",
     )?;
 
-    // .ai/starter/skills/hello/SKILL.md (must be written before manifest validation)
-    write_file(&starter.join("skills").join("hello").join("SKILL.md"), &generate_skill_template())?;
+    if no_starter {
+        return Ok(());
+    }
+
+    let starter = ai_dir.join("starter");
+
+    // Create directory tree
+    std::fs::create_dir_all(starter.join(".claude-plugin"))?;
+    std::fs::create_dir_all(starter.join("skills").join("scaffold-plugin"))?;
+    std::fs::create_dir_all(starter.join("scripts"))?;
+    std::fs::create_dir_all(starter.join("agents"))?;
+    std::fs::create_dir_all(starter.join("hooks"))?;
+
+    // Write all component files before manifest validation
+    write_file(
+        &starter.join("skills").join("scaffold-plugin").join("SKILL.md"),
+        &generate_skill_template(),
+    )?;
+    write_file(&starter.join("scripts").join("scaffold-plugin.ts"), &generate_scaffold_script())?;
+    write_file(&starter.join("agents").join("marketplace-scanner.md"), &generate_agent_template())?;
+    write_file(&starter.join("hooks").join("hooks.json"), &generate_hook_template())?;
 
     // .ai/starter/aipm.toml
     let starter_manifest = generate_starter_manifest();
@@ -202,10 +216,6 @@ fn scaffold_marketplace(dir: &Path) -> Result<(), Error> {
     // .ai/starter/.mcp.json
     write_file(&starter.join(".mcp.json"), &generate_mcp_stub())?;
 
-    // .gitkeep files
-    write_file(&starter.join("agents").join(".gitkeep"), "")?;
-    write_file(&starter.join("hooks").join(".gitkeep"), "")?;
-
     Ok(())
 }
 
@@ -215,14 +225,17 @@ fn generate_starter_manifest() -> String {
      version = \"0.1.0\"\n\
      type = \"composite\"\n\
      edition = \"2024\"\n\
-     description = \"Starter plugin — customize or rename this directory\"\n\
+     description = \"Default starter plugin — scaffold new plugins, scan your marketplace, and log tool usage\"\n\
      \n\
      # [dependencies]\n\
      # Add registry dependencies here, e.g.:\n\
      # shared-skill = \"^1.0\"\n\
      \n\
      [components]\n\
-     skills = [\"skills/hello/SKILL.md\"]\n"
+     skills = [\"skills/scaffold-plugin/SKILL.md\"]\n\
+     agents = [\"agents/marketplace-scanner.md\"]\n\
+     hooks = [\"hooks/hooks.json\"]\n\
+     scripts = [\"scripts/scaffold-plugin.ts\"]\n"
         .to_string()
 }
 
@@ -230,25 +243,122 @@ fn generate_plugin_json() -> String {
     "{\n\
      \x20 \"name\": \"starter\",\n\
      \x20 \"version\": \"0.1.0\",\n\
-     \x20 \"description\": \"Starter plugin — customize or rename this directory\"\n\
+     \x20 \"description\": \"Default starter plugin — scaffold new plugins, scan your marketplace, and log tool usage\"\n\
      }\n"
     .to_string()
 }
 
 fn generate_skill_template() -> String {
     "---\n\
-     description: A starter skill — describe what it does so Claude knows when to use it\n\
+     description: Scaffold a new AI plugin in the .ai/ marketplace directory. Use when the user wants to create a new plugin, skill, agent, or hook package.\n\
      ---\n\
      \n\
-     # Hello Skill\n\
+     # Scaffold Plugin\n\
      \n\
-     This is a starter skill template. Customize the description in the frontmatter\n\
-     above so your AI coding tool can auto-discover when to invoke this skill.\n\
+     Create a new plugin in the `.ai/` marketplace directory.\n\
      \n\
      ## Instructions\n\
      \n\
-     Replace this content with instructions for the AI agent when this skill is active.\n"
+     1. Ask the user for a plugin name (lowercase, hyphens allowed) if not provided.\n\
+     2. Run the scaffolding script:\n\
+     \x20  ```bash\n\
+     \x20  node --experimental-strip-types .ai/starter/scripts/scaffold-plugin.ts <plugin-name>\n\
+     \x20  ```\n\
+     3. Report the created file tree to the user.\n\
+     4. Suggest next steps: edit the generated `SKILL.md`, add agents or hooks, update `aipm.toml`.\n\
+     \n\
+     ## Notes\n\
+     \n\
+     - The script creates `.ai/<plugin-name>/` with a valid `aipm.toml` and starter skill.\n\
+     - If the directory already exists, the script exits with an error message.\n\
+     - After scaffolding, the user should customize the generated files.\n"
         .to_string()
+}
+
+fn generate_scaffold_script() -> String {
+    "import { mkdirSync, writeFileSync, existsSync } from \"fs\";\n\
+     import { join } from \"path\";\n\
+     \n\
+     const name = process.argv[2];\n\
+     if (!name) {\n\
+     \x20 process.stderr.write(\"Usage: node --experimental-strip-types scaffold-plugin.ts <plugin-name>\\n\");\n\
+     \x20 process.exit(1);\n\
+     }\n\
+     \n\
+     const aiDir = join(process.cwd(), \".ai\");\n\
+     const pluginDir = join(aiDir, name);\n\
+     \n\
+     if (existsSync(pluginDir)) {\n\
+     \x20 process.stderr.write(`Error: .ai/${name}/ already exists\\n`);\n\
+     \x20 process.exit(1);\n\
+     }\n\
+     \n\
+     mkdirSync(join(pluginDir, \".claude-plugin\"), { recursive: true });\n\
+     mkdirSync(join(pluginDir, \"skills\", name), { recursive: true });\n\
+     mkdirSync(join(pluginDir, \"agents\"), { recursive: true });\n\
+     mkdirSync(join(pluginDir, \"hooks\"), { recursive: true });\n\
+     \n\
+     writeFileSync(\n\
+     \x20 join(pluginDir, \"aipm.toml\"),\n\
+     \x20 `[package]\\nname = \"${name}\"\\nversion = \"0.1.0\"\\ntype = \"composite\"\\nedition = \"2024\"\\ndescription = \"TODO: describe ${name}\"\\n\\n[components]\\nskills = [\"skills/${name}/SKILL.md\"]\\n`\n\
+     );\n\
+     \n\
+     writeFileSync(\n\
+     \x20 join(pluginDir, \"skills\", name, \"SKILL.md\"),\n\
+     \x20 `---\\ndescription: TODO — describe when this skill should be invoked\\n---\\n\\n# ${name}\\n\\nReplace this with instructions for the AI agent.\\n`\n\
+     );\n\
+     \n\
+     writeFileSync(\n\
+     \x20 join(pluginDir, \".claude-plugin\", \"plugin.json\"),\n\
+     \x20 JSON.stringify({ name, version: \"0.1.0\", description: `TODO: describe ${name}` }, null, 2) + \"\\n\"\n\
+     );\n\
+     \n\
+     process.stdout.write(`Created .ai/${name}/ with starter structure\\n`);\n"
+        .to_string()
+}
+
+fn generate_agent_template() -> String {
+    "---\n\
+     name: marketplace-scanner\n\
+     description: Scan and explain the contents of the .ai/ marketplace directory. Use when the user wants to understand what plugins, skills, agents, or hooks are installed locally.\n\
+     tools:\n\
+     \x20 - Read\n\
+     \x20 - Glob\n\
+     \x20 - Grep\n\
+     \x20 - LS\n\
+     ---\n\
+     \n\
+     # Marketplace Scanner\n\
+     \n\
+     You are a read-only analysis agent for the `.ai/` marketplace directory.\n\
+     \n\
+     ## Instructions\n\
+     \n\
+     1. List all plugin directories under `.ai/` (each subdirectory with an `aipm.toml`).\n\
+     2. For each plugin, read its `aipm.toml` and summarize:\n\
+     \x20  - Package name, version, type, and description\n\
+     \x20  - Declared components (skills, agents, hooks, scripts)\n\
+     3. If asked about a specific component, read and explain its contents.\n\
+     4. Never modify any files — you are read-only.\n\
+     \n\
+     ## Scope\n\
+     \n\
+     - Only scan files within the `.ai/` directory.\n\
+     - Do not access files outside `.ai/` unless explicitly asked.\n\
+     - Report any `aipm.toml` parse issues you encounter.\n"
+        .to_string()
+}
+
+fn generate_hook_template() -> String {
+    "{\n\
+     \x20 \"hooks\": [\n\
+     \x20   {\n\
+     \x20     \"event\": \"PostToolUse\",\n\
+     \x20     \"command\": \"echo \\\"$(date -u +%Y-%m-%dT%H:%M:%SZ) tool=$TOOL_NAME\\\" >> .ai/.tool-usage.log\"\n\
+     \x20   }\n\
+     \x20 ]\n\
+     }\n"
+    .to_string()
 }
 
 fn generate_mcp_stub() -> String {
@@ -302,9 +412,23 @@ mod tests {
     #[test]
     fn starter_manifest_round_trips() {
         let (tmp, _guard) = make_temp_dir("starter-rt");
-        let skill_dir = tmp.join("skills").join("hello");
+
+        // Create all component files that the manifest declares
+        let skill_dir = tmp.join("skills").join("scaffold-plugin");
         std::fs::create_dir_all(&skill_dir).ok();
         std::fs::File::create(skill_dir.join("SKILL.md")).ok();
+
+        let agents_dir = tmp.join("agents");
+        std::fs::create_dir_all(&agents_dir).ok();
+        std::fs::File::create(agents_dir.join("marketplace-scanner.md")).ok();
+
+        let hooks_dir = tmp.join("hooks");
+        std::fs::create_dir_all(&hooks_dir).ok();
+        std::fs::File::create(hooks_dir.join("hooks.json")).ok();
+
+        let scripts_dir = tmp.join("scripts");
+        std::fs::create_dir_all(&scripts_dir).ok();
+        std::fs::File::create(scripts_dir.join("scaffold-plugin.ts")).ok();
 
         let content = generate_starter_manifest();
         let result = crate::manifest::parse_and_validate(&content, Some(&tmp));
@@ -317,7 +441,8 @@ mod tests {
     fn init_workspace_creates_manifest() {
         let (tmp, _guard) = make_temp_dir("ws-create");
         let adaptors = default_adaptors();
-        let result = init(&Options { dir: &tmp, workspace: true, marketplace: false }, &adaptors);
+        let opts = Options { dir: &tmp, workspace: true, marketplace: false, no_starter: false };
+        let result = init(&opts, &adaptors);
         assert!(result.is_ok());
         assert!(result.is_ok_and(|r| r.actions.contains(&InitAction::WorkspaceCreated)));
         assert!(tmp.join("aipm.toml").exists());
@@ -332,17 +457,19 @@ mod tests {
     fn init_marketplace_creates_tree() {
         let (tmp, _guard) = make_temp_dir("mp-create");
         let adaptors = default_adaptors();
-        let result = init(&Options { dir: &tmp, workspace: false, marketplace: true }, &adaptors);
+        let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: false };
+        let result = init(&opts, &adaptors);
         assert!(result.is_ok());
         assert!(result.is_ok_and(|r| r.actions.contains(&InitAction::MarketplaceCreated)));
 
         assert!(tmp.join(".ai").is_dir());
         assert!(tmp.join(".ai/starter/aipm.toml").exists());
         assert!(tmp.join(".ai/starter/.claude-plugin/plugin.json").exists());
-        assert!(tmp.join(".ai/starter/skills/hello/SKILL.md").exists());
+        assert!(tmp.join(".ai/starter/skills/scaffold-plugin/SKILL.md").exists());
+        assert!(tmp.join(".ai/starter/scripts/scaffold-plugin.ts").exists());
+        assert!(tmp.join(".ai/starter/agents/marketplace-scanner.md").exists());
+        assert!(tmp.join(".ai/starter/hooks/hooks.json").exists());
         assert!(tmp.join(".ai/starter/.mcp.json").exists());
-        assert!(tmp.join(".ai/starter/agents/.gitkeep").exists());
-        assert!(tmp.join(".ai/starter/hooks/.gitkeep").exists());
         assert!(tmp.join(".ai/.gitignore").exists());
 
         cleanup(&tmp);
@@ -354,7 +481,8 @@ mod tests {
         std::fs::File::create(tmp.join("aipm.toml")).ok();
 
         let adaptors = default_adaptors();
-        let result = init(&Options { dir: &tmp, workspace: true, marketplace: false }, &adaptors);
+        let opts = Options { dir: &tmp, workspace: true, marketplace: false, no_starter: false };
+        let result = init(&opts, &adaptors);
         assert!(result.is_err());
         let err = result.err();
         assert!(err.is_some_and(|e| e.to_string().contains("already initialized")));
@@ -368,7 +496,8 @@ mod tests {
         std::fs::create_dir_all(tmp.join(".ai")).ok();
 
         let adaptors = default_adaptors();
-        let result = init(&Options { dir: &tmp, workspace: false, marketplace: true }, &adaptors);
+        let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: false };
+        let result = init(&opts, &adaptors);
         assert!(result.is_err());
         let err = result.err();
         assert!(err.is_some_and(|e| e.to_string().contains("already exists")));
@@ -380,7 +509,8 @@ mod tests {
     fn init_both_creates_everything() {
         let (tmp, _guard) = make_temp_dir("both");
         let adaptors = default_adaptors();
-        let result = init(&Options { dir: &tmp, workspace: true, marketplace: true }, &adaptors);
+        let opts = Options { dir: &tmp, workspace: true, marketplace: true, no_starter: false };
+        let result = init(&opts, &adaptors);
         assert!(result.is_ok());
         let r = result.ok();
         assert!(r.as_ref().is_some_and(|r| r.actions.contains(&InitAction::WorkspaceCreated)));
@@ -395,7 +525,8 @@ mod tests {
     fn init_with_no_adaptors() {
         let (tmp, _guard) = make_temp_dir("no-adaptors");
         let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
-        let result = init(&Options { dir: &tmp, workspace: false, marketplace: true }, &adaptors);
+        let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: false };
+        let result = init(&opts, &adaptors);
         assert!(result.is_ok());
         assert!(tmp.join(".ai").is_dir());
         // No .claude/ directory should exist
@@ -408,7 +539,8 @@ mod tests {
     fn gitignore_has_managed_markers() {
         let (tmp, _guard) = make_temp_dir("gitignore");
         let adaptors = default_adaptors();
-        let result = init(&Options { dir: &tmp, workspace: false, marketplace: true }, &adaptors);
+        let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: false };
+        let result = init(&opts, &adaptors);
         assert!(result.is_ok());
 
         let content = std::fs::read_to_string(tmp.join(".ai/.gitignore"));
@@ -441,5 +573,73 @@ mod tests {
         let content = generate_workspace_manifest();
         assert!(content.contains("members = [\".ai/*\"]"));
         assert!(content.contains("plugins_dir = \".ai\""));
+    }
+
+    #[test]
+    fn agent_template_has_frontmatter() {
+        let content = generate_agent_template();
+        assert!(content.starts_with("---\n"));
+        assert!(content.contains("name:"));
+        assert!(content.contains("description:"));
+        assert!(content.contains("tools:"));
+        assert!(content.contains("- Read"));
+        assert!(content.contains("- Glob"));
+        assert!(content.contains("- Grep"));
+        assert!(content.contains("- LS"));
+    }
+
+    #[test]
+    fn hook_template_is_valid_json() {
+        let json = generate_hook_template();
+        let parsed: Result<serde_json::Value, _> = serde_json::from_str(&json);
+        assert!(parsed.is_ok(), "hook template should be valid JSON: {parsed:?}");
+        let v = parsed.ok();
+        assert!(v.as_ref().is_some_and(|v| v.get("hooks").is_some()));
+        assert!(v.is_some_and(|v| {
+            v.get("hooks").and_then(|h| h.as_array()).is_some_and(|a| !a.is_empty())
+        }));
+    }
+
+    #[test]
+    fn scaffold_script_is_nonempty() {
+        let content = generate_scaffold_script();
+        assert!(!content.is_empty());
+        assert!(content.contains("mkdirSync"));
+        assert!(content.contains("writeFileSync"));
+        assert!(content.contains("experimental-strip-types"));
+    }
+
+    #[test]
+    fn init_marketplace_no_starter() {
+        let (tmp, _guard) = make_temp_dir("no-starter");
+        let adaptors = default_adaptors();
+        let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: true };
+        let result = init(&opts, &adaptors);
+        assert!(result.is_ok());
+        assert!(result.is_ok_and(|r| r.actions.contains(&InitAction::MarketplaceCreated)));
+
+        // .ai/ and .gitignore exist
+        assert!(tmp.join(".ai").is_dir());
+        assert!(tmp.join(".ai/.gitignore").exists());
+        // starter/ does NOT exist
+        assert!(!tmp.join(".ai/starter").exists());
+
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn init_no_starter_still_configures_tools() {
+        let (tmp, _guard) = make_temp_dir("no-starter-tools");
+        let adaptors = default_adaptors();
+        let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: true };
+        let result = init(&opts, &adaptors);
+        assert!(result.is_ok());
+
+        // Tool settings should still be applied
+        assert!(tmp.join(".claude/settings.json").exists());
+        // But no starter plugin
+        assert!(!tmp.join(".ai/starter").exists());
+
+        cleanup(&tmp);
     }
 }

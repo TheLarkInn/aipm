@@ -1,33 +1,32 @@
-## 2026-03-19 — Feature 1: Restructure workspace_init into module directory
-- Moved workspace_init.rs → workspace_init/mod.rs
-- Created adaptors/mod.rs and adaptors/claude.rs stubs
-- All checks pass, no logic changes
+2026-03-20: Better Default Plugin (Issue #30) — All 16 features implemented
 
-## 2026-03-19 — Features 2-6: ToolAdaptor trait, Claude adaptor, delete vscode/copilot, CLI update
+Features completed:
+  1. ✅ Add --no-starter flag to Options struct and thread through init() → scaffold_marketplace()
+  2. ✅ Add --no-starter CLI argument to aipm init command
+  3. ✅ Add generate_scaffold_script() — TypeScript scaffolding script
+  4. ✅ Add generate_agent_template() — marketplace-scanner agent markdown
+  5. ✅ Add generate_hook_template() — hooks.json with PostToolUse logging
+  6. ✅ Update generate_skill_template() — scaffold-plugin skill content
+  7. ✅ Update generate_starter_manifest() — declare all four component types
+  8. ✅ Update generate_plugin_json() — new description
+  9. ✅ Update scaffold_marketplace() — new directory tree, file writes, remove .gitkeep
+ 10. ✅ Update existing unit tests for new starter plugin structure
+ 11. ✅ Add new unit tests for generate_*() template functions
+ 12. ✅ Add unit tests for --no-starter behavior
+ 13. ✅ Update BDD scenarios for new starter plugin file paths
+ 14. ✅ Add BDD scenarios for new starter plugin components
+ 15. ✅ Add BDD scenarios for --no-starter flag behavior
+ 16. ✅ Final validation: full build/test/clippy/fmt suite passes
 
-### What was done:
-- Created ToolAdaptor trait in workspace_init/mod.rs with name() and apply() methods
-- Created claude::Adaptor implementing ToolAdaptor (moved from write_claude_settings)
-- Created adaptors::defaults() returning vec![Box::new(claude::Adaptor)]
-- Deleted all vscode/copilot code: write_vscode_settings, merge_vscode_settings, write_copilot_config
-- Deleted InitAction::VscodeSettingsWritten and CopilotConfigWritten
-- Replaced InitAction::ClaudeSettingsWritten with ToolConfigured(String)
-- Removed Copy derive from InitAction (String is not Copy)
-- Updated init() to accept &[Box<dyn ToolAdaptor>] and loop over adaptors
-- Updated CLI: default changed from (workspace+marketplace) to (marketplace only)
-- Updated CLI: ToolConfigured(name) match arm
-- Deleted 5 vscode/copilot unit tests, moved 3 Claude tests to adaptors/claude.rs
-- Added init_with_no_adaptors test
-- Deleted 3 BDD scenarios (vscode/copilot), updated default init scenario
-- Made write_file pub(crate) for adaptor access
+Test results:
+  - cargo build --workspace: ✅ zero errors
+  - cargo test --workspace: ✅ 82 unit + 25 e2e + 48 BDD = all pass (0 failures)
+  - cargo clippy --workspace -- -D warnings: ✅ zero warnings
+  - cargo fmt --check: ✅ clean
 
-### Naming adjustments (clippy module_name_repetitions):
-- ClaudeAdaptor → claude::Adaptor
-- default_adaptors() → defaults()
-
-### Verification:
-- cargo build --workspace: PASS
-- cargo test --workspace: PASS (42 scenarios: 29 passed, 13 skipped)
-- cargo clippy --workspace -- -D warnings: PASS
-- cargo fmt --check: PASS
-- No vscode/copilot references in workspace_init code or BDD features
+Files modified:
+  - crates/libaipm/src/workspace_init/mod.rs (core scaffolding + tests)
+  - crates/aipm/src/main.rs (CLI --no-starter flag)
+  - tests/features/manifest/workspace-init.feature (BDD scenarios)
+  - research/feature-list.json (tracking)
+  - research/progress.txt (this file)

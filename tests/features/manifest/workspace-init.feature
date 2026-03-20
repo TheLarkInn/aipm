@@ -21,6 +21,7 @@ Feature: Workspace initialization
       | .ai/                             |
       | .ai/starter/                     |
       | .ai/starter/skills/              |
+      | .ai/starter/scripts/             |
       | .ai/starter/agents/              |
       | .ai/starter/hooks/               |
       | .ai/starter/.claude-plugin/      |
@@ -38,14 +39,51 @@ Feature: Workspace initialization
     Given an empty directory "my-project"
     When the user runs "aipm init --marketplace" in "my-project"
     Then a file ".ai/starter/.claude-plugin/plugin.json" exists in "my-project"
-    And a file ".ai/starter/skills/hello/SKILL.md" exists in "my-project"
+    And a file ".ai/starter/skills/scaffold-plugin/SKILL.md" exists in "my-project"
+    And a file ".ai/starter/scripts/scaffold-plugin.ts" exists in "my-project"
+    And a file ".ai/starter/agents/marketplace-scanner.md" exists in "my-project"
+    And a file ".ai/starter/hooks/hooks.json" exists in "my-project"
     And a file ".ai/starter/.mcp.json" exists in "my-project"
 
   Scenario: Marketplace generates a starter skill with description frontmatter
     Given an empty directory "my-project"
     When the user runs "aipm init --marketplace" in "my-project"
-    Then a file ".ai/starter/skills/hello/SKILL.md" exists in "my-project"
+    Then a file ".ai/starter/skills/scaffold-plugin/SKILL.md" exists in "my-project"
     And the starter skill contains "description:" in the frontmatter
+
+  Scenario: Starter plugin includes a marketplace scanner agent
+    Given an empty directory "my-project"
+    When the user runs "aipm init --marketplace" in "my-project"
+    Then a file ".ai/starter/agents/marketplace-scanner.md" exists in "my-project"
+
+  Scenario: Starter plugin includes a logging hook
+    Given an empty directory "my-project"
+    When the user runs "aipm init --marketplace" in "my-project"
+    Then a file ".ai/starter/hooks/hooks.json" exists in "my-project"
+
+  Scenario: Starter plugin includes a scaffold script
+    Given an empty directory "my-project"
+    When the user runs "aipm init --marketplace" in "my-project"
+    Then a file ".ai/starter/scripts/scaffold-plugin.ts" exists in "my-project"
+
+  Scenario: No-starter flag creates bare marketplace directory
+    Given an empty directory "my-project"
+    When the user runs "aipm init --no-starter" in "my-project"
+    Then a file ".ai/.gitignore" exists in "my-project"
+    And there is no directory ".ai/starter" in "my-project"
+
+  Scenario: No-starter flag still configures tool settings
+    Given an empty directory "my-project"
+    When the user runs "aipm init --no-starter" in "my-project"
+    Then a file ".claude/settings.json" exists in "my-project"
+    And there is no directory ".ai/starter" in "my-project"
+
+  Scenario: No-starter flag with workspace creates both minus starter
+    Given an empty directory "my-project"
+    When the user runs "aipm init --workspace --marketplace --no-starter" in "my-project"
+    Then a file "aipm.toml" is created in "my-project"
+    And a file ".ai/.gitignore" exists in "my-project"
+    And there is no directory ".ai/starter" in "my-project"
 
   Scenario: Generated gitignore has aipm managed markers
     Given an empty directory "my-project"

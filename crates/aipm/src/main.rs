@@ -26,6 +26,10 @@ enum Commands {
         #[arg(long)]
         marketplace: bool,
 
+        /// Skip the starter plugin (create bare .ai/ directory only).
+        #[arg(long)]
+        no_starter: bool,
+
         /// Directory to initialize (defaults to current directory).
         #[arg(default_value = ".")]
         dir: PathBuf,
@@ -36,7 +40,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
-        Some(Commands::Init { workspace, marketplace, dir }) => {
+        Some(Commands::Init { workspace, marketplace, no_starter, dir }) => {
             let dir = if dir.as_os_str() == "." { std::env::current_dir()? } else { dir };
 
             // If neither flag is set, default to marketplace only
@@ -49,6 +53,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 dir: &dir,
                 workspace: do_workspace,
                 marketplace: do_marketplace,
+                no_starter,
             };
 
             let result = libaipm::workspace_init::init(&opts, &adaptors)?;
@@ -60,7 +65,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                         format!("Initialized workspace in {}", dir.display())
                     },
                     libaipm::workspace_init::InitAction::MarketplaceCreated => {
-                        "Created .ai/ marketplace with starter plugin".to_string()
+                        if no_starter {
+                            "Created .ai/ marketplace (no starter plugin)".to_string()
+                        } else {
+                            "Created .ai/ marketplace with starter plugin".to_string()
+                        }
                     },
                     libaipm::workspace_init::InitAction::ToolConfigured(name) => {
                         format!("Configured {name} settings")
