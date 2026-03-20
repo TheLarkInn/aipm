@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.3.3] - 2026-03-20
+
+### Bug Fixes
+- Correct settings.json schema for enabledPlugins and path ([#40](https://github.com/TheLarkInn/aipm/pull/40)) (0026380)
+
 ## [0.3.2] - 2026-03-20
 
 ### Testing
