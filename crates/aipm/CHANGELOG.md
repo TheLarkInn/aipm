@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.3.2] - 2026-03-20
+
+### Testing
+- Add marketplace.json output tests across all layers ([#38](https://github.com/TheLarkInn/aipm/pull/38)) (e4d2c8a)
+
 ## [0.3.1] - 2026-03-20
 
 ### Bug Fixes
