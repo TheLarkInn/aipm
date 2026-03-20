@@ -134,6 +134,23 @@ Feature: Workspace initialization
     Then a file ".ai/starter-aipm-plugin/aipm.toml" exists in "my-project"
     And the starter plugin manifest is valid according to aipm schema
 
+  Rule: Marketplace manifest generation
+
+    Scenario: Marketplace.json is generated with correct structure
+      Given an empty directory "my-project"
+      When the user runs "aipm init --marketplace" in "my-project"
+      Then a file ".ai/.claude-plugin/marketplace.json" exists in "my-project"
+      And the marketplace.json name is "local-repo-plugins"
+      And the marketplace.json contains a plugin named "starter-aipm-plugin"
+      And the marketplace.json plugin "starter-aipm-plugin" has source "./starter-aipm-plugin"
+
+    Scenario: Marketplace.json with --no-starter has empty plugins array
+      Given an empty directory "my-project"
+      When the user runs "aipm init --no-starter" in "my-project"
+      Then a file ".ai/.claude-plugin/marketplace.json" exists in "my-project"
+      And the marketplace.json name is "local-repo-plugins"
+      And the marketplace.json plugins array is empty
+
   Rule: Tool settings integration
 
     Scenario: Claude Code settings point to .ai/ as local marketplace
