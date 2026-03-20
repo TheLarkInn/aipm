@@ -158,7 +158,14 @@ Feature: Workspace initialization
       When the user runs "aipm init --marketplace" in "my-project"
       Then a file ".claude/settings.json" exists in "my-project"
       And the Claude settings contain "extraKnownMarketplaces"
-      And the Claude settings reference ".ai" as the marketplace path
+      And the Claude settings marketplace path is "./.ai"
+
+    Scenario: Claude Code settings have enabledPlugins at top level
+      Given an empty directory "my-project"
+      When the user runs "aipm init --marketplace" in "my-project"
+      Then a file ".claude/settings.json" exists in "my-project"
+      And the Claude settings contain "enabledPlugins" at the top level
+      And the Claude settings enable "starter-aipm-plugin@local-repo-plugins"
 
     Scenario: Existing Claude settings are not overwritten
       Given an empty directory "my-project"

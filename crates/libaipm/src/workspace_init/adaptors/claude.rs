@@ -32,12 +32,12 @@ impl ToolAdaptor for Adaptor {
              \x20   \"local-repo-plugins\": {\n\
              \x20     \"source\": {\n\
              \x20       \"source\": \"directory\",\n\
-             \x20       \"path\": \".ai\"\n\
-             \x20     },\n\
-             \x20     \"enabledPlugins\": [\n\
-             \x20       \"starter-aipm-plugin\"\n\
-             \x20     ]\n\
+             \x20       \"path\": \"./.ai\"\n\
+             \x20     }\n\
              \x20   }\n\
+             \x20 },\n\
+             \x20 \"enabledPlugins\": {\n\
+             \x20   \"starter-aipm-plugin@local-repo-plugins\": true\n\
              \x20 }\n\
              }\n",
         )?;
@@ -58,29 +58,42 @@ fn merge_claude_settings(settings_path: &Path) -> Result<bool, Error> {
         )),
     })?;
 
-    if let Some(ekm) = obj.get("extraKnownMarketplaces") {
-        if ekm.get("local-repo-plugins").is_some() {
-            return Ok(false);
-        }
+    // Check if both marketplace and enabledPlugins are already correctly configured
+    let has_marketplace =
+        obj.get("extraKnownMarketplaces").and_then(|ekm| ekm.get("local-repo-plugins")).is_some();
+    let has_enabled = obj
+        .get("enabledPlugins")
+        .and_then(|ep| ep.as_object())
+        .is_some_and(|ep| ep.contains_key("starter-aipm-plugin@local-repo-plugins"));
+    if has_marketplace && has_enabled {
+        return Ok(false);
     }
 
+    // Ensure marketplace entry exists
     let marketplace_entry = serde_json::json!({
         "source": {
             "source": "directory",
-            "path": ".ai"
-        },
-        "enabledPlugins": ["starter-aipm-plugin"]
+            "path": "./.ai"
+        }
     });
 
     if let Some(ekm) = obj.get_mut("extraKnownMarketplaces") {
         if let Some(ekm_obj) = ekm.as_object_mut() {
-            ekm_obj.insert("local-repo-plugins".to_string(), marketplace_entry);
+            ekm_obj.entry("local-repo-plugins").or_insert(marketplace_entry);
         }
     } else {
         obj.insert(
             "extraKnownMarketplaces".to_string(),
             serde_json::json!({ "local-repo-plugins": marketplace_entry }),
         );
+    }
+
+    // Add enabledPlugins at the top level (sibling of extraKnownMarketplaces)
+    let enabled = obj.entry("enabledPlugins").or_insert_with(|| serde_json::json!({}));
+    if let Some(enabled_obj) = enabled.as_object_mut() {
+        enabled_obj
+            .entry("starter-aipm-plugin@local-repo-plugins")
+            .or_insert(serde_json::json!(true));
     }
 
     let output = serde_json::to_string_pretty(&json)
@@ -118,7 +131,17 @@ mod tests {
         assert!(tmp.join(".claude/settings.json").exists());
 
         let content = std::fs::read_to_string(tmp.join(".claude/settings.json"));
-        assert!(content.is_ok_and(|c| c.contains("extraKnownMarketplaces")));
+        assert!(content.is_ok());
+        let v: serde_json::Value =
+            serde_json::from_str(content.as_deref().unwrap_or("")).ok().unwrap_or_default();
+
+        // extraKnownMarketplaces with correct path
+        assert!(v["extraKnownMarketplaces"]["local-repo-plugins"].is_object());
+        assert_eq!(v["extraKnownMarketplaces"]["local-repo-plugins"]["source"]["path"], "./.ai");
+
+        // enabledPlugins is a top-level sibling, not nested
+        assert!(v["enabledPlugins"].is_object());
+        assert_eq!(v["enabledPlugins"]["starter-aipm-plugin@local-repo-plugins"], true);
 
         cleanup(&tmp);
     }
@@ -138,24 +161,55 @@ mod tests {
         assert!(result.is_ok_and(|v| v));
 
         let content = std::fs::read_to_string(tmp.join(".claude/settings.json"));
-        assert!(content.as_ref().is_ok_and(|c| c.contains("extraKnownMarketplaces")));
-        assert!(content.is_ok_and(|c| c.contains("allow")));
+        assert!(content.is_ok());
+        let v: serde_json::Value =
+            serde_json::from_str(content.as_deref().unwrap_or("")).ok().unwrap_or_default();
+
+        // Preserves existing content
+        assert!(v["permissions"]["allow"].is_array());
+        // Adds marketplace
+        assert!(v["extraKnownMarketplaces"]["local-repo-plugins"].is_object());
+        assert_eq!(v["extraKnownMarketplaces"]["local-repo-plugins"]["source"]["path"], "./.ai");
+        // enabledPlugins at top level
+        assert_eq!(v["enabledPlugins"]["starter-aipm-plugin@local-repo-plugins"], true);
 
         cleanup(&tmp);
     }
 
     #[test]
-    fn claude_settings_skip_if_present() {
+    fn claude_settings_skip_if_fully_configured() {
         let tmp = make_temp_dir("skip");
         std::fs::create_dir_all(tmp.join(".claude")).ok();
         std::fs::write(
             tmp.join(".claude/settings.json"),
-            "{\"extraKnownMarketplaces\": {\"local-repo-plugins\": {\"source\": {\"source\": \"directory\", \"path\": \".ai\"}}}}",
+            "{\"extraKnownMarketplaces\": {\"local-repo-plugins\": {\"source\": {\"source\": \"directory\", \"path\": \"./.ai\"}}}, \"enabledPlugins\": {\"starter-aipm-plugin@local-repo-plugins\": true}}",
         ).ok();
 
         let adaptor = Adaptor;
         let result = adaptor.apply(&tmp);
         assert!(result.is_ok_and(|v| !v));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn claude_settings_adds_enabled_plugins_when_marketplace_exists() {
+        let tmp = make_temp_dir("add-enabled");
+        std::fs::create_dir_all(tmp.join(".claude")).ok();
+        std::fs::write(
+            tmp.join(".claude/settings.json"),
+            "{\"extraKnownMarketplaces\": {\"local-repo-plugins\": {\"source\": {\"source\": \"directory\", \"path\": \"./.ai\"}}}}",
+        ).ok();
+
+        let adaptor = Adaptor;
+        let result = adaptor.apply(&tmp);
+        assert!(result.is_ok_and(|v| v));
+
+        let content = std::fs::read_to_string(tmp.join(".claude/settings.json"));
+        assert!(content.is_ok());
+        let v: serde_json::Value =
+            serde_json::from_str(content.as_deref().unwrap_or("")).ok().unwrap_or_default();
+        assert_eq!(v["enabledPlugins"]["starter-aipm-plugin@local-repo-plugins"], true);
 
         cleanup(&tmp);
     }
