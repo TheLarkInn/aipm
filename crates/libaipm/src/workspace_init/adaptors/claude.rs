@@ -29,11 +29,14 @@ impl ToolAdaptor for Adaptor {
             &settings_path,
             "{\n\
              \x20 \"extraKnownMarketplaces\": {\n\
-             \x20   \"local\": {\n\
+             \x20   \"local-repo-plugins\": {\n\
              \x20     \"source\": {\n\
              \x20       \"source\": \"directory\",\n\
              \x20       \"path\": \".ai\"\n\
-             \x20     }\n\
+             \x20     },\n\
+             \x20     \"enabledPlugins\": [\n\
+             \x20       \"starter-aipm-plugin\"\n\
+             \x20     ]\n\
              \x20   }\n\
              \x20 }\n\
              }\n",
@@ -56,7 +59,7 @@ fn merge_claude_settings(settings_path: &Path) -> Result<bool, Error> {
     })?;
 
     if let Some(ekm) = obj.get("extraKnownMarketplaces") {
-        if ekm.get("local").is_some() {
+        if ekm.get("local-repo-plugins").is_some() {
             return Ok(false);
         }
     }
@@ -65,17 +68,18 @@ fn merge_claude_settings(settings_path: &Path) -> Result<bool, Error> {
         "source": {
             "source": "directory",
             "path": ".ai"
-        }
+        },
+        "enabledPlugins": ["starter-aipm-plugin"]
     });
 
     if let Some(ekm) = obj.get_mut("extraKnownMarketplaces") {
         if let Some(ekm_obj) = ekm.as_object_mut() {
-            ekm_obj.insert("local".to_string(), marketplace_entry);
+            ekm_obj.insert("local-repo-plugins".to_string(), marketplace_entry);
         }
     } else {
         obj.insert(
             "extraKnownMarketplaces".to_string(),
-            serde_json::json!({ "local": marketplace_entry }),
+            serde_json::json!({ "local-repo-plugins": marketplace_entry }),
         );
     }
 
@@ -146,7 +150,7 @@ mod tests {
         std::fs::create_dir_all(tmp.join(".claude")).ok();
         std::fs::write(
             tmp.join(".claude/settings.json"),
-            "{\"extraKnownMarketplaces\": {\"local\": {\"source\": {\"source\": \"directory\", \"path\": \".ai\"}}}}",
+            "{\"extraKnownMarketplaces\": {\"local-repo-plugins\": {\"source\": {\"source\": \"directory\", \"path\": \".ai\"}}}}",
         ).ok();
 
         let adaptor = Adaptor;

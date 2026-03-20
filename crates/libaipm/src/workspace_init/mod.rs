@@ -180,11 +180,18 @@ fn scaffold_marketplace(dir: &Path, no_starter: bool) -> Result<(), Error> {
          # === aipm managed end ===\n",
     )?;
 
+    // Create marketplace.json in .ai/.claude-plugin/
+    std::fs::create_dir_all(ai_dir.join(".claude-plugin"))?;
+    write_file(
+        &ai_dir.join(".claude-plugin").join("marketplace.json"),
+        &generate_marketplace_json(no_starter),
+    )?;
+
     if no_starter {
         return Ok(());
     }
 
-    let starter = ai_dir.join("starter");
+    let starter = ai_dir.join("starter-aipm-plugin");
 
     // Create directory tree
     std::fs::create_dir_all(starter.join(".claude-plugin"))?;
@@ -202,7 +209,7 @@ fn scaffold_marketplace(dir: &Path, no_starter: bool) -> Result<(), Error> {
     write_file(&starter.join("agents").join("marketplace-scanner.md"), &generate_agent_template())?;
     write_file(&starter.join("hooks").join("hooks.json"), &generate_hook_template())?;
 
-    // .ai/starter/aipm.toml
+    // .ai/starter-aipm-plugin/aipm.toml
     let starter_manifest = generate_starter_manifest();
     write_file(&starter.join("aipm.toml"), &starter_manifest)?;
 
@@ -210,10 +217,10 @@ fn scaffold_marketplace(dir: &Path, no_starter: bool) -> Result<(), Error> {
     crate::manifest::parse_and_validate(&starter_manifest, Some(&starter))
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
 
-    // .ai/starter/.claude-plugin/plugin.json
+    // .ai/starter-aipm-plugin/.claude-plugin/plugin.json
     write_file(&starter.join(".claude-plugin").join("plugin.json"), &generate_plugin_json())?;
 
-    // .ai/starter/.mcp.json
+    // .ai/starter-aipm-plugin/.mcp.json
     write_file(&starter.join(".mcp.json"), &generate_mcp_stub())?;
 
     Ok(())
@@ -221,7 +228,7 @@ fn scaffold_marketplace(dir: &Path, no_starter: bool) -> Result<(), Error> {
 
 fn generate_starter_manifest() -> String {
     "[package]\n\
-     name = \"starter\"\n\
+     name = \"starter-aipm-plugin\"\n\
      version = \"0.1.0\"\n\
      type = \"composite\"\n\
      edition = \"2024\"\n\
@@ -241,7 +248,7 @@ fn generate_starter_manifest() -> String {
 
 fn generate_plugin_json() -> String {
     "{\n\
-     \x20 \"name\": \"starter\",\n\
+     \x20 \"name\": \"starter-aipm-plugin\",\n\
      \x20 \"version\": \"0.1.0\",\n\
      \x20 \"description\": \"Default starter plugin — scaffold new plugins, scan your marketplace, and log tool usage\"\n\
      }\n"
@@ -262,7 +269,7 @@ fn generate_skill_template() -> String {
      1. Ask the user for a plugin name (lowercase, hyphens allowed) if not provided.\n\
      2. Run the scaffolding script:\n\
      \x20  ```bash\n\
-     \x20  node --experimental-strip-types .ai/starter/scripts/scaffold-plugin.ts <plugin-name>\n\
+     \x20  node --experimental-strip-types .ai/starter-aipm-plugin/scripts/scaffold-plugin.ts <plugin-name>\n\
      \x20  ```\n\
      3. Report the created file tree to the user.\n\
      4. Suggest next steps: edit the generated `SKILL.md`, add agents or hooks, update `aipm.toml`.\n\
@@ -359,6 +366,40 @@ fn generate_hook_template() -> String {
      \x20 ]\n\
      }\n"
     .to_string()
+}
+
+fn generate_marketplace_json(no_starter: bool) -> String {
+    if no_starter {
+        "{\n\
+         \x20 \"name\": \"local-repo-plugins\",\n\
+         \x20 \"owner\": {\n\
+         \x20   \"name\": \"local\"\n\
+         \x20 },\n\
+         \x20 \"metadata\": {\n\
+         \x20   \"description\": \"Local plugins for this repository\"\n\
+         \x20 },\n\
+         \x20 \"plugins\": []\n\
+         }\n"
+        .to_string()
+    } else {
+        "{\n\
+         \x20 \"name\": \"local-repo-plugins\",\n\
+         \x20 \"owner\": {\n\
+         \x20   \"name\": \"local\"\n\
+         \x20 },\n\
+         \x20 \"metadata\": {\n\
+         \x20   \"description\": \"Local plugins for this repository\"\n\
+         \x20 },\n\
+         \x20 \"plugins\": [\n\
+         \x20   {\n\
+         \x20     \"name\": \"starter-aipm-plugin\",\n\
+         \x20     \"source\": \"./starter-aipm-plugin\",\n\
+         \x20     \"description\": \"Default starter plugin — scaffold new plugins, scan your marketplace, and log tool usage\"\n\
+         \x20   }\n\
+         \x20 ]\n\
+         }\n"
+        .to_string()
+    }
 }
 
 fn generate_mcp_stub() -> String {
@@ -463,13 +504,13 @@ mod tests {
         assert!(result.is_ok_and(|r| r.actions.contains(&InitAction::MarketplaceCreated)));
 
         assert!(tmp.join(".ai").is_dir());
-        assert!(tmp.join(".ai/starter/aipm.toml").exists());
-        assert!(tmp.join(".ai/starter/.claude-plugin/plugin.json").exists());
-        assert!(tmp.join(".ai/starter/skills/scaffold-plugin/SKILL.md").exists());
-        assert!(tmp.join(".ai/starter/scripts/scaffold-plugin.ts").exists());
-        assert!(tmp.join(".ai/starter/agents/marketplace-scanner.md").exists());
-        assert!(tmp.join(".ai/starter/hooks/hooks.json").exists());
-        assert!(tmp.join(".ai/starter/.mcp.json").exists());
+        assert!(tmp.join(".ai/starter-aipm-plugin/aipm.toml").exists());
+        assert!(tmp.join(".ai/starter-aipm-plugin/.claude-plugin/plugin.json").exists());
+        assert!(tmp.join(".ai/starter-aipm-plugin/skills/scaffold-plugin/SKILL.md").exists());
+        assert!(tmp.join(".ai/starter-aipm-plugin/scripts/scaffold-plugin.ts").exists());
+        assert!(tmp.join(".ai/starter-aipm-plugin/agents/marketplace-scanner.md").exists());
+        assert!(tmp.join(".ai/starter-aipm-plugin/hooks/hooks.json").exists());
+        assert!(tmp.join(".ai/starter-aipm-plugin/.mcp.json").exists());
         assert!(tmp.join(".ai/.gitignore").exists());
 
         cleanup(&tmp);
@@ -516,7 +557,7 @@ mod tests {
         assert!(r.as_ref().is_some_and(|r| r.actions.contains(&InitAction::WorkspaceCreated)));
         assert!(r.as_ref().is_some_and(|r| r.actions.contains(&InitAction::MarketplaceCreated)));
         assert!(tmp.join("aipm.toml").exists());
-        assert!(tmp.join(".ai/starter/aipm.toml").exists());
+        assert!(tmp.join(".ai/starter-aipm-plugin/aipm.toml").exists());
 
         cleanup(&tmp);
     }
@@ -622,7 +663,7 @@ mod tests {
         assert!(tmp.join(".ai").is_dir());
         assert!(tmp.join(".ai/.gitignore").exists());
         // starter/ does NOT exist
-        assert!(!tmp.join(".ai/starter").exists());
+        assert!(!tmp.join(".ai/starter-aipm-plugin").exists());
 
         cleanup(&tmp);
     }
@@ -638,7 +679,7 @@ mod tests {
         // Tool settings should still be applied
         assert!(tmp.join(".claude/settings.json").exists());
         // But no starter plugin
-        assert!(!tmp.join(".ai/starter").exists());
+        assert!(!tmp.join(".ai/starter-aipm-plugin").exists());
 
         cleanup(&tmp);
     }
