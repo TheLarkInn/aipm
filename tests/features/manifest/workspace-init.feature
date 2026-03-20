@@ -19,71 +19,71 @@ Feature: Workspace initialization
     And the following directories exist in "my-project":
       | directory                        |
       | .ai/                             |
-      | .ai/starter/                     |
-      | .ai/starter/skills/              |
-      | .ai/starter/scripts/             |
-      | .ai/starter/agents/              |
-      | .ai/starter/hooks/               |
-      | .ai/starter/.claude-plugin/      |
+      | .ai/starter-aipm-plugin/                     |
+      | .ai/starter-aipm-plugin/skills/              |
+      | .ai/starter-aipm-plugin/scripts/             |
+      | .ai/starter-aipm-plugin/agents/              |
+      | .ai/starter-aipm-plugin/hooks/               |
+      | .ai/starter-aipm-plugin/.claude-plugin/      |
     And a file ".ai/.gitignore" exists in "my-project"
 
   Scenario: Marketplace generates a valid starter plugin manifest
     Given an empty directory "my-project"
     When the user runs "aipm init --workspace --marketplace" in "my-project"
-    Then a file ".ai/starter/aipm.toml" exists in "my-project"
-    And the starter plugin manifest contains the package name "starter"
+    Then a file ".ai/starter-aipm-plugin/aipm.toml" exists in "my-project"
+    And the starter plugin manifest contains the package name "starter-aipm-plugin"
     And the starter plugin manifest contains a version of "0.1.0"
     And the starter plugin manifest contains the plugin type "composite"
 
   Scenario: Marketplace generates a Claude Code plugin structure
     Given an empty directory "my-project"
     When the user runs "aipm init --marketplace" in "my-project"
-    Then a file ".ai/starter/.claude-plugin/plugin.json" exists in "my-project"
-    And a file ".ai/starter/skills/scaffold-plugin/SKILL.md" exists in "my-project"
-    And a file ".ai/starter/scripts/scaffold-plugin.ts" exists in "my-project"
-    And a file ".ai/starter/agents/marketplace-scanner.md" exists in "my-project"
-    And a file ".ai/starter/hooks/hooks.json" exists in "my-project"
-    And a file ".ai/starter/.mcp.json" exists in "my-project"
+    Then a file ".ai/starter-aipm-plugin/.claude-plugin/plugin.json" exists in "my-project"
+    And a file ".ai/starter-aipm-plugin/skills/scaffold-plugin/SKILL.md" exists in "my-project"
+    And a file ".ai/starter-aipm-plugin/scripts/scaffold-plugin.ts" exists in "my-project"
+    And a file ".ai/starter-aipm-plugin/agents/marketplace-scanner.md" exists in "my-project"
+    And a file ".ai/starter-aipm-plugin/hooks/hooks.json" exists in "my-project"
+    And a file ".ai/starter-aipm-plugin/.mcp.json" exists in "my-project"
 
   Scenario: Marketplace generates a starter skill with description frontmatter
     Given an empty directory "my-project"
     When the user runs "aipm init --marketplace" in "my-project"
-    Then a file ".ai/starter/skills/scaffold-plugin/SKILL.md" exists in "my-project"
+    Then a file ".ai/starter-aipm-plugin/skills/scaffold-plugin/SKILL.md" exists in "my-project"
     And the starter skill contains "description:" in the frontmatter
 
   Scenario: Starter plugin includes a marketplace scanner agent
     Given an empty directory "my-project"
     When the user runs "aipm init --marketplace" in "my-project"
-    Then a file ".ai/starter/agents/marketplace-scanner.md" exists in "my-project"
+    Then a file ".ai/starter-aipm-plugin/agents/marketplace-scanner.md" exists in "my-project"
 
   Scenario: Starter plugin includes a logging hook
     Given an empty directory "my-project"
     When the user runs "aipm init --marketplace" in "my-project"
-    Then a file ".ai/starter/hooks/hooks.json" exists in "my-project"
+    Then a file ".ai/starter-aipm-plugin/hooks/hooks.json" exists in "my-project"
 
   Scenario: Starter plugin includes a scaffold script
     Given an empty directory "my-project"
     When the user runs "aipm init --marketplace" in "my-project"
-    Then a file ".ai/starter/scripts/scaffold-plugin.ts" exists in "my-project"
+    Then a file ".ai/starter-aipm-plugin/scripts/scaffold-plugin.ts" exists in "my-project"
 
   Scenario: No-starter flag creates bare marketplace directory
     Given an empty directory "my-project"
     When the user runs "aipm init --no-starter" in "my-project"
     Then a file ".ai/.gitignore" exists in "my-project"
-    And there is no directory ".ai/starter" in "my-project"
+    And there is no directory ".ai/starter-aipm-plugin" in "my-project"
 
   Scenario: No-starter flag still configures tool settings
     Given an empty directory "my-project"
     When the user runs "aipm init --no-starter" in "my-project"
     Then a file ".claude/settings.json" exists in "my-project"
-    And there is no directory ".ai/starter" in "my-project"
+    And there is no directory ".ai/starter-aipm-plugin" in "my-project"
 
   Scenario: No-starter flag with workspace creates both minus starter
     Given an empty directory "my-project"
     When the user runs "aipm init --workspace --marketplace --no-starter" in "my-project"
     Then a file "aipm.toml" is created in "my-project"
     And a file ".ai/.gitignore" exists in "my-project"
-    And there is no directory ".ai/starter" in "my-project"
+    And there is no directory ".ai/starter-aipm-plugin" in "my-project"
 
   Scenario: Generated gitignore has aipm managed markers
     Given an empty directory "my-project"
@@ -103,8 +103,8 @@ Feature: Workspace initialization
     Then the following directories exist in "my-project":
       | directory              |
       | .ai/                   |
-      | .ai/starter/           |
-      | .ai/starter/skills/    |
+      | .ai/starter-aipm-plugin/           |
+      | .ai/starter-aipm-plugin/skills/    |
     And there is no file "aipm.toml" in "my-project"
 
   Scenario: Marketplace skips if .ai directory already exists
@@ -117,7 +117,7 @@ Feature: Workspace initialization
     Given an empty directory "my-project"
     When the user runs "aipm init --workspace" in "my-project"
     Then a file "aipm.toml" is created in "my-project"
-    And there is no directory ".ai/starter" in "my-project"
+    And there is no directory ".ai/starter-aipm-plugin" in "my-project"
 
   Scenario: Default init with no flags creates marketplace only
     Given an empty directory "my-project"
@@ -125,13 +125,13 @@ Feature: Workspace initialization
     Then the following directories exist in "my-project":
       | directory      |
       | .ai/           |
-      | .ai/starter/   |
+      | .ai/starter-aipm-plugin/   |
     And there is no file "aipm.toml" in "my-project"
 
   Scenario: Starter plugin manifest is valid TOML that round-trips through parser
     Given an empty directory "my-project"
     When the user runs "aipm init --marketplace" in "my-project"
-    Then a file ".ai/starter/aipm.toml" exists in "my-project"
+    Then a file ".ai/starter-aipm-plugin/aipm.toml" exists in "my-project"
     And the starter plugin manifest is valid according to aipm schema
 
   Rule: Tool settings integration

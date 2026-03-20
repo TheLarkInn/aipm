@@ -26,7 +26,10 @@ fn init_default_creates_marketplace_only() {
     aipm().args(["init", &dir.display().to_string()]).assert().success();
 
     assert!(!dir.join("aipm.toml").exists(), "aipm.toml should NOT exist");
-    assert!(dir.join(".ai/starter/aipm.toml").exists(), ".ai/starter/aipm.toml should exist");
+    assert!(
+        dir.join(".ai/starter-aipm-plugin/aipm.toml").exists(),
+        ".ai/starter-aipm-plugin/aipm.toml should exist"
+    );
     assert!(dir.join(".claude/settings.json").exists(), ".claude/settings.json should exist");
 }
 
@@ -55,7 +58,10 @@ fn init_marketplace_only() {
 
     aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
 
-    assert!(dir.join(".ai/starter/aipm.toml").exists(), ".ai/starter should exist");
+    assert!(
+        dir.join(".ai/starter-aipm-plugin/aipm.toml").exists(),
+        ".ai/starter-aipm-plugin should exist"
+    );
     assert!(!dir.join("aipm.toml").exists(), "aipm.toml should NOT exist");
 }
 
@@ -137,8 +143,8 @@ fn init_starter_manifest_valid_toml() {
 
     aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
 
-    let content = std::fs::read_to_string(dir.join(".ai/starter/aipm.toml")).unwrap();
-    assert!(content.contains("name = \"starter\""));
+    let content = std::fs::read_to_string(dir.join(".ai/starter-aipm-plugin/aipm.toml")).unwrap();
+    assert!(content.contains("name = \"starter-aipm-plugin\""));
     assert!(content.contains("version = \"0.1.0\""));
     assert!(content.contains("type = \"composite\""));
 }
