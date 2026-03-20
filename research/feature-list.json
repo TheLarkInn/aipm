@@ -1,37 +1,196 @@
 [
   {
-    "category": "refactor",
-    "description": "Restructure workspace_init.rs into workspace_init/ module directory with mod.rs + adaptors/claude.rs",
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Create ToolAdaptor trait and ClaudeAdaptor, move Claude settings logic into adaptor",
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Delete vscode and copilot settings code, tests, and BDD scenarios",
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Update init() to accept adaptors slice and replace InitAction::ClaudeSettingsWritten with ToolConfigured(String)",
+    "category": "functional",
+    "description": "Add --no-starter flag to Options struct and thread through init() to scaffold_marketplace()",
+    "steps": [
+      "Add `no_starter: bool` field to `Options` struct in `workspace_init/mod.rs`",
+      "Update `scaffold_marketplace()` signature to accept `no_starter: bool` parameter",
+      "Update `init()` to pass `opts.no_starter` to `scaffold_marketplace()`",
+      "In `scaffold_marketplace()`, create `.ai/` and `.gitignore` before the `no_starter` check",
+      "Add early return `Ok(())` when `no_starter` is true, skipping all starter plugin scaffolding",
+      "Verify `cargo build --workspace` compiles (fix all `Options` construction sites to include `no_starter: false`)"
+    ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Update CLI main.rs: pass adaptors to init(), handle ToolConfigured action, change default to marketplace-only",
+    "description": "Add --no-starter CLI argument to aipm init command",
+    "steps": [
+      "Add `#[arg(long)] no_starter: bool` field to `Commands::Init` in `crates/aipm/src/main.rs`",
+      "Pass `no_starter` through to `Options` struct in the init handler",
+      "Update `MarketplaceCreated` output message to conditionally show '(no starter plugin)' when `no_starter` is true",
+      "Verify `cargo build --workspace` compiles",
+      "Test `aipm init --help` shows the new `--no-starter` flag"
+    ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Update BDD scenario: default init creates marketplace only (no aipm.toml)",
+    "description": "Add generate_scaffold_script() function returning TypeScript scaffolding script",
+    "steps": [
+      "Create `generate_scaffold_script()` function in `workspace_init/mod.rs` that returns the TypeScript script as a String",
+      "Script must use only Node.js built-ins (fs, path, process) — no npm dependencies",
+      "Script usage line must reference `node --experimental-strip-types`",
+      "Script must create plugin directory with `.claude-plugin/`, `skills/<name>/`, `agents/`, `hooks/` subdirectories",
+      "Script must write `aipm.toml`, `SKILL.md`, and `plugin.json` files",
+      "Script must check for existing directory and exit with error if it exists",
+      "Verify the function returns valid TypeScript content under 50 lines"
+    ],
     "passes": true
   },
   {
-    "category": "validation",
-    "description": "Full build verification — all four checks pass with zero warnings",
+    "category": "functional",
+    "description": "Add generate_agent_template() function returning marketplace-scanner agent markdown",
+    "steps": [
+      "Create `generate_agent_template()` function in `workspace_init/mod.rs`",
+      "Agent markdown must include YAML frontmatter with `name`, `description`, and `tools` keys",
+      "Tools must be restricted to read-only: Read, Glob, Grep, LS",
+      "Instructions must scope the agent to `.ai/` directory analysis only",
+      "Verify the content is under 50 lines",
+      "Verify frontmatter starts with `---` delimiter"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add generate_hook_template() function returning hooks.json with PostToolUse logging",
+    "steps": [
+      "Create `generate_hook_template()` function in `workspace_init/mod.rs`",
+      "Hook JSON must contain a `hooks` array with one entry",
+      "Entry must have `event: PostToolUse` and a shell command that appends to `.ai/.tool-usage.log`",
+      "Verify the output is valid JSON by parsing with serde_json",
+      "Verify the content is under 50 lines"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Update generate_skill_template() to return scaffold-plugin skill content",
+    "steps": [
+      "Replace the existing hello skill content in `generate_skill_template()` with the scaffold-plugin SKILL.md content",
+      "Skill must have YAML frontmatter with `description` key referencing plugin scaffolding",
+      "Instructions must reference `node --experimental-strip-types .ai/starter/scripts/scaffold-plugin.ts <plugin-name>`",
+      "Verify the content starts with `---` delimiter and contains `description:`",
+      "Verify the content is under 50 lines"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Update generate_starter_manifest() to declare all four component types",
+    "steps": [
+      "Update `generate_starter_manifest()` to include `skills`, `agents`, `hooks`, and `scripts` in `[components]`",
+      "Skills path: `skills/scaffold-plugin/SKILL.md`",
+      "Agents path: `agents/marketplace-scanner.md`",
+      "Hooks path: `hooks/hooks.json`",
+      "Scripts path: `scripts/scaffold-plugin.ts`",
+      "Update the description to: 'Default starter plugin — scaffold new plugins, scan your marketplace, and log tool usage'",
+      "Verify manifest round-trips through `parse_and_validate()` (requires component files on disk)"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Update generate_plugin_json() description to match new plugin purpose",
+    "steps": [
+      "Update the `description` field in `generate_plugin_json()` to 'Default starter plugin — scaffold new plugins, scan your marketplace, and log tool usage'",
+      "Verify the output is valid JSON with `name`, `version`, and `description` fields"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Update scaffold_marketplace() directory tree and file writes for new components",
+    "steps": [
+      "Replace `skills/hello/` directory creation with `skills/scaffold-plugin/`",
+      "Add `scripts/` directory creation: `std::fs::create_dir_all(starter.join(\"scripts\"))`",
+      "Write `skills/scaffold-plugin/SKILL.md` using `generate_skill_template()` before validation",
+      "Write `scripts/scaffold-plugin.ts` using `generate_scaffold_script()` before validation",
+      "Write `agents/marketplace-scanner.md` using `generate_agent_template()` before validation",
+      "Write `hooks/hooks.json` using `generate_hook_template()` before validation",
+      "Remove the two `.gitkeep` write_file calls for `agents/.gitkeep` and `hooks/.gitkeep`",
+      "Ensure all component files are written BEFORE `parse_and_validate()` call",
+      "Verify `parse_and_validate()` succeeds with the updated manifest and all component files on disk"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Update existing unit tests for new starter plugin structure",
+    "steps": [
+      "Update `starter_manifest_round_trips` test to create all four component files in temp dir (scaffold-plugin/SKILL.md, marketplace-scanner.md, hooks.json, scaffold-plugin.ts)",
+      "Update `init_marketplace_creates_tree` test to assert new file paths and remove `.gitkeep` assertions",
+      "Update `skill_template_has_frontmatter` test — content changes but `description:` assertion still holds",
+      "Add `no_starter: false` to ALL existing `Options` struct constructions in tests",
+      "Verify all modified tests pass with `cargo test --workspace`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add new unit tests for generate_*() template functions",
+    "steps": [
+      "Add `agent_template_has_frontmatter` test: verify agent markdown contains `name:`, `description:`, `tools:` in frontmatter",
+      "Add `hook_template_is_valid_json` test: verify `generate_hook_template()` parses as valid JSON with a `hooks` array",
+      "Add `scaffold_script_is_nonempty` test: verify `generate_scaffold_script()` is non-empty and contains expected markers (e.g., `mkdirSync`, `writeFileSync`)",
+      "Verify all new tests pass with `cargo test --workspace`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add unit tests for --no-starter behavior",
+    "steps": [
+      "Add `init_marketplace_no_starter` test: init with `no_starter: true`, verify `.ai/` and `.ai/.gitignore` exist but `.ai/starter/` does not",
+      "Add `init_no_starter_still_configures_tools` test: init with `no_starter: true` and default adaptors, verify `.claude/settings.json` is created",
+      "Verify all new tests pass with `cargo test --workspace`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Update BDD scenarios for new starter plugin file paths",
+    "steps": [
+      "Update 'Marketplace generates a Claude Code plugin structure' scenario: replace `skills/hello/SKILL.md` with `skills/scaffold-plugin/SKILL.md`, add assertions for `agents/marketplace-scanner.md`, `hooks/hooks.json`, `scripts/scaffold-plugin.ts`",
+      "Update 'Marketplace generates a starter skill with description frontmatter' scenario: change path from `skills/hello/SKILL.md` to `skills/scaffold-plugin/SKILL.md`",
+      "Update 'Initialize a workspace with default marketplace' scenario: add `scripts/` to the directory list",
+      "Verify BDD scenarios pass with `cargo test --workspace`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add BDD scenarios for new starter plugin components",
+    "steps": [
+      "Add scenario 'Starter plugin includes a marketplace scanner agent': assert `agents/marketplace-scanner.md` exists and contains `tools:` frontmatter",
+      "Add scenario 'Starter plugin includes a logging hook': assert `hooks/hooks.json` exists and contains `PostToolUse`",
+      "Add scenario 'Starter plugin includes a scaffold script': assert `scripts/scaffold-plugin.ts` exists",
+      "Verify new BDD scenarios pass with `cargo test --workspace`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add BDD scenarios for --no-starter flag behavior",
+    "steps": [
+      "Add scenario 'No-starter flag creates bare marketplace directory': run `aipm init --no-starter`, assert `.ai/` and `.ai/.gitignore` exist but `.ai/starter/` does not",
+      "Add scenario 'No-starter flag still configures tool settings': run `aipm init --no-starter`, assert `.claude/settings.json` is created",
+      "Add scenario 'No-starter flag with workspace creates both minus starter': run `aipm init --workspace --marketplace --no-starter`, assert `aipm.toml` + `.ai/` exist but no `.ai/starter/`",
+      "Verify new BDD scenarios pass with `cargo test --workspace`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Final validation: full build, test, clippy, and fmt suite passes",
+    "steps": [
+      "Run `cargo build --workspace` — zero errors",
+      "Run `cargo test --workspace` — all tests pass",
+      "Run `cargo clippy --workspace -- -D warnings` — zero warnings",
+      "Run `cargo fmt --check` — no formatting issues",
+      "Verify no `#[allow(...)]` or `#[expect(...)]` attributes were added",
+      "Verify no `.unwrap()`, `.expect()`, `panic!()`, `println!()` usage in new code"
+    ],
     "passes": true
   }
 ]
