@@ -150,6 +150,61 @@ fn init_starter_manifest_valid_toml() {
 }
 
 // =========================================================================
+// Scenario: Marketplace.json is generated with correct structure
+// =========================================================================
+#[test]
+fn init_marketplace_json_generated() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("mp-json");
+
+    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
+
+    let content = std::fs::read_to_string(dir.join(".ai/.claude-plugin/marketplace.json")).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&content).unwrap();
+    assert_eq!(v["name"], "local-repo-plugins");
+    assert_eq!(v["owner"]["name"], "local");
+    assert_eq!(v["metadata"]["description"], "Local plugins for this repository");
+    assert_eq!(v["plugins"][0]["name"], "starter-aipm-plugin");
+    assert_eq!(v["plugins"][0]["source"], "./starter-aipm-plugin");
+}
+
+// =========================================================================
+// Scenario: Marketplace.json with --no-starter has empty plugins
+// =========================================================================
+#[test]
+fn init_marketplace_json_no_starter_empty_plugins() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("mp-json-nostarter");
+
+    aipm().args(["init", "--no-starter", &dir.display().to_string()]).assert().success();
+
+    let content = std::fs::read_to_string(dir.join(".ai/.claude-plugin/marketplace.json")).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&content).unwrap();
+    assert_eq!(v["name"], "local-repo-plugins");
+    assert!(v["plugins"].as_array().unwrap().is_empty());
+}
+
+// =========================================================================
+// Scenario: Settings.json has correct marketplace name and enabled plugins
+// =========================================================================
+#[test]
+fn init_settings_json_marketplace_name_and_enabled_plugins() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("settings-check");
+
+    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
+
+    let content = std::fs::read_to_string(dir.join(".claude/settings.json")).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&content).unwrap();
+    assert!(v["extraKnownMarketplaces"]["local-repo-plugins"].is_object());
+    assert_eq!(v["extraKnownMarketplaces"]["local-repo-plugins"]["source"]["path"], ".ai");
+    assert_eq!(
+        v["extraKnownMarketplaces"]["local-repo-plugins"]["enabledPlugins"][0],
+        "starter-aipm-plugin"
+    );
+}
+
+// =========================================================================
 // Scenario: Generated workspace manifest is valid
 // =========================================================================
 #[test]

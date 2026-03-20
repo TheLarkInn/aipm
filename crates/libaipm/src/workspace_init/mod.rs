@@ -669,6 +669,97 @@ mod tests {
     }
 
     #[test]
+    fn marketplace_json_with_starter_is_valid() {
+        let json = generate_marketplace_json(false);
+        let parsed: Result<serde_json::Value, _> = serde_json::from_str(&json);
+        assert!(parsed.is_ok(), "marketplace.json should be valid JSON: {parsed:?}");
+        let v = parsed.ok();
+        assert!(v
+            .as_ref()
+            .is_some_and(|v| v.get("name").is_some_and(|n| n == "local-repo-plugins")));
+        assert!(v.as_ref().is_some_and(|v| v.get("owner").is_some()));
+        assert!(v.as_ref().is_some_and(|v| v.get("metadata").is_some()));
+        let plugins = v.as_ref().and_then(|v| v.get("plugins")).and_then(|p| p.as_array());
+        assert!(plugins.is_some_and(|p| p.len() == 1));
+        let plugin = v
+            .as_ref()
+            .and_then(|v| v.get("plugins"))
+            .and_then(|p| p.as_array())
+            .and_then(|a| a.first());
+        assert!(plugin.is_some_and(|p| {
+            p.get("name").is_some_and(|n| n == "starter-aipm-plugin")
+                && p.get("source").is_some_and(|s| s == "./starter-aipm-plugin")
+                && p.get("description").is_some()
+        }));
+    }
+
+    #[test]
+    fn marketplace_json_no_starter_has_empty_plugins() {
+        let json = generate_marketplace_json(true);
+        let parsed: Result<serde_json::Value, _> = serde_json::from_str(&json);
+        assert!(parsed.is_ok(), "marketplace.json should be valid JSON: {parsed:?}");
+        let v = parsed.ok();
+        assert!(v
+            .as_ref()
+            .is_some_and(|v| v.get("name").is_some_and(|n| n == "local-repo-plugins")));
+        let plugins = v.as_ref().and_then(|v| v.get("plugins")).and_then(|p| p.as_array());
+        assert!(plugins.is_some_and(|p| p.is_empty()));
+    }
+
+    #[test]
+    fn init_marketplace_creates_marketplace_json() {
+        let (tmp, _guard) = make_temp_dir("mp-json");
+        let adaptors = default_adaptors();
+        let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: false };
+        let result = init(&opts, &adaptors);
+        assert!(result.is_ok());
+
+        let path = tmp.join(".ai/.claude-plugin/marketplace.json");
+        assert!(path.exists(), "marketplace.json should be created");
+        let content = std::fs::read_to_string(&path);
+        assert!(content.is_ok());
+        let parsed: Result<serde_json::Value, _> =
+            serde_json::from_str(content.as_deref().unwrap_or(""));
+        assert!(parsed.is_ok(), "marketplace.json should be valid JSON");
+        let v = parsed.ok();
+        assert!(v
+            .as_ref()
+            .is_some_and(|v| v.get("name").is_some_and(|n| n == "local-repo-plugins")));
+        assert!(v.is_some_and(|v| {
+            v.get("plugins")
+                .and_then(|p| p.as_array())
+                .and_then(|a| a.first())
+                .and_then(|p| p.get("name"))
+                .is_some_and(|n| n == "starter-aipm-plugin")
+        }));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn init_no_starter_creates_marketplace_json_with_empty_plugins() {
+        let (tmp, _guard) = make_temp_dir("mp-json-nostarter");
+        let adaptors = default_adaptors();
+        let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: true };
+        let result = init(&opts, &adaptors);
+        assert!(result.is_ok());
+
+        let path = tmp.join(".ai/.claude-plugin/marketplace.json");
+        assert!(path.exists(), "marketplace.json should be created even with --no-starter");
+        let content = std::fs::read_to_string(&path);
+        assert!(content.is_ok());
+        let parsed: Result<serde_json::Value, _> =
+            serde_json::from_str(content.as_deref().unwrap_or(""));
+        assert!(parsed.is_ok());
+        let v = parsed.ok();
+        assert!(v.is_some_and(|v| {
+            v.get("plugins").and_then(|p| p.as_array()).is_some_and(|a| a.is_empty())
+        }));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_no_starter_still_configures_tools() {
         let (tmp, _guard) = make_temp_dir("no-starter-tools");
         let adaptors = default_adaptors();
