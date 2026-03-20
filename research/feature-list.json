@@ -1,195 +1,271 @@
 [
   {
     "category": "functional",
-    "description": "Add --no-starter flag to Options struct and thread through init() to scaffold_marketplace()",
+    "description": "Add marketplace.json registration to generate_scaffold_script() TypeScript output",
     "steps": [
-      "Add `no_starter: bool` field to `Options` struct in `workspace_init/mod.rs`",
-      "Update `scaffold_marketplace()` signature to accept `no_starter: bool` parameter",
-      "Update `init()` to pass `opts.no_starter` to `scaffold_marketplace()`",
-      "In `scaffold_marketplace()`, create `.ai/` and `.gitignore` before the `no_starter` check",
-      "Add early return `Ok(())` when `no_starter` is true, skipping all starter plugin scaffolding",
-      "Verify `cargo build --workspace` compiles (fix all `Options` construction sites to include `no_starter: false`)"
+      "Open crates/libaipm/src/workspace_init/mod.rs and locate generate_scaffold_script() at line 285",
+      "Add readFileSync to the fs import in the generated TypeScript string",
+      "After the existing plugin.json writeFileSync call, add TypeScript logic to read .ai/.claude-plugin/marketplace.json",
+      "If marketplace.json exists, parse it; if not, create default structure with name 'local-repo-plugins', owner, metadata, and empty plugins array",
+      "Check for duplicate plugin name via plugins.some(p => p.name === name)",
+      "If not duplicate, push new entry { name, source: './<name>', description: 'TODO: describe <name>' } to plugins array",
+      "Write updated marketplace.json back with JSON.stringify(data, null, 2) + newline",
+      "Wrap marketplace registration in try/catch with process.stderr.write warning on failure (warn-and-continue strategy)",
+      "Run cargo build --workspace to verify the Rust string literal compiles",
+      "Run cargo fmt --check to verify formatting"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Add --no-starter CLI argument to aipm init command",
+    "description": "Add settings.json enabledPlugins autoenable to generate_scaffold_script() TypeScript output",
     "steps": [
-      "Add `#[arg(long)] no_starter: bool` field to `Commands::Init` in `crates/aipm/src/main.rs`",
-      "Pass `no_starter` through to `Options` struct in the init handler",
-      "Update `MarketplaceCreated` output message to conditionally show '(no starter plugin)' when `no_starter` is true",
-      "Verify `cargo build --workspace` compiles",
-      "Test `aipm init --help` shows the new `--no-starter` flag"
+      "In generate_scaffold_script() in mod.rs, after the marketplace.json registration block, add TypeScript logic to read .claude/settings.json",
+      "If settings.json exists, parse it; if not, create .claude/ directory and start with empty object",
+      "If enabledPlugins key is missing from settings object, create it as empty object",
+      "Construct plugin key as `${name}@local-repo-plugins`",
+      "Check if pluginKey already exists in enabledPlugins; if not, set it to true",
+      "Write updated settings.json back with JSON.stringify(settings, null, 2) + newline",
+      "Wrap settings registration in try/catch with process.stderr.write warning on failure (warn-and-continue strategy)",
+      "Update the success message at end of script to include registration status",
+      "Run cargo build --workspace to verify compilation",
+      "Run cargo fmt --check to verify formatting"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Add generate_scaffold_script() function returning TypeScript scaffolding script",
+    "description": "Handle edge cases in scaffold-plugin.ts: missing files, missing keys, duplicates, parse errors",
     "steps": [
-      "Create `generate_scaffold_script()` function in `workspace_init/mod.rs` that returns the TypeScript script as a String",
-      "Script must use only Node.js built-ins (fs, path, process) — no npm dependencies",
-      "Script usage line must reference `node --experimental-strip-types`",
-      "Script must create plugin directory with `.claude-plugin/`, `skills/<name>/`, `agents/`, `hooks/` subdirectories",
-      "Script must write `aipm.toml`, `SKILL.md`, and `plugin.json` files",
-      "Script must check for existing directory and exit with error if it exists",
-      "Verify the function returns valid TypeScript content under 50 lines"
+      "Verify marketplace.json creation from scratch when file does not exist (mkdirSync .claude-plugin with recursive: true)",
+      "Verify settings.json creation from scratch when file does not exist (mkdirSync .claude with recursive: true)",
+      "Verify enabledPlugins key is created when missing from existing settings.json",
+      "Verify duplicate plugin name in marketplace.json plugins array is skipped (not appended twice)",
+      "Verify duplicate pluginKey in enabledPlugins is skipped (not overwritten)",
+      "Verify JSON parse errors in marketplace.json emit warning to stderr and skip registration without exiting",
+      "Verify JSON parse errors in settings.json emit warning to stderr and skip autoenable without exiting",
+      "Verify plugin directory files are always created even when registration steps fail",
+      "Run cargo build --workspace and cargo test --workspace to verify"
     ],
     "passes": true
   },
   {
-    "category": "functional",
-    "description": "Add generate_agent_template() function returning marketplace-scanner agent markdown",
+    "category": "test",
+    "description": "Add insta snapshot test for generate_scaffold_script() full TypeScript output",
     "steps": [
-      "Create `generate_agent_template()` function in `workspace_init/mod.rs`",
-      "Agent markdown must include YAML frontmatter with `name`, `description`, and `tools` keys",
-      "Tools must be restricted to read-only: Read, Glob, Grep, LS",
-      "Instructions must scope the agent to `.ai/` directory analysis only",
-      "Verify the content is under 50 lines",
-      "Verify frontmatter starts with `---` delimiter"
+      "Add insta as a dev-dependency in crates/libaipm/Cargo.toml (latest stable version)",
+      "Verify insta works with workspace lint configuration (derive macros emit internal #[allow] which is permitted)",
+      "In crates/libaipm/src/workspace_init/mod.rs tests section, add scaffold_script_snapshot test",
+      "Call generate_scaffold_script() and pass result to insta::assert_snapshot!(content)",
+      "Run cargo test --workspace once to generate the initial .snap file",
+      "Review the snapshot file at crates/libaipm/src/workspace_init/snapshots/ and accept it with cargo insta review",
+      "Verify the snapshot contains all expected TypeScript: readFileSync, marketplace.json logic, settings.json logic, enabledPlugins, local-repo-plugins",
+      "Run cargo test --workspace to confirm snapshot test passes",
+      "Run cargo clippy --workspace -- -D warnings to verify no lint issues"
     ],
     "passes": true
   },
   {
-    "category": "functional",
-    "description": "Add generate_hook_template() function returning hooks.json with PostToolUse logging",
+    "category": "test",
+    "description": "Update existing unit test scaffold_script_is_nonempty with new content marker assertions",
     "steps": [
-      "Create `generate_hook_template()` function in `workspace_init/mod.rs`",
-      "Hook JSON must contain a `hooks` array with one entry",
-      "Entry must have `event: PostToolUse` and a shell command that appends to `.ai/.tool-usage.log`",
-      "Verify the output is valid JSON by parsing with serde_json",
-      "Verify the content is under 50 lines"
+      "Open crates/libaipm/src/workspace_init/mod.rs and locate scaffold_script_is_nonempty test at line 644",
+      "Add assertion: content.contains(\"readFileSync\")",
+      "Add assertion: content.contains(\"marketplace.json\")",
+      "Add assertion: content.contains(\"settings.json\")",
+      "Add assertion: content.contains(\"enabledPlugins\")",
+      "Add assertion: content.contains(\"local-repo-plugins\")",
+      "Run cargo test --workspace -p libaipm to verify updated test passes"
     ],
     "passes": true
   },
   {
-    "category": "functional",
-    "description": "Update generate_skill_template() to return scaffold-plugin skill content",
+    "category": "test",
+    "description": "Add new unit test scaffold_script_registers_in_marketplace for marketplace.json TypeScript logic",
     "steps": [
-      "Replace the existing hello skill content in `generate_skill_template()` with the scaffold-plugin SKILL.md content",
-      "Skill must have YAML frontmatter with `description` key referencing plugin scaffolding",
-      "Instructions must reference `node --experimental-strip-types .ai/starter/scripts/scaffold-plugin.ts <plugin-name>`",
-      "Verify the content starts with `---` delimiter and contains `description:`",
-      "Verify the content is under 50 lines"
+      "In mod.rs tests section, add scaffold_script_registers_in_marketplace test",
+      "Call generate_scaffold_script() and store result",
+      "Assert content contains marketplace.json path construction (join with .claude-plugin and marketplace.json)",
+      "Assert content contains .some( for duplicate detection",
+      "Assert content contains .push( for array append",
+      "Assert content contains source: `./${name}` pattern",
+      "Assert content contains local-repo-plugins as marketplace name",
+      "Run cargo test --workspace -p libaipm to verify"
     ],
     "passes": true
   },
   {
-    "category": "functional",
-    "description": "Update generate_starter_manifest() to declare all four component types",
+    "category": "test",
+    "description": "Add new unit test scaffold_script_enables_in_settings for settings.json TypeScript logic",
     "steps": [
-      "Update `generate_starter_manifest()` to include `skills`, `agents`, `hooks`, and `scripts` in `[components]`",
-      "Skills path: `skills/scaffold-plugin/SKILL.md`",
-      "Agents path: `agents/marketplace-scanner.md`",
-      "Hooks path: `hooks/hooks.json`",
-      "Scripts path: `scripts/scaffold-plugin.ts`",
-      "Update the description to: 'Default starter plugin — scaffold new plugins, scan your marketplace, and log tool usage'",
-      "Verify manifest round-trips through `parse_and_validate()` (requires component files on disk)"
+      "In mod.rs tests section, add scaffold_script_enables_in_settings test",
+      "Call generate_scaffold_script() and store result",
+      "Assert content contains settings.json path construction",
+      "Assert content contains @local-repo-plugins key format pattern",
+      "Assert content contains enabledPlugins object creation/check",
+      "Assert content contains writeFileSync for settings.json",
+      "Run cargo test --workspace -p libaipm to verify"
     ],
     "passes": true
   },
   {
-    "category": "functional",
-    "description": "Update generate_plugin_json() description to match new plugin purpose",
+    "category": "test",
+    "description": "Add unit test to cross-check marketplace name between generate_marketplace_json() and generate_scaffold_script()",
     "steps": [
-      "Update the `description` field in `generate_plugin_json()` to 'Default starter plugin — scaffold new plugins, scan your marketplace, and log tool usage'",
-      "Verify the output is valid JSON with `name`, `version`, and `description` fields"
+      "In mod.rs tests section, add scaffold_script_marketplace_name_matches_generator test",
+      "Call generate_marketplace_json(false) and parse it as serde_json::Value",
+      "Extract the top-level name field (should be 'local-repo-plugins')",
+      "Call generate_scaffold_script() and assert it contains the same marketplace name string",
+      "This prevents drift between the Rust-generated marketplace.json and the TypeScript hardcoded name",
+      "Run cargo test --workspace -p libaipm to verify"
     ],
     "passes": true
   },
   {
-    "category": "functional",
-    "description": "Update scaffold_marketplace() directory tree and file writes for new components",
+    "category": "test",
+    "description": "Add e2e test: scaffold script registers new plugin in marketplace.json",
     "steps": [
-      "Replace `skills/hello/` directory creation with `skills/scaffold-plugin/`",
-      "Add `scripts/` directory creation: `std::fs::create_dir_all(starter.join(\"scripts\"))`",
-      "Write `skills/scaffold-plugin/SKILL.md` using `generate_skill_template()` before validation",
-      "Write `scripts/scaffold-plugin.ts` using `generate_scaffold_script()` before validation",
-      "Write `agents/marketplace-scanner.md` using `generate_agent_template()` before validation",
-      "Write `hooks/hooks.json` using `generate_hook_template()` before validation",
-      "Remove the two `.gitkeep` write_file calls for `agents/.gitkeep` and `hooks/.gitkeep`",
-      "Ensure all component files are written BEFORE `parse_and_validate()` call",
-      "Verify `parse_and_validate()` succeeds with the updated manifest and all component files on disk"
+      "In crates/aipm/tests/init_e2e.rs, add has_node() helper that checks node --version availability",
+      "Add scaffold_script_registers_in_marketplace_json e2e test",
+      "Gate the test with if !has_node() { return; } at the start",
+      "Run aipm init --marketplace in a temp directory",
+      "Execute node --experimental-strip-types .ai/starter-aipm-plugin/scripts/scaffold-plugin.ts my-new-plugin via std::process::Command",
+      "Assert the command succeeds (exit code 0)",
+      "Read .ai/.claude-plugin/marketplace.json and parse as serde_json::Value",
+      "Assert plugins array has 2 entries (starter + my-new-plugin)",
+      "Assert second entry has name 'my-new-plugin' and source './my-new-plugin'",
+      "Run cargo test --workspace to verify"
     ],
     "passes": true
   },
   {
-    "category": "functional",
-    "description": "Update existing unit tests for new starter plugin structure",
+    "category": "test",
+    "description": "Add e2e test: scaffold script enables new plugin in settings.json",
     "steps": [
-      "Update `starter_manifest_round_trips` test to create all four component files in temp dir (scaffold-plugin/SKILL.md, marketplace-scanner.md, hooks.json, scaffold-plugin.ts)",
-      "Update `init_marketplace_creates_tree` test to assert new file paths and remove `.gitkeep` assertions",
-      "Update `skill_template_has_frontmatter` test — content changes but `description:` assertion still holds",
-      "Add `no_starter: false` to ALL existing `Options` struct constructions in tests",
-      "Verify all modified tests pass with `cargo test --workspace`"
+      "In init_e2e.rs, add scaffold_script_enables_in_settings_json test",
+      "Gate with has_node() check",
+      "Run aipm init --marketplace in temp dir, then run scaffold script with my-new-plugin",
+      "Read .claude/settings.json and parse as serde_json::Value",
+      "Assert enabledPlugins['my-new-plugin@local-repo-plugins'] == true",
+      "Assert enabledPlugins['starter-aipm-plugin@local-repo-plugins'] == true (existing entry preserved)",
+      "Run cargo test --workspace to verify"
     ],
     "passes": true
   },
   {
-    "category": "functional",
-    "description": "Add new unit tests for generate_*() template functions",
+    "category": "test",
+    "description": "Add e2e test: scaffold script creates plugin directory structure",
     "steps": [
-      "Add `agent_template_has_frontmatter` test: verify agent markdown contains `name:`, `description:`, `tools:` in frontmatter",
-      "Add `hook_template_is_valid_json` test: verify `generate_hook_template()` parses as valid JSON with a `hooks` array",
-      "Add `scaffold_script_is_nonempty` test: verify `generate_scaffold_script()` is non-empty and contains expected markers (e.g., `mkdirSync`, `writeFileSync`)",
-      "Verify all new tests pass with `cargo test --workspace`"
+      "In init_e2e.rs, add scaffold_script_creates_plugin_directory test",
+      "Gate with has_node() check",
+      "Run aipm init --marketplace then scaffold my-new-plugin",
+      "Assert .ai/my-new-plugin/aipm.toml exists",
+      "Assert .ai/my-new-plugin/.claude-plugin/plugin.json exists",
+      "Assert .ai/my-new-plugin/skills/my-new-plugin/SKILL.md exists",
+      "Run cargo test --workspace to verify"
     ],
     "passes": true
   },
   {
-    "category": "functional",
-    "description": "Add unit tests for --no-starter behavior",
+    "category": "test",
+    "description": "Add e2e test: scaffold multiple plugins with no duplicates in marketplace.json",
     "steps": [
-      "Add `init_marketplace_no_starter` test: init with `no_starter: true`, verify `.ai/` and `.ai/.gitignore` exist but `.ai/starter/` does not",
-      "Add `init_no_starter_still_configures_tools` test: init with `no_starter: true` and default adaptors, verify `.claude/settings.json` is created",
-      "Verify all new tests pass with `cargo test --workspace`"
+      "In init_e2e.rs, add scaffold_script_multiple_plugins_no_duplicates test",
+      "Gate with has_node() check",
+      "Run aipm init, then scaffold plugin-a, then scaffold plugin-b",
+      "Read marketplace.json and assert plugins array has exactly 3 entries (starter + a + b)",
+      "Read settings.json and assert enabledPlugins has exactly 3 keys",
+      "Run cargo test --workspace to verify"
     ],
     "passes": true
   },
   {
-    "category": "functional",
-    "description": "Update BDD scenarios for new starter plugin file paths",
+    "category": "test",
+    "description": "Add e2e test: scaffold script rejects existing plugin directory",
     "steps": [
-      "Update 'Marketplace generates a Claude Code plugin structure' scenario: replace `skills/hello/SKILL.md` with `skills/scaffold-plugin/SKILL.md`, add assertions for `agents/marketplace-scanner.md`, `hooks/hooks.json`, `scripts/scaffold-plugin.ts`",
-      "Update 'Marketplace generates a starter skill with description frontmatter' scenario: change path from `skills/hello/SKILL.md` to `skills/scaffold-plugin/SKILL.md`",
-      "Update 'Initialize a workspace with default marketplace' scenario: add `scripts/` to the directory list",
-      "Verify BDD scenarios pass with `cargo test --workspace`"
+      "In init_e2e.rs, add scaffold_script_rejects_existing_plugin test",
+      "Gate with has_node() check",
+      "Run aipm init, scaffold my-plugin, then scaffold my-plugin again",
+      "Assert second run exits with non-zero code",
+      "Assert stderr contains 'already exists'",
+      "Run cargo test --workspace to verify"
     ],
     "passes": true
   },
   {
-    "category": "functional",
-    "description": "Add BDD scenarios for new starter plugin components",
+    "category": "test",
+    "description": "Implement missing BDD steps: directory/file existence (data tables, no-directory, no-file, directory-exists)",
     "steps": [
-      "Add scenario 'Starter plugin includes a marketplace scanner agent': assert `agents/marketplace-scanner.md` exists and contains `tools:` frontmatter",
-      "Add scenario 'Starter plugin includes a logging hook': assert `hooks/hooks.json` exists and contains `PostToolUse`",
-      "Add scenario 'Starter plugin includes a scaffold script': assert `scripts/scaffold-plugin.ts` exists",
-      "Verify new BDD scenarios pass with `cargo test --workspace`"
+      "Open crates/libaipm/tests/bdd.rs",
+      "Add #[then] step for 'the following directories exist in {string}:' with cucumber data table — iterate rows, assert each path is_dir()",
+      "Add #[then] step for 'there is no directory {string} in {string}' — assert !path.exists() || !path.is_dir()",
+      "Add #[then] step for 'there is no file {string} in {string}' — assert !path.exists()",
+      "Add #[given] step for 'a directory {string} exists' — std::fs::create_dir_all",
+      "Run cargo test --workspace to verify BDD scenarios using these steps pass"
     ],
     "passes": true
   },
   {
-    "category": "functional",
-    "description": "Add BDD scenarios for --no-starter flag behavior",
+    "category": "test",
+    "description": "Implement missing BDD steps: starter plugin manifest assertions",
     "steps": [
-      "Add scenario 'No-starter flag creates bare marketplace directory': run `aipm init --no-starter`, assert `.ai/` and `.ai/.gitignore` exist but `.ai/starter/` does not",
-      "Add scenario 'No-starter flag still configures tool settings': run `aipm init --no-starter`, assert `.claude/settings.json` is created",
-      "Add scenario 'No-starter flag with workspace creates both minus starter': run `aipm init --workspace --marketplace --no-starter`, assert `aipm.toml` + `.ai/` exist but no `.ai/starter/`",
-      "Verify new BDD scenarios pass with `cargo test --workspace`"
+      "In bdd.rs, add #[then] step for 'the starter plugin manifest contains the package name {string}' — read .ai/starter-aipm-plugin/aipm.toml, assert contains name = value",
+      "Add #[then] step for 'the starter plugin manifest contains a version of {string}' — same file, version = value",
+      "Add #[then] step for 'the starter plugin manifest contains the plugin type {string}' — same file, type = value",
+      "Add #[then] step for 'the starter plugin manifest is valid according to aipm schema' — read file and call libaipm::manifest::parse_and_validate()",
+      "Add #[then] step for 'the starter skill contains {string} in the frontmatter' — read skills/scaffold-plugin/SKILL.md, assert contains string",
+      "Run cargo test --workspace to verify BDD scenarios pass"
     ],
     "passes": true
   },
   {
-    "category": "functional",
-    "description": "Final validation: full build, test, clippy, and fmt suite passes",
+    "category": "test",
+    "description": "Implement missing BDD steps: marketplace.json assertions",
     "steps": [
-      "Run `cargo build --workspace` — zero errors",
-      "Run `cargo test --workspace` — all tests pass",
-      "Run `cargo clippy --workspace -- -D warnings` — zero warnings",
-      "Run `cargo fmt --check` — no formatting issues",
-      "Verify no `#[allow(...)]` or `#[expect(...)]` attributes were added",
-      "Verify no `.unwrap()`, `.expect()`, `panic!()`, `println!()` usage in new code"
+      "In bdd.rs, add #[then] step for 'the marketplace.json name is {string}' — read .ai/.claude-plugin/marketplace.json, parse JSON, assert v['name'] == expected",
+      "Add #[then] step for 'the marketplace.json contains a plugin named {string}' — parse JSON, search plugins array for matching name",
+      "Add #[then] step for 'the marketplace.json plugin {string} has source {string}' — parse JSON, find plugin by name, assert source matches",
+      "Add #[then] step for 'the marketplace.json plugins array is empty' — parse JSON, assert plugins array length is 0",
+      "Run cargo test --workspace to verify marketplace.json BDD scenarios pass"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test",
+    "description": "Implement missing BDD steps: Claude settings.json assertions",
+    "steps": [
+      "In bdd.rs, add #[then] step for 'the Claude settings contain {string}' — read .claude/settings.json, assert raw string contains value",
+      "Add #[then] step for 'the Claude settings marketplace path is {string}' — parse JSON, assert extraKnownMarketplaces.local-repo-plugins.source.path == expected",
+      "Add #[then] step for 'the Claude settings contain {string} at the top level' — parse JSON, assert top-level key exists",
+      "Add #[then] step for 'the Claude settings enable {string}' — parse JSON, assert enabledPlugins[key] == true",
+      "Add #[then] step for 'the Claude settings file preserves the custom content' — parse JSON, assert custom keys present",
+      "Add #[given] step for 'a file {string} with custom content exists in {string}' — write JSON file with known keys",
+      "Run cargo test --workspace to verify Claude settings BDD scenarios pass"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test",
+    "description": "Implement missing BDD steps: workspace manifest and gitignore assertions",
+    "steps": [
+      "In bdd.rs, add #[then] step for 'the manifest contains a {string} section' — read aipm.toml, assert contains section header string",
+      "Add #[then] step for 'the manifest contains members {string}' — read aipm.toml, assert contains members = [\"value\"]",
+      "Add #[then] step for 'the manifest contains plugins_dir {string}' — read aipm.toml, assert contains plugins_dir = \"value\"",
+      "Add #[then] step for 'the gitignore contains {string}' — read .ai/.gitignore, assert contains string",
+      "Run cargo test --workspace to verify workspace-init BDD scenarios pass"
+    ],
+    "passes": true
+  },
+  {
+    "category": "test",
+    "description": "Final validation: cargo build, test, clippy, and fmt all pass with zero warnings",
+    "steps": [
+      "Run cargo build --workspace and verify zero errors",
+      "Run cargo test --workspace and verify all tests pass",
+      "Run cargo clippy --workspace -- -D warnings and verify zero warnings",
+      "Run cargo fmt --check and verify no formatting issues",
+      "Review any skipped BDD scenarios and confirm they are expected (Node.js gating)",
+      "Verify no #[allow(...)] or #[expect(...)] attributes were added (per CLAUDE.md lint policy)"
     ],
     "passes": true
   }

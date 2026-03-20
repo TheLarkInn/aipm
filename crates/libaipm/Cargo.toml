@@ -28,6 +28,7 @@ cucumber = { workspace = true }
 futures = { workspace = true }
 assert_cmd = { workspace = true }
 tempfile = { workspace = true }
+insta = { workspace = true }
 
 [[test]]
 name = "bdd"

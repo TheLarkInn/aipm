@@ -460,6 +460,231 @@ async fn then_components_verified(_world: &mut AipmWorld) {
 }
 
 // =========================================================================
+// Workspace init — directory/file existence steps
+// =========================================================================
+
+#[then(expr = "the following directories exist in {string}:")]
+async fn then_directories_exist(
+    world: &mut AipmWorld,
+    dir: String,
+    step: &cucumber::gherkin::Step,
+) {
+    let base = world.dir_path(&dir);
+    if let Some(table) = step.table.as_ref() {
+        for row in &table.rows {
+            if let Some(cell) = row.first() {
+                // Skip header row
+                if cell == "directory" {
+                    continue;
+                }
+                let path = base.join(cell);
+                assert!(path.is_dir(), "expected directory {} to exist", path.display());
+            }
+        }
+    }
+}
+
+#[then(expr = "there is no directory {string} in {string}")]
+async fn then_no_directory(world: &mut AipmWorld, subdir: String, dir: String) {
+    let path = world.dir_path(&dir).join(&subdir);
+    assert!(!path.exists(), "expected {} to NOT exist", path.display());
+}
+
+#[then(expr = "there is no file {string} in {string}")]
+async fn then_no_file(world: &mut AipmWorld, file: String, dir: String) {
+    let path = world.dir_path(&dir).join(&file);
+    assert!(!path.exists(), "expected {} to NOT exist", path.display());
+}
+
+#[given(expr = "a directory {string} exists")]
+async fn given_directory_exists(world: &mut AipmWorld, dir_path: String) {
+    let full_path = world.root_path().join(&dir_path);
+    std::fs::create_dir_all(&full_path).expect("create directory");
+}
+
+// =========================================================================
+// Workspace init — starter plugin manifest steps
+// =========================================================================
+
+#[then(expr = "the starter plugin manifest contains the package name {string}")]
+async fn then_starter_manifest_name(world: &mut AipmWorld, name: String) {
+    let dir = world.active_dir_path();
+    let content = std::fs::read_to_string(dir.join(".ai/starter-aipm-plugin/aipm.toml"))
+        .expect("read starter manifest");
+    let expected = format!("name = \"{name}\"");
+    assert!(content.contains(&expected), "expected '{expected}'\ngot: {content}");
+}
+
+#[then(expr = "the starter plugin manifest contains a version of {string}")]
+async fn then_starter_manifest_version(world: &mut AipmWorld, version: String) {
+    let dir = world.active_dir_path();
+    let content = std::fs::read_to_string(dir.join(".ai/starter-aipm-plugin/aipm.toml"))
+        .expect("read starter manifest");
+    let expected = format!("version = \"{version}\"");
+    assert!(content.contains(&expected), "expected '{expected}'\ngot: {content}");
+}
+
+#[then(expr = "the starter plugin manifest contains the plugin type {string}")]
+async fn then_starter_manifest_type(world: &mut AipmWorld, plugin_type: String) {
+    let dir = world.active_dir_path();
+    let content = std::fs::read_to_string(dir.join(".ai/starter-aipm-plugin/aipm.toml"))
+        .expect("read starter manifest");
+    let expected = format!("type = \"{plugin_type}\"");
+    assert!(content.contains(&expected), "expected '{expected}'\ngot: {content}");
+}
+
+#[then("the starter plugin manifest is valid according to aipm schema")]
+async fn then_starter_manifest_valid(world: &mut AipmWorld) {
+    let dir = world.active_dir_path();
+    let starter_dir = dir.join(".ai/starter-aipm-plugin");
+    let content =
+        std::fs::read_to_string(starter_dir.join("aipm.toml")).expect("read starter manifest");
+    let result = libaipm::manifest::parse_and_validate(&content, Some(&starter_dir));
+    assert!(result.is_ok(), "starter manifest should be valid: {result:?}");
+}
+
+#[then(expr = "the starter skill contains {string} in the frontmatter")]
+async fn then_starter_skill_frontmatter(world: &mut AipmWorld, expected: String) {
+    let dir = world.active_dir_path();
+    let content = std::fs::read_to_string(
+        dir.join(".ai/starter-aipm-plugin/skills/scaffold-plugin/SKILL.md"),
+    )
+    .expect("read starter skill");
+    assert!(content.contains(&expected), "expected '{expected}' in skill\ngot: {content}");
+}
+
+// =========================================================================
+// Workspace init — marketplace.json steps
+// =========================================================================
+
+fn read_marketplace_json(world: &AipmWorld) -> serde_json::Value {
+    let dir = world.active_dir_path();
+    let content = std::fs::read_to_string(dir.join(".ai/.claude-plugin/marketplace.json"))
+        .expect("read marketplace.json");
+    serde_json::from_str(&content).expect("parse marketplace.json")
+}
+
+#[then(expr = "the marketplace.json name is {string}")]
+async fn then_marketplace_name(world: &mut AipmWorld, expected: String) {
+    let v = read_marketplace_json(world);
+    assert_eq!(v["name"], expected, "marketplace name mismatch");
+}
+
+#[then(expr = "the marketplace.json contains a plugin named {string}")]
+async fn then_marketplace_has_plugin(world: &mut AipmWorld, name: String) {
+    let v = read_marketplace_json(world);
+    let plugins = v["plugins"].as_array().expect("plugins is array");
+    let found = plugins.iter().any(|p| p["name"] == name);
+    assert!(found, "expected plugin '{name}' in marketplace.json plugins");
+}
+
+#[then(expr = "the marketplace.json plugin {string} has source {string}")]
+async fn then_marketplace_plugin_source(world: &mut AipmWorld, name: String, source: String) {
+    let v = read_marketplace_json(world);
+    let plugins = v["plugins"].as_array().expect("plugins is array");
+    let plugin = plugins.iter().find(|p| p["name"] == name);
+    assert!(plugin.is_some(), "plugin '{name}' not found in marketplace.json");
+    assert_eq!(plugin.unwrap()["source"], source, "source mismatch for plugin '{name}'");
+}
+
+#[then("the marketplace.json plugins array is empty")]
+async fn then_marketplace_plugins_empty(world: &mut AipmWorld) {
+    let v = read_marketplace_json(world);
+    let plugins = v["plugins"].as_array().expect("plugins is array");
+    assert!(plugins.is_empty(), "expected empty plugins array, got {}", plugins.len());
+}
+
+// =========================================================================
+// Workspace init — Claude settings.json steps
+// =========================================================================
+
+fn read_claude_settings(world: &AipmWorld) -> serde_json::Value {
+    let dir = world.active_dir_path();
+    let content =
+        std::fs::read_to_string(dir.join(".claude/settings.json")).expect("read claude settings");
+    serde_json::from_str(&content).expect("parse claude settings")
+}
+
+#[then(expr = "the Claude settings contain {string}")]
+async fn then_claude_settings_contain(world: &mut AipmWorld, expected: String) {
+    let dir = world.active_dir_path();
+    let content =
+        std::fs::read_to_string(dir.join(".claude/settings.json")).expect("read claude settings");
+    assert!(content.contains(&expected), "expected '{expected}' in settings.json\ngot: {content}");
+}
+
+#[then(expr = "the Claude settings marketplace path is {string}")]
+async fn then_claude_settings_path(world: &mut AipmWorld, expected: String) {
+    let v = read_claude_settings(world);
+    let path = &v["extraKnownMarketplaces"]["local-repo-plugins"]["source"]["path"];
+    assert_eq!(path, &expected, "marketplace path mismatch");
+}
+
+#[then(expr = "the Claude settings contain {string} at the top level")]
+async fn then_claude_settings_top_level(world: &mut AipmWorld, key: String) {
+    let v = read_claude_settings(world);
+    assert!(v.get(&key).is_some(), "expected top-level key '{key}' in settings.json");
+}
+
+#[then(expr = "the Claude settings enable {string}")]
+async fn then_claude_settings_enable(world: &mut AipmWorld, plugin_key: String) {
+    let v = read_claude_settings(world);
+    assert_eq!(
+        v["enabledPlugins"][&plugin_key], true,
+        "expected enabledPlugins['{plugin_key}'] to be true"
+    );
+}
+
+#[then("the Claude settings file preserves the custom content")]
+async fn then_claude_settings_preserves_custom(world: &mut AipmWorld) {
+    let v = read_claude_settings(world);
+    assert!(v.get("custom").is_some(), "expected 'custom' key to be preserved");
+    assert!(v.get("permissions").is_some(), "expected 'permissions' key to be preserved");
+}
+
+#[given(expr = "a file {string} with custom content exists in {string}")]
+async fn given_file_with_custom_content(world: &mut AipmWorld, file: String, dir: String) {
+    let base = world.dir_path(&dir);
+    let path = base.join(&file);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).expect("create parent dirs");
+    }
+    std::fs::write(&path, "{\"custom\": true, \"permissions\": {\"allow\": [\"Read\"]}}")
+        .expect("write custom content");
+}
+
+// =========================================================================
+// Workspace init — workspace manifest and gitignore steps
+// =========================================================================
+
+#[then(expr = "the manifest contains a {string} section")]
+async fn then_manifest_contains_section(world: &mut AipmWorld, section: String) {
+    let content = world.read_manifest();
+    assert!(content.contains(&section), "expected '{section}' in manifest\ngot: {content}");
+}
+
+#[then(expr = "the manifest contains members {string}")]
+async fn then_manifest_members(world: &mut AipmWorld, members: String) {
+    let content = world.read_manifest();
+    let expected = format!("members = [\"{members}\"]");
+    assert!(content.contains(&expected), "expected '{expected}'\ngot: {content}");
+}
+
+#[then(expr = "the manifest contains plugins_dir {string}")]
+async fn then_manifest_plugins_dir(world: &mut AipmWorld, plugins_dir: String) {
+    let content = world.read_manifest();
+    let expected = format!("plugins_dir = \"{plugins_dir}\"");
+    assert!(content.contains(&expected), "expected '{expected}'\ngot: {content}");
+}
+
+#[then(expr = "the gitignore contains {string}")]
+async fn then_gitignore_contains(world: &mut AipmWorld, expected: String) {
+    let dir = world.active_dir_path();
+    let content = std::fs::read_to_string(dir.join(".ai/.gitignore")).expect("read .ai/.gitignore");
+    assert!(content.contains(&expected), "expected '{expected}' in .gitignore\ngot: {content}");
+}
+
+// =========================================================================
 // Main
 // =========================================================================
 

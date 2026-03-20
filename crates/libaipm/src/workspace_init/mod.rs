@@ -283,7 +283,7 @@ fn generate_skill_template() -> String {
 }
 
 fn generate_scaffold_script() -> String {
-    "import { mkdirSync, writeFileSync, existsSync } from \"fs\";\n\
+    "import { mkdirSync, writeFileSync, readFileSync, existsSync } from \"fs\";\n\
      import { join } from \"path\";\n\
      \n\
      const name = process.argv[2];\n\
@@ -319,6 +319,56 @@ fn generate_scaffold_script() -> String {
      \x20 join(pluginDir, \".claude-plugin\", \"plugin.json\"),\n\
      \x20 JSON.stringify({ name, version: \"0.1.0\", description: `TODO: describe ${name}` }, null, 2) + \"\\n\"\n\
      );\n\
+     \n\
+     // Register in marketplace.json\n\
+     try {\n\
+     \x20 const marketplacePath = join(aiDir, \".claude-plugin\", \"marketplace.json\");\n\
+     \x20 let marketplace;\n\
+     \x20 if (existsSync(marketplacePath)) {\n\
+     \x20   marketplace = JSON.parse(readFileSync(marketplacePath, \"utf-8\"));\n\
+     \x20 } else {\n\
+     \x20   marketplace = {\n\
+     \x20     name: \"local-repo-plugins\",\n\
+     \x20     owner: { name: \"local\" },\n\
+     \x20     metadata: { description: \"Local plugins for this repository\" },\n\
+     \x20     plugins: []\n\
+     \x20   };\n\
+     \x20   mkdirSync(join(aiDir, \".claude-plugin\"), { recursive: true });\n\
+     \x20 }\n\
+     \x20 if (!marketplace.plugins.some((p: { name: string }) => p.name === name)) {\n\
+     \x20   marketplace.plugins.push({\n\
+     \x20     name,\n\
+     \x20     source: `./${name}`,\n\
+     \x20     description: `TODO: describe ${name}`\n\
+     \x20   });\n\
+     \x20   writeFileSync(marketplacePath, JSON.stringify(marketplace, null, 2) + \"\\n\");\n\
+     \x20 }\n\
+     } catch (e) {\n\
+     \x20 process.stderr.write(`Warning: could not update marketplace.json: ${e}\\n`);\n\
+     }\n\
+     \n\
+     // Auto-enable in .claude/settings.json\n\
+     try {\n\
+     \x20 const settingsPath = join(process.cwd(), \".claude\", \"settings.json\");\n\
+     \x20 let settings: Record<string, unknown>;\n\
+     \x20 if (existsSync(settingsPath)) {\n\
+     \x20   settings = JSON.parse(readFileSync(settingsPath, \"utf-8\"));\n\
+     \x20 } else {\n\
+     \x20   mkdirSync(join(process.cwd(), \".claude\"), { recursive: true });\n\
+     \x20   settings = {};\n\
+     \x20 }\n\
+     \x20 if (!settings.enabledPlugins || typeof settings.enabledPlugins !== \"object\") {\n\
+     \x20   settings.enabledPlugins = {};\n\
+     \x20 }\n\
+     \x20 const pluginKey = `${name}@local-repo-plugins`;\n\
+     \x20 const enabled = settings.enabledPlugins as Record<string, boolean>;\n\
+     \x20 if (!(pluginKey in enabled)) {\n\
+     \x20   enabled[pluginKey] = true;\n\
+     \x20   writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + \"\\n\");\n\
+     \x20 }\n\
+     } catch (e) {\n\
+     \x20 process.stderr.write(`Warning: could not update settings.json: ${e}\\n`);\n\
+     }\n\
      \n\
      process.stdout.write(`Created .ai/${name}/ with starter structure\\n`);\n"
         .to_string()
@@ -647,7 +697,63 @@ mod tests {
         assert!(!content.is_empty());
         assert!(content.contains("mkdirSync"));
         assert!(content.contains("writeFileSync"));
+        assert!(content.contains("readFileSync"));
         assert!(content.contains("experimental-strip-types"));
+        assert!(content.contains("marketplace.json"));
+        assert!(content.contains("settings.json"));
+        assert!(content.contains("enabledPlugins"));
+        assert!(content.contains("local-repo-plugins"));
+    }
+
+    #[test]
+    fn scaffold_script_snapshot() {
+        let content = generate_scaffold_script();
+        insta::assert_snapshot!(content);
+    }
+
+    #[test]
+    fn scaffold_script_registers_in_marketplace() {
+        let content = generate_scaffold_script();
+        // marketplace.json path construction
+        assert!(content.contains("marketplace.json"));
+        assert!(content.contains(".claude-plugin"));
+        // Duplicate detection
+        assert!(content.contains(".some("));
+        // Array append
+        assert!(content.contains(".push("));
+        // Source format
+        assert!(content.contains("`./${name}`"));
+        // Marketplace name
+        assert!(content.contains("local-repo-plugins"));
+    }
+
+    #[test]
+    fn scaffold_script_enables_in_settings() {
+        let content = generate_scaffold_script();
+        // settings.json path construction
+        assert!(content.contains("settings.json"));
+        assert!(content.contains(".claude"));
+        // Key format
+        assert!(content.contains("@local-repo-plugins"));
+        // enabledPlugins object handling
+        assert!(content.contains("enabledPlugins"));
+        // Write-back
+        assert!(content.contains("writeFileSync(settingsPath"));
+    }
+
+    #[test]
+    fn scaffold_script_marketplace_name_matches_generator() {
+        let marketplace_json = generate_marketplace_json(false);
+        let parsed: serde_json::Value =
+            serde_json::from_str(&marketplace_json).ok().unwrap_or_default();
+        let marketplace_name = parsed.get("name").and_then(|n| n.as_str()).unwrap_or("");
+        assert!(!marketplace_name.is_empty());
+
+        let script = generate_scaffold_script();
+        assert!(
+            script.contains(marketplace_name),
+            "scaffold script should contain marketplace name '{marketplace_name}'"
+        );
     }
 
     #[test]
