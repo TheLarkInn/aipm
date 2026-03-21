@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 ## [0.3.4] - 2026-03-21
 
 ### Bug Fixes
-- Scaffold-plugin.ts registers new plugins in marketplace.json and settings.json ([#42](https://github.com/TheLarkInn/aipm/pull/42)) (5693c6f)
+- scaffold-plugin.ts registers new plugins in marketplace.json and settings.json ([#42](https://github.com/TheLarkInn/aipm/pull/42)) (5693c6f)
 
 ## [0.3.3] - 2026-03-20
 
