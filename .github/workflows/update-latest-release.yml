@@ -1,0 +1,60 @@
+# Maintains a "latest" GitHub Release so the README can link to
+# stable installer URLs that never need a version bump.
+#
+# Triggered whenever cargo-dist publishes a new `aipm-v*` release.
+# Copies the shell & PowerShell installer scripts to a release
+# tagged "latest", giving users a permanent URL:
+#
+#   https://github.com/thelarkinn/aipm/releases/download/latest/aipm-installer.sh
+#   https://github.com/thelarkinn/aipm/releases/download/latest/aipm-installer.ps1
+
+name: Update Latest Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-latest:
+    # Only run for the consumer CLI release (aipm-v*), not aipm-pack-v* or libaipm-v*.
+    if: startsWith(github.event.release.tag_name, 'aipm-v') && !startsWith(github.event.release.tag_name, 'aipm-pack-v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download installer scripts from release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/installers
+          gh release download "${{ github.event.release.tag_name }}" \
+            --pattern "aipm-installer.*" \
+            --dir /tmp/installers
+
+      - name: Update latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          # Remove existing latest release and tag if present
+          gh release delete latest --yes --cleanup-tag || true
+
+          # Create new latest release with the installer scripts
+          gh release create latest \
+            --title "Latest Release ($SOURCE_TAG)" \
+            --notes "Automatically updated from [$SOURCE_TAG](https://github.com/${{ github.repository }}/releases/tag/$SOURCE_TAG).
+
+          ## Install aipm (latest)
+
+          ### Shell (Linux / macOS)
+          \`\`\`sh
+          curl --proto '=https' --tlsv1.2 -LsSf https://github.com/${{ github.repository }}/releases/download/latest/aipm-installer.sh | sh
+          \`\`\`
+
+          ### PowerShell (Windows)
+          \`\`\`sh
+          powershell -ExecutionPolicy Bypass -c \"irm https://github.com/${{ github.repository }}/releases/download/latest/aipm-installer.ps1 | iex\"
+          \`\`\`" \
+            /tmp/installers/*
