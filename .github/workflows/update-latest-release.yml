@@ -16,8 +16,10 @@ on:
 
 jobs:
   update-latest:
-    # Only run for the consumer CLI release (aipm-v*), not aipm-pack-v* or libaipm-v*.
-    if: startsWith(github.event.release.tag_name, 'aipm-v') && !startsWith(github.event.release.tag_name, 'aipm-pack-v')
+    # Only run for the consumer CLI release (aipm-v*), not aipm-pack-v* or libaipm-v*, and only for stable (non-prerelease) releases.
+    if: startsWith(github.event.release.tag_name, 'aipm-v') && !startsWith(github.event.release.tag_name, 'aipm-pack-v') && !github.event.release.prerelease
+    concurrency:
+      group: update-latest-release
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -38,13 +40,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           SOURCE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          # Remove existing latest release and tag if present
-          gh release delete latest --yes --cleanup-tag || true
-
-          # Create new latest release with the installer scripts
-          gh release create latest \
-            --title "Latest Release ($SOURCE_TAG)" \
-            --notes "Automatically updated from [$SOURCE_TAG](https://github.com/${{ github.repository }}/releases/tag/$SOURCE_TAG).
+          NOTES="Automatically updated from [$SOURCE_TAG](https://github.com/${{ github.repository }}/releases/tag/$SOURCE_TAG).
 
           ## Install aipm (latest)
 
@@ -54,7 +50,20 @@ jobs:
           \`\`\`
 
           ### PowerShell (Windows)
-          \`\`\`sh
+          \`\`\`powershell
           powershell -ExecutionPolicy Bypass -c \"irm https://github.com/${{ github.repository }}/releases/download/latest/aipm-installer.ps1 | iex\"
-          \`\`\`" \
-            /tmp/installers/*
+          \`\`\`"
+
+          # Create the release if it doesn't exist yet
+          if ! gh release view latest > /dev/null 2>&1; then
+            gh release create latest \
+              --title "Latest Release ($SOURCE_TAG)" \
+              --notes "$NOTES" \
+              /tmp/installers/*
+          else
+            # Update existing release in-place (no 404 window)
+            gh release upload latest /tmp/installers/* --clobber
+            gh release edit latest \
+              --title "Latest Release ($SOURCE_TAG)" \
+              --notes "$NOTES"
+          fi
