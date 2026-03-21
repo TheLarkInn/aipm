@@ -221,8 +221,21 @@ fn init_generated_workspace_manifest_valid() {
 // Scaffold script e2e tests (require Node.js >= 22.6.0)
 // =========================================================================
 
-fn has_node() -> bool {
-    std::process::Command::new("node").arg("--version").output().is_ok_and(|o| o.status.success())
+fn has_node_with_strip_types() -> bool {
+    let output = match std::process::Command::new("node").arg("--version").output() {
+        Ok(o) if o.status.success() => o,
+        _ => return false,
+    };
+    // Parse version like "v22.6.0" — need >= 22.6.0 for --experimental-strip-types
+    let version = String::from_utf8_lossy(&output.stdout);
+    let version = version.trim().trim_start_matches('v');
+    let parts: Vec<&str> = version.split('.').collect();
+    if parts.len() < 2 {
+        return false;
+    }
+    let major: u32 = parts[0].parse().unwrap_or(0);
+    let minor: u32 = parts[1].parse().unwrap_or(0);
+    major > 22 || (major == 22 && minor >= 6)
 }
 
 fn run_scaffold(dir: &std::path::Path, plugin_name: &str) -> std::process::Output {
@@ -237,7 +250,7 @@ fn run_scaffold(dir: &std::path::Path, plugin_name: &str) -> std::process::Outpu
 
 #[test]
 fn scaffold_script_registers_in_marketplace_json() {
-    if !has_node() {
+    if !has_node_with_strip_types() {
         return;
     }
     let tmp = tempfile::TempDir::new().unwrap();
@@ -262,7 +275,7 @@ fn scaffold_script_registers_in_marketplace_json() {
 
 #[test]
 fn scaffold_script_enables_in_settings_json() {
-    if !has_node() {
+    if !has_node_with_strip_types() {
         return;
     }
     let tmp = tempfile::TempDir::new().unwrap();
@@ -285,7 +298,7 @@ fn scaffold_script_enables_in_settings_json() {
 
 #[test]
 fn scaffold_script_creates_plugin_directory() {
-    if !has_node() {
+    if !has_node_with_strip_types() {
         return;
     }
     let tmp = tempfile::TempDir::new().unwrap();
@@ -307,7 +320,7 @@ fn scaffold_script_creates_plugin_directory() {
 
 #[test]
 fn scaffold_script_multiple_plugins_no_duplicates() {
-    if !has_node() {
+    if !has_node_with_strip_types() {
         return;
     }
     let tmp = tempfile::TempDir::new().unwrap();
@@ -334,7 +347,7 @@ fn scaffold_script_multiple_plugins_no_duplicates() {
 
 #[test]
 fn scaffold_script_rejects_existing_plugin() {
-    if !has_node() {
+    if !has_node_with_strip_types() {
         return;
     }
     let tmp = tempfile::TempDir::new().unwrap();
