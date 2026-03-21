@@ -216,3 +216,150 @@ fn init_generated_workspace_manifest_valid() {
     assert!(content.contains("members = [\".ai/*\"]"));
     assert!(content.contains("plugins_dir = \".ai\""));
 }
+
+// =========================================================================
+// Scaffold script e2e tests (require Node.js >= 22.6.0)
+// =========================================================================
+
+fn has_node_with_strip_types() -> bool {
+    let output = match std::process::Command::new("node").arg("--version").output() {
+        Ok(o) if o.status.success() => o,
+        _ => return false,
+    };
+    // Parse version like "v22.6.0" — need >= 22.6.0 for --experimental-strip-types
+    let version = String::from_utf8_lossy(&output.stdout);
+    let version = version.trim().trim_start_matches('v');
+    let parts: Vec<&str> = version.split('.').collect();
+    if parts.len() < 2 {
+        return false;
+    }
+    let major: u32 = parts[0].parse().unwrap_or(0);
+    let minor: u32 = parts[1].parse().unwrap_or(0);
+    major > 22 || (major == 22 && minor >= 6)
+}
+
+fn run_scaffold(dir: &std::path::Path, plugin_name: &str) -> std::process::Output {
+    let script =
+        dir.join(".ai/starter-aipm-plugin/scripts/scaffold-plugin.ts").display().to_string();
+    std::process::Command::new("node")
+        .args(["--experimental-strip-types", &script, plugin_name])
+        .current_dir(dir)
+        .output()
+        .expect("run scaffold script")
+}
+
+#[test]
+fn scaffold_script_registers_in_marketplace_json() {
+    if !has_node_with_strip_types() {
+        return;
+    }
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("scaffold-mp");
+
+    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
+
+    let output = run_scaffold(&dir, "my-new-plugin");
+    assert!(
+        output.status.success(),
+        "scaffold should succeed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let content = std::fs::read_to_string(dir.join(".ai/.claude-plugin/marketplace.json")).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&content).unwrap();
+    let plugins = v["plugins"].as_array().unwrap();
+    assert_eq!(plugins.len(), 2, "should have starter + new plugin");
+    assert_eq!(plugins[1]["name"], "my-new-plugin");
+    assert_eq!(plugins[1]["source"], "./my-new-plugin");
+}
+
+#[test]
+fn scaffold_script_enables_in_settings_json() {
+    if !has_node_with_strip_types() {
+        return;
+    }
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("scaffold-settings");
+
+    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
+
+    let output = run_scaffold(&dir, "my-new-plugin");
+    assert!(
+        output.status.success(),
+        "scaffold should succeed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let content = std::fs::read_to_string(dir.join(".claude/settings.json")).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&content).unwrap();
+    assert_eq!(v["enabledPlugins"]["my-new-plugin@local-repo-plugins"], true);
+    assert_eq!(v["enabledPlugins"]["starter-aipm-plugin@local-repo-plugins"], true);
+}
+
+#[test]
+fn scaffold_script_creates_plugin_directory() {
+    if !has_node_with_strip_types() {
+        return;
+    }
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("scaffold-dir");
+
+    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
+
+    let output = run_scaffold(&dir, "my-new-plugin");
+    assert!(
+        output.status.success(),
+        "scaffold should succeed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    assert!(dir.join(".ai/my-new-plugin/aipm.toml").exists());
+    assert!(dir.join(".ai/my-new-plugin/.claude-plugin/plugin.json").exists());
+    assert!(dir.join(".ai/my-new-plugin/skills/my-new-plugin/SKILL.md").exists());
+}
+
+#[test]
+fn scaffold_script_multiple_plugins_no_duplicates() {
+    if !has_node_with_strip_types() {
+        return;
+    }
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("scaffold-multi");
+
+    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
+
+    let out_a = run_scaffold(&dir, "plugin-a");
+    assert!(out_a.status.success(), "plugin-a: {}", String::from_utf8_lossy(&out_a.stderr));
+    let out_b = run_scaffold(&dir, "plugin-b");
+    assert!(out_b.status.success(), "plugin-b: {}", String::from_utf8_lossy(&out_b.stderr));
+
+    let mp_content =
+        std::fs::read_to_string(dir.join(".ai/.claude-plugin/marketplace.json")).unwrap();
+    let mp: serde_json::Value = serde_json::from_str(&mp_content).unwrap();
+    let plugins = mp["plugins"].as_array().unwrap();
+    assert_eq!(plugins.len(), 3, "should have starter + a + b");
+
+    let settings_content = std::fs::read_to_string(dir.join(".claude/settings.json")).unwrap();
+    let settings: serde_json::Value = serde_json::from_str(&settings_content).unwrap();
+    let enabled = settings["enabledPlugins"].as_object().unwrap();
+    assert_eq!(enabled.len(), 3, "should have 3 enabled plugins");
+}
+
+#[test]
+fn scaffold_script_rejects_existing_plugin() {
+    if !has_node_with_strip_types() {
+        return;
+    }
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("scaffold-dup");
+
+    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
+
+    let out1 = run_scaffold(&dir, "my-plugin");
+    assert!(out1.status.success(), "first scaffold: {}", String::from_utf8_lossy(&out1.stderr));
+
+    let out2 = run_scaffold(&dir, "my-plugin");
+    assert!(!out2.status.success(), "second scaffold should fail");
+    let stderr = String::from_utf8_lossy(&out2.stderr);
+    assert!(stderr.contains("already exists"), "stderr should mention 'already exists': {stderr}");
+}
