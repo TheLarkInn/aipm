@@ -65,6 +65,6 @@
       "Add toolchain prerequisites: rustup toolchain install nightly, rustup component add llvm-tools-preview, cargo install cargo-llvm-cov",
       "Verify markdown formatting is correct"
     ],
-    "passes": false
+    "passes": true
   }
 ]

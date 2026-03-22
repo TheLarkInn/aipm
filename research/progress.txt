@@ -26,3 +26,20 @@
 - Original `ci` job completely unchanged (lines 14-36)
 - No tab indentation issues in YAML
 - Status: COMPLETE
+
+## 2026-03-22 — Feature 4: Add coverage commands to CLAUDE.md
+
+- Added `## Coverage Commands (MANDATORY before pushing)` section after Build Commands
+- Documented correctness gate framing for LLM agents
+- Three commands: --fail-under-branches 90, --html --open, --lcov
+- Prerequisites: nightly toolchain, llvm-tools-preview, cargo-llvm-cov
+- Markdown formatting verified
+- Status: COMPLETE
+
+## 2026-03-22 — ALL FEATURES COMPLETE
+
+All 4 features from feature-list.json are now implemented and passing:
+1. .gitignore coverage artifacts — DONE
+2. codecov.yml — DONE
+3. CI coverage job — DONE
+4. CLAUDE.md coverage commands — DONE
