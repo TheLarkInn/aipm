@@ -85,7 +85,7 @@ jobs:
             exit 1
           fi
           echo "Branch coverage: ${BRANCH_PCT}%"
-          if [ "$(echo "$BRANCH_PCT < 90" | bc -l)" -eq 1 ]; then
+          if awk "BEGIN {exit !($BRANCH_PCT < 90)}"; then
             echo "::error::Branch coverage ${BRANCH_PCT}% is below 90% threshold"
             exit 1
           fi
