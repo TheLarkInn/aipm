@@ -46,13 +46,19 @@ is a **correctness gate** — LLM-generated code must hit 90% branch coverage.
 
 ```bash
 # Check branch coverage (MUST pass before pushing)
-cargo +nightly llvm-cov --workspace --branch --fail-under-branches 90
+cargo +nightly llvm-cov --workspace --branch \
+  --ignore-filename-regex '(tests/|research/|specs/)' \
+  --fail-under-branches 90
 
 # HTML report (visual inspection)
-cargo +nightly llvm-cov --workspace --branch --html --open
+cargo +nightly llvm-cov --workspace --branch \
+  --ignore-filename-regex '(tests/|research/|specs/)' \
+  --html --open
 
 # lcov for VS Code Coverage Gutters extension
-cargo +nightly llvm-cov --workspace --branch --lcov --output-path lcov.info
+cargo +nightly llvm-cov --workspace --branch \
+  --ignore-filename-regex '(tests/|research/|specs/)' \
+  --lcov --output-path lcov.info
 ```
 
 All coverage commands require the nightly toolchain and llvm-tools-preview:

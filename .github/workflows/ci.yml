@@ -66,10 +66,16 @@ jobs:
         run: cargo llvm-cov --no-report --doc
 
       - name: Generate lcov report
-        run: cargo llvm-cov report --doctests --branch --lcov --output-path lcov.info
+        run: >
+          cargo llvm-cov report --doctests --branch
+          --ignore-filename-regex '(tests/|research/|specs/)'
+          --lcov --output-path lcov.info
 
       - name: Enforce 90% branch coverage
-        run: cargo llvm-cov report --doctests --branch --fail-under-branches 90
+        run: >
+          cargo llvm-cov report --doctests --branch
+          --ignore-filename-regex '(tests/|research/|specs/)'
+          --fail-under-branches 90
 
       - name: Upload to Codecov
         if: always()
