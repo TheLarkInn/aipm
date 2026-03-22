@@ -178,10 +178,11 @@ fn scaffold_marketplace(dir: &Path, no_starter: bool, fs: &dyn Fs) -> Result<(),
     fs.create_dir_all(&ai_dir)?;
     fs.write_file(
         &ai_dir.join(".gitignore"),
-        b"# Managed by aipm \xe2\x80\x94 registry-installed plugins are symlinked here.\n\
+        "# Managed by aipm — registry-installed plugins are symlinked here.\n\
          # Do not edit the section between the markers.\n\
          # === aipm managed start ===\n\
-         # === aipm managed end ===\n",
+         # === aipm managed end ===\n"
+            .as_bytes(),
     )?;
 
     // Create marketplace.json in .ai/.claude-plugin/
