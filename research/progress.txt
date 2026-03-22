@@ -1,39 +1,7 @@
-2026-03-20 — scaffold-plugin.ts: Add marketplace.json registration and settings.json autoenable
+## 2026-03-22 — Feature 1: Add coverage artifacts to .gitignore
 
-Branch: fix/scaffold-plugin-registration (from main @ 5079729)
-
-## Completed Features (19/19)
-
-### Phase 1-3: Core TypeScript changes
-- Updated generate_scaffold_script() in crates/libaipm/src/workspace_init/mod.rs
-- Added readFileSync import to generated TypeScript
-- Added marketplace.json registration with try/catch warn-and-continue
-- Added settings.json autoenable with try/catch warn-and-continue
-- Handles edge cases: missing files, missing keys, duplicates, parse errors
-
-### Phase 4: Snapshot test
-- Added insta crate (v1) as dev-dependency
-- Created scaffold_script_snapshot test
-
-### Phase 5: Updated unit tests
-- Updated scaffold_script_is_nonempty with 5 new assertions
-- Added scaffold_script_registers_in_marketplace
-- Added scaffold_script_enables_in_settings
-- Added scaffold_script_marketplace_name_matches_generator
-
-### Phase 6: E2E tests (5 new, Node.js-gated)
-- scaffold_script_registers_in_marketplace_json
-- scaffold_script_enables_in_settings_json
-- scaffold_script_creates_plugin_directory
-- scaffold_script_multiple_plugins_no_duplicates
-- scaffold_script_rejects_existing_plugin
-
-### Phase 7: BDD step implementations (23 new steps)
-- All 51 BDD scenarios pass (207 steps)
-
-## Test Results: ALL PASS
-- 91 libaipm unit tests
-- 18 aipm e2e tests
-- 15 aipm-pack e2e tests
-- 51 BDD scenarios (207 steps)
-- cargo clippy/fmt: clean
+- Added `# Coverage artifacts` section to `.gitignore`
+- Entries: `coverage/`, `lcov.info`, `*.profraw`, `*.profdata`
+- Verified patterns work via `git check-ignore`
+- No duplicate entries
+- Status: COMPLETE

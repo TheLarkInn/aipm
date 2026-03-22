@@ -1,272 +1,70 @@
 [
   {
-    "category": "functional",
-    "description": "Add marketplace.json registration to generate_scaffold_script() TypeScript output",
+    "category": "infrastructure",
+    "description": "Add coverage artifacts to .gitignore (coverage/, lcov.info, *.profraw, *.profdata)",
     "steps": [
-      "Open crates/libaipm/src/workspace_init/mod.rs and locate generate_scaffold_script() at line 285",
-      "Add readFileSync to the fs import in the generated TypeScript string",
-      "After the existing plugin.json writeFileSync call, add TypeScript logic to read .ai/.claude-plugin/marketplace.json",
-      "If marketplace.json exists, parse it; if not, create default structure with name 'local-repo-plugins', owner, metadata, and empty plugins array",
-      "Check for duplicate plugin name via plugins.some(p => p.name === name)",
-      "If not duplicate, push new entry { name, source: './<name>', description: 'TODO: describe <name>' } to plugins array",
-      "Write updated marketplace.json back with JSON.stringify(data, null, 2) + newline",
-      "Wrap marketplace registration in try/catch with process.stderr.write warning on failure (warn-and-continue strategy)",
-      "Run cargo build --workspace to verify the Rust string literal compiles",
-      "Run cargo fmt --check to verify formatting"
+      "Read the current .gitignore file",
+      "Append a '# Coverage artifacts' comment section",
+      "Add 'coverage/' entry",
+      "Add 'lcov.info' entry",
+      "Add '*.profraw' entry",
+      "Add '*.profdata' entry",
+      "Verify no duplicate entries exist"
     ],
     "passes": true
   },
   {
-    "category": "functional",
-    "description": "Add settings.json enabledPlugins autoenable to generate_scaffold_script() TypeScript output",
+    "category": "infrastructure",
+    "description": "Create codecov.yml with 90% project and patch coverage targets",
     "steps": [
-      "In generate_scaffold_script() in mod.rs, after the marketplace.json registration block, add TypeScript logic to read .claude/settings.json",
-      "If settings.json exists, parse it; if not, create .claude/ directory and start with empty object",
-      "If enabledPlugins key is missing from settings object, create it as empty object",
-      "Construct plugin key as `${name}@local-repo-plugins`",
-      "Check if pluginKey already exists in enabledPlugins; if not, set it to true",
-      "Write updated settings.json back with JSON.stringify(settings, null, 2) + newline",
-      "Wrap settings registration in try/catch with process.stderr.write warning on failure (warn-and-continue strategy)",
-      "Update the success message at end of script to include registration status",
-      "Run cargo build --workspace to verify compilation",
-      "Run cargo fmt --check to verify formatting"
+      "Create 'codecov.yml' in the repository root",
+      "Set coverage.status.project.default.target to 90%",
+      "Set coverage.status.project.default.threshold to 1%",
+      "Set coverage.status.patch.default.target to 90%",
+      "Set precision to 2 and round to 'down'",
+      "Add ignore list: tests/, crates/*/tests/, research/, specs/",
+      "Verify the YAML is valid"
     ],
-    "passes": true
+    "passes": false
   },
   {
-    "category": "functional",
-    "description": "Handle edge cases in scaffold-plugin.ts: missing files, missing keys, duplicates, parse errors",
+    "category": "infrastructure",
+    "description": "Add coverage job to .github/workflows/ci.yml with nightly Rust and cargo-llvm-cov",
     "steps": [
-      "Verify marketplace.json creation from scratch when file does not exist (mkdirSync .claude-plugin with recursive: true)",
-      "Verify settings.json creation from scratch when file does not exist (mkdirSync .claude with recursive: true)",
-      "Verify enabledPlugins key is created when missing from existing settings.json",
-      "Verify duplicate plugin name in marketplace.json plugins array is skipped (not appended twice)",
-      "Verify duplicate pluginKey in enabledPlugins is skipped (not overwritten)",
-      "Verify JSON parse errors in marketplace.json emit warning to stderr and skip registration without exiting",
-      "Verify JSON parse errors in settings.json emit warning to stderr and skip autoenable without exiting",
-      "Verify plugin directory files are always created even when registration steps fail",
-      "Run cargo build --workspace and cargo test --workspace to verify"
+      "Read the current .github/workflows/ci.yml",
+      "Add a new 'coverage' job alongside the existing 'ci' job",
+      "Set the job name to 'Coverage (90% branch gate)'",
+      "Set runs-on to 'ubuntu-latest'",
+      "Add step: actions/checkout@v4",
+      "Add step: dtolnay/rust-toolchain@nightly with components: llvm-tools-preview",
+      "Add step: actions/setup-node@v4 with node-version: '22'",
+      "Add step: taiki-e/install-action@cargo-llvm-cov",
+      "Add step: Swatinem/rust-cache@v2",
+      "Add step: 'cargo llvm-cov clean --workspace'",
+      "Add step: 'cargo llvm-cov --no-report --workspace --branch' to run all tests with branch coverage",
+      "Add step: 'cargo llvm-cov --no-report --doc' to run doctests with branch coverage",
+      "Add step: 'cargo llvm-cov report --doctests --branch --lcov --output-path lcov.info' to generate lcov report",
+      "Add step: 'cargo llvm-cov report --doctests --branch --fail-under-branches 90' to enforce 90% threshold",
+      "Add step: codecov/codecov-action@v5 with 'if: always()', files: lcov.info, token from secrets, fail_ci_if_error: true",
+      "Ensure the existing 'ci' job is completely unchanged",
+      "Verify the YAML is valid"
     ],
-    "passes": true
+    "passes": false
   },
   {
-    "category": "test",
-    "description": "Add insta snapshot test for generate_scaffold_script() full TypeScript output",
+    "category": "documentation",
+    "description": "Add mandatory coverage commands section to CLAUDE.md for LLM agents",
     "steps": [
-      "Add insta as a dev-dependency in crates/libaipm/Cargo.toml (latest stable version)",
-      "Verify insta works with workspace lint configuration (derive macros emit internal #[allow] which is permitted)",
-      "In crates/libaipm/src/workspace_init/mod.rs tests section, add scaffold_script_snapshot test",
-      "Call generate_scaffold_script() and pass result to insta::assert_snapshot!(content)",
-      "Run cargo test --workspace once to generate the initial .snap file",
-      "Review the snapshot file at crates/libaipm/src/workspace_init/snapshots/ and accept it with cargo insta review",
-      "Verify the snapshot contains all expected TypeScript: readFileSync, marketplace.json logic, settings.json logic, enabledPlugins, local-repo-plugins",
-      "Run cargo test --workspace to confirm snapshot test passes",
-      "Run cargo clippy --workspace -- -D warnings to verify no lint issues"
+      "Read the current CLAUDE.md file",
+      "Locate the '## Build Commands' section",
+      "Add a new '## Coverage Commands (MANDATORY before pushing)' section after Build Commands",
+      "Document the correctness gate framing: LLM-generated code must hit 90% branch coverage",
+      "Add command: 'cargo +nightly llvm-cov --workspace --branch --fail-under-branches 90'",
+      "Add command: 'cargo +nightly llvm-cov --workspace --branch --html --open' for HTML reports",
+      "Add command: 'cargo +nightly llvm-cov --workspace --branch --lcov --output-path lcov.info' for editor gutters",
+      "Add toolchain prerequisites: rustup toolchain install nightly, rustup component add llvm-tools-preview, cargo install cargo-llvm-cov",
+      "Verify markdown formatting is correct"
     ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Update existing unit test scaffold_script_is_nonempty with new content marker assertions",
-    "steps": [
-      "Open crates/libaipm/src/workspace_init/mod.rs and locate scaffold_script_is_nonempty test at line 644",
-      "Add assertion: content.contains(\"readFileSync\")",
-      "Add assertion: content.contains(\"marketplace.json\")",
-      "Add assertion: content.contains(\"settings.json\")",
-      "Add assertion: content.contains(\"enabledPlugins\")",
-      "Add assertion: content.contains(\"local-repo-plugins\")",
-      "Run cargo test --workspace -p libaipm to verify updated test passes"
-    ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Add new unit test scaffold_script_registers_in_marketplace for marketplace.json TypeScript logic",
-    "steps": [
-      "In mod.rs tests section, add scaffold_script_registers_in_marketplace test",
-      "Call generate_scaffold_script() and store result",
-      "Assert content contains marketplace.json path construction (join with .claude-plugin and marketplace.json)",
-      "Assert content contains .some( for duplicate detection",
-      "Assert content contains .push( for array append",
-      "Assert content contains source: `./${name}` pattern",
-      "Assert content contains local-repo-plugins as marketplace name",
-      "Run cargo test --workspace -p libaipm to verify"
-    ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Add new unit test scaffold_script_enables_in_settings for settings.json TypeScript logic",
-    "steps": [
-      "In mod.rs tests section, add scaffold_script_enables_in_settings test",
-      "Call generate_scaffold_script() and store result",
-      "Assert content contains settings.json path construction",
-      "Assert content contains @local-repo-plugins key format pattern",
-      "Assert content contains enabledPlugins object creation/check",
-      "Assert content contains writeFileSync for settings.json",
-      "Run cargo test --workspace -p libaipm to verify"
-    ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Add unit test to cross-check marketplace name between generate_marketplace_json() and generate_scaffold_script()",
-    "steps": [
-      "In mod.rs tests section, add scaffold_script_marketplace_name_matches_generator test",
-      "Call generate_marketplace_json(false) and parse it as serde_json::Value",
-      "Extract the top-level name field (should be 'local-repo-plugins')",
-      "Call generate_scaffold_script() and assert it contains the same marketplace name string",
-      "This prevents drift between the Rust-generated marketplace.json and the TypeScript hardcoded name",
-      "Run cargo test --workspace -p libaipm to verify"
-    ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Add e2e test: scaffold script registers new plugin in marketplace.json",
-    "steps": [
-      "In crates/aipm/tests/init_e2e.rs, add has_node() helper that checks node --version availability",
-      "Add scaffold_script_registers_in_marketplace_json e2e test",
-      "Gate the test with if !has_node() { return; } at the start",
-      "Run aipm init --marketplace in a temp directory",
-      "Execute node --experimental-strip-types .ai/starter-aipm-plugin/scripts/scaffold-plugin.ts my-new-plugin via std::process::Command",
-      "Assert the command succeeds (exit code 0)",
-      "Read .ai/.claude-plugin/marketplace.json and parse as serde_json::Value",
-      "Assert plugins array has 2 entries (starter + my-new-plugin)",
-      "Assert second entry has name 'my-new-plugin' and source './my-new-plugin'",
-      "Run cargo test --workspace to verify"
-    ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Add e2e test: scaffold script enables new plugin in settings.json",
-    "steps": [
-      "In init_e2e.rs, add scaffold_script_enables_in_settings_json test",
-      "Gate with has_node() check",
-      "Run aipm init --marketplace in temp dir, then run scaffold script with my-new-plugin",
-      "Read .claude/settings.json and parse as serde_json::Value",
-      "Assert enabledPlugins['my-new-plugin@local-repo-plugins'] == true",
-      "Assert enabledPlugins['starter-aipm-plugin@local-repo-plugins'] == true (existing entry preserved)",
-      "Run cargo test --workspace to verify"
-    ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Add e2e test: scaffold script creates plugin directory structure",
-    "steps": [
-      "In init_e2e.rs, add scaffold_script_creates_plugin_directory test",
-      "Gate with has_node() check",
-      "Run aipm init --marketplace then scaffold my-new-plugin",
-      "Assert .ai/my-new-plugin/aipm.toml exists",
-      "Assert .ai/my-new-plugin/.claude-plugin/plugin.json exists",
-      "Assert .ai/my-new-plugin/skills/my-new-plugin/SKILL.md exists",
-      "Run cargo test --workspace to verify"
-    ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Add e2e test: scaffold multiple plugins with no duplicates in marketplace.json",
-    "steps": [
-      "In init_e2e.rs, add scaffold_script_multiple_plugins_no_duplicates test",
-      "Gate with has_node() check",
-      "Run aipm init, then scaffold plugin-a, then scaffold plugin-b",
-      "Read marketplace.json and assert plugins array has exactly 3 entries (starter + a + b)",
-      "Read settings.json and assert enabledPlugins has exactly 3 keys",
-      "Run cargo test --workspace to verify"
-    ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Add e2e test: scaffold script rejects existing plugin directory",
-    "steps": [
-      "In init_e2e.rs, add scaffold_script_rejects_existing_plugin test",
-      "Gate with has_node() check",
-      "Run aipm init, scaffold my-plugin, then scaffold my-plugin again",
-      "Assert second run exits with non-zero code",
-      "Assert stderr contains 'already exists'",
-      "Run cargo test --workspace to verify"
-    ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Implement missing BDD steps: directory/file existence (data tables, no-directory, no-file, directory-exists)",
-    "steps": [
-      "Open crates/libaipm/tests/bdd.rs",
-      "Add #[then] step for 'the following directories exist in {string}:' with cucumber data table — iterate rows, assert each path is_dir()",
-      "Add #[then] step for 'there is no directory {string} in {string}' — assert !path.exists() || !path.is_dir()",
-      "Add #[then] step for 'there is no file {string} in {string}' — assert !path.exists()",
-      "Add #[given] step for 'a directory {string} exists' — std::fs::create_dir_all",
-      "Run cargo test --workspace to verify BDD scenarios using these steps pass"
-    ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Implement missing BDD steps: starter plugin manifest assertions",
-    "steps": [
-      "In bdd.rs, add #[then] step for 'the starter plugin manifest contains the package name {string}' — read .ai/starter-aipm-plugin/aipm.toml, assert contains name = value",
-      "Add #[then] step for 'the starter plugin manifest contains a version of {string}' — same file, version = value",
-      "Add #[then] step for 'the starter plugin manifest contains the plugin type {string}' — same file, type = value",
-      "Add #[then] step for 'the starter plugin manifest is valid according to aipm schema' — read file and call libaipm::manifest::parse_and_validate()",
-      "Add #[then] step for 'the starter skill contains {string} in the frontmatter' — read skills/scaffold-plugin/SKILL.md, assert contains string",
-      "Run cargo test --workspace to verify BDD scenarios pass"
-    ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Implement missing BDD steps: marketplace.json assertions",
-    "steps": [
-      "In bdd.rs, add #[then] step for 'the marketplace.json name is {string}' — read .ai/.claude-plugin/marketplace.json, parse JSON, assert v['name'] == expected",
-      "Add #[then] step for 'the marketplace.json contains a plugin named {string}' — parse JSON, search plugins array for matching name",
-      "Add #[then] step for 'the marketplace.json plugin {string} has source {string}' — parse JSON, find plugin by name, assert source matches",
-      "Add #[then] step for 'the marketplace.json plugins array is empty' — parse JSON, assert plugins array length is 0",
-      "Run cargo test --workspace to verify marketplace.json BDD scenarios pass"
-    ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Implement missing BDD steps: Claude settings.json assertions",
-    "steps": [
-      "In bdd.rs, add #[then] step for 'the Claude settings contain {string}' — read .claude/settings.json, assert raw string contains value",
-      "Add #[then] step for 'the Claude settings marketplace path is {string}' — parse JSON, assert extraKnownMarketplaces.local-repo-plugins.source.path == expected",
-      "Add #[then] step for 'the Claude settings contain {string} at the top level' — parse JSON, assert top-level key exists",
-      "Add #[then] step for 'the Claude settings enable {string}' — parse JSON, assert enabledPlugins[key] == true",
-      "Add #[then] step for 'the Claude settings file preserves the custom content' — parse JSON, assert custom keys present",
-      "Add #[given] step for 'a file {string} with custom content exists in {string}' — write JSON file with known keys",
-      "Run cargo test --workspace to verify Claude settings BDD scenarios pass"
-    ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Implement missing BDD steps: workspace manifest and gitignore assertions",
-    "steps": [
-      "In bdd.rs, add #[then] step for 'the manifest contains a {string} section' — read aipm.toml, assert contains section header string",
-      "Add #[then] step for 'the manifest contains members {string}' — read aipm.toml, assert contains members = [\"value\"]",
-      "Add #[then] step for 'the manifest contains plugins_dir {string}' — read aipm.toml, assert contains plugins_dir = \"value\"",
-      "Add #[then] step for 'the gitignore contains {string}' — read .ai/.gitignore, assert contains string",
-      "Run cargo test --workspace to verify workspace-init BDD scenarios pass"
-    ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Final validation: cargo build, test, clippy, and fmt all pass with zero warnings",
-    "steps": [
-      "Run cargo build --workspace and verify zero errors",
-      "Run cargo test --workspace and verify all tests pass",
-      "Run cargo clippy --workspace -- -D warnings and verify zero warnings",
-      "Run cargo fmt --check and verify no formatting issues",
-      "Review any skipped BDD scenarios and confirm they are expected (Node.js gating)",
-      "Verify no #[allow(...)] or #[expect(...)] attributes were added (per CLAUDE.md lint policy)"
-    ],
-    "passes": true
+    "passes": false
   }
 ]
