@@ -25,7 +25,7 @@
       "Add ignore list: tests/, crates/*/tests/, research/, specs/",
       "Verify the YAML is valid"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "infrastructure",

@@ -5,3 +5,12 @@
 - Verified patterns work via `git check-ignore`
 - No duplicate entries
 - Status: COMPLETE
+
+## 2026-03-22 — Feature 2: Create codecov.yml
+
+- Created `codecov.yml` in repository root
+- Project target: 90%, threshold: 1%
+- Patch target: 90%
+- Precision: 2, round: down
+- Ignore list: tests/, crates/*/tests/, research/, specs/
+- Status: COMPLETE
