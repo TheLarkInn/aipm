@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.4.0] - 2026-03-22
+
+### CI/CD
+- Enforce 90% branch coverage as correctness gate ([#46](https://github.com/TheLarkInn/aipm/pull/46)) (40c9a04)
+
 ## [0.3.5] - 2026-03-21
 
 ## [0.3.4] - 2026-03-21
