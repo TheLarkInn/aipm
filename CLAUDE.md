@@ -45,18 +45,31 @@ Coverage uses nightly Rust for branch-level instrumentation. The coverage check
 is a **correctness gate** — LLM-generated code must hit 90% branch coverage.
 
 ```bash
-# Check branch coverage (MUST pass before pushing)
-cargo +nightly llvm-cov --workspace --branch \
+# Clean prior coverage data to ensure a fresh run (matches CI behavior)
+cargo +nightly llvm-cov clean --workspace
+
+# 1) Collect workspace test coverage (no report yet)
+cargo +nightly llvm-cov test --workspace --branch \
+  --ignore-filename-regex '(tests/|research/|specs/)' \
+  --no-report
+
+# 2) Collect doctest coverage (no report yet)
+cargo +nightly llvm-cov test --workspace --doc --branch \
+  --ignore-filename-regex '(tests/|research/|specs/)' \
+  --no-report
+
+# 3) Merge coverage + enforce branch coverage INCLUDING doctests (matches CI gate)
+cargo +nightly llvm-cov report --workspace --branch --doctests \
   --ignore-filename-regex '(tests/|research/|specs/)' \
   --fail-under-branches 90
 
-# HTML report (visual inspection)
-cargo +nightly llvm-cov --workspace --branch \
+# HTML report (visual inspection; uses merged tests + doctests)
+cargo +nightly llvm-cov report --workspace --branch --doctests \
   --ignore-filename-regex '(tests/|research/|specs/)' \
   --html --open
 
-# lcov for VS Code Coverage Gutters extension
-cargo +nightly llvm-cov --workspace --branch \
+# lcov for VS Code Coverage Gutters extension (uses merged tests + doctests)
+cargo +nightly llvm-cov report --workspace --branch --doctests \
   --ignore-filename-regex '(tests/|research/|specs/)' \
   --lcov --output-path lcov.info
 ```
