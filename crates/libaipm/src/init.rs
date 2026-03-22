@@ -221,6 +221,12 @@ mod tests {
         assert!(!is_valid_package_name("INVALID_Name!"));
         assert!(!is_valid_package_name("has spaces"));
         assert!(!is_valid_package_name("-starts-dash"));
+        // Scoped name edge cases (branch coverage)
+        assert!(!is_valid_package_name("@noslash"));
+        assert!(!is_valid_package_name("@/pkg"));
+        assert!(!is_valid_package_name("@org/"));
+        assert!(!is_valid_package_name("@ORG/my-plugin"));
+        assert!(!is_valid_package_name("@org/INVALID"));
     }
 
     #[test]
@@ -397,5 +403,153 @@ mod tests {
         assert!(parsed.is_ok(), "generated manifest should be valid");
 
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    // =====================================================================
+    // Mock Fs tests — I/O error path coverage
+    // =====================================================================
+
+    struct FailFs {
+        fail_on: &'static str,
+    }
+
+    impl crate::fs::Fs for FailFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            if self.fail_on == "create_dir" {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "mock: read-only",
+                ));
+            }
+            Ok(())
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            if self.fail_on == "write_file" {
+                return Err(std::io::Error::new(std::io::ErrorKind::Other, "mock: disk full"));
+            }
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Ok(String::new())
+        }
+    }
+
+    /// Mock that succeeds N times then fails on the (N+1)th call.
+    struct CountingFs {
+        create_dir_fail_after: std::cell::Cell<u32>,
+        write_file_fail_after: std::cell::Cell<u32>,
+    }
+
+    impl crate::fs::Fs for CountingFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            let n = self.create_dir_fail_after.get();
+            if n == 0 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "mock: create_dir failed",
+                ));
+            }
+            self.create_dir_fail_after.set(n - 1);
+            Ok(())
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            let n = self.write_file_fail_after.get();
+            if n == 0 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "mock: write_file failed",
+                ));
+            }
+            self.write_file_fail_after.set(n - 1);
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Ok(String::new())
+        }
+    }
+
+    #[test]
+    fn init_fails_on_create_dir_error() {
+        let fs = FailFs { fail_on: "create_dir" };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-dir");
+        let opts = Options { dir: &tmp, name: Some("test"), plugin_type: None };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| e.to_string().contains("mock")));
+    }
+
+    #[test]
+    fn init_fails_on_write_file_error() {
+        let fs = FailFs { fail_on: "write_file" };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-write");
+        // Lsp type skips directory layout (no create_dir in layout), so write_file is first to fail
+        let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Lsp) };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| e.to_string().contains("mock")));
+    }
+
+    #[test]
+    fn init_skill_layout_fails_on_second_create_dir() {
+        // First create_dir_all (init:88) succeeds, second (create_directory_layout:135) fails
+        let fs = CountingFs {
+            create_dir_fail_after: std::cell::Cell::new(1),
+            write_file_fail_after: std::cell::Cell::new(u32::MAX),
+        };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-skill-dir");
+        let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Skill) };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn init_composite_write_fails_on_gitkeep() {
+        // create_dir_all succeeds (all of them), but write_file fails (gitkeep)
+        let fs = CountingFs {
+            create_dir_fail_after: std::cell::Cell::new(u32::MAX),
+            write_file_fail_after: std::cell::Cell::new(0),
+        };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-composite-write");
+        let opts =
+            Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Composite) };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn init_skill_write_fails_on_template() {
+        // create_dir_all succeeds, first write (gitkeep) succeeds, second write (SKILL.md) fails
+        let fs = CountingFs {
+            create_dir_fail_after: std::cell::Cell::new(u32::MAX),
+            write_file_fail_after: std::cell::Cell::new(1),
+        };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-skill-write");
+        let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Skill) };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn init_no_directory_name_from_root_path() {
+        let root = std::path::PathBuf::from("/");
+        let opts = Options { dir: &root, name: None, plugin_type: None };
+        let result = init(&opts, &Real);
+        assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| e.to_string().contains("cannot determine package name")));
     }
 }

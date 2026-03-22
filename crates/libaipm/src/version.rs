@@ -316,4 +316,20 @@ mod tests {
         let best = req.as_ref().and_then(|r| r.select_best(&candidates));
         assert_eq!(best.map(ToString::to_string).as_deref(), Some("0.2.5"));
     }
+
+    #[test]
+    fn select_best_returns_none_when_no_match() {
+        let req = Requirement::parse("^5.0.0").ok();
+        let candidates = vec![Version::parse("1.0.0"), Version::parse("2.0.0")];
+        let candidates: Vec<Version> = candidates.into_iter().filter_map(Result::ok).collect();
+        let best = req.as_ref().and_then(|r| r.select_best(&candidates));
+        assert!(best.is_none());
+    }
+
+    #[test]
+    fn stable_version_is_not_prerelease() {
+        let v = Version::parse("1.0.0");
+        assert!(v.is_ok());
+        assert!(v.ok().is_some_and(|v| !v.is_prerelease()));
+    }
 }

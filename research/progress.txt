@@ -1,45 +1,16 @@
-## 2026-03-22 — Feature 1: Add coverage artifacts to .gitignore
+## 2026-03-22 — Branch Coverage Test Implementation
 
-- Added `# Coverage artifacts` section to `.gitignore`
-- Entries: `coverage/`, `lcov.info`, `*.profraw`, `*.profdata`
-- Verified patterns work via `git check-ignore`
-- No duplicate entries
-- Status: COMPLETE
+### Features 1-8: All test groups implemented
+- Feature 1: 5 scoped-name edge cases added to init.rs invalid_names — DONE
+- Feature 2: multiple_errors_format_with_separator test for error.rs — DONE
+- Feature 3: select_best None + is_prerelease false tests for version.rs — DONE
+- Feature 4: no_subcommand E2E test for aipm-pack — DONE
+- Feature 5: 3 malformed JSON tests for claude.rs — DONE
+- Feature 6: preconfigured settings test for workspace_init — DONE
+- Feature 7: FailFs + CountingFs mocks + I/O error tests for init.rs — DONE
+- Feature 8: FailDirFs + FailWriteFs mocks + I/O error tests for workspace_init — DONE
 
-## 2026-03-22 — Feature 2: Create codecov.yml
-
-- Created `codecov.yml` in repository root
-- Project target: 90%, threshold: 1%
-- Patch target: 90%
-- Precision: 2, round: down
-- Ignore list: tests/, crates/*/tests/, research/, specs/
-- Status: COMPLETE
-
-## 2026-03-22 — Feature 3: Add coverage job to CI
-
-- Added `coverage` job to `.github/workflows/ci.yml`
-- Uses nightly Rust with llvm-tools-preview
-- Installs Node.js 22 for scaffold E2E tests
-- Runs workspace tests + doctests with branch coverage
-- Generates lcov report and enforces 90% branch threshold
-- Uploads to Codecov with `if: always()`
-- Original `ci` job completely unchanged (lines 14-36)
-- No tab indentation issues in YAML
-- Status: COMPLETE
-
-## 2026-03-22 — Feature 4: Add coverage commands to CLAUDE.md
-
-- Added `## Coverage Commands (MANDATORY before pushing)` section after Build Commands
-- Documented correctness gate framing for LLM agents
-- Three commands: --fail-under-branches 90, --html --open, --lcov
-- Prerequisites: nightly toolchain, llvm-tools-preview, cargo-llvm-cov
-- Markdown formatting verified
-- Status: COMPLETE
-
-## 2026-03-22 — ALL FEATURES COMPLETE
-
-All 4 features from feature-list.json are now implemented and passing:
-1. .gitignore coverage artifacts — DONE
-2. codecov.yml — DONE
-3. CI coverage job — DONE
-4. CLAUDE.md coverage commands — DONE
+### Coverage: 86.21% (up from 80.72%)
+- 174 total branches, 24 missed (was 32 missed of 166)
+- Need ~7 more branches to reach 90%
+- Remaining gaps: init.rs (10 missed), version.rs (2 missed), mod.rs (3 missed), claude.rs (2 missed), aipm-pack/main.rs (1 missed)

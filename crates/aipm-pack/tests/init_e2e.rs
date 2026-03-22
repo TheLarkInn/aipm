@@ -247,3 +247,16 @@ fn generated_manifest_is_valid_toml() {
     assert!(content.contains("type = \"composite\""));
     assert!(content.contains("edition"));
 }
+
+// =========================================================================
+// Scenario: No subcommand prints version and usage hint
+// =========================================================================
+
+#[test]
+fn no_subcommand_prints_version_and_usage() {
+    aipm_pack()
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("aipm-pack"))
+        .stdout(predicate::str::contains("--help"));
+}

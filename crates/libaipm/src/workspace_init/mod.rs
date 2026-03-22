@@ -891,4 +891,106 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    #[test]
+    fn init_marketplace_with_preconfigured_claude_settings() {
+        let (tmp, _guard) = make_temp_dir("preconfigured");
+        // Pre-create fully-configured .claude/settings.json
+        std::fs::create_dir_all(tmp.join(".claude")).ok();
+        std::fs::write(
+            tmp.join(".claude/settings.json"),
+            r#"{"extraKnownMarketplaces":{"local-repo-plugins":{"source":{"source":"directory","path":"./.ai"}}},"enabledPlugins":{"starter-aipm-plugin@local-repo-plugins":true}}"#,
+        ).ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: false };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        // ToolConfigured should NOT be in actions (adaptor returned false)
+        let r = result.ok();
+        assert!(r.is_some_and(|r| !r
+            .actions
+            .iter()
+            .any(|a| matches!(a, InitAction::ToolConfigured(_)))));
+
+        cleanup(&tmp);
+    }
+
+    // =====================================================================
+    // Mock Fs tests — I/O error path coverage
+    // =====================================================================
+
+    struct FailDirFs;
+
+    impl crate::fs::Fs for FailDirFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "mock: permission denied",
+            ))
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Ok(String::new())
+        }
+    }
+
+    struct FailWriteFs;
+
+    impl crate::fs::Fs for FailWriteFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Err(std::io::Error::new(std::io::ErrorKind::Other, "mock: disk full"))
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Ok(String::new())
+        }
+    }
+
+    #[test]
+    fn init_workspace_fails_on_create_dir_error() {
+        let tmp = std::path::PathBuf::from("/tmp/fake-ws-dir");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options { dir: &tmp, workspace: true, marketplace: false, no_starter: false };
+        let result = init(&opts, &adaptors, &FailDirFs);
+        assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| e.to_string().contains("mock")));
+    }
+
+    #[test]
+    fn init_workspace_fails_on_write_file_error() {
+        let tmp = std::path::PathBuf::from("/tmp/fake-ws-write");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options { dir: &tmp, workspace: true, marketplace: false, no_starter: false };
+        let result = init(&opts, &adaptors, &FailWriteFs);
+        assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| e.to_string().contains("mock")));
+    }
+
+    #[test]
+    fn scaffold_marketplace_fails_on_create_dir_error() {
+        let tmp = std::path::PathBuf::from("/tmp/fake-mp-dir");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: true };
+        let result = init(&opts, &adaptors, &FailDirFs);
+        assert!(result.is_err());
+    }
 }

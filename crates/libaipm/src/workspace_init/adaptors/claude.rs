@@ -214,4 +214,48 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    #[test]
+    fn claude_settings_rejects_invalid_json() {
+        let tmp = make_temp_dir("invalid-json");
+        std::fs::create_dir_all(tmp.join(".claude")).ok();
+        std::fs::write(tmp.join(".claude/settings.json"), "{{invalid json").ok();
+
+        let adaptor = Adaptor;
+        let result = adaptor.apply(&tmp, &Real);
+        assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| e.to_string().contains("JSON parse")));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn claude_settings_rejects_non_object_root() {
+        let tmp = make_temp_dir("array-root");
+        std::fs::create_dir_all(tmp.join(".claude")).ok();
+        std::fs::write(tmp.join(".claude/settings.json"), "[1, 2, 3]").ok();
+
+        let adaptor = Adaptor;
+        let result = adaptor.apply(&tmp, &Real);
+        assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| e.to_string().contains("expected JSON object")));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn claude_settings_handles_non_object_marketplace_value() {
+        let tmp = make_temp_dir("bad-ekm");
+        std::fs::create_dir_all(tmp.join(".claude")).ok();
+        std::fs::write(tmp.join(".claude/settings.json"), r#"{"extraKnownMarketplaces": 42}"#).ok();
+
+        let adaptor = Adaptor;
+        let result = adaptor.apply(&tmp, &Real);
+        // Should succeed — silently skips non-object mutation, still writes enabledPlugins
+        assert!(result.is_ok());
+
+        cleanup(&tmp);
+    }
 }

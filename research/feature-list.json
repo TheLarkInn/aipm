@@ -1,70 +1,47 @@
 [
   {
-    "category": "infrastructure",
-    "description": "Add coverage artifacts to .gitignore (coverage/, lcov.info, *.profraw, *.profdata)",
-    "steps": [
-      "Read the current .gitignore file",
-      "Append a '# Coverage artifacts' comment section",
-      "Add 'coverage/' entry",
-      "Add 'lcov.info' entry",
-      "Add '*.profraw' entry",
-      "Add '*.profdata' entry",
-      "Verify no duplicate entries exist"
-    ],
+    "category": "testing",
+    "description": "Phase 1: Add 5 scoped-name validation edge cases to init.rs invalid_names test",
     "passes": true
   },
   {
-    "category": "infrastructure",
-    "description": "Create codecov.yml with 90% project and patch coverage targets",
-    "steps": [
-      "Create 'codecov.yml' in the repository root",
-      "Set coverage.status.project.default.target to 90%",
-      "Set coverage.status.project.default.threshold to 1%",
-      "Set coverage.status.patch.default.target to 90%",
-      "Set precision to 2 and round to 'down'",
-      "Add ignore list: tests/, crates/*/tests/, research/, specs/",
-      "Verify the YAML is valid"
-    ],
+    "category": "testing",
+    "description": "Phase 1: Add multiple_errors_format_with_separator test for manifest/error.rs",
     "passes": true
   },
   {
-    "category": "infrastructure",
-    "description": "Add coverage job to .github/workflows/ci.yml with nightly Rust and cargo-llvm-cov",
-    "steps": [
-      "Read the current .github/workflows/ci.yml",
-      "Add a new 'coverage' job alongside the existing 'ci' job",
-      "Set the job name to 'Coverage (90% branch gate)'",
-      "Set runs-on to 'ubuntu-latest'",
-      "Add step: actions/checkout@v4",
-      "Add step: dtolnay/rust-toolchain@nightly with components: llvm-tools-preview",
-      "Add step: actions/setup-node@v4 with node-version: '22'",
-      "Add step: taiki-e/install-action@cargo-llvm-cov",
-      "Add step: Swatinem/rust-cache@v2",
-      "Add step: 'cargo llvm-cov clean --workspace'",
-      "Add step: 'cargo llvm-cov --no-report --workspace --branch' to run all tests with branch coverage",
-      "Add step: 'cargo llvm-cov --no-report --doc' to run doctests with branch coverage",
-      "Add step: 'cargo llvm-cov report --doctests --branch --lcov --output-path lcov.info' to generate lcov report",
-      "Add step: 'cargo llvm-cov report --doctests --branch --fail-under-branches 90' to enforce 90% threshold",
-      "Add step: codecov/codecov-action@v5 with 'if: always()', files: lcov.info, token from secrets, fail_ci_if_error: true",
-      "Ensure the existing 'ci' job is completely unchanged",
-      "Verify the YAML is valid"
-    ],
+    "category": "testing",
+    "description": "Phase 1: Add select_best_returns_none and stable_is_not_prerelease tests for version.rs",
     "passes": true
   },
   {
-    "category": "documentation",
-    "description": "Add mandatory coverage commands section to CLAUDE.md for LLM agents",
-    "steps": [
-      "Read the current CLAUDE.md file",
-      "Locate the '## Build Commands' section",
-      "Add a new '## Coverage Commands (MANDATORY before pushing)' section after Build Commands",
-      "Document the correctness gate framing: LLM-generated code must hit 90% branch coverage",
-      "Add command: 'cargo +nightly llvm-cov --workspace --branch --fail-under-branches 90'",
-      "Add command: 'cargo +nightly llvm-cov --workspace --branch --html --open' for HTML reports",
-      "Add command: 'cargo +nightly llvm-cov --workspace --branch --lcov --output-path lcov.info' for editor gutters",
-      "Add toolchain prerequisites: rustup toolchain install nightly, rustup component add llvm-tools-preview, cargo install cargo-llvm-cov",
-      "Verify markdown formatting is correct"
-    ],
+    "category": "testing",
+    "description": "Phase 2: Add no_subcommand_prints_version_and_usage E2E test for aipm-pack",
     "passes": true
+  },
+  {
+    "category": "testing",
+    "description": "Phase 2: Add 3 malformed JSON tests for adaptors/claude.rs",
+    "passes": true
+  },
+  {
+    "category": "testing",
+    "description": "Phase 2: Add init_marketplace_with_preconfigured_claude_settings test for workspace_init/mod.rs",
+    "passes": true
+  },
+  {
+    "category": "testing",
+    "description": "Phase 3: Add FailFs mock and I/O error tests for init.rs",
+    "passes": true
+  },
+  {
+    "category": "testing",
+    "description": "Phase 3: Add FailFs mock and I/O error tests for workspace_init/mod.rs",
+    "passes": true
+  },
+  {
+    "category": "testing",
+    "description": "Final verification: branch coverage at 86.21% — need ~7 more branches for 90%",
+    "passes": false
   }
 ]
