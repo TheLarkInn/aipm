@@ -75,10 +75,20 @@ jobs:
           --lcov --output-path lcov.info
 
       - name: Enforce 90% branch coverage
-        run: >
-          cargo llvm-cov report --doctests --branch
-          --ignore-filename-regex '(tests/|research/|specs/)'
-          --fail-under-branches 90
+        run: |
+          OUTPUT=$(cargo llvm-cov report --doctests --branch \
+            --ignore-filename-regex '(tests/|research/|specs/)' 2>&1)
+          echo "$OUTPUT"
+          BRANCH_PCT=$(echo "$OUTPUT" | grep '^TOTAL' | awk '{print $NF}' | tr -d '%')
+          if [ -z "$BRANCH_PCT" ]; then
+            echo "::error::Could not parse branch coverage percentage"
+            exit 1
+          fi
+          echo "Branch coverage: ${BRANCH_PCT}%"
+          if [ "$(echo "$BRANCH_PCT < 90" | bc -l)" -eq 1 ]; then
+            echo "::error::Branch coverage ${BRANCH_PCT}% is below 90% threshold"
+            exit 1
+          fi
 
       - name: Upload to Codecov
         if: ${{ always() }}
