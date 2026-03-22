@@ -34,3 +34,47 @@ jobs:
 
       - name: Format
         run: cargo fmt --check
+
+  coverage:
+    name: Coverage (90% branch gate)
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools-preview
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: taiki-e/install-action@cargo-llvm-cov
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Clean coverage artifacts
+        run: cargo llvm-cov clean --workspace
+
+      - name: Run all tests with branch coverage
+        run: cargo llvm-cov --no-report --workspace --branch
+
+      - name: Run doctests with branch coverage
+        run: cargo llvm-cov --no-report --doc
+
+      - name: Generate lcov report
+        run: cargo llvm-cov report --doctests --branch --lcov --output-path lcov.info
+
+      - name: Enforce 90% branch coverage
+        run: cargo llvm-cov report --doctests --branch --fail-under-branches 90
+
+      - name: Upload to Codecov
+        if: always()
+        uses: codecov/codecov-action@v5
+        with:
+          files: lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true

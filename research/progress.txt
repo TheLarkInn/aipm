@@ -14,3 +14,15 @@
 - Precision: 2, round: down
 - Ignore list: tests/, crates/*/tests/, research/, specs/
 - Status: COMPLETE
+
+## 2026-03-22 — Feature 3: Add coverage job to CI
+
+- Added `coverage` job to `.github/workflows/ci.yml`
+- Uses nightly Rust with llvm-tools-preview
+- Installs Node.js 22 for scaffold E2E tests
+- Runs workspace tests + doctests with branch coverage
+- Generates lcov report and enforces 90% branch threshold
+- Uploads to Codecov with `if: always()`
+- Original `ci` job completely unchanged (lines 14-36)
+- No tab indentation issues in YAML
+- Status: COMPLETE

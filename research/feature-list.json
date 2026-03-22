@@ -49,7 +49,7 @@
       "Ensure the existing 'ci' job is completely unchanged",
       "Verify the YAML is valid"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "documentation",
