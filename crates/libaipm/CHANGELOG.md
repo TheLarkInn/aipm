@@ -3,6 +3,10 @@
 All notable changes to this project will be documented in this file.
 ## [0.4.0] - 2026-03-22
 
+### Breaking changes
+- `libaipm::init::init` now accepts additional parameters to configure initialization. Call sites must be updated to pass the new arguments (or use the new configuration type) when upgrading to this release.
+- `libaipm::workspace_init::init` has also gained additional parameters for workspace initialization. Existing callers need to be adjusted to supply the new arguments.
+- `ToolAdaptor::apply` has a changed method signature (for example, to receive additional context/inputs). Any implementors and callers of this method must update their implementations and call sites to match the new signature.
 ### CI/CD
 - Enforce 90% branch coverage as correctness gate ([#46](https://github.com/TheLarkInn/aipm/pull/46)) (40c9a04)
 
