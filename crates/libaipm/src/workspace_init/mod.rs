@@ -897,11 +897,11 @@ mod tests {
     fn init_marketplace_with_preconfigured_claude_settings() {
         let (tmp, _guard) = make_temp_dir("preconfigured");
         // Pre-create fully-configured .claude/settings.json
-        std::fs::create_dir_all(tmp.join(".claude")).ok();
-        std::fs::write(
+        assert!(std::fs::create_dir_all(tmp.join(".claude")).is_ok());
+        assert!(std::fs::write(
             tmp.join(".claude/settings.json"),
             r#"{"extraKnownMarketplaces":{"local-repo-plugins":{"source":{"source":"directory","path":"./.ai"}}},"enabledPlugins":{"starter-aipm-plugin@local-repo-plugins":true}}"#,
-        ).ok();
+        ).is_ok());
 
         let adaptors = default_adaptors();
         let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: false };
