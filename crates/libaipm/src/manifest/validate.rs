@@ -217,7 +217,7 @@ mod tests {
         assert!(!is_valid_name("@/no-scope")); // empty scope
         assert!(!is_valid_name("@scope/")); // empty name after scope
         assert!(!is_valid_name("has spaces")); // spaces
-        // Branch coverage: scoped name without slash
+                                               // Branch coverage: scoped name without slash
         assert!(!is_valid_name("@noslash"));
         // Branch coverage: invalid scope segment
         assert!(!is_valid_name("@UPPER/pkg"));
