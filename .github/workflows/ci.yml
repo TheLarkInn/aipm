@@ -81,9 +81,10 @@ jobs:
           --fail-under-branches 90
 
       - name: Upload to Codecov
-        if: ${{ always() && secrets.CODECOV_TOKEN != '' }}
+        if: ${{ always() }}
         uses: codecov/codecov-action@v5
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         with:
           files: lcov.info
-          token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
