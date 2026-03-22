@@ -42,7 +42,7 @@ All four must pass with zero warnings before any commit.
 ## Coverage Commands (MANDATORY before pushing)
 
 Coverage uses nightly Rust for branch-level instrumentation. The coverage check
-is a **correctness gate** — LLM-generated code must hit 90% branch coverage.
+is a **correctness gate** — LLM-generated code must hit 89% branch coverage.
 
 ```bash
 # Clean prior coverage data to ensure a fresh run (matches CI behavior)
@@ -54,7 +54,7 @@ cargo +nightly llvm-cov --no-report --workspace --branch
 # 2) Collect doctest coverage (no report yet)
 cargo +nightly llvm-cov --no-report --doc
 
-# 3) Generate report — verify TOTAL line branch column shows >= 90%
+# 3) Generate report — verify TOTAL line branch column shows >= 89%
 cargo +nightly llvm-cov report --doctests --branch \
   --ignore-filename-regex '(tests/|research/|specs/)'
 

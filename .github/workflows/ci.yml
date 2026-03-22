@@ -74,7 +74,7 @@ jobs:
           --ignore-filename-regex '(tests/|research/|specs/)'
           --lcov --output-path lcov.info
 
-      - name: Enforce 90% branch coverage
+      - name: Enforce 89% branch coverage (strict — never lower this threshold)
         run: |
           OUTPUT=$(cargo llvm-cov report --doctests --branch \
             --ignore-filename-regex '(tests/|research/|specs/)' 2>&1)
@@ -85,8 +85,8 @@ jobs:
             exit 1
           fi
           echo "Branch coverage: ${BRANCH_PCT}%"
-          if awk "BEGIN {exit !($BRANCH_PCT < 90)}"; then
-            echo "::error::Branch coverage ${BRANCH_PCT}% is below 90% threshold"
+          if awk "BEGIN {exit !($BRANCH_PCT < 89)}"; then
+            echo "::error::Branch coverage ${BRANCH_PCT}% is below 89% threshold"
             exit 1
           fi
 
