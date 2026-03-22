@@ -56,7 +56,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 no_starter,
             };
 
-            let result = libaipm::workspace_init::init(&opts, &adaptors)?;
+            let result = libaipm::workspace_init::init(&opts, &adaptors, &libaipm::fs::Real)?;
 
             let mut stdout = std::io::stdout();
             for action in &result.actions {

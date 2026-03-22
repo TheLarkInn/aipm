@@ -3,9 +3,9 @@
 //! Creates a new plugin directory with an `aipm.toml` manifest and
 //! conventional directory layout based on the plugin type.
 
-use std::io::Write;
 use std::path::Path;
 
+use crate::fs::Fs;
 use crate::manifest::error::Error as ManifestError;
 use crate::manifest::types::PluginType;
 
@@ -54,12 +54,12 @@ pub enum Error {
 ///
 /// Returns `Error` if the directory already contains an `aipm.toml`,
 /// the package name is invalid, or I/O operations fail.
-pub fn init(opts: &Options<'_>) -> Result<(), Error> {
+pub fn init(opts: &Options<'_>, fs: &dyn Fs) -> Result<(), Error> {
     let dir = opts.dir;
 
     // Check for existing manifest
     let manifest_path = dir.join("aipm.toml");
-    if manifest_path.exists() {
+    if fs.exists(&manifest_path) {
         return Err(Error::AlreadyInitialized(dir.to_path_buf()));
     }
 
@@ -85,13 +85,12 @@ pub fn init(opts: &Options<'_>) -> Result<(), Error> {
     let plugin_type = opts.plugin_type.unwrap_or(PluginType::Composite);
 
     // Create directory structure
-    std::fs::create_dir_all(dir)?;
-    create_directory_layout(dir, plugin_type)?;
+    fs.create_dir_all(dir)?;
+    create_directory_layout(dir, plugin_type, fs)?;
 
     // Generate aipm.toml
     let toml_content = generate_manifest(&name, plugin_type);
-    let mut file = std::fs::File::create(&manifest_path)?;
-    file.write_all(toml_content.as_bytes())?;
+    fs.write_file(&manifest_path, toml_content.as_bytes())?;
 
     Ok(())
 }
@@ -129,57 +128,59 @@ fn is_valid_segment(s: &str) -> bool {
 }
 
 /// Create the conventional directory layout for a plugin type.
-fn create_directory_layout(dir: &Path, plugin_type: PluginType) -> Result<(), std::io::Error> {
+fn create_directory_layout(
+    dir: &Path,
+    plugin_type: PluginType,
+    fs: &dyn Fs,
+) -> Result<(), std::io::Error> {
     match plugin_type {
         PluginType::Skill => {
-            std::fs::create_dir_all(dir.join("skills"))?;
-            create_gitkeep(&dir.join("skills"))?;
-            create_skill_template(dir)?;
+            fs.create_dir_all(&dir.join("skills"))?;
+            create_gitkeep(&dir.join("skills"), fs)?;
+            create_skill_template(dir, fs)?;
         },
         PluginType::Agent => {
-            std::fs::create_dir_all(dir.join("agents"))?;
-            create_gitkeep(&dir.join("agents"))?;
+            fs.create_dir_all(&dir.join("agents"))?;
+            create_gitkeep(&dir.join("agents"), fs)?;
         },
         PluginType::Mcp => {
-            std::fs::create_dir_all(dir.join("mcp"))?;
-            create_gitkeep(&dir.join("mcp"))?;
+            fs.create_dir_all(&dir.join("mcp"))?;
+            create_gitkeep(&dir.join("mcp"), fs)?;
         },
         PluginType::Hook => {
-            std::fs::create_dir_all(dir.join("hooks"))?;
-            create_gitkeep(&dir.join("hooks"))?;
+            fs.create_dir_all(&dir.join("hooks"))?;
+            create_gitkeep(&dir.join("hooks"), fs)?;
         },
         PluginType::Lsp => {
             // LSP plugins just need the .lsp.json config (generated separately)
         },
         PluginType::Composite => {
-            std::fs::create_dir_all(dir.join("skills"))?;
-            std::fs::create_dir_all(dir.join("agents"))?;
-            std::fs::create_dir_all(dir.join("hooks"))?;
-            create_gitkeep(&dir.join("skills"))?;
-            create_gitkeep(&dir.join("agents"))?;
-            create_gitkeep(&dir.join("hooks"))?;
+            fs.create_dir_all(&dir.join("skills"))?;
+            fs.create_dir_all(&dir.join("agents"))?;
+            fs.create_dir_all(&dir.join("hooks"))?;
+            create_gitkeep(&dir.join("skills"), fs)?;
+            create_gitkeep(&dir.join("agents"), fs)?;
+            create_gitkeep(&dir.join("hooks"), fs)?;
         },
     }
     Ok(())
 }
 
-fn create_gitkeep(dir: &Path) -> Result<(), std::io::Error> {
-    std::fs::File::create(dir.join(".gitkeep"))?;
-    Ok(())
+fn create_gitkeep(dir: &Path, fs: &dyn Fs) -> Result<(), std::io::Error> {
+    fs.write_file(&dir.join(".gitkeep"), b"")
 }
 
-fn create_skill_template(dir: &Path) -> Result<(), std::io::Error> {
+fn create_skill_template(dir: &Path, fs: &dyn Fs) -> Result<(), std::io::Error> {
     let skill_dir = dir.join("skills").join("default");
-    std::fs::create_dir_all(&skill_dir)?;
-    let mut file = std::fs::File::create(skill_dir.join("SKILL.md"))?;
-    file.write_all(
+    fs.create_dir_all(&skill_dir)?;
+    fs.write_file(
+        &skill_dir.join("SKILL.md"),
         b"---\n\
         description: A starter skill template\n\
         ---\n\n\
         # Default Skill\n\n\
         Describe what this skill does and when Claude should invoke it.\n",
-    )?;
-    Ok(())
+    )
 }
 
 /// Generate the `aipm.toml` manifest content.
@@ -205,6 +206,7 @@ fn generate_manifest(name: &str, plugin_type: PluginType) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fs::Real;
 
     #[test]
     fn valid_names() {
@@ -230,7 +232,7 @@ mod tests {
         std::fs::create_dir_all(&tmp).ok();
 
         let opts = Options { dir: &tmp, name: Some("test-plugin"), plugin_type: None };
-        let result = init(&opts);
+        let result = init(&opts, &Real);
         assert!(result.is_ok());
 
         // Manifest exists
@@ -257,7 +259,7 @@ mod tests {
         std::fs::create_dir_all(&tmp).ok();
 
         let opts = Options { dir: &tmp, name: None, plugin_type: None };
-        let result = init(&opts);
+        let result = init(&opts, &Real);
         assert!(result.is_ok());
 
         let content = std::fs::read_to_string(tmp.join("aipm.toml"));
@@ -277,7 +279,7 @@ mod tests {
         std::fs::File::create(tmp.join("aipm.toml")).ok();
 
         let opts = Options { dir: &tmp, name: Some("test"), plugin_type: None };
-        let result = init(&opts);
+        let result = init(&opts, &Real);
         assert!(result.is_err());
         let err = result.err();
         assert!(err.is_some_and(|e| e.to_string().contains("already initialized")));
@@ -294,7 +296,7 @@ mod tests {
         std::fs::create_dir_all(&tmp).ok();
 
         let opts = Options { dir: &tmp, name: Some("INVALID_Name!"), plugin_type: None };
-        let result = init(&opts);
+        let result = init(&opts, &Real);
         assert!(result.is_err());
         let err = result.err();
         assert!(err.is_some_and(|e| e.to_string().contains("invalid package name")));
@@ -312,7 +314,7 @@ mod tests {
 
         let opts =
             Options { dir: &tmp, name: Some("my-skill"), plugin_type: Some(PluginType::Skill) };
-        let result = init(&opts);
+        let result = init(&opts, &Real);
         assert!(result.is_ok());
 
         // Skill template created
@@ -342,7 +344,7 @@ mod tests {
             std::fs::create_dir_all(&tmp).ok();
 
             let opts = Options { dir: &tmp, name: Some("test-pkg"), plugin_type: Some(pt) };
-            let result = init(&opts);
+            let result = init(&opts, &Real);
             assert!(result.is_ok(), "init should succeed for type {type_str}");
 
             let content = std::fs::read_to_string(tmp.join("aipm.toml"));
@@ -364,7 +366,7 @@ mod tests {
         std::fs::create_dir_all(&tmp).ok();
 
         let opts = Options { dir: &tmp, name: Some("test"), plugin_type: None };
-        let result = init(&opts);
+        let result = init(&opts, &Real);
         assert!(result.is_ok());
 
         let content = std::fs::read_to_string(tmp.join("aipm.toml"));
@@ -386,7 +388,7 @@ mod tests {
             name: Some("valid-plugin"),
             plugin_type: Some(PluginType::Composite),
         };
-        let result = init(&opts);
+        let result = init(&opts, &Real);
         assert!(result.is_ok());
 
         let content = std::fs::read_to_string(tmp.join("aipm.toml"));

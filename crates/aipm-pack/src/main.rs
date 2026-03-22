@@ -45,7 +45,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
             let opts = Options { dir: &dir, name: name.as_deref(), plugin_type };
 
-            init::init(&opts)?;
+            init::init(&opts, &libaipm::fs::Real)?;
 
             let mut stdout = std::io::stdout();
             let _ = writeln!(stdout, "Initialized plugin package in {}", dir.display());

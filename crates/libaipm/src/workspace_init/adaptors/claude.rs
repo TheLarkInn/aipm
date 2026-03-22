@@ -3,9 +3,9 @@
 //! Creates or merges `.claude/settings.json` with `extraKnownMarketplaces`
 //! pointing to the `.ai/` local marketplace directory.
 
-use std::io::Write;
 use std::path::Path;
 
+use crate::fs::Fs;
 use crate::workspace_init::{Error, ToolAdaptor};
 
 /// Configures Claude Code to discover the `.ai/` local marketplace.
@@ -16,15 +16,15 @@ impl ToolAdaptor for Adaptor {
         "Claude Code"
     }
 
-    fn apply(&self, dir: &Path) -> Result<bool, Error> {
+    fn apply(&self, dir: &Path, fs: &dyn Fs) -> Result<bool, Error> {
         let settings_dir = dir.join(".claude");
         let settings_path = settings_dir.join("settings.json");
 
-        if settings_path.exists() {
-            return merge_claude_settings(&settings_path);
+        if fs.exists(&settings_path) {
+            return merge_claude_settings(&settings_path, fs);
         }
 
-        std::fs::create_dir_all(&settings_dir)?;
+        fs.create_dir_all(&settings_dir)?;
         crate::workspace_init::write_file(
             &settings_path,
             "{\n\
@@ -40,13 +40,14 @@ impl ToolAdaptor for Adaptor {
              \x20   \"starter-aipm-plugin@local-repo-plugins\": true\n\
              \x20 }\n\
              }\n",
+            fs,
         )?;
         Ok(true)
     }
 }
 
-fn merge_claude_settings(settings_path: &Path) -> Result<bool, Error> {
-    let content = std::fs::read_to_string(settings_path)?;
+fn merge_claude_settings(settings_path: &Path, fs: &dyn Fs) -> Result<bool, Error> {
+    let content = fs.read_to_string(settings_path)?;
     let mut json: serde_json::Value = serde_json::from_str(&content)
         .map_err(|source| Error::JsonParse { path: settings_path.to_path_buf(), source })?;
 
@@ -96,11 +97,10 @@ fn merge_claude_settings(settings_path: &Path) -> Result<bool, Error> {
             .or_insert(serde_json::json!(true));
     }
 
-    let output = serde_json::to_string_pretty(&json)
+    let mut output = serde_json::to_string_pretty(&json)
         .map_err(|source| Error::JsonParse { path: settings_path.to_path_buf(), source })?;
-    let mut file = std::fs::File::create(settings_path)?;
-    file.write_all(output.as_bytes())?;
-    file.write_all(b"\n")?;
+    output.push('\n');
+    fs.write_file(settings_path, output.as_bytes())?;
 
     Ok(true)
 }
@@ -108,6 +108,7 @@ fn merge_claude_settings(settings_path: &Path) -> Result<bool, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fs::Real;
 
     fn make_temp_dir(name: &str) -> std::path::PathBuf {
         let tmp = std::env::temp_dir().join(format!("aipm-test-claude-{name}"));
@@ -126,7 +127,7 @@ mod tests {
     fn claude_settings_created_fresh() {
         let tmp = make_temp_dir("fresh");
         let adaptor = Adaptor;
-        let result = adaptor.apply(&tmp);
+        let result = adaptor.apply(&tmp, &Real);
         assert!(result.is_ok_and(|v| v));
         assert!(tmp.join(".claude/settings.json").exists());
 
@@ -157,7 +158,7 @@ mod tests {
         .ok();
 
         let adaptor = Adaptor;
-        let result = adaptor.apply(&tmp);
+        let result = adaptor.apply(&tmp, &Real);
         assert!(result.is_ok_and(|v| v));
 
         let content = std::fs::read_to_string(tmp.join(".claude/settings.json"));
@@ -186,7 +187,7 @@ mod tests {
         ).ok();
 
         let adaptor = Adaptor;
-        let result = adaptor.apply(&tmp);
+        let result = adaptor.apply(&tmp, &Real);
         assert!(result.is_ok_and(|v| !v));
 
         cleanup(&tmp);
@@ -202,7 +203,7 @@ mod tests {
         ).ok();
 
         let adaptor = Adaptor;
-        let result = adaptor.apply(&tmp);
+        let result = adaptor.apply(&tmp, &Real);
         assert!(result.is_ok_and(|v| v));
 
         let content = std::fs::read_to_string(tmp.join(".claude/settings.json"));

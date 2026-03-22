@@ -4,6 +4,7 @@
 //! and the `aipm-pack` author binary: manifest parsing, dependency resolution,
 //! content-addressable store, lockfile management, and linking.
 
+pub mod fs;
 pub mod init;
 pub mod manifest;
 pub mod version;
