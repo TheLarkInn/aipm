@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.4.1] - 2026-03-22
+
+### Documentation
+- Add CI and Codecov badges to README ([#48](https://github.com/TheLarkInn/aipm/pull/48)) (df75b44)
+
 ## [0.4.0] - 2026-03-22
 
 ### CI/CD
