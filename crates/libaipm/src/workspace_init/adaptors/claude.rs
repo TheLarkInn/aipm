@@ -258,4 +258,19 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    #[test]
+    fn claude_settings_handles_non_object_enabled_plugins() {
+        let tmp = make_temp_dir("bad-enabled");
+        std::fs::create_dir_all(tmp.join(".claude")).ok();
+        std::fs::write(tmp.join(".claude/settings.json"), r#"{"enabledPlugins": "not-an-object"}"#)
+            .ok();
+
+        let adaptor = Adaptor;
+        let result = adaptor.apply(&tmp, &Real);
+        // Should succeed — skips non-object enabledPlugins, still writes marketplace
+        assert!(result.is_ok());
+
+        cleanup(&tmp);
+    }
 }

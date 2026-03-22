@@ -993,4 +993,13 @@ mod tests {
         let result = init(&opts, &adaptors, &FailDirFs);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn scaffold_marketplace_fails_on_write_file_error() {
+        let tmp = std::path::PathBuf::from("/tmp/fake-mp-write");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: true };
+        let result = init(&opts, &adaptors, &FailWriteFs);
+        assert!(result.is_err());
+    }
 }

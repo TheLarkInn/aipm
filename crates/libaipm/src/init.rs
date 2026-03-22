@@ -213,6 +213,15 @@ mod tests {
         assert!(is_valid_package_name("my-plugin"));
         assert!(is_valid_package_name("plugin123"));
         assert!(is_valid_package_name("@org/my-plugin"));
+        // Digit-starting names (exercises is_ascii_digit branch in first-char check)
+        assert!(is_valid_package_name("1abc"));
+        assert!(is_valid_package_name("123"));
+        // Hyphens in middle (exercises b == b'-' branch in all() iterator)
+        assert!(is_valid_package_name("a-b-c"));
+        // Scoped with digit-starting segments
+        assert!(is_valid_package_name("@1org/2pkg"));
+        // All-digit segments
+        assert!(is_valid_package_name("@123/456"));
     }
 
     #[test]
@@ -539,6 +548,54 @@ mod tests {
         };
         let tmp = std::path::PathBuf::from("/tmp/fake-init-skill-write");
         let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Skill) };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn init_agent_layout_write_fails() {
+        let fs = CountingFs {
+            create_dir_fail_after: std::cell::Cell::new(u32::MAX),
+            write_file_fail_after: std::cell::Cell::new(0),
+        };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-agent-write");
+        let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Agent) };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn init_mcp_layout_write_fails() {
+        let fs = CountingFs {
+            create_dir_fail_after: std::cell::Cell::new(u32::MAX),
+            write_file_fail_after: std::cell::Cell::new(0),
+        };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-mcp-write");
+        let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Mcp) };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn init_hook_layout_write_fails() {
+        let fs = CountingFs {
+            create_dir_fail_after: std::cell::Cell::new(u32::MAX),
+            write_file_fail_after: std::cell::Cell::new(0),
+        };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-hook-write");
+        let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Hook) };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn init_agent_layout_dir_fails() {
+        let fs = CountingFs {
+            create_dir_fail_after: std::cell::Cell::new(1),
+            write_file_fail_after: std::cell::Cell::new(u32::MAX),
+        };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-agent-dir");
+        let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Agent) };
         let result = init(&opts, &fs);
         assert!(result.is_err());
     }

@@ -217,6 +217,12 @@ mod tests {
         assert!(!is_valid_name("@/no-scope")); // empty scope
         assert!(!is_valid_name("@scope/")); // empty name after scope
         assert!(!is_valid_name("has spaces")); // spaces
+                                               // Branch coverage: scoped name without slash
+        assert!(!is_valid_name("@noslash"));
+        // Branch coverage: invalid scope segment
+        assert!(!is_valid_name("@UPPER/pkg"));
+        // Branch coverage: invalid pkg segment
+        assert!(!is_valid_name("@org/UPPER"));
     }
 
     #[test]
@@ -247,5 +253,21 @@ mod tests {
     fn catalog_refs_valid() {
         assert!(is_valid_version_req("catalog:"));
         assert!(is_valid_version_req("catalog:stable"));
+    }
+
+    #[test]
+    fn dependency_with_no_version_is_accepted() {
+        // Detailed dependency with no version and no workspace — version_str is None
+        let toml = r#"
+[package]
+name = "test"
+version = "0.1.0"
+
+[dependencies]
+some-dep = {}
+"#;
+        let result = crate::manifest::parse_and_validate(toml, None);
+        // Should succeed — missing version is not an error (just no version constraint)
+        assert!(result.is_ok(), "dependency with no version should be valid: {result:?}");
     }
 }
