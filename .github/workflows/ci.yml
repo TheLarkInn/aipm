@@ -39,7 +39,7 @@ jobs:
         run: cargo fmt --check
 
   coverage:
-    name: Coverage (90% branch gate)
+    name: Coverage (89% branch gate)
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: 0
