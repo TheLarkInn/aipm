@@ -1,5 +1,8 @@
 # AIPM — AI Plugin Manager
 
+[![CI](https://github.com/TheLarkInn/aipm/actions/workflows/ci.yml/badge.svg)](https://github.com/TheLarkInn/aipm/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/TheLarkInn/aipm/graph/badge.svg)](https://codecov.io/gh/TheLarkInn/aipm)
+
 A production-grade package manager for AI plugin primitives (skills, agents, MCP servers, hooks). Think npm/Cargo, but purpose-built for the AI plugin ecosystem.
 
 AIPM ships as **two Rust binaries**:
