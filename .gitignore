@@ -21,3 +21,9 @@ target
 #.idea/
 
 .claude
+
+# Coverage artifacts
+coverage/
+lcov.info
+*.profraw
+*.profdata

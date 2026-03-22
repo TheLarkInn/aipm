@@ -1,0 +1,16 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 89%
+        threshold: 1%
+    patch:
+      default:
+        target: 89%
+  precision: 2
+  round: down
+ignore:
+  - "tests/"
+  - "crates/*/tests/"
+  - "research/"
+  - "specs/"

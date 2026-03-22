@@ -453,4 +453,17 @@ type = "lsp"
         let result = parse_and_validate(toml, None);
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn multiple_errors_format_with_separator() {
+        // Trigger Multiple error variant to cover format_errors branches (if i > 0)
+        let toml = "[package]\nname = \"\"\nversion = \"\"";
+        let result = parse_and_validate(toml, None);
+        assert!(result.is_err());
+        let err_msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+        // Both "name" and "version" missing — errors joined by "; "
+        assert!(err_msg.contains("name"), "expected name error in: {err_msg}");
+        assert!(err_msg.contains("version"), "expected version error in: {err_msg}");
+        assert!(err_msg.contains("; "), "expected '; ' separator in: {err_msg}");
+    }
 }

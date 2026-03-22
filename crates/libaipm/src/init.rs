@@ -3,9 +3,9 @@
 //! Creates a new plugin directory with an `aipm.toml` manifest and
 //! conventional directory layout based on the plugin type.
 
-use std::io::Write;
 use std::path::Path;
 
+use crate::fs::Fs;
 use crate::manifest::error::Error as ManifestError;
 use crate::manifest::types::PluginType;
 
@@ -54,12 +54,12 @@ pub enum Error {
 ///
 /// Returns `Error` if the directory already contains an `aipm.toml`,
 /// the package name is invalid, or I/O operations fail.
-pub fn init(opts: &Options<'_>) -> Result<(), Error> {
+pub fn init(opts: &Options<'_>, fs: &dyn Fs) -> Result<(), Error> {
     let dir = opts.dir;
 
     // Check for existing manifest
     let manifest_path = dir.join("aipm.toml");
-    if manifest_path.exists() {
+    if fs.exists(&manifest_path) {
         return Err(Error::AlreadyInitialized(dir.to_path_buf()));
     }
 
@@ -85,13 +85,12 @@ pub fn init(opts: &Options<'_>) -> Result<(), Error> {
     let plugin_type = opts.plugin_type.unwrap_or(PluginType::Composite);
 
     // Create directory structure
-    std::fs::create_dir_all(dir)?;
-    create_directory_layout(dir, plugin_type)?;
+    fs.create_dir_all(dir)?;
+    create_directory_layout(dir, plugin_type, fs)?;
 
     // Generate aipm.toml
     let toml_content = generate_manifest(&name, plugin_type);
-    let mut file = std::fs::File::create(&manifest_path)?;
-    file.write_all(toml_content.as_bytes())?;
+    fs.write_file(&manifest_path, toml_content.as_bytes())?;
 
     Ok(())
 }
@@ -129,57 +128,59 @@ fn is_valid_segment(s: &str) -> bool {
 }
 
 /// Create the conventional directory layout for a plugin type.
-fn create_directory_layout(dir: &Path, plugin_type: PluginType) -> Result<(), std::io::Error> {
+fn create_directory_layout(
+    dir: &Path,
+    plugin_type: PluginType,
+    fs: &dyn Fs,
+) -> Result<(), std::io::Error> {
     match plugin_type {
         PluginType::Skill => {
-            std::fs::create_dir_all(dir.join("skills"))?;
-            create_gitkeep(&dir.join("skills"))?;
-            create_skill_template(dir)?;
+            fs.create_dir_all(&dir.join("skills"))?;
+            create_gitkeep(&dir.join("skills"), fs)?;
+            create_skill_template(dir, fs)?;
         },
         PluginType::Agent => {
-            std::fs::create_dir_all(dir.join("agents"))?;
-            create_gitkeep(&dir.join("agents"))?;
+            fs.create_dir_all(&dir.join("agents"))?;
+            create_gitkeep(&dir.join("agents"), fs)?;
         },
         PluginType::Mcp => {
-            std::fs::create_dir_all(dir.join("mcp"))?;
-            create_gitkeep(&dir.join("mcp"))?;
+            fs.create_dir_all(&dir.join("mcp"))?;
+            create_gitkeep(&dir.join("mcp"), fs)?;
         },
         PluginType::Hook => {
-            std::fs::create_dir_all(dir.join("hooks"))?;
-            create_gitkeep(&dir.join("hooks"))?;
+            fs.create_dir_all(&dir.join("hooks"))?;
+            create_gitkeep(&dir.join("hooks"), fs)?;
         },
         PluginType::Lsp => {
             // LSP plugins just need the .lsp.json config (generated separately)
         },
         PluginType::Composite => {
-            std::fs::create_dir_all(dir.join("skills"))?;
-            std::fs::create_dir_all(dir.join("agents"))?;
-            std::fs::create_dir_all(dir.join("hooks"))?;
-            create_gitkeep(&dir.join("skills"))?;
-            create_gitkeep(&dir.join("agents"))?;
-            create_gitkeep(&dir.join("hooks"))?;
+            fs.create_dir_all(&dir.join("skills"))?;
+            fs.create_dir_all(&dir.join("agents"))?;
+            fs.create_dir_all(&dir.join("hooks"))?;
+            create_gitkeep(&dir.join("skills"), fs)?;
+            create_gitkeep(&dir.join("agents"), fs)?;
+            create_gitkeep(&dir.join("hooks"), fs)?;
         },
     }
     Ok(())
 }
 
-fn create_gitkeep(dir: &Path) -> Result<(), std::io::Error> {
-    std::fs::File::create(dir.join(".gitkeep"))?;
-    Ok(())
+fn create_gitkeep(dir: &Path, fs: &dyn Fs) -> Result<(), std::io::Error> {
+    fs.write_file(&dir.join(".gitkeep"), b"")
 }
 
-fn create_skill_template(dir: &Path) -> Result<(), std::io::Error> {
+fn create_skill_template(dir: &Path, fs: &dyn Fs) -> Result<(), std::io::Error> {
     let skill_dir = dir.join("skills").join("default");
-    std::fs::create_dir_all(&skill_dir)?;
-    let mut file = std::fs::File::create(skill_dir.join("SKILL.md"))?;
-    file.write_all(
+    fs.create_dir_all(&skill_dir)?;
+    fs.write_file(
+        &skill_dir.join("SKILL.md"),
         b"---\n\
         description: A starter skill template\n\
         ---\n\n\
         # Default Skill\n\n\
         Describe what this skill does and when Claude should invoke it.\n",
-    )?;
-    Ok(())
+    )
 }
 
 /// Generate the `aipm.toml` manifest content.
@@ -205,12 +206,22 @@ fn generate_manifest(name: &str, plugin_type: PluginType) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fs::Real;
 
     #[test]
     fn valid_names() {
         assert!(is_valid_package_name("my-plugin"));
         assert!(is_valid_package_name("plugin123"));
         assert!(is_valid_package_name("@org/my-plugin"));
+        // Digit-starting names (exercises is_ascii_digit branch in first-char check)
+        assert!(is_valid_package_name("1abc"));
+        assert!(is_valid_package_name("123"));
+        // Hyphens in middle (exercises b == b'-' branch in all() iterator)
+        assert!(is_valid_package_name("a-b-c"));
+        // Scoped with digit-starting segments
+        assert!(is_valid_package_name("@1org/2pkg"));
+        // All-digit segments
+        assert!(is_valid_package_name("@123/456"));
     }
 
     #[test]
@@ -219,6 +230,12 @@ mod tests {
         assert!(!is_valid_package_name("INVALID_Name!"));
         assert!(!is_valid_package_name("has spaces"));
         assert!(!is_valid_package_name("-starts-dash"));
+        // Scoped name edge cases (branch coverage)
+        assert!(!is_valid_package_name("@noslash"));
+        assert!(!is_valid_package_name("@/pkg"));
+        assert!(!is_valid_package_name("@org/"));
+        assert!(!is_valid_package_name("@ORG/my-plugin"));
+        assert!(!is_valid_package_name("@org/INVALID"));
     }
 
     #[test]
@@ -230,7 +247,7 @@ mod tests {
         std::fs::create_dir_all(&tmp).ok();
 
         let opts = Options { dir: &tmp, name: Some("test-plugin"), plugin_type: None };
-        let result = init(&opts);
+        let result = init(&opts, &Real);
         assert!(result.is_ok());
 
         // Manifest exists
@@ -257,7 +274,7 @@ mod tests {
         std::fs::create_dir_all(&tmp).ok();
 
         let opts = Options { dir: &tmp, name: None, plugin_type: None };
-        let result = init(&opts);
+        let result = init(&opts, &Real);
         assert!(result.is_ok());
 
         let content = std::fs::read_to_string(tmp.join("aipm.toml"));
@@ -277,7 +294,7 @@ mod tests {
         std::fs::File::create(tmp.join("aipm.toml")).ok();
 
         let opts = Options { dir: &tmp, name: Some("test"), plugin_type: None };
-        let result = init(&opts);
+        let result = init(&opts, &Real);
         assert!(result.is_err());
         let err = result.err();
         assert!(err.is_some_and(|e| e.to_string().contains("already initialized")));
@@ -294,7 +311,7 @@ mod tests {
         std::fs::create_dir_all(&tmp).ok();
 
         let opts = Options { dir: &tmp, name: Some("INVALID_Name!"), plugin_type: None };
-        let result = init(&opts);
+        let result = init(&opts, &Real);
         assert!(result.is_err());
         let err = result.err();
         assert!(err.is_some_and(|e| e.to_string().contains("invalid package name")));
@@ -312,7 +329,7 @@ mod tests {
 
         let opts =
             Options { dir: &tmp, name: Some("my-skill"), plugin_type: Some(PluginType::Skill) };
-        let result = init(&opts);
+        let result = init(&opts, &Real);
         assert!(result.is_ok());
 
         // Skill template created
@@ -342,7 +359,7 @@ mod tests {
             std::fs::create_dir_all(&tmp).ok();
 
             let opts = Options { dir: &tmp, name: Some("test-pkg"), plugin_type: Some(pt) };
-            let result = init(&opts);
+            let result = init(&opts, &Real);
             assert!(result.is_ok(), "init should succeed for type {type_str}");
 
             let content = std::fs::read_to_string(tmp.join("aipm.toml"));
@@ -364,7 +381,7 @@ mod tests {
         std::fs::create_dir_all(&tmp).ok();
 
         let opts = Options { dir: &tmp, name: Some("test"), plugin_type: None };
-        let result = init(&opts);
+        let result = init(&opts, &Real);
         assert!(result.is_ok());
 
         let content = std::fs::read_to_string(tmp.join("aipm.toml"));
@@ -386,7 +403,7 @@ mod tests {
             name: Some("valid-plugin"),
             plugin_type: Some(PluginType::Composite),
         };
-        let result = init(&opts);
+        let result = init(&opts, &Real);
         assert!(result.is_ok());
 
         let content = std::fs::read_to_string(tmp.join("aipm.toml"));
@@ -395,5 +412,201 @@ mod tests {
         assert!(parsed.is_ok(), "generated manifest should be valid");
 
         let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    // =====================================================================
+    // Mock Fs tests — I/O error path coverage
+    // =====================================================================
+
+    struct FailFs {
+        fail_on: &'static str,
+    }
+
+    impl crate::fs::Fs for FailFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            if self.fail_on == "create_dir" {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "mock: read-only",
+                ));
+            }
+            Ok(())
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            if self.fail_on == "write_file" {
+                return Err(std::io::Error::new(std::io::ErrorKind::Other, "mock: disk full"));
+            }
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Ok(String::new())
+        }
+    }
+
+    /// Mock that succeeds N times then fails on the (N+1)th call.
+    struct CountingFs {
+        create_dir_fail_after: std::cell::Cell<u32>,
+        write_file_fail_after: std::cell::Cell<u32>,
+    }
+
+    impl crate::fs::Fs for CountingFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            let n = self.create_dir_fail_after.get();
+            if n == 0 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "mock: create_dir failed",
+                ));
+            }
+            self.create_dir_fail_after.set(n - 1);
+            Ok(())
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            let n = self.write_file_fail_after.get();
+            if n == 0 {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "mock: write_file failed",
+                ));
+            }
+            self.write_file_fail_after.set(n - 1);
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Ok(String::new())
+        }
+    }
+
+    #[test]
+    fn init_fails_on_create_dir_error() {
+        let fs = FailFs { fail_on: "create_dir" };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-dir");
+        let opts = Options { dir: &tmp, name: Some("test"), plugin_type: None };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| e.to_string().contains("mock")));
+    }
+
+    #[test]
+    fn init_fails_on_write_file_error() {
+        let fs = FailFs { fail_on: "write_file" };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-write");
+        // Lsp type skips directory layout (no create_dir in layout), so write_file is first to fail
+        let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Lsp) };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| e.to_string().contains("mock")));
+    }
+
+    #[test]
+    fn init_skill_layout_fails_on_second_create_dir() {
+        // First create_dir_all (init:88) succeeds, second (create_directory_layout:135) fails
+        let fs = CountingFs {
+            create_dir_fail_after: std::cell::Cell::new(1),
+            write_file_fail_after: std::cell::Cell::new(u32::MAX),
+        };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-skill-dir");
+        let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Skill) };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn init_composite_write_fails_on_gitkeep() {
+        // create_dir_all succeeds (all of them), but write_file fails (gitkeep)
+        let fs = CountingFs {
+            create_dir_fail_after: std::cell::Cell::new(u32::MAX),
+            write_file_fail_after: std::cell::Cell::new(0),
+        };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-composite-write");
+        let opts =
+            Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Composite) };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn init_skill_write_fails_on_template() {
+        // create_dir_all succeeds, first write (gitkeep) succeeds, second write (SKILL.md) fails
+        let fs = CountingFs {
+            create_dir_fail_after: std::cell::Cell::new(u32::MAX),
+            write_file_fail_after: std::cell::Cell::new(1),
+        };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-skill-write");
+        let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Skill) };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn init_agent_layout_write_fails() {
+        let fs = CountingFs {
+            create_dir_fail_after: std::cell::Cell::new(u32::MAX),
+            write_file_fail_after: std::cell::Cell::new(0),
+        };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-agent-write");
+        let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Agent) };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn init_mcp_layout_write_fails() {
+        let fs = CountingFs {
+            create_dir_fail_after: std::cell::Cell::new(u32::MAX),
+            write_file_fail_after: std::cell::Cell::new(0),
+        };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-mcp-write");
+        let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Mcp) };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn init_hook_layout_write_fails() {
+        let fs = CountingFs {
+            create_dir_fail_after: std::cell::Cell::new(u32::MAX),
+            write_file_fail_after: std::cell::Cell::new(0),
+        };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-hook-write");
+        let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Hook) };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn init_agent_layout_dir_fails() {
+        let fs = CountingFs {
+            create_dir_fail_after: std::cell::Cell::new(1),
+            write_file_fail_after: std::cell::Cell::new(u32::MAX),
+        };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-agent-dir");
+        let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Agent) };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn init_no_directory_name_from_root_path() {
+        let root = std::path::PathBuf::from("/");
+        let opts = Options { dir: &root, name: None, plugin_type: None };
+        let result = init(&opts, &Real);
+        assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| e.to_string().contains("cannot determine package name")));
     }
 }

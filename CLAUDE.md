@@ -39,6 +39,43 @@ cargo fmt --check
 
 All four must pass with zero warnings before any commit.
 
+## Coverage Commands (MANDATORY before pushing)
+
+Coverage uses nightly Rust for branch-level instrumentation. The coverage check
+is a **correctness gate** — LLM-generated code must hit 89% branch coverage.
+
+```bash
+# Clean prior coverage data to ensure a fresh run (matches CI behavior)
+cargo +nightly llvm-cov clean --workspace
+
+# 1) Collect workspace test coverage (no report yet)
+cargo +nightly llvm-cov --no-report --workspace --branch
+
+# 2) Collect doctest coverage (no report yet)
+cargo +nightly llvm-cov --no-report --doc
+
+# 3) Generate report — verify TOTAL line branch column shows >= 89%
+cargo +nightly llvm-cov report --doctests --branch \
+  --ignore-filename-regex '(tests/|research/|specs/)'
+
+# HTML report (visual inspection; uses merged tests + doctests)
+cargo +nightly llvm-cov report --workspace --branch --doctests \
+  --ignore-filename-regex '(tests/|research/|specs/)' \
+  --html --open
+
+# lcov for VS Code Coverage Gutters extension (uses merged tests + doctests)
+cargo +nightly llvm-cov report --workspace --branch --doctests \
+  --ignore-filename-regex '(tests/|research/|specs/)' \
+  --lcov --output-path lcov.info
+```
+
+All coverage commands require the nightly toolchain and llvm-tools-preview:
+```bash
+rustup toolchain install nightly
+rustup component add llvm-tools-preview --toolchain nightly
+cargo install cargo-llvm-cov
+```
+
 ## Project Structure
 
 - `Cargo.toml` — workspace root, lint configuration

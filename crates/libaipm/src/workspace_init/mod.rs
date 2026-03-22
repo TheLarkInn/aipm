@@ -6,8 +6,9 @@
 
 pub mod adaptors;
 
-use std::io::Write;
 use std::path::{Path, PathBuf};
+
+use crate::fs::Fs;
 
 /// An adaptor integrates aipm's `.ai/` marketplace with a specific AI coding tool.
 ///
@@ -25,7 +26,7 @@ pub trait ToolAdaptor {
     /// # Errors
     ///
     /// Returns `Error` if I/O operations fail or existing config files cannot be parsed.
-    fn apply(&self, dir: &Path) -> Result<bool, Error>;
+    fn apply(&self, dir: &Path, fs: &dyn Fs) -> Result<bool, Error>;
 }
 
 /// Options for workspace initialization.
@@ -94,20 +95,24 @@ pub enum Error {
 ///
 /// Returns `Error` if the workspace manifest or `.ai/` directory already
 /// exists, or if I/O operations fail.
-pub fn init(opts: &Options<'_>, adaptors: &[Box<dyn ToolAdaptor>]) -> Result<InitResult, Error> {
+pub fn init(
+    opts: &Options<'_>,
+    adaptors: &[Box<dyn ToolAdaptor>],
+    fs: &dyn Fs,
+) -> Result<InitResult, Error> {
     let mut actions = Vec::new();
 
     if opts.workspace {
-        init_workspace(opts.dir)?;
+        init_workspace(opts.dir, fs)?;
         actions.push(InitAction::WorkspaceCreated);
     }
 
     if opts.marketplace {
-        scaffold_marketplace(opts.dir, opts.no_starter)?;
+        scaffold_marketplace(opts.dir, opts.no_starter, fs)?;
         actions.push(InitAction::MarketplaceCreated);
 
         for adaptor in adaptors {
-            if adaptor.apply(opts.dir)? {
+            if adaptor.apply(opts.dir, fs)? {
                 actions.push(InitAction::ToolConfigured(adaptor.name().to_string()));
             }
         }
@@ -120,9 +125,9 @@ pub fn init(opts: &Options<'_>, adaptors: &[Box<dyn ToolAdaptor>]) -> Result<Ini
 // Workspace manifest generation
 // =============================================================================
 
-fn init_workspace(dir: &Path) -> Result<(), Error> {
+fn init_workspace(dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
     let manifest_path = dir.join("aipm.toml");
-    if manifest_path.exists() {
+    if fs.exists(&manifest_path) {
         return Err(Error::WorkspaceAlreadyInitialized(dir.to_path_buf()));
     }
 
@@ -132,9 +137,8 @@ fn init_workspace(dir: &Path) -> Result<(), Error> {
     crate::manifest::parse_and_validate(&content, None)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
 
-    std::fs::create_dir_all(dir)?;
-    let mut file = std::fs::File::create(&manifest_path)?;
-    file.write_all(content.as_bytes())?;
+    fs.create_dir_all(dir)?;
+    fs.write_file(&manifest_path, content.as_bytes())?;
 
     Ok(())
 }
@@ -164,27 +168,28 @@ fn generate_workspace_manifest() -> String {
 // Marketplace scaffolding
 // =============================================================================
 
-fn scaffold_marketplace(dir: &Path, no_starter: bool) -> Result<(), Error> {
+fn scaffold_marketplace(dir: &Path, no_starter: bool, fs: &dyn Fs) -> Result<(), Error> {
     let ai_dir = dir.join(".ai");
-    if ai_dir.exists() {
+    if fs.exists(&ai_dir) {
         return Err(Error::MarketplaceAlreadyExists(dir.to_path_buf()));
     }
 
     // Always create .ai/ and .gitignore
-    std::fs::create_dir_all(&ai_dir)?;
-    write_file(
+    fs.create_dir_all(&ai_dir)?;
+    fs.write_file(
         &ai_dir.join(".gitignore"),
         "# Managed by aipm — registry-installed plugins are symlinked here.\n\
          # Do not edit the section between the markers.\n\
          # === aipm managed start ===\n\
-         # === aipm managed end ===\n",
+         # === aipm managed end ===\n"
+            .as_bytes(),
     )?;
 
     // Create marketplace.json in .ai/.claude-plugin/
-    std::fs::create_dir_all(ai_dir.join(".claude-plugin"))?;
-    write_file(
+    fs.create_dir_all(&ai_dir.join(".claude-plugin"))?;
+    fs.write_file(
         &ai_dir.join(".claude-plugin").join("marketplace.json"),
-        &generate_marketplace_json(no_starter),
+        generate_marketplace_json(no_starter).as_bytes(),
     )?;
 
     if no_starter {
@@ -194,34 +199,43 @@ fn scaffold_marketplace(dir: &Path, no_starter: bool) -> Result<(), Error> {
     let starter = ai_dir.join("starter-aipm-plugin");
 
     // Create directory tree
-    std::fs::create_dir_all(starter.join(".claude-plugin"))?;
-    std::fs::create_dir_all(starter.join("skills").join("scaffold-plugin"))?;
-    std::fs::create_dir_all(starter.join("scripts"))?;
-    std::fs::create_dir_all(starter.join("agents"))?;
-    std::fs::create_dir_all(starter.join("hooks"))?;
+    fs.create_dir_all(&starter.join(".claude-plugin"))?;
+    fs.create_dir_all(&starter.join("skills").join("scaffold-plugin"))?;
+    fs.create_dir_all(&starter.join("scripts"))?;
+    fs.create_dir_all(&starter.join("agents"))?;
+    fs.create_dir_all(&starter.join("hooks"))?;
 
     // Write all component files before manifest validation
-    write_file(
+    fs.write_file(
         &starter.join("skills").join("scaffold-plugin").join("SKILL.md"),
-        &generate_skill_template(),
+        generate_skill_template().as_bytes(),
     )?;
-    write_file(&starter.join("scripts").join("scaffold-plugin.ts"), &generate_scaffold_script())?;
-    write_file(&starter.join("agents").join("marketplace-scanner.md"), &generate_agent_template())?;
-    write_file(&starter.join("hooks").join("hooks.json"), &generate_hook_template())?;
+    fs.write_file(
+        &starter.join("scripts").join("scaffold-plugin.ts"),
+        generate_scaffold_script().as_bytes(),
+    )?;
+    fs.write_file(
+        &starter.join("agents").join("marketplace-scanner.md"),
+        generate_agent_template().as_bytes(),
+    )?;
+    fs.write_file(&starter.join("hooks").join("hooks.json"), generate_hook_template().as_bytes())?;
 
     // .ai/starter-aipm-plugin/aipm.toml
     let starter_manifest = generate_starter_manifest();
-    write_file(&starter.join("aipm.toml"), &starter_manifest)?;
+    fs.write_file(&starter.join("aipm.toml"), starter_manifest.as_bytes())?;
 
     // Validate starter manifest round-trips (with base_dir so component paths are checked)
     crate::manifest::parse_and_validate(&starter_manifest, Some(&starter))
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
 
     // .ai/starter-aipm-plugin/.claude-plugin/plugin.json
-    write_file(&starter.join(".claude-plugin").join("plugin.json"), &generate_plugin_json())?;
+    fs.write_file(
+        &starter.join(".claude-plugin").join("plugin.json"),
+        generate_plugin_json().as_bytes(),
+    )?;
 
     // .ai/starter-aipm-plugin/.mcp.json
-    write_file(&starter.join(".mcp.json"), &generate_mcp_stub())?;
+    fs.write_file(&starter.join(".mcp.json"), generate_mcp_stub().as_bytes())?;
 
     Ok(())
 }
@@ -460,10 +474,8 @@ fn generate_mcp_stub() -> String {
 // Helpers
 // =============================================================================
 
-pub(crate) fn write_file(path: &Path, content: &str) -> Result<(), std::io::Error> {
-    let mut file = std::fs::File::create(path)?;
-    file.write_all(content.as_bytes())?;
-    Ok(())
+pub(crate) fn write_file(path: &Path, content: &str, fs: &dyn Fs) -> Result<(), std::io::Error> {
+    fs.write_file(path, content.as_bytes())
 }
 
 // =============================================================================
@@ -533,7 +545,7 @@ mod tests {
         let (tmp, _guard) = make_temp_dir("ws-create");
         let adaptors = default_adaptors();
         let opts = Options { dir: &tmp, workspace: true, marketplace: false, no_starter: false };
-        let result = init(&opts, &adaptors);
+        let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
         assert!(result.is_ok_and(|r| r.actions.contains(&InitAction::WorkspaceCreated)));
         assert!(tmp.join("aipm.toml").exists());
@@ -549,7 +561,7 @@ mod tests {
         let (tmp, _guard) = make_temp_dir("mp-create");
         let adaptors = default_adaptors();
         let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: false };
-        let result = init(&opts, &adaptors);
+        let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
         assert!(result.is_ok_and(|r| r.actions.contains(&InitAction::MarketplaceCreated)));
 
@@ -573,7 +585,7 @@ mod tests {
 
         let adaptors = default_adaptors();
         let opts = Options { dir: &tmp, workspace: true, marketplace: false, no_starter: false };
-        let result = init(&opts, &adaptors);
+        let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_err());
         let err = result.err();
         assert!(err.is_some_and(|e| e.to_string().contains("already initialized")));
@@ -588,7 +600,7 @@ mod tests {
 
         let adaptors = default_adaptors();
         let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: false };
-        let result = init(&opts, &adaptors);
+        let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_err());
         let err = result.err();
         assert!(err.is_some_and(|e| e.to_string().contains("already exists")));
@@ -601,7 +613,7 @@ mod tests {
         let (tmp, _guard) = make_temp_dir("both");
         let adaptors = default_adaptors();
         let opts = Options { dir: &tmp, workspace: true, marketplace: true, no_starter: false };
-        let result = init(&opts, &adaptors);
+        let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
         let r = result.ok();
         assert!(r.as_ref().is_some_and(|r| r.actions.contains(&InitAction::WorkspaceCreated)));
@@ -617,7 +629,7 @@ mod tests {
         let (tmp, _guard) = make_temp_dir("no-adaptors");
         let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
         let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: false };
-        let result = init(&opts, &adaptors);
+        let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
         assert!(tmp.join(".ai").is_dir());
         // No .claude/ directory should exist
@@ -631,7 +643,7 @@ mod tests {
         let (tmp, _guard) = make_temp_dir("gitignore");
         let adaptors = default_adaptors();
         let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: false };
-        let result = init(&opts, &adaptors);
+        let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
 
         let content = std::fs::read_to_string(tmp.join(".ai/.gitignore"));
@@ -761,7 +773,7 @@ mod tests {
         let (tmp, _guard) = make_temp_dir("no-starter");
         let adaptors = default_adaptors();
         let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: true };
-        let result = init(&opts, &adaptors);
+        let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
         assert!(result.is_ok_and(|r| r.actions.contains(&InitAction::MarketplaceCreated)));
 
@@ -817,7 +829,7 @@ mod tests {
         let (tmp, _guard) = make_temp_dir("mp-json");
         let adaptors = default_adaptors();
         let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: false };
-        let result = init(&opts, &adaptors);
+        let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
 
         let path = tmp.join(".ai/.claude-plugin/marketplace.json");
@@ -847,7 +859,7 @@ mod tests {
         let (tmp, _guard) = make_temp_dir("mp-json-nostarter");
         let adaptors = default_adaptors();
         let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: true };
-        let result = init(&opts, &adaptors);
+        let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
 
         let path = tmp.join(".ai/.claude-plugin/marketplace.json");
@@ -870,7 +882,7 @@ mod tests {
         let (tmp, _guard) = make_temp_dir("no-starter-tools");
         let adaptors = default_adaptors();
         let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: true };
-        let result = init(&opts, &adaptors);
+        let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
 
         // Tool settings should still be applied
@@ -879,5 +891,116 @@ mod tests {
         assert!(!tmp.join(".ai/starter-aipm-plugin").exists());
 
         cleanup(&tmp);
+    }
+
+    #[test]
+    fn init_marketplace_with_preconfigured_claude_settings() {
+        let (tmp, _guard) = make_temp_dir("preconfigured");
+        // Pre-create fully-configured .claude/settings.json
+        assert!(std::fs::create_dir_all(tmp.join(".claude")).is_ok());
+        assert!(std::fs::write(
+            tmp.join(".claude/settings.json"),
+            r#"{"extraKnownMarketplaces":{"local-repo-plugins":{"source":{"source":"directory","path":"./.ai"}}},"enabledPlugins":{"starter-aipm-plugin@local-repo-plugins":true}}"#,
+        ).is_ok());
+
+        let adaptors = default_adaptors();
+        let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: false };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        // ToolConfigured should NOT be in actions (adaptor returned false)
+        let r = result.ok();
+        assert!(r.is_some_and(|r| !r
+            .actions
+            .iter()
+            .any(|a| matches!(a, InitAction::ToolConfigured(_)))));
+
+        cleanup(&tmp);
+    }
+
+    // =====================================================================
+    // Mock Fs tests — I/O error path coverage
+    // =====================================================================
+
+    struct FailDirFs;
+
+    impl crate::fs::Fs for FailDirFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "mock: permission denied",
+            ))
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Ok(String::new())
+        }
+    }
+
+    struct FailWriteFs;
+
+    impl crate::fs::Fs for FailWriteFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Err(std::io::Error::new(std::io::ErrorKind::Other, "mock: disk full"))
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Ok(String::new())
+        }
+    }
+
+    #[test]
+    fn init_workspace_fails_on_create_dir_error() {
+        let tmp = std::path::PathBuf::from("/tmp/fake-ws-dir");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options { dir: &tmp, workspace: true, marketplace: false, no_starter: false };
+        let result = init(&opts, &adaptors, &FailDirFs);
+        assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| e.to_string().contains("mock")));
+    }
+
+    #[test]
+    fn init_workspace_fails_on_write_file_error() {
+        let tmp = std::path::PathBuf::from("/tmp/fake-ws-write");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options { dir: &tmp, workspace: true, marketplace: false, no_starter: false };
+        let result = init(&opts, &adaptors, &FailWriteFs);
+        assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| e.to_string().contains("mock")));
+    }
+
+    #[test]
+    fn scaffold_marketplace_fails_on_create_dir_error() {
+        let tmp = std::path::PathBuf::from("/tmp/fake-mp-dir");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: true };
+        let result = init(&opts, &adaptors, &FailDirFs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn scaffold_marketplace_fails_on_write_file_error() {
+        let tmp = std::path::PathBuf::from("/tmp/fake-mp-write");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options { dir: &tmp, workspace: false, marketplace: true, no_starter: true };
+        let result = init(&opts, &adaptors, &FailWriteFs);
+        assert!(result.is_err());
     }
 }
