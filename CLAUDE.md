@@ -56,16 +56,16 @@ cargo +nightly llvm-cov --no-report --doc
 
 # 3) Generate report — verify TOTAL line branch column shows >= 89%
 cargo +nightly llvm-cov report --doctests --branch \
-  --ignore-filename-regex '(tests/|research/|specs/|wizard\.rs)'
+  --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs)'
 
 # HTML report (visual inspection; uses merged tests + doctests)
 cargo +nightly llvm-cov report --workspace --branch --doctests \
-  --ignore-filename-regex '(tests/|research/|specs/|wizard\.rs)' \
+  --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs)' \
   --html --open
 
 # lcov for VS Code Coverage Gutters extension (uses merged tests + doctests)
 cargo +nightly llvm-cov report --workspace --branch --doctests \
-  --ignore-filename-regex '(tests/|research/|specs/|wizard\.rs)' \
+  --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs)' \
   --lcov --output-path lcov.info
 ```
 

@@ -3,6 +3,7 @@
 //! Commands: init, install, validate, doctor, link, update, uninstall.
 
 mod wizard;
+mod wizard_tty;
 
 use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
@@ -52,7 +53,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             let interactive = !yes && std::io::stdin().is_terminal();
 
             let (do_workspace, do_marketplace, do_no_starter) =
-                wizard::resolve(interactive, (workspace, marketplace, no_starter))?;
+                wizard_tty::resolve(interactive, (workspace, marketplace, no_starter))?;
 
             let adaptors = libaipm::workspace_init::adaptors::defaults();
 

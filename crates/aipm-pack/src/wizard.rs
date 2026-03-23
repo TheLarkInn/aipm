@@ -37,6 +37,8 @@ pub enum PromptKind {
     Text {
         /// Grey placeholder text (shown when input is empty).
         placeholder: String,
+        /// Whether to apply package-name validation to this input.
+        validate: bool,
     },
 }
 
@@ -95,7 +97,7 @@ pub fn package_prompt_steps(
 
         steps.push(PromptStep {
             label: "Package name:",
-            kind: PromptKind::Text { placeholder },
+            kind: PromptKind::Text { placeholder, validate: true },
             help: Some("Lowercase alphanumeric with hyphens, or @org/name"),
         });
     }
@@ -103,7 +105,7 @@ pub fn package_prompt_steps(
     // Step 2: Description (always shown — no flag for it yet)
     steps.push(PromptStep {
         label: "Description:",
-        kind: PromptKind::Text { placeholder: "An AI plugin package".to_string() },
+        kind: PromptKind::Text { placeholder: "An AI plugin package".to_string(), validate: false },
         help: None,
     });
 
@@ -178,75 +180,6 @@ pub fn validate_package_name(input: &str) -> Result<(), String> {
 }
 
 // =============================================================================
-// Prompt execution — thin bridge to inquire (not unit-tested)
-// =============================================================================
-
-/// Execute prompt steps against the real terminal via `inquire`.
-///
-/// Returns one `PromptAnswer` per step, in order.
-fn execute_prompts(steps: &[PromptStep]) -> Result<Vec<PromptAnswer>, Box<dyn std::error::Error>> {
-    let mut answers = Vec::with_capacity(steps.len());
-
-    for step in steps {
-        let answer = match &step.kind {
-            PromptKind::Text { placeholder } => {
-                let mut prompt = inquire::Text::new(step.label).with_placeholder(placeholder);
-                if let Some(help) = step.help {
-                    prompt = prompt.with_help_message(help);
-                }
-                // Apply validator only for the package name prompt
-                if step.label == "Package name:" {
-                    prompt =
-                        prompt.with_validator(|input: &str| match validate_package_name(input) {
-                            Ok(()) => Ok(inquire::validator::Validation::Valid),
-                            Err(msg) => Ok(inquire::validator::Validation::Invalid(msg.into())),
-                        });
-                }
-                let result = prompt.prompt()?;
-                PromptAnswer::Text(result)
-            },
-            PromptKind::Select { options, default_index } => {
-                let mut prompt = inquire::Select::new(step.label, options.clone())
-                    .with_starting_cursor(*default_index);
-                if let Some(help) = step.help {
-                    prompt = prompt.with_help_message(help);
-                }
-                let choice = prompt.prompt()?;
-                // Find the index of the chosen option
-                let index = options.iter().position(|o| *o == choice).unwrap_or(0);
-                PromptAnswer::Selected(index)
-            },
-        };
-        answers.push(answer);
-    }
-
-    Ok(answers)
-}
-
-/// Resolved wizard output: `(name, plugin_type)`.
-type WizardResult = (Option<String>, Option<PluginType>);
-
-/// Resolve package init options.
-///
-/// When `interactive` is `true`, launches the wizard for any values not set by flags.
-/// When `false`, returns the flag values as-is (today's behavior).
-pub fn resolve(
-    interactive: bool,
-    dir: &Path,
-    flag_name: Option<String>,
-    flag_type: Option<PluginType>,
-) -> Result<WizardResult, Box<dyn std::error::Error>> {
-    if interactive {
-        inquire::set_global_render_config(styled_render_config());
-        let steps = package_prompt_steps(dir, flag_name.as_deref(), flag_type);
-        let answers = execute_prompts(&steps)?;
-        Ok(resolve_package_answers(&answers, flag_name.as_deref(), flag_type))
-    } else {
-        Ok((flag_name, flag_type))
-    }
-}
-
-// =============================================================================
 // Theming
 // =============================================================================
 
@@ -287,8 +220,11 @@ mod tests {
                         out.push_str(&format!("  {}[{}] {}\n", marker, j, opt));
                     }
                 },
-                PromptKind::Text { placeholder } => {
+                PromptKind::Text { placeholder, validate } => {
                     out.push_str(&format!("  Kind: Text (placeholder: \"{}\")\n", placeholder));
+                    if *validate {
+                        out.push_str("  Validate: package-name\n");
+                    }
                 },
             }
             if let Some(help) = step.help {
@@ -337,7 +273,7 @@ mod tests {
         let steps = package_prompt_steps(dir, None, None);
         let name_step = &steps[0];
         match &name_step.kind {
-            PromptKind::Text { placeholder } => {
+            PromptKind::Text { placeholder, .. } => {
                 assert_eq!(placeholder, "my-cool-project");
             },
             _ => {

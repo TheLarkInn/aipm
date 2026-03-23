@@ -14,3 +14,4 @@ ignore:
   - "crates/*/tests/"
   - "research/"
   - "specs/"
+  - "crates/*/src/wizard_tty.rs"

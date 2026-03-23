@@ -3,6 +3,7 @@
 //! Commands: init, pack, publish, yank, login.
 
 mod wizard;
+mod wizard_tty;
 
 use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
@@ -51,7 +52,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
             let interactive = !yes && std::io::stdin().is_terminal();
 
-            let (final_name, final_type) = wizard::resolve(interactive, &dir, name, plugin_type)?;
+            let (final_name, final_type) =
+                wizard_tty::resolve(interactive, &dir, name, plugin_type)?;
 
             let opts = Options { dir: &dir, name: final_name.as_deref(), plugin_type: final_type };
 
