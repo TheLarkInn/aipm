@@ -1,25 +1,25 @@
-2026-03-22: Interactive init wizard implementation complete (iteration 1)
+ALL 22 FEATURES COMPLETE.
 
-Completed:
-- Added inquire dependency with minimal features (crossterm + one-liners only)
-- Created aipm-pack wizard (wizard.rs): PromptStep/PromptKind/PromptAnswer types,
-  package_prompt_steps(), resolve_package_answers(), validate_package_name(),
-  execute_prompts(), resolve(), styled_render_config()
-- Created aipm wizard (wizard.rs): workspace_prompt_steps(), resolve_workspace_answers(),
-  execute_prompts(), resolve(), styled_render_config()
-- Added --yes/-y flag to both aipm init and aipm-pack init
-- TTY detection via std::io::stdin().is_terminal()
-- 11 snapshot tests for aipm-pack wizard (prompt steps, answer resolution, theming)
-- 13 snapshot tests for aipm workspace wizard (prompt steps, answer resolution, theming)
-- 8 validator unit tests for package name validation
-- 4 E2E tests for aipm init --yes/-y
-- 4 E2E tests for aipm-pack init --yes/-y
-- Updated CI coverage exclusion to include wizard.rs (TTY-only code)
-- Updated CLAUDE.md coverage commands to match CI
+Implementation summary:
+- Feature 1: Fs trait extended with read_dir + DirEntry, 4 unit tests, all mock impls updated
+- Feature 2: Fs::read_dir unit tests pass
+- Feature 3: migrate module with core types (ArtifactKind, ArtifactMetadata, Artifact, Options, Action, Outcome, Error)
+- Feature 4: Detector trait + claude_detectors() factory
+- Feature 5: SkillDetector with frontmatter parsing, script extraction, recursive file collection
+- Feature 6: CommandDetector with command-to-skill conversion
+- Feature 7: Emitter: plugin dir creation, file copying, path rewriting, hooks extraction, manifest/JSON generation
+- Feature 8: Registrar: marketplace.json append logic
+- Feature 9: DryRun: structured markdown report generator
+- Feature 10: migrate() orchestrator wiring detectors -> emitter -> registrar
+- Feature 11: Commands::Migrate CLI variant with dispatch
+- Features 12-18: Unit tests for all modules (SkillDetector 13 tests, CommandDetector 7 tests, Emitter 18 tests, Registrar 4 tests, DryRun 8 tests, Orchestrator 5 tests, Name conflict 3 tests)
+- Feature 19: 14 E2E tests (migrate_e2e.rs)
+- Feature 20: 7 BDD scenarios (migrate.feature) — all passing
+- Feature 21: All four build gates pass (build, test, clippy, fmt)
+- Feature 22: Branch coverage at 89.74% (>= 89% threshold)
 
-All gates pass:
-- cargo build --workspace: clean
-- cargo test --workspace: 191 tests, 0 failures
-- cargo clippy --workspace -- -D warnings: 0 warnings
-- cargo fmt --check: clean
-- Branch coverage: 89.08% (>= 89% threshold)
+Test counts:
+- 204 unit tests (libaipm)
+- 14 E2E tests (aipm migrate)
+- 58 BDD scenarios (including 7 new migrate scenarios)
+- 0 failures

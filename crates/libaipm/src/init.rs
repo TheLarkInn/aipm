@@ -447,6 +447,10 @@ mod tests {
         fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
             Ok(String::new())
         }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
     }
 
     /// Mock that succeeds N times then fails on the (N+1)th call.
@@ -486,6 +490,10 @@ mod tests {
 
         fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
             Ok(String::new())
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
         }
     }
 
