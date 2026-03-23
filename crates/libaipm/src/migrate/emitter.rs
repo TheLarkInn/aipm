@@ -9,6 +9,18 @@ use crate::workspace_init::write_file;
 
 use super::{Action, Artifact, ArtifactKind, ArtifactMetadata, Error};
 
+use std::path::PathBuf;
+
+/// Validate that a name is a safe single path segment (no traversal, no separators).
+fn is_safe_path_segment(name: &str) -> bool {
+    !name.is_empty()
+        && name != "."
+        && name != ".."
+        && !name.contains('/')
+        && !name.contains('\\')
+        && !Path::new(name).is_absolute()
+}
+
 /// Emit a single artifact as a plugin directory.
 ///
 /// Returns the final plugin name (may differ from artifact name if renamed)
@@ -21,6 +33,18 @@ pub fn emit_plugin<S: BuildHasher>(
     fs: &dyn Fs,
 ) -> Result<(String, Vec<Action>), Error> {
     let mut actions = Vec::new();
+
+    // Validate artifact name to prevent path traversal
+    if !is_safe_path_segment(&artifact.name) {
+        actions.push(Action::Skipped {
+            name: artifact.name.clone(),
+            reason: format!(
+                "unsafe artifact name '{}': must be a single path segment without separators or '..'",
+                artifact.name
+            ),
+        });
+        return Ok((artifact.name.clone(), actions));
+    }
 
     // 1. Resolve name (handle conflicts)
     let plugin_name =
@@ -43,18 +67,21 @@ pub fn emit_plugin<S: BuildHasher>(
         },
     }
 
-    // 4. Copy referenced scripts
+    // 4. Copy referenced scripts, preserving relative path structure
     if !artifact.referenced_scripts.is_empty() {
         let scripts_dir = plugin_dir.join("scripts");
         fs.create_dir_all(&scripts_dir)?;
+        let scripts_root = Path::new("scripts");
         for script in &artifact.referenced_scripts {
             let source = artifact.source_path.join(script);
             if fs.exists(&source) {
-                if let Some(file_name) = script.file_name() {
-                    let dest = scripts_dir.join(file_name);
-                    let content = fs.read_to_string(&source)?;
-                    fs.write_file(&dest, content.as_bytes())?;
+                let relative = script.strip_prefix(scripts_root).unwrap_or(script);
+                let dest = scripts_dir.join(relative);
+                if let Some(parent) = dest.parent() {
+                    fs.create_dir_all(parent)?;
                 }
+                let content = fs.read_to_string(&source)?;
+                fs.write_file(&dest, content.as_bytes())?;
             }
         }
     }
@@ -85,8 +112,19 @@ pub fn emit_plugin<S: BuildHasher>(
 }
 
 /// Copy skill files from artifact source to plugin directory, rewriting paths.
+/// Excludes files under `scripts/` that are also in `referenced_scripts` to avoid
+/// duplicates (those are copied to the plugin root `scripts/` directory separately).
 fn emit_skill_files(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
+    let scripts_prefix = Path::new("scripts");
+    let referenced: HashSet<&Path> =
+        artifact.referenced_scripts.iter().map(PathBuf::as_path).collect();
+
     for file in &artifact.files {
+        // Skip files that are referenced scripts — they're copied to the root scripts/ dir
+        if file.starts_with(scripts_prefix) && referenced.contains(file.as_path()) {
+            continue;
+        }
+
         let source = artifact.source_path.join(file);
         let dest = plugin_dir.join("skills").join(&artifact.name).join(file);
         if let Some(parent) = dest.parent() {
@@ -123,6 +161,7 @@ fn emit_command_as_skill(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) ->
 }
 
 /// Inject `disable-model-invocation: true` into existing frontmatter.
+/// If the key already exists, rewrites its value to `true` instead of duplicating.
 fn inject_disable_model_invocation(content: &str) -> String {
     let trimmed = content.trim_start();
     if !trimmed.starts_with("---") {
@@ -136,7 +175,28 @@ fn inject_disable_model_invocation(content: &str) -> String {
         |pos| {
             let yaml_block = &rest[..pos];
             let after_closing = &rest[pos + 4..]; // skip \n---
-            format!("---\n{yaml_block}\ndisable-model-invocation: true\n---{after_closing}")
+
+            // Check if key already exists and rewrite it; otherwise append
+            let mut found_key = false;
+            let mut new_yaml = String::new();
+            for line in yaml_block.lines() {
+                let trimmed_line = line.trim_start();
+                if trimmed_line.starts_with("disable-model-invocation:") {
+                    let indent_len = line.len() - trimmed_line.len();
+                    let indent = &line[..indent_len];
+                    new_yaml.push_str(indent);
+                    new_yaml.push_str("disable-model-invocation: true\n");
+                    found_key = true;
+                } else {
+                    new_yaml.push_str(line);
+                    new_yaml.push('\n');
+                }
+            }
+            if !found_key {
+                new_yaml.push_str("disable-model-invocation: true\n");
+            }
+
+            format!("---\n{new_yaml}---{after_closing}")
         },
     )
 }
@@ -201,9 +261,20 @@ fn convert_hooks_yaml_to_json(hooks_yaml: &str) -> String {
                     current_value = Some(val.to_string());
                 }
             }
-        } else if let Some(ref _key) = current_key {
-            // Indented continuation — treat as value
-            if current_value.is_none() {
+        } else {
+            // Indented line: either start a new key (if none yet) or continue the current value.
+            if current_key.is_none() {
+                if let Some(pos) = trimmed.find(':') {
+                    let key = trimmed[..pos].trim();
+                    let val = trimmed[pos + 1..].trim();
+                    current_key = Some(key.to_string());
+                    if val.is_empty() {
+                        current_value = None;
+                    } else {
+                        current_value = Some(val.to_string());
+                    }
+                }
+            } else if current_value.is_none() {
                 current_value = Some(trimmed.to_string());
             } else if let Some(ref mut v) = current_value {
                 v.push(' ');
@@ -236,13 +307,16 @@ fn generate_plugin_manifest(artifact: &Artifact, plugin_name: &str) -> String {
     // Skills component
     components.push(format!("skills = [\"skills/{}/SKILL.md\"]", artifact.name));
 
-    // Scripts component (if any)
+    // Scripts component (if any) — preserves relative path structure
     if !artifact.referenced_scripts.is_empty() {
+        let scripts_root = Path::new("scripts");
         let scripts: Vec<String> = artifact
             .referenced_scripts
             .iter()
-            .filter_map(|p| p.file_name())
-            .map(|f| format!("\"scripts/{}\"", f.to_string_lossy()))
+            .map(|p| {
+                let relative = p.strip_prefix(scripts_root).unwrap_or(p);
+                format!("\"scripts/{}\"", relative.to_string_lossy())
+            })
             .collect();
         components.push(format!("scripts = [{}]", scripts.join(", ")));
     }
@@ -757,6 +831,138 @@ mod tests {
         // Indented line before any key is set — should be ignored
         let result = convert_hooks_yaml_to_json("  indented_no_key\nKey: value");
         assert!(result.contains("Key"));
+    }
+
+    #[test]
+    fn emit_rejects_unsafe_name_with_traversal() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/../etc/SKILL.md"), "bad".to_string());
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let mut artifact = make_skill_artifact();
+        artifact.name = "../etc".to_string();
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, &fs);
+        assert!(result.is_ok());
+        if let Some((_, actions)) = result.ok() {
+            assert!(actions.iter().any(|a| matches!(a, Action::Skipped { .. })));
+        }
+    }
+
+    #[test]
+    fn emit_rejects_unsafe_name_with_separator() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/a/b/SKILL.md"), "bad".to_string());
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let mut artifact = make_skill_artifact();
+        artifact.name = "a/b".to_string();
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, &fs);
+        assert!(result.is_ok());
+        if let Some((_, actions)) = result.ok() {
+            assert!(actions.iter().any(|a| matches!(a, Action::Skipped { .. })));
+        }
+    }
+
+    #[test]
+    fn inject_disable_deduplicates_existing_key() {
+        let content = "---\nname: test\ndisable-model-invocation: false\n---\nbody";
+        let result = inject_disable_model_invocation(content);
+        assert!(result.contains("disable-model-invocation: true"));
+        // Should only appear once
+        assert_eq!(result.matches("disable-model-invocation").count(), 1);
+    }
+
+    #[test]
+    fn is_safe_path_segment_rejects_empty() {
+        assert!(!is_safe_path_segment(""));
+    }
+
+    #[test]
+    fn is_safe_path_segment_rejects_dot() {
+        assert!(!is_safe_path_segment("."));
+    }
+
+    #[test]
+    fn is_safe_path_segment_rejects_dotdot() {
+        assert!(!is_safe_path_segment(".."));
+    }
+
+    #[test]
+    fn is_safe_path_segment_rejects_backslash() {
+        assert!(!is_safe_path_segment("a\\b"));
+    }
+
+    #[test]
+    fn is_safe_path_segment_accepts_valid() {
+        assert!(is_safe_path_segment("deploy"));
+        assert!(is_safe_path_segment("my-plugin-123"));
+    }
+
+    #[test]
+    fn emit_skill_skips_referenced_scripts_from_file_copy() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
+        fs.files.insert(
+            PathBuf::from("/src/skills/deploy/scripts/deploy.sh"),
+            "#!/bin/bash".to_string(),
+        );
+        fs.exists.insert(PathBuf::from("/src/skills/deploy/scripts/deploy.sh"));
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let mut artifact = make_skill_artifact();
+        artifact.files = vec![PathBuf::from("SKILL.md"), PathBuf::from("scripts/deploy.sh")];
+        artifact.referenced_scripts = vec![PathBuf::from("scripts/deploy.sh")];
+        let _result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, &fs);
+
+        // SKILL.md should be copied to skill dir
+        assert!(fs.get_written(Path::new("/ai/deploy/skills/deploy/SKILL.md")).is_some());
+        // scripts/deploy.sh should NOT be in skill dir (it's a referenced script)
+        assert!(fs.get_written(Path::new("/ai/deploy/skills/deploy/scripts/deploy.sh")).is_none());
+        // scripts/deploy.sh SHOULD be in the root scripts dir
+        assert!(fs.get_written(Path::new("/ai/deploy/scripts/deploy.sh")).is_some());
+    }
+
+    #[test]
+    fn emit_skill_keeps_unreferenced_scripts_in_skill_dir() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
+        fs.files.insert(
+            PathBuf::from("/src/skills/deploy/scripts/helper.sh"),
+            "#!/bin/bash".to_string(),
+        );
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let mut artifact = make_skill_artifact();
+        artifact.files = vec![PathBuf::from("SKILL.md"), PathBuf::from("scripts/helper.sh")];
+        // helper.sh is NOT in referenced_scripts
+        let _result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, &fs);
+
+        // Unreferenced scripts stay in the skill dir
+        assert!(fs.get_written(Path::new("/ai/deploy/skills/deploy/scripts/helper.sh")).is_some());
+    }
+
+    #[test]
+    fn emit_preserves_nested_script_paths() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
+        fs.files.insert(
+            PathBuf::from("/src/skills/deploy/scripts/tools/deploy.sh"),
+            "#!/bin/bash".to_string(),
+        );
+        fs.exists.insert(PathBuf::from("/src/skills/deploy/scripts/tools/deploy.sh"));
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let mut artifact = make_skill_artifact();
+        artifact.referenced_scripts = vec![PathBuf::from("scripts/tools/deploy.sh")];
+        let _result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, &fs);
+
+        // Nested path should be preserved under scripts/
+        assert!(fs.get_written(Path::new("/ai/deploy/scripts/tools/deploy.sh")).is_some());
     }
 
     #[test]

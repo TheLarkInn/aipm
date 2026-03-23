@@ -127,6 +127,10 @@ pub enum Error {
     #[error("source directory does not exist: {0}")]
     SourceNotFound(PathBuf),
 
+    /// The source type is not supported.
+    #[error("unsupported source type '{0}' — supported sources: .claude")]
+    UnsupportedSource(String),
+
     /// Failed to parse marketplace.json.
     #[error("failed to parse marketplace.json at {path}: {source}")]
     MarketplaceJsonParse {
@@ -166,7 +170,7 @@ pub fn migrate(opts: &Options<'_>, fs: &dyn Fs) -> Result<Outcome, Error> {
     // 2. Resolve detectors for this source
     let detectors = match opts.source {
         ".claude" => detector::claude_detectors(),
-        _ => return Err(Error::SourceNotFound(source_dir)),
+        other => return Err(Error::UnsupportedSource(other.to_string())),
     };
 
     // 3. Run all detectors

@@ -76,33 +76,41 @@ mod tests {
 
     #[test]
     fn real_read_dir_lists_entries() {
-        let dir = tempfile::tempdir().ok();
-        let dir = dir.as_ref().map(tempfile::TempDir::path);
-        if let Some(dir) = dir {
-            std::fs::write(dir.join("file1.txt"), "hello").ok();
-            std::fs::create_dir(dir.join("subdir")).ok();
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let dir = tmp.as_ref().map(tempfile::TempDir::path);
+        let dir = dir.as_ref().copied();
+        assert!(dir.is_some(), "tempdir path must be available");
+        let dir = dir.unwrap_or(Path::new("."));
 
-            let result = Real.read_dir(dir);
-            assert!(result.is_ok());
-            let mut entries = result.ok().unwrap_or_default();
-            entries.sort_by(|a, b| a.name.cmp(&b.name));
-            assert_eq!(entries.len(), 2);
-            assert_eq!(entries.first().map(|e| e.name.as_str()), Some("file1.txt"));
-            assert_eq!(entries.first().map(|e| e.is_dir), Some(false));
-            assert_eq!(entries.get(1).map(|e| e.name.as_str()), Some("subdir"));
-            assert_eq!(entries.get(1).map(|e| e.is_dir), Some(true));
-        }
+        assert!(std::fs::write(dir.join("file1.txt"), "hello").is_ok(), "write must succeed");
+        assert!(std::fs::create_dir(dir.join("subdir")).is_ok(), "create_dir must succeed");
+
+        let result = Real.read_dir(dir);
+        assert!(result.is_ok());
+        let mut entries = result.ok().unwrap_or_default();
+        entries.sort_by(|a, b| a.name.cmp(&b.name));
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries.first().map(|e| e.name.as_str()), Some("file1.txt"));
+        assert_eq!(entries.first().map(|e| e.is_dir), Some(false));
+        assert_eq!(entries.get(1).map(|e| e.name.as_str()), Some("subdir"));
+        assert_eq!(entries.get(1).map(|e| e.is_dir), Some(true));
     }
 
     #[test]
     fn real_read_dir_empty_dir() {
-        let dir = tempfile::tempdir().ok();
-        let dir = dir.as_ref().map(tempfile::TempDir::path);
-        if let Some(dir) = dir {
-            let result = Real.read_dir(dir);
-            assert!(result.is_ok());
-            assert_eq!(result.ok().unwrap_or_default().len(), 0);
-        }
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let dir = tmp.as_ref().map(tempfile::TempDir::path);
+        let dir = dir.as_ref().copied();
+        assert!(dir.is_some(), "tempdir path must be available");
+        let dir = dir.unwrap_or(Path::new("."));
+
+        let result = Real.read_dir(dir);
+        assert!(result.is_ok());
+        assert_eq!(result.ok().unwrap_or_default().len(), 0);
     }
 
     #[test]
@@ -113,24 +121,28 @@ mod tests {
 
     #[test]
     fn real_read_dir_distinguishes_files_and_dirs() {
-        let dir = tempfile::tempdir().ok();
-        let dir = dir.as_ref().map(tempfile::TempDir::path);
-        if let Some(dir) = dir {
-            std::fs::write(dir.join("a_file.txt"), "content").ok();
-            std::fs::write(dir.join("b_file.rs"), "code").ok();
-            std::fs::create_dir(dir.join("c_dir")).ok();
-            std::fs::create_dir(dir.join("d_dir")).ok();
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let dir = tmp.as_ref().map(tempfile::TempDir::path);
+        let dir = dir.as_ref().copied();
+        assert!(dir.is_some(), "tempdir path must be available");
+        let dir = dir.unwrap_or(Path::new("."));
 
-            let result = Real.read_dir(dir);
-            assert!(result.is_ok());
-            let mut entries = result.ok().unwrap_or_default();
-            entries.sort_by(|a, b| a.name.cmp(&b.name));
-            assert_eq!(entries.len(), 4);
+        assert!(std::fs::write(dir.join("a_file.txt"), "content").is_ok());
+        assert!(std::fs::write(dir.join("b_file.rs"), "code").is_ok());
+        assert!(std::fs::create_dir(dir.join("c_dir")).is_ok());
+        assert!(std::fs::create_dir(dir.join("d_dir")).is_ok());
 
-            let files: Vec<_> = entries.iter().filter(|e| !e.is_dir).collect();
-            let dirs: Vec<_> = entries.iter().filter(|e| e.is_dir).collect();
-            assert_eq!(files.len(), 2);
-            assert_eq!(dirs.len(), 2);
-        }
+        let result = Real.read_dir(dir);
+        assert!(result.is_ok());
+        let mut entries = result.ok().unwrap_or_default();
+        entries.sort_by(|a, b| a.name.cmp(&b.name));
+        assert_eq!(entries.len(), 4);
+
+        let files: Vec<_> = entries.iter().filter(|e| !e.is_dir).collect();
+        let dirs: Vec<_> = entries.iter().filter(|e| e.is_dir).collect();
+        assert_eq!(files.len(), 2);
+        assert_eq!(dirs.len(), 2);
     }
 }

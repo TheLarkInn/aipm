@@ -39,8 +39,10 @@ impl Detector for CommandDetector {
             let cmd_path = commands_dir.join(&entry.name);
             let content = fs.read_to_string(&cmd_path)?;
 
-            // Strip .md extension for the name
-            let name = entry.name.trim_end_matches(".md").to_string();
+            // Use file_stem to derive name (consistent with case-insensitive extension check)
+            let name = std::path::Path::new(&entry.name)
+                .file_stem()
+                .map_or_else(|| entry.name.clone(), |s| s.to_string_lossy().into_owned());
 
             let mut metadata = parse_command_frontmatter(&content);
             metadata.model_invocation_disabled = true;

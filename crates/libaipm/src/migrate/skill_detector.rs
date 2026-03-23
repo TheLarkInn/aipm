@@ -85,7 +85,7 @@ fn parse_skill_frontmatter(content: &str, path: &Path) -> Result<ArtifactMetadat
     };
 
     // Parse line by line
-    let mut hooks_lines: Vec<&str> = Vec::new();
+    let mut hooks_lines: Vec<String> = Vec::new();
     let mut in_hooks = false;
 
     for line in yaml_block.lines() {
@@ -94,7 +94,10 @@ fn parse_skill_frontmatter(content: &str, path: &Path) -> Result<ArtifactMetadat
         // Check if we're in a hooks block (indented continuation)
         if in_hooks {
             if line.starts_with(' ') || line.starts_with('\t') {
-                hooks_lines.push(line);
+                // Strip one level of indentation so the emitter can parse key: value lines
+                let stripped =
+                    line.strip_prefix("  ").or_else(|| line.strip_prefix('\t')).unwrap_or(line);
+                hooks_lines.push(stripped.to_string());
                 continue;
             }
             in_hooks = false;
@@ -108,7 +111,7 @@ fn parse_skill_frontmatter(content: &str, path: &Path) -> Result<ArtifactMetadat
             in_hooks = true;
             let value = trimmed_line.strip_prefix("hooks:").unwrap_or_default().trim();
             if !value.is_empty() {
-                hooks_lines.push(value);
+                hooks_lines.push(value.to_string());
             }
         } else if let Some(value) = trimmed_line.strip_prefix("disable-model-invocation:") {
             if value.trim() == "true" {
