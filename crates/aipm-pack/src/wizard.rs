@@ -1,0 +1,497 @@
+//! Interactive wizard for `aipm-pack init`.
+//!
+//! Split into two layers for testability:
+//! 1. **Prompt definitions** (pure functions) — build prompt configs, validators, answer mapping.
+//! 2. **Prompt execution** (thin bridge) — calls `inquire::*.prompt()`.
+
+use std::path::Path;
+
+use libaipm::manifest::types::PluginType;
+
+// =============================================================================
+// Types — shared between definition and execution layers
+// =============================================================================
+
+/// Describes a single prompt step in the wizard.
+#[derive(Debug)]
+pub struct PromptStep {
+    /// Human-readable label shown to the user.
+    pub label: &'static str,
+    /// The kind of prompt (select, confirm, text).
+    pub kind: PromptKind,
+    /// Optional help message shown below the prompt.
+    pub help: Option<&'static str>,
+}
+
+/// The kind of interactive prompt.
+#[derive(Debug)]
+pub enum PromptKind {
+    /// Single-choice list.
+    Select {
+        /// Option labels.
+        options: Vec<&'static str>,
+        /// Index of the default selection.
+        default_index: usize,
+    },
+    /// Free-form text input.
+    Text {
+        /// Grey placeholder text (shown when input is empty).
+        placeholder: String,
+    },
+}
+
+/// Raw answer collected from a prompt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PromptAnswer {
+    /// Index of the selected option.
+    Selected(usize),
+    /// Text input.
+    Text(String),
+}
+
+// =============================================================================
+// Prompt definitions — fully testable, no terminal dependency
+// =============================================================================
+
+/// Plugin type select options. Order matters — index maps to `PluginType`.
+const PLUGIN_TYPE_OPTIONS: [&str; 6] = [
+    "composite \u{2014} skills + agents + hooks (recommended)",
+    "skill    \u{2014} single skill",
+    "agent    \u{2014} autonomous agent",
+    "mcp      \u{2014} Model Context Protocol server",
+    "hook     \u{2014} lifecycle hook",
+    "lsp      \u{2014} Language Server Protocol",
+];
+
+/// Map a select index to a `PluginType`.
+const fn plugin_type_from_index(index: usize) -> Option<PluginType> {
+    match index {
+        0 => Some(PluginType::Composite),
+        1 => Some(PluginType::Skill),
+        2 => Some(PluginType::Agent),
+        3 => Some(PluginType::Mcp),
+        4 => Some(PluginType::Hook),
+        5 => Some(PluginType::Lsp),
+        _ => None,
+    }
+}
+
+/// Build the list of prompts for package init, given pre-filled flags.
+///
+/// Prompts whose corresponding flag is already set are omitted.
+pub fn package_prompt_steps(
+    dir: &Path,
+    flag_name: Option<&str>,
+    flag_type: Option<PluginType>,
+) -> Vec<PromptStep> {
+    let mut steps = Vec::new();
+
+    // Step 1: Package name (skip if --name was provided)
+    if flag_name.is_none() {
+        let placeholder = dir
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map_or_else(|| "my-plugin".to_string(), String::from);
+
+        steps.push(PromptStep {
+            label: "Package name:",
+            kind: PromptKind::Text { placeholder },
+            help: Some("Lowercase alphanumeric with hyphens, or @org/name"),
+        });
+    }
+
+    // Step 2: Description (always shown — no flag for it yet)
+    steps.push(PromptStep {
+        label: "Description:",
+        kind: PromptKind::Text { placeholder: "An AI plugin package".to_string() },
+        help: None,
+    });
+
+    // Step 3: Plugin type (skip if --type was provided)
+    if flag_type.is_none() {
+        steps.push(PromptStep {
+            label: "Plugin type:",
+            kind: PromptKind::Select { options: PLUGIN_TYPE_OPTIONS.to_vec(), default_index: 0 },
+            help: Some("Use arrow keys, Enter to select"),
+        });
+    }
+
+    steps
+}
+
+/// Map raw wizard answers to final `(name, plugin_type)` values.
+///
+/// `answers` correspond 1:1 with the steps returned by [`package_prompt_steps`].
+/// Flags that were set skip their prompt, so their answer is not in the array.
+pub fn resolve_package_answers(
+    answers: &[PromptAnswer],
+    flag_name: Option<&str>,
+    flag_type: Option<PluginType>,
+) -> (Option<String>, Option<PluginType>) {
+    let mut idx = 0;
+
+    // Name
+    let name = flag_name.map_or_else(
+        || {
+            let result = match answers.get(idx) {
+                Some(PromptAnswer::Text(t)) if t.is_empty() => None,
+                Some(PromptAnswer::Text(t)) => Some(t.clone()),
+                _ => None,
+            };
+            idx += 1;
+            result
+        },
+        |n| Some(n.to_string()),
+    );
+
+    // Description (consumed but not returned — Options has no description field)
+    idx += 1;
+
+    // Plugin type
+    let plugin_type = flag_type.map_or_else(
+        || match answers.get(idx) {
+            Some(PromptAnswer::Selected(i)) => plugin_type_from_index(*i),
+            _ => Some(PluginType::Composite),
+        },
+        Some,
+    );
+
+    (name, plugin_type)
+}
+
+/// Validate a package name input.
+///
+/// Empty string is valid (means "use default").
+/// Otherwise must be lowercase alphanumeric with hyphens, optionally `@org/name`.
+pub fn validate_package_name(input: &str) -> Result<(), String> {
+    if input.is_empty() {
+        return Ok(());
+    }
+
+    for c in input.chars() {
+        if !(c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '@' || c == '/') {
+            return Err("Must be lowercase alphanumeric with hyphens".to_string());
+        }
+    }
+
+    Ok(())
+}
+
+// =============================================================================
+// Prompt execution — thin bridge to inquire (not unit-tested)
+// =============================================================================
+
+/// Execute prompt steps against the real terminal via `inquire`.
+///
+/// Returns one `PromptAnswer` per step, in order.
+fn execute_prompts(steps: &[PromptStep]) -> Result<Vec<PromptAnswer>, Box<dyn std::error::Error>> {
+    let mut answers = Vec::with_capacity(steps.len());
+
+    for step in steps {
+        let answer = match &step.kind {
+            PromptKind::Text { placeholder } => {
+                let mut prompt = inquire::Text::new(step.label).with_placeholder(placeholder);
+                if let Some(help) = step.help {
+                    prompt = prompt.with_help_message(help);
+                }
+                // Apply validator only for the package name prompt
+                if step.label == "Package name:" {
+                    prompt =
+                        prompt.with_validator(|input: &str| match validate_package_name(input) {
+                            Ok(()) => Ok(inquire::validator::Validation::Valid),
+                            Err(msg) => Ok(inquire::validator::Validation::Invalid(msg.into())),
+                        });
+                }
+                let result = prompt.prompt()?;
+                PromptAnswer::Text(result)
+            },
+            PromptKind::Select { options, default_index } => {
+                let mut prompt = inquire::Select::new(step.label, options.clone())
+                    .with_starting_cursor(*default_index);
+                if let Some(help) = step.help {
+                    prompt = prompt.with_help_message(help);
+                }
+                let choice = prompt.prompt()?;
+                // Find the index of the chosen option
+                let index = options.iter().position(|o| *o == choice).unwrap_or(0);
+                PromptAnswer::Selected(index)
+            },
+        };
+        answers.push(answer);
+    }
+
+    Ok(answers)
+}
+
+/// Resolved wizard output: `(name, plugin_type)`.
+type WizardResult = (Option<String>, Option<PluginType>);
+
+/// Resolve package init options.
+///
+/// When `interactive` is `true`, launches the wizard for any values not set by flags.
+/// When `false`, returns the flag values as-is (today's behavior).
+pub fn resolve(
+    interactive: bool,
+    dir: &Path,
+    flag_name: Option<String>,
+    flag_type: Option<PluginType>,
+) -> Result<WizardResult, Box<dyn std::error::Error>> {
+    if interactive {
+        inquire::set_global_render_config(styled_render_config());
+        let steps = package_prompt_steps(dir, flag_name.as_deref(), flag_type);
+        let answers = execute_prompts(&steps)?;
+        Ok(resolve_package_answers(&answers, flag_name.as_deref(), flag_type))
+    } else {
+        Ok((flag_name, flag_type))
+    }
+}
+
+// =============================================================================
+// Theming
+// =============================================================================
+
+/// Build a styled `RenderConfig` for a modern prompt appearance.
+pub fn styled_render_config() -> inquire::ui::RenderConfig<'static> {
+    use inquire::ui::{Color, RenderConfig, StyleSheet, Styled};
+
+    let mut config = RenderConfig::default_colored();
+    config.prompt_prefix = Styled::new("?").with_fg(Color::LightCyan);
+    config.answered_prompt_prefix = Styled::new("\u{2713}").with_fg(Color::LightGreen);
+    config.placeholder = StyleSheet::new().with_fg(Color::DarkGrey);
+    config
+}
+
+// =============================================================================
+// Tests
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Serialize prompt steps into a human-readable string for snapshot testing.
+    fn format_steps(steps: &[PromptStep]) -> String {
+        let mut out = String::new();
+        if steps.is_empty() {
+            out.push_str("(no prompts)\n");
+            return out;
+        }
+        for (i, step) in steps.iter().enumerate() {
+            out.push_str(&format!("Step {}:\n", i + 1));
+            out.push_str(&format!("  Label: {}\n", step.label));
+            match &step.kind {
+                PromptKind::Select { options, default_index } => {
+                    out.push_str(&format!("  Kind: Select (default: {})\n", default_index));
+                    for (j, opt) in options.iter().enumerate() {
+                        let marker = if j == *default_index { " *" } else { "  " };
+                        out.push_str(&format!("  {}[{}] {}\n", marker, j, opt));
+                    }
+                },
+                PromptKind::Text { placeholder } => {
+                    out.push_str(&format!("  Kind: Text (placeholder: \"{}\")\n", placeholder));
+                },
+            }
+            if let Some(help) = step.help {
+                out.push_str(&format!("  Help: {}\n", help));
+            }
+            out.push('\n');
+        }
+        out
+    }
+
+    // =========================================================================
+    // Prompt step snapshots — all flag combinations
+    // =========================================================================
+
+    #[test]
+    fn package_prompts_no_flags_snapshot() {
+        let dir = std::path::Path::new("/projects/my-cool-project");
+        let steps = package_prompt_steps(dir, None, None);
+        insta::assert_snapshot!(format_steps(&steps));
+    }
+
+    #[test]
+    fn package_prompts_name_flag_snapshot() {
+        let dir = std::path::Path::new("/projects/my-cool-project");
+        let steps = package_prompt_steps(dir, Some("custom-name"), None);
+        insta::assert_snapshot!(format_steps(&steps));
+    }
+
+    #[test]
+    fn package_prompts_type_flag_snapshot() {
+        let dir = std::path::Path::new("/projects/my-cool-project");
+        let steps = package_prompt_steps(dir, None, Some(PluginType::Skill));
+        insta::assert_snapshot!(format_steps(&steps));
+    }
+
+    #[test]
+    fn package_prompts_all_flags_snapshot() {
+        let dir = std::path::Path::new("/projects/my-cool-project");
+        let steps = package_prompt_steps(dir, Some("foo"), Some(PluginType::Mcp));
+        insta::assert_snapshot!(format_steps(&steps));
+    }
+
+    #[test]
+    fn package_prompts_placeholder_uses_dir_name() {
+        let dir = std::path::Path::new("/projects/my-cool-project");
+        let steps = package_prompt_steps(dir, None, None);
+        let name_step = &steps[0];
+        match &name_step.kind {
+            PromptKind::Text { placeholder } => {
+                assert_eq!(placeholder, "my-cool-project");
+            },
+            _ => {
+                // wrong prompt kind — fail the test
+                assert!(false, "expected Text prompt for package name");
+            },
+        }
+    }
+
+    // =========================================================================
+    // Answer resolution snapshots
+    // =========================================================================
+
+    #[test]
+    fn resolve_package_defaults_snapshot() {
+        let answers = vec![
+            PromptAnswer::Text(String::new()), // empty = use placeholder
+            PromptAnswer::Text(String::new()), // empty description
+            PromptAnswer::Selected(0),         // composite
+        ];
+        let result = resolve_package_answers(&answers, None, None);
+        insta::assert_snapshot!(format!("{:?}", result));
+    }
+
+    #[test]
+    fn resolve_package_custom_name_snapshot() {
+        let answers = vec![
+            PromptAnswer::Text("my-plugin".to_string()),
+            PromptAnswer::Text("A cool plugin".to_string()),
+            PromptAnswer::Selected(1), // skill
+        ];
+        let result = resolve_package_answers(&answers, None, None);
+        insta::assert_snapshot!(format!("{:?}", result));
+    }
+
+    #[test]
+    fn resolve_package_each_type_snapshot() {
+        let types = ["Composite", "Skill", "Agent", "Mcp", "Hook", "Lsp"];
+        let mut out = String::new();
+        for (i, label) in types.iter().enumerate() {
+            let answers = vec![
+                PromptAnswer::Text(String::new()),
+                PromptAnswer::Text(String::new()),
+                PromptAnswer::Selected(i),
+            ];
+            let (_, pt) = resolve_package_answers(&answers, None, None);
+            out.push_str(&format!("index {} -> {:?} (expected {})\n", i, pt, label));
+        }
+        insta::assert_snapshot!(out);
+    }
+
+    #[test]
+    fn resolve_package_with_name_flag_snapshot() {
+        // Only description + type prompts shown (name skipped)
+        let answers = vec![
+            PromptAnswer::Text(String::new()), // description
+            PromptAnswer::Selected(2),         // agent
+        ];
+        let result = resolve_package_answers(&answers, Some("preset-name"), None);
+        insta::assert_snapshot!(format!("{:?}", result));
+    }
+
+    #[test]
+    fn resolve_package_with_type_flag_snapshot() {
+        // Name + description prompts shown (type skipped)
+        let answers =
+            vec![PromptAnswer::Text("custom".to_string()), PromptAnswer::Text(String::new())];
+        let result = resolve_package_answers(&answers, None, Some(PluginType::Agent));
+        insta::assert_snapshot!(format!("{:?}", result));
+    }
+
+    #[test]
+    fn resolve_package_with_both_flags_snapshot() {
+        // Only description prompt shown
+        let answers = vec![PromptAnswer::Text("desc".to_string())];
+        let result = resolve_package_answers(&answers, Some("preset"), Some(PluginType::Hook));
+        insta::assert_snapshot!(format!("{:?}", result));
+    }
+
+    // =========================================================================
+    // Validator unit tests
+    // =========================================================================
+
+    #[test]
+    fn validate_package_name_accepts_lowercase() {
+        assert!(validate_package_name("my-plugin").is_ok());
+    }
+
+    #[test]
+    fn validate_package_name_accepts_scoped() {
+        assert!(validate_package_name("@org/my-plugin").is_ok());
+    }
+
+    #[test]
+    fn validate_package_name_accepts_empty_for_default() {
+        assert!(validate_package_name("").is_ok());
+    }
+
+    #[test]
+    fn validate_package_name_accepts_digits() {
+        assert!(validate_package_name("123abc").is_ok());
+    }
+
+    #[test]
+    fn validate_package_name_rejects_uppercase() {
+        assert!(validate_package_name("MyPlugin").is_err());
+    }
+
+    #[test]
+    fn validate_package_name_rejects_spaces() {
+        assert!(validate_package_name("my plugin").is_err());
+    }
+
+    #[test]
+    fn validate_package_name_rejects_special_chars() {
+        assert!(validate_package_name("my_plugin!").is_err());
+    }
+
+    #[test]
+    fn validate_package_name_rejects_underscores() {
+        assert!(validate_package_name("my_plugin").is_err());
+    }
+
+    // =========================================================================
+    // Theming snapshot
+    // =========================================================================
+
+    #[test]
+    fn styled_render_config_snapshot() {
+        let config = styled_render_config();
+        let summary = format!(
+            "prompt_prefix: {:?}\nanswered_prefix: {:?}\nplaceholder: {:?}",
+            config.prompt_prefix, config.answered_prompt_prefix, config.placeholder,
+        );
+        insta::assert_snapshot!(summary);
+    }
+
+    // =========================================================================
+    // plugin_type_from_index coverage
+    // =========================================================================
+
+    #[test]
+    fn plugin_type_from_index_out_of_range() {
+        assert!(plugin_type_from_index(6).is_none());
+        assert!(plugin_type_from_index(100).is_none());
+    }
+
+    #[test]
+    fn plugin_type_from_index_all_valid() {
+        assert_eq!(plugin_type_from_index(0), Some(PluginType::Composite));
+        assert_eq!(plugin_type_from_index(1), Some(PluginType::Skill));
+        assert_eq!(plugin_type_from_index(2), Some(PluginType::Agent));
+        assert_eq!(plugin_type_from_index(3), Some(PluginType::Mcp));
+        assert_eq!(plugin_type_from_index(4), Some(PluginType::Hook));
+        assert_eq!(plugin_type_from_index(5), Some(PluginType::Lsp));
+    }
+}

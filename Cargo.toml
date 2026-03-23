@@ -26,6 +26,7 @@ libaipm = { path = "crates/libaipm", version = "0.4.1" }
 
 # CLI
 clap = { version = "4", features = ["derive"] }
+inquire = { version = "0.9", default-features = false, features = ["crossterm", "one-liners"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

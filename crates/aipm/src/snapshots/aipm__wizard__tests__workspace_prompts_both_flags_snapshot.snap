@@ -1,0 +1,8 @@
+---
+source: crates/aipm/src/wizard.rs
+expression: format_steps(&steps)
+---
+Step 1:
+  Label: Include starter plugin?
+  Kind: Confirm (default: true)
+  Help: Adds scaffold-plugin skill, marketplace-scanner agent, and logging hook

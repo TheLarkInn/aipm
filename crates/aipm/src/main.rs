@@ -2,7 +2,9 @@
 //!
 //! Commands: init, install, validate, doctor, link, update, uninstall.
 
-use std::io::Write;
+mod wizard;
+
+use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
@@ -18,6 +20,10 @@ struct Cli {
 enum Commands {
     /// Initialize a workspace for AI plugin management.
     Init {
+        /// Skip interactive prompts, use all defaults.
+        #[arg(short = 'y', long)]
+        yes: bool,
+
         /// Generate a workspace manifest (aipm.toml with [workspace] section).
         #[arg(long)]
         workspace: bool,
@@ -40,12 +46,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
-        Some(Commands::Init { workspace, marketplace, no_starter, dir }) => {
+        Some(Commands::Init { yes, workspace, marketplace, no_starter, dir }) => {
             let dir = if dir.as_os_str() == "." { std::env::current_dir()? } else { dir };
 
-            // If neither flag is set, default to marketplace only
-            let (do_workspace, do_marketplace) =
-                if !workspace && !marketplace { (false, true) } else { (workspace, marketplace) };
+            let interactive = !yes && std::io::stdin().is_terminal();
+
+            let (do_workspace, do_marketplace, do_no_starter) =
+                wizard::resolve(interactive, (workspace, marketplace, no_starter))?;
 
             let adaptors = libaipm::workspace_init::adaptors::defaults();
 
@@ -53,7 +60,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 dir: &dir,
                 workspace: do_workspace,
                 marketplace: do_marketplace,
-                no_starter,
+                no_starter: do_no_starter,
             };
 
             let result = libaipm::workspace_init::init(&opts, &adaptors, &libaipm::fs::Real)?;
@@ -65,7 +72,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                         format!("Initialized workspace in {}", dir.display())
                     },
                     libaipm::workspace_init::InitAction::MarketplaceCreated => {
-                        if no_starter {
+                        if do_no_starter {
                             "Created .ai/ marketplace (no starter plugin)".to_string()
                         } else {
                             "Created .ai/ marketplace with starter plugin".to_string()

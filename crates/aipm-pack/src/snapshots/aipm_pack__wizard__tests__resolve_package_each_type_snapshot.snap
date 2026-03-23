@@ -1,0 +1,10 @@
+---
+source: crates/aipm-pack/src/wizard.rs
+expression: out
+---
+index 0 -> Some(Composite) (expected Composite)
+index 1 -> Some(Skill) (expected Skill)
+index 2 -> Some(Agent) (expected Agent)
+index 3 -> Some(Mcp) (expected Mcp)
+index 4 -> Some(Hook) (expected Hook)
+index 5 -> Some(Lsp) (expected Lsp)

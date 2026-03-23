@@ -260,3 +260,61 @@ fn no_subcommand_prints_version_and_usage() {
         .stdout(predicate::str::contains("aipm-pack"))
         .stdout(predicate::str::contains("--help"));
 }
+
+// =========================================================================
+// --yes / -y flag tests
+// =========================================================================
+
+#[test]
+fn yes_flag_creates_default_package() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("yes-pkg");
+    std::fs::create_dir_all(&dir).unwrap();
+
+    aipm_pack().args(["init", "-y", &dir.display().to_string()]).assert().success();
+
+    let content = std::fs::read_to_string(dir.join("aipm.toml")).unwrap();
+    assert!(content.contains("type = \"composite\""));
+    assert!(content.contains("version = \"0.1.0\""));
+}
+
+#[test]
+fn yes_long_form_works() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("yes-long-pkg");
+    std::fs::create_dir_all(&dir).unwrap();
+
+    aipm_pack().args(["init", "--yes", &dir.display().to_string()]).assert().success();
+
+    assert!(dir.join("aipm.toml").exists());
+}
+
+#[test]
+fn yes_flag_with_name_override() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("yes-name-pkg");
+    std::fs::create_dir_all(&dir).unwrap();
+
+    aipm_pack()
+        .args(["init", "-y", "--name", "custom-name", &dir.display().to_string()])
+        .assert()
+        .success();
+
+    let content = std::fs::read_to_string(dir.join("aipm.toml")).unwrap();
+    assert!(content.contains("name = \"custom-name\""));
+}
+
+#[test]
+fn yes_flag_with_type_override() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("yes-type-pkg");
+    std::fs::create_dir_all(&dir).unwrap();
+
+    aipm_pack()
+        .args(["init", "-y", "--type", "skill", &dir.display().to_string()])
+        .assert()
+        .success();
+
+    let content = std::fs::read_to_string(dir.join("aipm.toml")).unwrap();
+    assert!(content.contains("type = \"skill\""));
+}
