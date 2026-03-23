@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.4.2] - 2026-03-23
+
+### Features
+- Add interactive init wizards with inquire ([#50](https://github.com/TheLarkInn/aipm/pull/50)) (e5b64de)
+
 ## [0.4.1] - 2026-03-22
 
 ### Documentation
