@@ -942,6 +942,10 @@ mod tests {
         fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
             Ok(String::new())
         }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
     }
 
     struct FailWriteFs;
@@ -961,6 +965,10 @@ mod tests {
 
         fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
             Ok(String::new())
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
         }
     }
 

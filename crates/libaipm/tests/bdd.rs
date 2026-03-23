@@ -685,6 +685,135 @@ async fn then_gitignore_contains(world: &mut AipmWorld, expected: String) {
 }
 
 // =========================================================================
+// Migrate — setup steps
+// =========================================================================
+
+#[given(expr = "a workspace initialized in {string}")]
+async fn given_workspace_initialized(world: &mut AipmWorld, dir: String) {
+    run_command(world, "aipm init", Some(&dir));
+    assert_eq!(world.last_exit_code, Some(0), "aipm init failed: {}", world.last_stderr);
+}
+
+#[given(expr = "a skill {string} exists in {string}")]
+async fn given_skill_exists(world: &mut AipmWorld, name: String, dir: String) {
+    let base = world.dir_path(&dir);
+    let skill_dir = base.join(".claude").join("skills").join(&name);
+    std::fs::create_dir_all(&skill_dir).expect("create skill dir");
+    std::fs::write(
+        skill_dir.join("SKILL.md"),
+        format!("---\nname: {name}\ndescription: {name} skill\n---\n{name} instructions"),
+    )
+    .expect("write SKILL.md");
+}
+
+#[given(expr = "a command {string} exists in {string}")]
+async fn given_command_exists(world: &mut AipmWorld, name: String, dir: String) {
+    let base = world.dir_path(&dir);
+    let cmd_dir = base.join(".claude").join("commands");
+    std::fs::create_dir_all(&cmd_dir).expect("create commands dir");
+    std::fs::write(cmd_dir.join(format!("{name}.md")), format!("{name} instructions"))
+        .expect("write command");
+}
+
+#[given(expr = "a pre-existing plugin directory {string} in {string}")]
+async fn given_preexisting_plugin(world: &mut AipmWorld, name: String, dir: String) {
+    let base = world.dir_path(&dir);
+    std::fs::create_dir_all(base.join(".ai").join(&name)).expect("create plugin dir");
+}
+
+// =========================================================================
+// Migrate — assertion steps
+// =========================================================================
+
+#[then(expr = "a plugin directory exists at {string} in {string}")]
+async fn then_plugin_dir_exists(world: &mut AipmWorld, subpath: String, dir: String) {
+    let path = world.dir_path(&dir).join(&subpath);
+    assert!(path.is_dir(), "expected directory {} to exist", path.display());
+}
+
+#[then(expr = "no plugin directory exists at {string} in {string}")]
+async fn then_no_plugin_dir(world: &mut AipmWorld, subpath: String, dir: String) {
+    let path = world.dir_path(&dir).join(&subpath);
+    assert!(!path.exists(), "expected {} to NOT exist", path.display());
+}
+
+#[then(expr = "the file {string} in {string} contains {string}")]
+async fn then_file_contains(world: &mut AipmWorld, file: String, dir: String, expected: String) {
+    let path = world.dir_path(&dir).join(&file);
+    let content = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+    assert!(
+        content.contains(&expected),
+        "expected '{}' to contain '{}'\ngot: {}",
+        file,
+        expected,
+        content
+    );
+}
+
+#[then(expr = "the file {string} in {string} does not contain {string}")]
+async fn then_file_not_contains(
+    world: &mut AipmWorld,
+    file: String,
+    dir: String,
+    unexpected: String,
+) {
+    let path = world.dir_path(&dir).join(&file);
+    let content = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("failed to read {}: {e}", path.display()));
+    assert!(
+        !content.contains(&unexpected),
+        "expected '{}' to NOT contain '{}'\ngot: {}",
+        file,
+        unexpected,
+        content
+    );
+}
+
+#[then(expr = "the marketplace.json in {string} contains plugin {string}")]
+async fn then_marketplace_contains_plugin(world: &mut AipmWorld, dir: String, name: String) {
+    let path = world.dir_path(&dir).join(".ai/.claude-plugin/marketplace.json");
+    let content = std::fs::read_to_string(&path).expect("read marketplace.json");
+    let json: serde_json::Value = serde_json::from_str(&content).expect("parse marketplace.json");
+    let plugins = json["plugins"].as_array().expect("plugins array");
+    let found = plugins.iter().any(|p| p["name"] == name);
+    assert!(found, "expected plugin '{name}' in marketplace.json\ngot: {content}");
+}
+
+#[then(expr = "the output contains {string}")]
+async fn then_output_contains(world: &mut AipmWorld, expected: String) {
+    assert!(
+        world.last_stdout.contains(&expected),
+        "expected stdout to contain '{}'\ngot: {}",
+        expected,
+        world.last_stdout
+    );
+}
+
+#[then(expr = "the error contains {string}")]
+async fn then_error_contains(world: &mut AipmWorld, expected: String) {
+    let combined = format!("{}{}", world.last_stdout, world.last_stderr);
+    assert!(
+        combined.contains(&expected),
+        "expected error to contain '{}'\ngot stdout: {}\nstderr: {}",
+        expected,
+        world.last_stdout,
+        world.last_stderr
+    );
+}
+
+#[then("the command fails")]
+async fn then_command_fails(world: &mut AipmWorld) {
+    assert_ne!(
+        world.last_exit_code,
+        Some(0),
+        "expected failure but succeeded\nstdout: {}\nstderr: {}",
+        world.last_stdout,
+        world.last_stderr
+    );
+}
+
+// =========================================================================
 // Main
 // =========================================================================
 
@@ -704,7 +833,10 @@ fn main() {
                 .unwrap_or_default();
             matches!(
                 name.as_ref(),
-                "init.feature" | "versioning.feature" | "workspace-init.feature"
+                "init.feature"
+                    | "versioning.feature"
+                    | "workspace-init.feature"
+                    | "migrate.feature"
             )
         },
     ));

@@ -1,330 +1,311 @@
 [
   {
-    "category": "dependency",
-    "description": "Add inquire crate with minimal features to workspace and CLI crates",
+    "category": "refactor",
+    "description": "Extend Fs trait with read_dir method and DirEntry type for directory scanning",
     "steps": [
-      "Add `inquire = { version = \"0.9\", default-features = false, features = [\"crossterm\", \"one-liners\"] }` to `[workspace.dependencies]` in root Cargo.toml",
-      "Add `inquire = { workspace = true }` to `[dependencies]` in crates/aipm/Cargo.toml",
-      "Add `inquire = { workspace = true }` to `[dependencies]` in crates/aipm-pack/Cargo.toml",
-      "Do NOT add inquire to crates/libaipm/Cargo.toml — library stays headless",
-      "Run `cargo build --workspace` to verify dependency resolution",
-      "Run `cargo clippy --workspace -- -D warnings` to verify no lint issues from the new dep"
+      "Add `DirEntry` struct with `name: String` and `is_dir: bool` fields to `crates/libaipm/src/fs.rs`",
+      "Add `fn read_dir(&self, path: &Path) -> std::io::Result<Vec<DirEntry>>` to the `Fs` trait",
+      "Implement `read_dir` for the `Real` struct using `std::fs::read_dir`, collecting entries into `Vec<DirEntry>`",
+      "In the `Real::read_dir` impl, use `entry?.file_type()?.is_dir()` for the `is_dir` field and `entry?.file_name().to_string_lossy().into_owned()` for `name`",
+      "Update ALL existing mock `Fs` implementations in test code (e.g., `FailFs`, `CountingFs` in `init.rs`, and any in `workspace_init/` tests) to include a `read_dir` stub that returns `Ok(Vec::new())`",
+      "Run `cargo build --workspace` to verify compilation",
+      "Run `cargo clippy --workspace -- -D warnings` to verify no lint issues"
     ],
     "passes": true
   },
   {
     "category": "refactor",
-    "description": "Create PromptStep/PromptKind/PromptAnswer types for testable wizard architecture",
+    "description": "Add unit tests for Fs::read_dir Real implementation",
     "steps": [
-      "Create crates/aipm-pack/src/wizard.rs with `mod wizard;` declaration in main.rs",
-      "Define `PromptStep` struct with fields: label (&'static str), kind (PromptKind), help (Option<&'static str>)",
-      "Define `PromptKind` enum with variants: Select { options, default_index }, Confirm { default }, Text { placeholder }",
-      "Define `PromptAnswer` enum with variants: Selected(usize), Bool(bool), Text(String)",
-      "Implement Debug for all types (needed for snapshot tests)",
-      "Define `format_steps()` helper function for snapshot serialization",
-      "Run `cargo build -p aipm-pack` to verify compilation"
+      "In `crates/libaipm/src/fs.rs` `#[cfg(test)]` module, add test `real_read_dir_lists_entries`: create a temp dir with files and subdirs, call `Real.read_dir()`, assert correct entries returned",
+      "Add test `real_read_dir_empty_dir`: create empty temp dir, assert `read_dir` returns empty Vec",
+      "Add test `real_read_dir_nonexistent`: call `read_dir` on nonexistent path, assert `io::Error` returned",
+      "Add test `real_read_dir_distinguishes_files_and_dirs`: create temp dir with both files and subdirs, assert `is_dir` flags are correct for each",
+      "Run `cargo test -p libaipm` to verify all pass",
+      "Run `cargo clippy -p libaipm -- -D warnings`"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Implement package_prompt_steps() that builds prompt definitions from flags",
+    "description": "Create migrate module with core types: Options, MigrateResult, MigrateAction, Artifact, ArtifactKind, ArtifactMetadata, Error",
     "steps": [
-      "In crates/aipm-pack/src/wizard.rs, implement `package_prompt_steps(dir, flag_name, flag_type) -> Vec<PromptStep>`",
-      "When flag_name is None: add Text prompt with label 'Package name:', placeholder = dir basename or 'my-plugin'",
-      "Always add Text prompt for description with placeholder 'An AI plugin package'",
-      "When flag_type is None: add Select prompt with all 6 plugin types, default_index 0 (composite)",
-      "Select options: 'composite — skills + agents + hooks (recommended)', 'skill — single skill', 'agent — autonomous agent', 'mcp — Model Context Protocol server', 'hook — lifecycle hook', 'lsp — Language Server Protocol'",
-      "When flag_name is Some: skip the name prompt entirely",
-      "When flag_type is Some: skip the type prompt entirely",
-      "When both flags are Some: only description prompt remains",
-      "Run `cargo build -p aipm-pack`"
+      "Create directory `crates/libaipm/src/migrate/`",
+      "Create `crates/libaipm/src/migrate/mod.rs` with all public type definitions: `ArtifactKind` enum (Skill, Command), `ArtifactMetadata` struct (name, description, hooks, model_invocation_disabled), `Artifact` struct, `Options` struct, `MigrateAction` enum (PluginCreated, MarketplaceRegistered, Renamed, Skipped, DryRunReport), `MigrateResult` struct, `Error` enum with thiserror derive",
+      "Add submodule declarations: `pub mod detector;`, `pub mod skill_detector;`, `pub mod command_detector;`, `pub mod emitter;`, `pub mod registrar;`, `pub mod dry_run;`",
+      "Create stub files for each submodule (empty or with placeholder types) so the module compiles",
+      "Add `pub mod migrate;` to `crates/libaipm/src/lib.rs`",
+      "Run `cargo build -p libaipm` to verify compilation",
+      "Run `cargo clippy -p libaipm -- -D warnings`"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Implement resolve_package_answers() that maps wizard answers to Options values",
+    "description": "Implement Detector trait and claude_detectors() factory function",
     "steps": [
-      "In crates/aipm-pack/src/wizard.rs, implement `resolve_package_answers(answers, dir, flag_name, flag_type) -> (Option<String>, Option<PluginType>)`",
-      "If flag_name was provided, use it directly (no corresponding answer in the array)",
-      "If flag_name was None and answer text is empty, return None (use placeholder default)",
-      "If flag_name was None and answer text is non-empty, return Some(text)",
-      "Description answer is consumed but not returned (Options struct has no description field yet)",
-      "If flag_type was provided, use it directly",
-      "If flag_type was None, parse the selected option index to PluginType (index 0=composite, 1=skill, 2=agent, 3=mcp, 4=hook, 5=lsp)",
-      "Run `cargo build -p aipm-pack`"
+      "In `crates/libaipm/src/migrate/detector.rs`, define the `Detector` trait with `fn name(&self) -> &'static str` and `fn detect(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Artifact>, Error>`",
+      "Implement `claude_detectors()` function that returns `Vec<Box<dyn Detector>>` containing `SkillDetector` and `CommandDetector`",
+      "Ensure the trait is `pub` and usable from outside the module",
+      "Run `cargo build -p libaipm`"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Implement validate_package_name() as an extracted testable function",
+    "description": "Implement SkillDetector with frontmatter parsing, script reference extraction, and recursive file collection",
     "steps": [
-      "In crates/aipm-pack/src/wizard.rs, implement `validate_package_name(input: &str) -> Result<(), String>`",
-      "Accept empty string (means 'use default')",
-      "Accept lowercase alphanumeric with hyphens",
-      "Accept scoped names in @org/name format",
-      "Reject uppercase characters",
-      "Reject spaces and special characters (underscores, exclamation marks, etc.)",
-      "Reject names starting with a hyphen",
-      "Return descriptive error message string on rejection",
-      "Run `cargo build -p aipm-pack`"
+      "In `crates/libaipm/src/migrate/skill_detector.rs`, implement `SkillDetector` struct with `Detector` trait",
+      "Implement `detect()`: scan `source_dir.join(\"skills\")` using `fs.read_dir()`, iterate directory entries, skip non-dirs, skip dirs without `SKILL.md`",
+      "Implement `parse_skill_frontmatter(content: &str) -> Result<ArtifactMetadata, Error>`: split on `---` delimiters, extract YAML block, parse `name`, `description`, `hooks` fields line-by-line (no YAML parser dependency \u00e2\u20ac\u201d use simple string matching)",
+      "Implement `extract_script_references(content: &str) -> Vec<PathBuf>`: scan markdown body for `${CLAUDE_SKILL_DIR}/scripts/<path>` and `${CLAUDE_SKILL_DIR}/<path>` patterns using string matching or regex-free approach",
+      "Implement `collect_files_recursive(dir: &Path, base: &Path, fs: &dyn Fs) -> Result<Vec<PathBuf>, Error>`: walk directory tree using `fs.read_dir()`, return all file paths relative to `base`",
+      "Use artifact name from frontmatter `name` field if present, otherwise use directory name",
+      "Run `cargo build -p libaipm`",
+      "Run `cargo clippy -p libaipm -- -D warnings`"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Implement execute_prompts() thin bridge from PromptStep to inquire .prompt() calls",
+    "description": "Implement CommandDetector with command-to-skill conversion logic",
     "steps": [
-      "In crates/aipm-pack/src/wizard.rs, implement `execute_prompts(steps: &[PromptStep]) -> Result<Vec<PromptAnswer>, Box<dyn std::error::Error>>`",
-      "For each PromptStep, match on kind and construct the corresponding inquire prompt type",
-      "PromptKind::Text → inquire::Text::new(label).with_placeholder(placeholder).with_help_message(help).prompt()",
-      "PromptKind::Select → inquire::Select::new(label, options).with_help_message(help).prompt() and return index",
-      "PromptKind::Confirm → inquire::Confirm::new(label).with_default(default).with_help_message(help).prompt()",
-      "Wire validate_package_name into the Text prompt for the package name step via .with_validator()",
-      "Return Vec<PromptAnswer> in same order as input steps",
-      "Ensure no unwrap(), expect(), or println!() — use ? operator throughout",
-      "Run `cargo build -p aipm-pack`"
+      "In `crates/libaipm/src/migrate/command_detector.rs`, implement `CommandDetector` struct with `Detector` trait",
+      "Implement `detect()`: scan `source_dir.join(\"commands\")` using `fs.read_dir()`, iterate entries, skip directories, skip non-.md files",
+      "Strip `.md` extension from filename to derive the command name",
+      "Implement `parse_command_frontmatter(content: &str) -> ArtifactMetadata`: extract frontmatter if present, always set `model_invocation_disabled = true`",
+      "Reuse `extract_script_references()` from skill_detector module (consider making it a shared helper in mod.rs or a helpers submodule)",
+      "Set `artifact.files` to `vec![PathBuf::from(&entry.name)]` (single file)",
+      "Set `artifact.source_path` to the full path of the command .md file",
+      "Run `cargo build -p libaipm`",
+      "Run `cargo clippy -p libaipm -- -D warnings`"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Implement public package_wizard() function that composes steps + execution + resolution",
+    "description": "Implement emitter module: plugin directory creation, file copying, path rewriting, hooks extraction, manifest/JSON generation",
     "steps": [
-      "In crates/aipm-pack/src/wizard.rs, implement `package_wizard(dir, flag_name, flag_type) -> Result<(Option<String>, Option<PluginType>), Box<dyn std::error::Error>>`",
-      "Call package_prompt_steps() to get the step list",
-      "Call execute_prompts() to get answers from the user",
-      "Call resolve_package_answers() to map answers to final values",
-      "Return the resolved (name, plugin_type) tuple",
-      "Run `cargo build -p aipm-pack`"
+      "In `crates/libaipm/src/migrate/emitter.rs`, implement `emit_plugin()` function per spec section 5.7",
+      "Implement `resolve_plugin_name()` for name conflict resolution: if name exists in `existing_names`, increment counter, return `{name}-renamed-{counter}`, push `MigrateAction::Renamed`",
+      "Implement `rewrite_skill_dir_paths(content, skill_name)`: replace `${CLAUDE_SKILL_DIR}/scripts/` with `${CLAUDE_SKILL_DIR}/../../scripts/`",
+      "Implement `file_is_skill_md(path)`: check if filename is `SKILL.md` (case-sensitive)",
+      "Implement command-to-skill conversion in emit: for `ArtifactKind::Command`, create `skills/<name>/SKILL.md` with frontmatter wrapper adding `disable-model-invocation: true`",
+      "Implement `convert_hooks_yaml_to_json(hooks_yaml: &str) -> Result<String, Error>`: convert YAML hooks block to JSON format for `hooks.json`",
+      "Implement `generate_plugin_manifest(artifact, plugin_name)` per spec section 5.10: produce `[package]` + `[components]` TOML",
+      "Implement `generate_plugin_json(name, metadata)` per spec section 5.11: produce JSON with name, version, description",
+      "Use `crate::workspace_init::write_file` helper (or equivalent) for writing files through Fs",
+      "Run `cargo build -p libaipm`",
+      "Run `cargo clippy -p libaipm -- -D warnings`"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Add --yes/-y flag and TTY detection to aipm-pack init",
+    "description": "Implement registrar module: append migrated plugins to marketplace.json",
     "steps": [
-      "In crates/aipm-pack/src/main.rs, add `yes: bool` field with `#[arg(short = 'y', long)]` to Commands::Init",
-      "Add `use std::io::IsTerminal;` import",
-      "Add `mod wizard;` declaration",
-      "In run() Init handler, compute `let interactive = !yes && std::io::stdin().is_terminal();`",
-      "If interactive: call wizard::package_wizard(&dir, name.as_deref(), plugin_type)? to get (final_name, final_type)",
-      "If not interactive: use existing (name, plugin_type) values directly (today's behavior)",
-      "Build Options with the resolved values and call init::init()",
-      "Run `cargo build -p aipm-pack`",
-      "Run `cargo clippy -p aipm-pack -- -D warnings`",
-      "Run `cargo test -p aipm-pack` to verify existing E2E tests still pass"
-    ],
-    "passes": true
-  },
-  {
-    "category": "testing",
-    "description": "Snapshot tests for package wizard prompt step definitions (all flag combinations)",
-    "steps": [
-      "In crates/aipm-pack/src/wizard.rs #[cfg(test)] module, add `use insta::assert_snapshot;`",
-      "Add test: package_prompts_no_flags_snapshot — calls package_prompt_steps(dir, None, None), snapshots format_steps()",
-      "Add test: package_prompts_name_flag_snapshot — calls package_prompt_steps(dir, Some('custom-name'), None), snapshots result",
-      "Add test: package_prompts_type_flag_snapshot — calls package_prompt_steps(dir, None, Some(PluginType::Skill)), snapshots result",
-      "Add test: package_prompts_all_flags_snapshot — calls package_prompt_steps(dir, Some('foo'), Some(PluginType::Mcp)), snapshots result showing only description prompt",
-      "Add test: package_prompts_placeholder_uses_dir_name — asserts placeholder equals dir file_name",
-      "Run `cargo test -p aipm-pack` and `cargo insta review` to accept new snapshots",
-      "Verify snapshot files are created in crates/aipm-pack/src/snapshots/"
-    ],
-    "passes": true
-  },
-  {
-    "category": "testing",
-    "description": "Snapshot tests for package wizard answer resolution (all answer combinations)",
-    "steps": [
-      "Add test: resolve_package_defaults_snapshot — empty text answers + select index 0, assert snapshot shows (None, Some(Composite))",
-      "Add test: resolve_package_custom_name_snapshot — 'my-plugin' text + select index 1, assert snapshot shows (Some('my-plugin'), Some(Skill))",
-      "Add test: resolve_package_each_type_snapshot — test select indices 0-5 map to correct PluginType variants",
-      "Add test: resolve_package_with_name_flag_snapshot — flag_name=Some('preset'), verify name answer is not consumed from array",
-      "Add test: resolve_package_with_type_flag_snapshot — flag_type=Some(Agent), verify select answer is not consumed from array",
-      "Run `cargo test -p aipm-pack` and `cargo insta review`"
-    ],
-    "passes": true
-  },
-  {
-    "category": "testing",
-    "description": "Unit tests for package name validator (valid and invalid inputs)",
-    "steps": [
-      "Add test: validate_package_name_accepts_lowercase — 'my-plugin' is Ok",
-      "Add test: validate_package_name_accepts_scoped — '@org/my-plugin' is Ok",
-      "Add test: validate_package_name_accepts_empty_for_default — '' is Ok",
-      "Add test: validate_package_name_accepts_digits — '123abc' is Ok",
-      "Add test: validate_package_name_rejects_uppercase — 'MyPlugin' is Err",
-      "Add test: validate_package_name_rejects_spaces — 'my plugin' is Err",
-      "Add test: validate_package_name_rejects_special_chars — 'my_plugin!' is Err",
-      "Add test: validate_package_name_rejects_underscores — 'my_plugin' is Err",
-      "Run `cargo test -p aipm-pack`"
-    ],
-    "passes": true
-  },
-  {
-    "category": "testing",
-    "description": "E2E tests for aipm-pack init --yes/-y flag",
-    "steps": [
-      "In crates/aipm-pack/tests/init_e2e.rs, add test: yes_flag_creates_default_package — run `aipm-pack init -y <dir>`, assert success, assert aipm.toml exists with composite type",
-      "Add test: yes_long_form_works — run `aipm-pack init --yes <dir>`, assert same behavior as -y",
-      "Add test: yes_flag_with_name_override — run `aipm-pack init -y --name custom <dir>`, assert aipm.toml contains 'custom'",
-      "Add test: yes_flag_with_type_override — run `aipm-pack init -y --type skill <dir>`, assert aipm.toml contains 'type = \"skill\"'",
-      "Ensure all tests use assert_cmd piped stdin pattern (non-TTY)",
-      "Run `cargo test -p aipm-pack`"
+      "In `crates/libaipm/src/migrate/registrar.rs`, implement `register_plugins(ai_dir, plugin_names, fs)` per spec section 5.12",
+      "Read `.ai/.claude-plugin/marketplace.json` via `fs.read_to_string()`",
+      "Parse as `serde_json::Value`, get mutable reference to `plugins` array",
+      "For each plugin name: check if already registered (by name field), skip if so, otherwise append `{name, source, description}` entry",
+      "Serialize back with `serde_json::to_string_pretty` + trailing newline",
+      "Write back via `fs.write_file()`",
+      "Map parse errors to `Error::MarketplaceJsonParse`",
+      "Run `cargo build -p libaipm`",
+      "Run `cargo clippy -p libaipm -- -D warnings`"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Implement workspace_prompt_steps() that builds prompt definitions from flags",
+    "description": "Implement dry_run module: generate structured markdown report",
     "steps": [
-      "Create crates/aipm/src/wizard.rs with `mod wizard;` declaration in main.rs",
-      "Implement `workspace_prompt_steps(flag_workspace, flag_marketplace, flag_no_starter) -> Vec<PromptStep>`",
-      "When neither workspace nor marketplace flag is set: add Select prompt with 3 options (Marketplace only, Workspace only, Both)",
-      "When marketplace is selected and no_starter is false: add Confirm prompt for 'Include starter plugin?' with default true",
-      "When workspace flag is set: skip setup-mode select (workspace=true, marketplace=flag_marketplace)",
-      "When marketplace flag is set: skip setup-mode select (workspace=flag_workspace, marketplace=true)",
-      "When both flags set: skip setup-mode select",
-      "When no_starter flag set OR marketplace not selected: skip the starter confirm prompt",
-      "When all 3 flags set: return empty Vec (no prompts needed)",
-      "Run `cargo build -p aipm`"
+      "In `crates/libaipm/src/migrate/dry_run.rs`, implement `generate_report(artifacts, existing_plugins, source_name) -> String`",
+      "Generate report header: `# aipm migrate \u00e2\u20ac\u201d Dry Run Report`, source, artifact count",
+      "Group artifacts by kind (Skills section, Legacy Commands section)",
+      "For each artifact: list source path, target path, files to copy, manifest changes, marketplace.json entry, path rewrites, hooks extraction status, conflict status",
+      "Generate summary table at the end: plugins to create, marketplace entries to add, name conflicts (auto-renamed), hooks to extract",
+      "Use the same `resolve_plugin_name` logic (or simulate it) to show what renames would occur",
+      "Run `cargo build -p libaipm`",
+      "Run `cargo clippy -p libaipm -- -D warnings`"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Implement resolve_workspace_answers() that maps wizard answers to Options values",
+    "description": "Implement migrate() orchestrator function wiring detectors, emitter, and registrar",
     "steps": [
-      "In crates/aipm/src/wizard.rs, implement `resolve_workspace_answers(answers, flag_workspace, flag_marketplace, flag_no_starter) -> (bool, bool, bool)`",
-      "If flags were set: use flag values directly (no corresponding answers in array)",
-      "Select index 0 (Marketplace only) → (false, true)",
-      "Select index 1 (Workspace only) → (true, false)",
-      "Select index 2 (Both) → (true, true)",
-      "Confirm true → no_starter=false, Confirm false → no_starter=true (inverted: 'include' vs 'no_starter')",
-      "When marketplace was not selected: no_starter defaults to false (no starter prompt shown)",
-      "Run `cargo build -p aipm`"
+      "In `crates/libaipm/src/migrate/mod.rs`, implement `pub fn migrate(opts: &Options<'_>, fs: &dyn Fs) -> Result<MigrateResult, Error>` per spec section 5.14",
+      "Validate prerequisites: check `.ai/` exists (return `Error::MarketplaceNotFound`), check source dir exists (return `Error::SourceNotFound`)",
+      "Resolve detectors via `detector::claude_detectors()` for `.claude` source",
+      "Run all detectors, collect artifacts into `Vec<Artifact>`",
+      "Implement `collect_existing_plugin_names(ai_dir, fs)` using `fs.read_dir()` to get existing plugin directory names as `HashSet<String>`",
+      "If `opts.dry_run`: call `dry_run::generate_report()`, write to `aipm-migrate-dryrun-report.md`, return early with `DryRunReport` action",
+      "Otherwise: iterate artifacts, call `emitter::emit_plugin()` for each, collect actions and registered names",
+      "Call `registrar::register_plugins()` to append all to marketplace.json",
+      "Return `MigrateResult` with all collected actions",
+      "Run `cargo build -p libaipm`",
+      "Run `cargo clippy -p libaipm -- -D warnings`"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Implement execute_prompts() and workspace_wizard() for aipm workspace init",
+    "description": "Add Commands::Migrate variant to aipm CLI and implement dispatch",
     "steps": [
-      "In crates/aipm/src/wizard.rs, implement execute_prompts() same pattern as aipm-pack",
-      "Implement `workspace_wizard(flag_workspace, flag_marketplace, flag_no_starter) -> Result<(bool, bool, bool), Box<dyn std::error::Error>>`",
-      "Composes workspace_prompt_steps() + execute_prompts() + resolve_workspace_answers()",
-      "Ensure no unwrap(), expect(), or println!() — use ? operator throughout",
-      "Run `cargo build -p aipm`"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Add --yes/-y flag and TTY detection to aipm init",
-    "steps": [
-      "In crates/aipm/src/main.rs, add `yes: bool` field with `#[arg(short = 'y', long)]` to Commands::Init",
-      "Add `use std::io::IsTerminal;` import",
-      "Add `mod wizard;` declaration",
-      "In run() Init handler, compute `let interactive = !yes && std::io::stdin().is_terminal();`",
-      "If interactive: call wizard::workspace_wizard(workspace, marketplace, no_starter)? to get (do_workspace, do_marketplace, do_no_starter)",
-      "If not interactive: use today's defaulting logic (if neither flag set → marketplace only)",
-      "Pass resolved values to Options and call workspace_init::init()",
-      "Preserve existing output (action messages to stdout)",
+      "In `crates/aipm/src/main.rs`, add `Migrate` variant to `Commands` enum with fields: `dry_run: bool` (`#[arg(long)]`), `source: String` (`#[arg(long, default_value = \".claude\")]`), `dir: PathBuf` (`#[arg(default_value = \".\")]`)",
+      "Add doc comment: `/// Migrate AI tool configurations into marketplace plugins`",
+      "Add `Some(Commands::Migrate { dry_run, source, dir }) =>` match arm in `run()` function",
+      "Resolve `dir` (if `.` replace with `std::env::current_dir()?`)",
+      "Build `libaipm::migrate::Options` and call `libaipm::migrate::migrate()`",
+      "Print each `MigrateAction` to stdout using `writeln!` with `let _ =` pattern",
+      "Handle all action variants: PluginCreated, MarketplaceRegistered, Renamed, Skipped, DryRunReport",
+      "Add necessary `use` imports for `libaipm::migrate::MigrateAction`",
       "Run `cargo build -p aipm`",
-      "Run `cargo clippy -p aipm -- -D warnings`",
-      "Run `cargo test -p aipm` to verify existing E2E tests still pass"
+      "Run `cargo clippy -p aipm -- -D warnings`"
     ],
     "passes": true
   },
   {
     "category": "testing",
-    "description": "Snapshot tests for workspace wizard prompt step definitions (all 6 flag combinations)",
+    "description": "Unit tests for SkillDetector (8 tests covering all scan scenarios)",
     "steps": [
-      "In crates/aipm/src/wizard.rs #[cfg(test)] module, add snapshot tests using insta",
-      "Add test: workspace_prompts_no_flags_snapshot — (false, false, false) → Select + Confirm prompts",
-      "Add test: workspace_prompts_workspace_flag_snapshot — (true, false, false) → no prompts (no marketplace selected → no starter prompt)",
-      "Add test: workspace_prompts_marketplace_flag_snapshot — (false, true, false) → only Confirm prompt",
-      "Add test: workspace_prompts_both_flags_snapshot — (true, true, false) → only Confirm prompt",
-      "Add test: workspace_prompts_no_starter_flag_snapshot — (false, true, true) → no prompts (marketplace set, no_starter set)",
-      "Add test: workspace_prompts_all_flags_snapshot — (true, true, true) → empty Vec",
-      "Run `cargo test -p aipm` and `cargo insta review`"
+      "In `crates/libaipm/src/migrate/skill_detector.rs` `#[cfg(test)]` module, create a `MockFs` implementation with configurable directory listings and file contents",
+      "Add test `detect_skill_with_skill_md`: mock `.claude/skills/deploy/` with `SKILL.md`, assert returns 1 artifact with correct name, kind=Skill, and files",
+      "Add test `detect_skill_without_skill_md`: mock skill dir without SKILL.md, assert returns 0 artifacts",
+      "Add test `detect_skill_with_scripts`: mock SKILL.md body containing `${CLAUDE_SKILL_DIR}/scripts/deploy.sh`, assert `referenced_scripts` is populated",
+      "Add test `detect_skill_extracts_frontmatter`: mock SKILL.md with `---\\nname: my-deploy\\ndescription: Deploy app\\nhooks:\\n  PreToolUse: ...\\n---`, assert metadata fields populated",
+      "Add test `detect_skill_no_skills_dir`: mock `.claude/` without `skills/` subdirectory, assert returns empty Vec",
+      "Add test `detect_skill_empty_skills_dir`: mock empty `skills/` directory, assert returns empty Vec",
+      "Add test `detect_multiple_skills`: mock two skill directories, assert returns 2 artifacts",
+      "Add test `detect_skill_nested_files`: mock skill with `examples/` subdir and `reference.md`, assert all files collected recursively",
+      "Run `cargo test -p libaipm`"
     ],
     "passes": true
   },
   {
     "category": "testing",
-    "description": "Snapshot tests for workspace wizard answer resolution (all select indices and confirm values)",
+    "description": "Unit tests for CommandDetector (7 tests covering all detection scenarios)",
     "steps": [
-      "Add test: resolve_workspace_marketplace_only_snapshot — Select(0) + Bool(true) → (false, true, false)",
-      "Add test: resolve_workspace_manifest_only_snapshot — Select(1) → (true, false, false)",
-      "Add test: resolve_workspace_both_snapshot — Select(2) + Bool(true) → (true, true, false)",
-      "Add test: resolve_workspace_decline_starter_snapshot — Select(0) + Bool(false) → (false, true, true)",
-      "Add test: resolve_workspace_flags_bypass_snapshot — with flag_workspace=true, verify no answers consumed for setup mode",
-      "Run `cargo test -p aipm` and `cargo insta review`"
+      "In `crates/libaipm/src/migrate/command_detector.rs` `#[cfg(test)]` module, reuse or create a `MockFs`",
+      "Add test `detect_command_md_file`: mock `commands/review.md`, assert returns 1 artifact with kind=Command",
+      "Add test `detect_command_adds_disable_model_invocation`: assert metadata.model_invocation_disabled is true",
+      "Add test `detect_command_with_frontmatter`: mock command with `---\\nname: review\\ndescription: Code review\\n---`, assert metadata parsed",
+      "Add test `detect_command_without_frontmatter`: mock plain markdown, assert metadata has defaults + model_invocation_disabled=true",
+      "Add test `detect_command_ignores_non_md`: mock `commands/readme.txt`, assert skipped",
+      "Add test `detect_command_ignores_directories`: mock subdirectory in commands/, assert skipped",
+      "Add test `detect_no_commands_dir`: mock `.claude/` without `commands/`, assert empty Vec",
+      "Run `cargo test -p libaipm`"
     ],
     "passes": true
   },
   {
     "category": "testing",
-    "description": "E2E tests for aipm init --yes/-y flag",
+    "description": "Unit tests for emitter module (9 tests covering plugin creation, path rewriting, hooks extraction, command conversion)",
     "steps": [
-      "In crates/aipm/tests/init_e2e.rs, add test: yes_flag_creates_default_marketplace — run `aipm init -y <dir>`, assert .ai/starter-aipm-plugin exists",
-      "Add test: yes_long_form_works — run `aipm init --yes <dir>`, assert same behavior as -y",
-      "Add test: yes_flag_with_workspace_override — run `aipm init -y --workspace --marketplace <dir>`, assert both aipm.toml and .ai/ exist",
-      "Add test: yes_flag_marketplace_only — run `aipm init -y <dir>`, assert aipm.toml does NOT exist (marketplace only is the default)",
-      "Ensure all tests use assert_cmd piped stdin pattern (non-TTY)",
+      "In `crates/libaipm/src/migrate/emitter.rs` `#[cfg(test)]` module, create a recording `MockFs` that tracks all write operations",
+      "Add test `emit_creates_plugin_directory_structure`: assert `create_dir_all` called for plugin dir, `.claude-plugin/`, `skills/<name>/`",
+      "Add test `emit_generates_valid_aipm_toml`: capture written aipm.toml content, pass through `crate::manifest::parse_and_validate()`, assert Ok",
+      "Add test `emit_generates_plugin_json`: capture written plugin.json, parse as serde_json::Value, assert name/version/description fields",
+      "Add test `emit_copies_skill_files`: assert all artifact.files are written to correct destinations",
+      "Add test `emit_copies_referenced_scripts`: assert scripts written to `scripts/` directory",
+      "Add test `emit_rewrites_claude_skill_dir`: assert `${CLAUDE_SKILL_DIR}/scripts/` replaced with `${CLAUDE_SKILL_DIR}/../../scripts/`",
+      "Add test `emit_extracts_hooks_to_json`: mock artifact with hooks metadata, assert `hooks/hooks.json` written with valid JSON",
+      "Add test `emit_command_as_skill`: mock Command artifact, assert `skills/<name>/SKILL.md` created with `disable-model-invocation: true`",
+      "Add test `emit_command_wraps_with_frontmatter`: mock command without frontmatter, assert SKILL.md has `---` wrapper with name and disable-model-invocation",
+      "Run `cargo test -p libaipm`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "testing",
+    "description": "Unit tests for name conflict resolution (3 tests)",
+    "steps": [
+      "In the emitter or mod.rs `#[cfg(test)]` module, add test `resolve_name_no_conflict`: name not in existing set, assert returns unchanged name and no Renamed action",
+      "Add test `resolve_name_conflict_renames`: name exists in set, assert returns `<name>-renamed-1` and pushes Renamed action",
+      "Add test `resolve_name_multiple_conflicts`: two different names both conflict, assert sequential IDs `-renamed-1`, `-renamed-2`",
+      "Run `cargo test -p libaipm`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "testing",
+    "description": "Unit tests for registrar module (4 tests covering marketplace.json manipulation)",
+    "steps": [
+      "In `crates/libaipm/src/migrate/registrar.rs` `#[cfg(test)]` module, create a MockFs with readable/writable marketplace.json",
+      "Add test `register_appends_to_empty_plugins_array`: mock marketplace.json with empty plugins array, register 2 plugins, assert both appear in written JSON",
+      "Add test `register_appends_alongside_existing`: mock with existing `starter-aipm-plugin` entry, register new plugin, assert both old and new entries present",
+      "Add test `register_skips_already_registered`: mock with existing `deploy` entry, register `deploy` again, assert no duplicate",
+      "Add test `register_preserves_marketplace_metadata`: assert `name`, `owner`, `metadata` top-level fields unchanged after registration",
+      "Run `cargo test -p libaipm`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "testing",
+    "description": "Unit tests for dry-run report generation (4 tests)",
+    "steps": [
+      "In `crates/libaipm/src/migrate/dry_run.rs` `#[cfg(test)]` module, add test `dry_run_report_lists_all_artifacts`: pass 2 artifacts, assert report contains sections for both",
+      "Add test `dry_run_report_shows_conflict_renames`: pass artifact whose name conflicts with existing, assert report shows renamed target",
+      "Add test `dry_run_report_shows_file_list`: pass artifact with files, assert report lists each file",
+      "Add test `dry_run_report_summary_table`: assert report ends with markdown summary table with correct counts",
+      "Run `cargo test -p libaipm`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "testing",
+    "description": "Unit tests for orchestrator function (5 tests covering error paths and full flow)",
+    "steps": [
+      "In `crates/libaipm/src/migrate/mod.rs` `#[cfg(test)]` module, add test `migrate_errors_if_no_ai_dir`: mock where `.ai/` does not exist, assert `Error::MarketplaceNotFound`",
+      "Add test `migrate_errors_if_no_source_dir`: mock where `.claude/` does not exist, assert `Error::SourceNotFound`",
+      "Add test `migrate_dry_run_writes_report`: set `dry_run: true`, assert report file written and no plugin directories created",
+      "Add test `migrate_empty_source`: mock empty `.claude/skills/` and no `.claude/commands/`, assert empty MigrateResult with no errors",
+      "Add test `migrate_full_flow`: mock 1 skill + 1 command, assert PluginCreated + MarketplaceRegistered actions for both",
+      "Run `cargo test -p libaipm`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "testing",
+    "description": "E2E tests for aipm migrate command (14 tests with assert_cmd + tempfile)",
+    "steps": [
+      "Create `crates/aipm/tests/migrate_e2e.rs` with `#![allow(clippy::unwrap_used, clippy::expect_used)]` for test code",
+      "Add helper function `aipm() -> Command` using `Command::cargo_bin(\"aipm\")`",
+      "Add helper to set up a workspace with marketplace: run `aipm init` in a temp dir",
+      "Add helper to create a skill: write `.claude/skills/<name>/SKILL.md` with sample content",
+      "Add helper to create a command: write `.claude/commands/<name>.md` with sample content",
+      "Add test `migrate_skill_creates_plugin`: set up skill, run `aipm migrate`, verify `.ai/deploy/aipm.toml` exists with correct content",
+      "Add test `migrate_command_creates_plugin`: set up command, verify `.ai/review/skills/review/SKILL.md` has `disable-model-invocation: true`",
+      "Add test `migrate_registers_in_marketplace`: verify `marketplace.json` plugins array contains new entry",
+      "Add test `migrate_does_not_enable_plugin`: verify `.claude/settings.json` does NOT contain `deploy@local-repo-plugins` in enabledPlugins",
+      "Add test `migrate_preserves_originals`: verify `.claude/skills/deploy/SKILL.md` still exists after migration",
+      "Add test `migrate_handles_name_conflict`: pre-create `.ai/deploy/` dir, run migrate, verify `deploy-renamed-1` directory created",
+      "Add test `migrate_dry_run_creates_report`: run with `--dry-run`, verify `aipm-migrate-dryrun-report.md` exists and `.ai/deploy/` does NOT exist",
+      "Add test `migrate_dry_run_no_side_effects`: verify marketplace.json unchanged after dry-run",
+      "Add test `migrate_no_ai_dir_errors`: skip `aipm init`, run migrate, assert failure with error mentioning `aipm init`",
+      "Add test `migrate_no_source_dir_errors`: init workspace but no `.claude/` dir, assert failure",
+      "Add test `migrate_empty_skills_dir`: create empty `.claude/skills/`, assert success with no plugin dirs created",
+      "Add test `migrate_multiple_skills`: create 2 skills, assert 2 plugin dirs + 2 marketplace entries",
+      "Add test `migrate_skill_with_scripts`: create skill referencing script, assert `scripts/` dir created in plugin",
+      "Add test `migrate_help_output`: run `aipm migrate --help`, assert contains `--dry-run` and `--source`",
       "Run `cargo test -p aipm`"
     ],
     "passes": true
   },
   {
-    "category": "ui",
-    "description": "Implement styled_render_config() for consistent theming across both CLIs",
-    "steps": [
-      "Create a shared theming function (either in each wizard.rs or in a shared module)",
-      "Set prompt_prefix to '?' with LightCyan foreground",
-      "Set answered_prefix to '✓' with LightGreen foreground",
-      "Set placeholder style to DarkGrey foreground",
-      "Call `inquire::set_global_render_config(styled_render_config())` at the start of run() before any wizard calls",
-      "Only apply when interactive=true (skip when -y or non-TTY)",
-      "Run `cargo build --workspace`"
-    ],
-    "passes": true
-  },
-  {
     "category": "testing",
-    "description": "Snapshot test for theming RenderConfig to detect visual regressions",
+    "description": "BDD feature scenarios for aipm migrate and wire into bdd.rs filter",
     "steps": [
-      "Add test: styled_render_config_snapshot — call styled_render_config(), snapshot prompt_prefix, answered_prefix, and placeholder fields",
-      "Verify snapshot captures color values (LightCyan, LightGreen, DarkGrey)",
-      "Verify snapshot captures prefix text ('?' and '✓')",
-      "Run `cargo test` and `cargo insta review`"
-    ],
-    "passes": true
-  },
-  {
-    "category": "testing",
-    "description": "BDD feature scenarios for --yes flag on both CLIs",
-    "steps": [
-      "Add scenario to tests/features/manifest/workspace-init.feature: '--yes flag skips interactive prompts' — `aipm init --yes ws` succeeds, .ai/starter-aipm-plugin exists",
-      "Add scenario: '-y short flag works' — `aipm init -y ws` succeeds, .ai/ exists",
-      "Add scenario to tests/features/manifest/init.feature: '--yes flag skips interactive prompts for package init' — `aipm-pack init --yes pkg` succeeds, aipm.toml has composite type",
-      "Run `cargo test --workspace` to verify BDD scenarios pass"
-    ],
-    "passes": true
-  },
-  {
-    "category": "testing",
-    "description": "Verify all snapshot files via cargo insta review before committing",
-    "steps": [
-      "Run `cargo insta review` to interactively inspect all new .snap files",
-      "Verify workspace prompt snapshots match expected step sequences from spec section 5.3",
-      "Verify package prompt snapshots match expected step sequences from spec section 5.4",
-      "Verify answer resolution snapshots produce correct Options values",
-      "Verify theming snapshot matches spec section 5.5 values",
-      "Accept all correct snapshots, fix any that don't match expectations"
+      "Create `tests/features/manifest/migrate.feature` with the 7 Gherkin scenarios from spec section 8.3",
+      "In `crates/libaipm/tests/bdd.rs`, add Given step: `a skill {string} exists in {string}` \u00e2\u20ac\u201d creates the skill directory + SKILL.md in the scenario's temp dir",
+      "Add Given step: `a command {string} exists in {string}` \u00e2\u20ac\u201d creates the command .md file",
+      "Add Given step: `a plugin directory exists at {string}` \u00e2\u20ac\u201d creates a pre-existing directory in .ai/",
+      "Add Given step: `a workspace initialized with marketplace` \u00e2\u20ac\u201d runs `aipm init` in the scenario root (or sets up .ai/ + marketplace.json programmatically)",
+      "Add When step: `I run {string}` \u00e2\u20ac\u201d extend existing `run_command` to handle `aipm migrate` and its flags",
+      "Add Then steps for: plugin directory existence, file content assertions (`contains`), marketplace.json plugin presence, settings.json non-containment, file still-exists checks, output-contains assertions, dry-run report existence, no-plugin-directory-exists",
+      "Add `\"migrate.feature\"` to the filename filter list in `bdd.rs` main function (around line 698-709)",
+      "Run `cargo test -p libaipm -- bdd` to verify BDD scenarios pass"
     ],
     "passes": true
   },
@@ -332,24 +313,25 @@
     "category": "testing",
     "description": "Verify all four build gates pass with zero warnings",
     "steps": [
-      "Run `cargo build --workspace` — must succeed",
-      "Run `cargo test --workspace` — must succeed (all existing + new tests pass)",
-      "Run `cargo clippy --workspace -- -D warnings` — must succeed with zero warnings",
-      "Run `cargo fmt --check` — must succeed"
+      "Run `cargo build --workspace` \u00e2\u20ac\u201d must succeed with no errors",
+      "Run `cargo test --workspace` \u00e2\u20ac\u201d must succeed with all existing + new tests passing",
+      "Run `cargo clippy --workspace -- -D warnings` \u00e2\u20ac\u201d must succeed with zero warnings",
+      "Run `cargo fmt --check` \u00e2\u20ac\u201d must succeed with no formatting issues"
     ],
     "passes": true
   },
   {
     "category": "testing",
-    "description": "Verify branch coverage gate (89%) for wizard modules",
+    "description": "Verify branch coverage gate (89%) including new migrate modules",
     "steps": [
       "Run `cargo +nightly llvm-cov clean --workspace`",
       "Run `cargo +nightly llvm-cov --no-report --workspace --branch`",
       "Run `cargo +nightly llvm-cov --no-report --doc`",
-      "Run `cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/)'`",
+      "Run `cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs)'`",
       "Verify TOTAL branch column shows >= 89%",
-      "If coverage drops: add more snapshot tests for uncovered branches in prompt_steps/resolve functions",
-      "The execute_prompts() function (TTY-dependent) will have 0% coverage — ensure the testable logic around it compensates"
+      "If coverage drops below 89%: identify uncovered branches in migrate modules and add targeted tests",
+      "The dry_run and emitter modules should have high coverage since all logic operates through testable Fs trait",
+      "If any TTY-dependent code is added later, exclude it via the coverage regex pattern"
     ],
     "passes": true
   }

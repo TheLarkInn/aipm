@@ -41,6 +41,21 @@ enum Commands {
         #[arg(default_value = ".")]
         dir: PathBuf,
     },
+
+    /// Migrate AI tool configurations into marketplace plugins.
+    Migrate {
+        /// Preview migration without writing files (generates report).
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Source folder to scan (default: .claude).
+        #[arg(long, default_value = ".claude")]
+        source: String,
+
+        /// Project directory.
+        #[arg(default_value = ".")]
+        dir: PathBuf,
+    },
 }
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
@@ -84,6 +99,42 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     },
                 };
                 let _ = writeln!(stdout, "{msg}");
+            }
+            Ok(())
+        },
+        Some(Commands::Migrate { dry_run, source, dir }) => {
+            let dir = if dir.as_os_str() == "." { std::env::current_dir()? } else { dir };
+
+            let opts = libaipm::migrate::Options { dir: &dir, source: &source, dry_run };
+
+            let result = libaipm::migrate::migrate(&opts, &libaipm::fs::Real)?;
+
+            let mut stdout = std::io::stdout();
+            for action in &result.actions {
+                match action {
+                    libaipm::migrate::Action::PluginCreated { name, source, plugin_type } => {
+                        let _ = writeln!(
+                            stdout,
+                            "Migrated {plugin_type} '{name}' from {}",
+                            source.display()
+                        );
+                    },
+                    libaipm::migrate::Action::MarketplaceRegistered { name } => {
+                        let _ = writeln!(stdout, "Registered '{name}' in marketplace.json");
+                    },
+                    libaipm::migrate::Action::Renamed { original_name, new_name, reason } => {
+                        let _ = writeln!(
+                            stdout,
+                            "Warning: renamed '{original_name}' → '{new_name}' ({reason})"
+                        );
+                    },
+                    libaipm::migrate::Action::Skipped { name, reason } => {
+                        let _ = writeln!(stdout, "Skipped '{name}': {reason}");
+                    },
+                    libaipm::migrate::Action::DryRunReport { path } => {
+                        let _ = writeln!(stdout, "Dry run report written to {}", path.display());
+                    },
+                }
             }
             Ok(())
         },
