@@ -5,26 +5,33 @@
 //! it requires a real TTY and cannot run in CI.
 //!
 //! All logic (prompt definitions, answer resolution, theming) lives in
-//! [`super::wizard`] and is fully snapshot-tested.
+//! [`super::wizard`] and is fully tested (snapshot + unit tests).
 
 use super::wizard::{
-    resolve_workspace_answers, styled_render_config, workspace_prompt_steps, PromptAnswer,
-    PromptKind, PromptStep,
+    resolve_defaults, resolve_workspace_answers, styled_render_config, workspace_prompt_steps,
+    PromptAnswer, PromptKind, PromptStep,
 };
 
-/// Run the interactive workspace init wizard against a real terminal.
+/// Resolve workspace init options, launching the interactive wizard if needed.
 ///
-/// Sets the global render config, collects user input via `inquire` prompts,
-/// and returns the resolved `(workspace, marketplace, no_starter)` tuple.
-pub fn run(
-    workspace: bool,
-    marketplace: bool,
-    no_starter: bool,
+/// When `interactive` is `true`, sets the global render config, prompts the
+/// user for any values not provided via flags, and returns the resolved tuple.
+/// When `false`, applies today's defaulting logic (marketplace only if no flags).
+///
+/// `flags` is `(workspace, marketplace, no_starter)` from CLI args.
+pub fn resolve(
+    interactive: bool,
+    flags: (bool, bool, bool),
 ) -> Result<(bool, bool, bool), Box<dyn std::error::Error>> {
-    inquire::set_global_render_config(styled_render_config());
-    let steps = workspace_prompt_steps(workspace, marketplace, no_starter);
-    let answers = execute_prompts(&steps)?;
-    Ok(resolve_workspace_answers(&answers, workspace, marketplace, no_starter))
+    let (workspace, marketplace, no_starter) = flags;
+    if interactive {
+        inquire::set_global_render_config(styled_render_config());
+        let steps = workspace_prompt_steps(workspace, marketplace, no_starter);
+        let answers = execute_prompts(&steps)?;
+        Ok(resolve_workspace_answers(&answers, workspace, marketplace, no_starter))
+    } else {
+        Ok(resolve_defaults(workspace, marketplace, no_starter))
+    }
 }
 
 /// Execute prompt steps against the real terminal via `inquire`.
@@ -42,7 +49,12 @@ fn execute_prompts(steps: &[PromptStep]) -> Result<Vec<PromptAnswer>, Box<dyn st
                     prompt = prompt.with_help_message(help);
                 }
                 let choice = prompt.prompt()?;
-                let index = options.iter().position(|o| *o == choice).unwrap_or(0);
+                let index = options.iter().position(|o| *o == choice).ok_or_else(|| {
+                    format!(
+                        "internal error: selected choice `{choice}` not found in options for prompt `{}`",
+                        step.label
+                    )
+                })?;
                 PromptAnswer::Selected(index)
             },
             PromptKind::Confirm { default } => {

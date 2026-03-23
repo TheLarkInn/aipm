@@ -5,6 +5,7 @@ expression: format_steps(&steps)
 Step 1:
   Label: Package name:
   Kind: Text (placeholder: "my-cool-project")
+  Validate: package-name
   Help: Lowercase alphanumeric with hyphens, or @org/name
 
 Step 2:

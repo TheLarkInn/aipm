@@ -37,6 +37,8 @@ pub enum PromptKind {
     Text {
         /// Grey placeholder text (shown when input is empty).
         placeholder: String,
+        /// Whether to apply package-name validation to this input.
+        validate: bool,
     },
 }
 
@@ -95,7 +97,7 @@ pub fn package_prompt_steps(
 
         steps.push(PromptStep {
             label: "Package name:",
-            kind: PromptKind::Text { placeholder },
+            kind: PromptKind::Text { placeholder, validate: true },
             help: Some("Lowercase alphanumeric with hyphens, or @org/name"),
         });
     }
@@ -103,7 +105,7 @@ pub fn package_prompt_steps(
     // Step 2: Description (always shown — no flag for it yet)
     steps.push(PromptStep {
         label: "Description:",
-        kind: PromptKind::Text { placeholder: "An AI plugin package".to_string() },
+        kind: PromptKind::Text { placeholder: "An AI plugin package".to_string(), validate: false },
         help: None,
     });
 
@@ -218,8 +220,11 @@ mod tests {
                         out.push_str(&format!("  {}[{}] {}\n", marker, j, opt));
                     }
                 },
-                PromptKind::Text { placeholder } => {
+                PromptKind::Text { placeholder, validate } => {
                     out.push_str(&format!("  Kind: Text (placeholder: \"{}\")\n", placeholder));
+                    if *validate {
+                        out.push_str("  Validate: package-name\n");
+                    }
                 },
             }
             if let Some(help) = step.help {
@@ -268,7 +273,7 @@ mod tests {
         let steps = package_prompt_steps(dir, None, None);
         let name_step = &steps[0];
         match &name_step.kind {
-            PromptKind::Text { placeholder } => {
+            PromptKind::Text { placeholder, .. } => {
                 assert_eq!(placeholder, "my-cool-project");
             },
             _ => {

@@ -5,7 +5,7 @@
 //! it requires a real TTY and cannot run in CI.
 //!
 //! All logic (prompt definitions, answer resolution, validation, theming)
-//! lives in [`super::wizard`] and is fully snapshot-tested.
+//! lives in [`super::wizard`] and is fully tested (snapshot + unit tests).
 
 use std::path::Path;
 
@@ -19,19 +19,25 @@ use super::wizard::{
 /// Resolved wizard output: `(name, plugin_type)`.
 type WizardResult = (Option<String>, Option<PluginType>);
 
-/// Run the interactive package init wizard against a real terminal.
+/// Resolve package init options, launching the interactive wizard if needed.
 ///
-/// Sets the global render config, collects user input via `inquire` prompts,
-/// and returns the resolved `(name, plugin_type)` tuple.
-pub fn run(
+/// When `interactive` is `true`, sets the global render config, prompts the
+/// user for any values not provided via flags, and returns the resolved tuple.
+/// When `false`, returns the flag values as-is (today's behavior).
+pub fn resolve(
+    interactive: bool,
     dir: &Path,
-    flag_name: Option<&str>,
+    flag_name: Option<String>,
     flag_type: Option<PluginType>,
 ) -> Result<WizardResult, Box<dyn std::error::Error>> {
-    inquire::set_global_render_config(styled_render_config());
-    let steps = package_prompt_steps(dir, flag_name, flag_type);
-    let answers = execute_prompts(&steps)?;
-    Ok(resolve_package_answers(&answers, flag_name, flag_type))
+    if interactive {
+        inquire::set_global_render_config(styled_render_config());
+        let steps = package_prompt_steps(dir, flag_name.as_deref(), flag_type);
+        let answers = execute_prompts(&steps)?;
+        Ok(resolve_package_answers(&answers, flag_name.as_deref(), flag_type))
+    } else {
+        Ok((flag_name, flag_type))
+    }
 }
 
 /// Execute prompt steps against the real terminal via `inquire`.
@@ -42,12 +48,12 @@ fn execute_prompts(steps: &[PromptStep]) -> Result<Vec<PromptAnswer>, Box<dyn st
 
     for step in steps {
         let answer = match &step.kind {
-            PromptKind::Text { placeholder } => {
+            PromptKind::Text { placeholder, validate } => {
                 let mut prompt = inquire::Text::new(step.label).with_placeholder(placeholder);
                 if let Some(help) = step.help {
                     prompt = prompt.with_help_message(help);
                 }
-                if step.label == "Package name:" {
+                if *validate {
                     prompt =
                         prompt.with_validator(|input: &str| match validate_package_name(input) {
                             Ok(()) => Ok(inquire::validator::Validation::Valid),
@@ -64,7 +70,12 @@ fn execute_prompts(steps: &[PromptStep]) -> Result<Vec<PromptAnswer>, Box<dyn st
                     prompt = prompt.with_help_message(help);
                 }
                 let choice = prompt.prompt()?;
-                let index = options.iter().position(|o| *o == choice).unwrap_or(0);
+                let index = options.iter().position(|o| *o == choice).ok_or_else(|| {
+                    format!(
+                        "internal error: selected choice `{choice}` not found in options for prompt `{}`",
+                        step.label
+                    )
+                })?;
                 PromptAnswer::Selected(index)
             },
         };
