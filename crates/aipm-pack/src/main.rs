@@ -3,6 +3,7 @@
 //! Commands: init, pack, publish, yank, login.
 
 mod wizard;
+mod wizard_tty;
 
 use std::io::{IsTerminal, Write};
 use std::path::PathBuf;

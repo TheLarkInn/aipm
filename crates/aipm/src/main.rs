@@ -3,6 +3,7 @@
 //! Commands: init, install, validate, doctor, link, update, uninstall.
 
 mod wizard;
+mod wizard_tty;
 
 use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
