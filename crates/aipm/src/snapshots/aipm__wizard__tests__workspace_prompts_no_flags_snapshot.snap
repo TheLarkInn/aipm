@@ -1,0 +1,16 @@
+---
+source: crates/aipm/src/wizard.rs
+expression: format_steps(&steps)
+---
+Step 1:
+  Label: What would you like to set up?
+  Kind: Select (default: 0)
+   *[0] Marketplace only (recommended)
+    [1] Workspace manifest only
+    [2] Both workspace + marketplace
+  Help: Use arrow keys, Enter to select
+
+Step 2:
+  Label: Include starter plugin?
+  Kind: Confirm (default: true)
+  Help: Adds scaffold-plugin skill, marketplace-scanner agent, and logging hook

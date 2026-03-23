@@ -2,7 +2,9 @@
 //!
 //! Commands: init, pack, publish, yank, login.
 
-use std::io::Write;
+mod wizard;
+
+use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
@@ -20,6 +22,10 @@ struct Cli {
 enum Commands {
     /// Initialize a new AI plugin package.
     Init {
+        /// Skip interactive prompts, use all defaults.
+        #[arg(short = 'y', long)]
+        yes: bool,
+
         /// Package name (defaults to directory name).
         #[arg(long)]
         name: Option<String>,
@@ -38,12 +44,16 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
-        Some(Commands::Init { name, r#type, dir }) => {
+        Some(Commands::Init { yes, name, r#type, dir }) => {
             let plugin_type = r#type.as_deref().map(str::parse::<PluginType>).transpose()?;
 
             let dir = if dir.as_os_str() == "." { std::env::current_dir()? } else { dir };
 
-            let opts = Options { dir: &dir, name: name.as_deref(), plugin_type };
+            let interactive = !yes && std::io::stdin().is_terminal();
+
+            let (final_name, final_type) = wizard::resolve(interactive, &dir, name, plugin_type)?;
+
+            let opts = Options { dir: &dir, name: final_name.as_deref(), plugin_type: final_type };
 
             init::init(&opts, &libaipm::fs::Real)?;
 

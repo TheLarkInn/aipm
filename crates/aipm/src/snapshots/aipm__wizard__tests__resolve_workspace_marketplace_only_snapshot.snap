@@ -1,0 +1,5 @@
+---
+source: crates/aipm/src/wizard.rs
+expression: "format!(\"{:?}\", result)"
+---
+(false, true, false)

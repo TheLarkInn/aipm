@@ -363,3 +363,54 @@ fn scaffold_script_rejects_existing_plugin() {
     let stderr = String::from_utf8_lossy(&out2.stderr);
     assert!(stderr.contains("already exists"), "stderr should mention 'already exists': {stderr}");
 }
+
+// =========================================================================
+// --yes / -y flag tests
+// =========================================================================
+
+#[test]
+fn yes_flag_creates_default_marketplace() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("yes-test");
+
+    aipm().args(["init", "-y", &dir.display().to_string()]).assert().success();
+
+    assert!(!dir.join("aipm.toml").exists(), "aipm.toml should NOT exist (marketplace only)");
+    assert!(dir.join(".ai/starter-aipm-plugin/aipm.toml").exists(), "starter plugin should exist");
+}
+
+#[test]
+fn yes_long_form_works() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("yes-long");
+
+    aipm().args(["init", "--yes", &dir.display().to_string()]).assert().success();
+
+    assert!(dir.join(".ai").exists(), ".ai directory should exist");
+}
+
+#[test]
+fn yes_flag_with_workspace_and_marketplace() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("yes-both");
+
+    aipm()
+        .args(["init", "-y", "--workspace", "--marketplace", &dir.display().to_string()])
+        .assert()
+        .success();
+
+    assert!(dir.join("aipm.toml").exists(), "aipm.toml should exist");
+    assert!(dir.join(".ai").exists(), ".ai directory should exist");
+}
+
+#[test]
+fn yes_flag_marketplace_only_no_workspace() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("yes-mkt");
+
+    aipm().args(["init", "-y", &dir.display().to_string()]).assert().success();
+
+    // Default is marketplace only, no workspace manifest
+    assert!(!dir.join("aipm.toml").exists(), "default -y should NOT create aipm.toml");
+    assert!(dir.join(".ai").exists(), ".ai should exist");
+}

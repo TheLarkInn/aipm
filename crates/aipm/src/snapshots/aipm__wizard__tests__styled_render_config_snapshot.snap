@@ -1,0 +1,7 @@
+---
+source: crates/aipm/src/wizard.rs
+expression: summary
+---
+prompt_prefix: Styled { content: "?", style: StyleSheet { fg: Some(LightCyan), bg: None, att: Attributes(0x0) } }
+answered_prompt_prefix: Styled { content: "✓", style: StyleSheet { fg: Some(LightGreen), bg: None, att: Attributes(0x0) } }
+placeholder: StyleSheet { fg: Some(DarkGrey), bg: None, att: Attributes(0x0) }

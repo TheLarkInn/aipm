@@ -12,6 +12,7 @@ categories.workspace = true
 [dependencies]
 libaipm = { workspace = true }
 clap = { workspace = true }
+inquire = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
@@ -22,6 +23,7 @@ tracing-subscriber = { workspace = true }
 assert_cmd = { workspace = true }
 predicates = { workspace = true }
 tempfile = { workspace = true }
+insta = { workspace = true }
 
 [lints]
 workspace = true

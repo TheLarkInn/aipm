@@ -1,47 +1,356 @@
 [
   {
-    "category": "testing",
-    "description": "Phase 1: Add 5 scoped-name validation edge cases to init.rs invalid_names test",
+    "category": "dependency",
+    "description": "Add inquire crate with minimal features to workspace and CLI crates",
+    "steps": [
+      "Add `inquire = { version = \"0.9\", default-features = false, features = [\"crossterm\", \"one-liners\"] }` to `[workspace.dependencies]` in root Cargo.toml",
+      "Add `inquire = { workspace = true }` to `[dependencies]` in crates/aipm/Cargo.toml",
+      "Add `inquire = { workspace = true }` to `[dependencies]` in crates/aipm-pack/Cargo.toml",
+      "Do NOT add inquire to crates/libaipm/Cargo.toml — library stays headless",
+      "Run `cargo build --workspace` to verify dependency resolution",
+      "Run `cargo clippy --workspace -- -D warnings` to verify no lint issues from the new dep"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Create PromptStep/PromptKind/PromptAnswer types for testable wizard architecture",
+    "steps": [
+      "Create crates/aipm-pack/src/wizard.rs with `mod wizard;` declaration in main.rs",
+      "Define `PromptStep` struct with fields: label (&'static str), kind (PromptKind), help (Option<&'static str>)",
+      "Define `PromptKind` enum with variants: Select { options, default_index }, Confirm { default }, Text { placeholder }",
+      "Define `PromptAnswer` enum with variants: Selected(usize), Bool(bool), Text(String)",
+      "Implement Debug for all types (needed for snapshot tests)",
+      "Define `format_steps()` helper function for snapshot serialization",
+      "Run `cargo build -p aipm-pack` to verify compilation"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Implement package_prompt_steps() that builds prompt definitions from flags",
+    "steps": [
+      "In crates/aipm-pack/src/wizard.rs, implement `package_prompt_steps(dir, flag_name, flag_type) -> Vec<PromptStep>`",
+      "When flag_name is None: add Text prompt with label 'Package name:', placeholder = dir basename or 'my-plugin'",
+      "Always add Text prompt for description with placeholder 'An AI plugin package'",
+      "When flag_type is None: add Select prompt with all 6 plugin types, default_index 0 (composite)",
+      "Select options: 'composite — skills + agents + hooks (recommended)', 'skill — single skill', 'agent — autonomous agent', 'mcp — Model Context Protocol server', 'hook — lifecycle hook', 'lsp — Language Server Protocol'",
+      "When flag_name is Some: skip the name prompt entirely",
+      "When flag_type is Some: skip the type prompt entirely",
+      "When both flags are Some: only description prompt remains",
+      "Run `cargo build -p aipm-pack`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Implement resolve_package_answers() that maps wizard answers to Options values",
+    "steps": [
+      "In crates/aipm-pack/src/wizard.rs, implement `resolve_package_answers(answers, dir, flag_name, flag_type) -> (Option<String>, Option<PluginType>)`",
+      "If flag_name was provided, use it directly (no corresponding answer in the array)",
+      "If flag_name was None and answer text is empty, return None (use placeholder default)",
+      "If flag_name was None and answer text is non-empty, return Some(text)",
+      "Description answer is consumed but not returned (Options struct has no description field yet)",
+      "If flag_type was provided, use it directly",
+      "If flag_type was None, parse the selected option index to PluginType (index 0=composite, 1=skill, 2=agent, 3=mcp, 4=hook, 5=lsp)",
+      "Run `cargo build -p aipm-pack`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Implement validate_package_name() as an extracted testable function",
+    "steps": [
+      "In crates/aipm-pack/src/wizard.rs, implement `validate_package_name(input: &str) -> Result<(), String>`",
+      "Accept empty string (means 'use default')",
+      "Accept lowercase alphanumeric with hyphens",
+      "Accept scoped names in @org/name format",
+      "Reject uppercase characters",
+      "Reject spaces and special characters (underscores, exclamation marks, etc.)",
+      "Reject names starting with a hyphen",
+      "Return descriptive error message string on rejection",
+      "Run `cargo build -p aipm-pack`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Implement execute_prompts() thin bridge from PromptStep to inquire .prompt() calls",
+    "steps": [
+      "In crates/aipm-pack/src/wizard.rs, implement `execute_prompts(steps: &[PromptStep]) -> Result<Vec<PromptAnswer>, Box<dyn std::error::Error>>`",
+      "For each PromptStep, match on kind and construct the corresponding inquire prompt type",
+      "PromptKind::Text → inquire::Text::new(label).with_placeholder(placeholder).with_help_message(help).prompt()",
+      "PromptKind::Select → inquire::Select::new(label, options).with_help_message(help).prompt() and return index",
+      "PromptKind::Confirm → inquire::Confirm::new(label).with_default(default).with_help_message(help).prompt()",
+      "Wire validate_package_name into the Text prompt for the package name step via .with_validator()",
+      "Return Vec<PromptAnswer> in same order as input steps",
+      "Ensure no unwrap(), expect(), or println!() — use ? operator throughout",
+      "Run `cargo build -p aipm-pack`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Implement public package_wizard() function that composes steps + execution + resolution",
+    "steps": [
+      "In crates/aipm-pack/src/wizard.rs, implement `package_wizard(dir, flag_name, flag_type) -> Result<(Option<String>, Option<PluginType>), Box<dyn std::error::Error>>`",
+      "Call package_prompt_steps() to get the step list",
+      "Call execute_prompts() to get answers from the user",
+      "Call resolve_package_answers() to map answers to final values",
+      "Return the resolved (name, plugin_type) tuple",
+      "Run `cargo build -p aipm-pack`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add --yes/-y flag and TTY detection to aipm-pack init",
+    "steps": [
+      "In crates/aipm-pack/src/main.rs, add `yes: bool` field with `#[arg(short = 'y', long)]` to Commands::Init",
+      "Add `use std::io::IsTerminal;` import",
+      "Add `mod wizard;` declaration",
+      "In run() Init handler, compute `let interactive = !yes && std::io::stdin().is_terminal();`",
+      "If interactive: call wizard::package_wizard(&dir, name.as_deref(), plugin_type)? to get (final_name, final_type)",
+      "If not interactive: use existing (name, plugin_type) values directly (today's behavior)",
+      "Build Options with the resolved values and call init::init()",
+      "Run `cargo build -p aipm-pack`",
+      "Run `cargo clippy -p aipm-pack -- -D warnings`",
+      "Run `cargo test -p aipm-pack` to verify existing E2E tests still pass"
+    ],
     "passes": true
   },
   {
     "category": "testing",
-    "description": "Phase 1: Add multiple_errors_format_with_separator test for manifest/error.rs",
+    "description": "Snapshot tests for package wizard prompt step definitions (all flag combinations)",
+    "steps": [
+      "In crates/aipm-pack/src/wizard.rs #[cfg(test)] module, add `use insta::assert_snapshot;`",
+      "Add test: package_prompts_no_flags_snapshot — calls package_prompt_steps(dir, None, None), snapshots format_steps()",
+      "Add test: package_prompts_name_flag_snapshot — calls package_prompt_steps(dir, Some('custom-name'), None), snapshots result",
+      "Add test: package_prompts_type_flag_snapshot — calls package_prompt_steps(dir, None, Some(PluginType::Skill)), snapshots result",
+      "Add test: package_prompts_all_flags_snapshot — calls package_prompt_steps(dir, Some('foo'), Some(PluginType::Mcp)), snapshots result showing only description prompt",
+      "Add test: package_prompts_placeholder_uses_dir_name — asserts placeholder equals dir file_name",
+      "Run `cargo test -p aipm-pack` and `cargo insta review` to accept new snapshots",
+      "Verify snapshot files are created in crates/aipm-pack/src/snapshots/"
+    ],
     "passes": true
   },
   {
     "category": "testing",
-    "description": "Phase 1: Add select_best_returns_none and stable_is_not_prerelease tests for version.rs",
+    "description": "Snapshot tests for package wizard answer resolution (all answer combinations)",
+    "steps": [
+      "Add test: resolve_package_defaults_snapshot — empty text answers + select index 0, assert snapshot shows (None, Some(Composite))",
+      "Add test: resolve_package_custom_name_snapshot — 'my-plugin' text + select index 1, assert snapshot shows (Some('my-plugin'), Some(Skill))",
+      "Add test: resolve_package_each_type_snapshot — test select indices 0-5 map to correct PluginType variants",
+      "Add test: resolve_package_with_name_flag_snapshot — flag_name=Some('preset'), verify name answer is not consumed from array",
+      "Add test: resolve_package_with_type_flag_snapshot — flag_type=Some(Agent), verify select answer is not consumed from array",
+      "Run `cargo test -p aipm-pack` and `cargo insta review`"
+    ],
     "passes": true
   },
   {
     "category": "testing",
-    "description": "Phase 2: Add no_subcommand_prints_version_and_usage E2E test for aipm-pack",
+    "description": "Unit tests for package name validator (valid and invalid inputs)",
+    "steps": [
+      "Add test: validate_package_name_accepts_lowercase — 'my-plugin' is Ok",
+      "Add test: validate_package_name_accepts_scoped — '@org/my-plugin' is Ok",
+      "Add test: validate_package_name_accepts_empty_for_default — '' is Ok",
+      "Add test: validate_package_name_accepts_digits — '123abc' is Ok",
+      "Add test: validate_package_name_rejects_uppercase — 'MyPlugin' is Err",
+      "Add test: validate_package_name_rejects_spaces — 'my plugin' is Err",
+      "Add test: validate_package_name_rejects_special_chars — 'my_plugin!' is Err",
+      "Add test: validate_package_name_rejects_underscores — 'my_plugin' is Err",
+      "Run `cargo test -p aipm-pack`"
+    ],
     "passes": true
   },
   {
     "category": "testing",
-    "description": "Phase 2: Add 3 malformed JSON tests for adaptors/claude.rs",
+    "description": "E2E tests for aipm-pack init --yes/-y flag",
+    "steps": [
+      "In crates/aipm-pack/tests/init_e2e.rs, add test: yes_flag_creates_default_package — run `aipm-pack init -y <dir>`, assert success, assert aipm.toml exists with composite type",
+      "Add test: yes_long_form_works — run `aipm-pack init --yes <dir>`, assert same behavior as -y",
+      "Add test: yes_flag_with_name_override — run `aipm-pack init -y --name custom <dir>`, assert aipm.toml contains 'custom'",
+      "Add test: yes_flag_with_type_override — run `aipm-pack init -y --type skill <dir>`, assert aipm.toml contains 'type = \"skill\"'",
+      "Ensure all tests use assert_cmd piped stdin pattern (non-TTY)",
+      "Run `cargo test -p aipm-pack`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Implement workspace_prompt_steps() that builds prompt definitions from flags",
+    "steps": [
+      "Create crates/aipm/src/wizard.rs with `mod wizard;` declaration in main.rs",
+      "Implement `workspace_prompt_steps(flag_workspace, flag_marketplace, flag_no_starter) -> Vec<PromptStep>`",
+      "When neither workspace nor marketplace flag is set: add Select prompt with 3 options (Marketplace only, Workspace only, Both)",
+      "When marketplace is selected and no_starter is false: add Confirm prompt for 'Include starter plugin?' with default true",
+      "When workspace flag is set: skip setup-mode select (workspace=true, marketplace=flag_marketplace)",
+      "When marketplace flag is set: skip setup-mode select (workspace=flag_workspace, marketplace=true)",
+      "When both flags set: skip setup-mode select",
+      "When no_starter flag set OR marketplace not selected: skip the starter confirm prompt",
+      "When all 3 flags set: return empty Vec (no prompts needed)",
+      "Run `cargo build -p aipm`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Implement resolve_workspace_answers() that maps wizard answers to Options values",
+    "steps": [
+      "In crates/aipm/src/wizard.rs, implement `resolve_workspace_answers(answers, flag_workspace, flag_marketplace, flag_no_starter) -> (bool, bool, bool)`",
+      "If flags were set: use flag values directly (no corresponding answers in array)",
+      "Select index 0 (Marketplace only) → (false, true)",
+      "Select index 1 (Workspace only) → (true, false)",
+      "Select index 2 (Both) → (true, true)",
+      "Confirm true → no_starter=false, Confirm false → no_starter=true (inverted: 'include' vs 'no_starter')",
+      "When marketplace was not selected: no_starter defaults to false (no starter prompt shown)",
+      "Run `cargo build -p aipm`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Implement execute_prompts() and workspace_wizard() for aipm workspace init",
+    "steps": [
+      "In crates/aipm/src/wizard.rs, implement execute_prompts() same pattern as aipm-pack",
+      "Implement `workspace_wizard(flag_workspace, flag_marketplace, flag_no_starter) -> Result<(bool, bool, bool), Box<dyn std::error::Error>>`",
+      "Composes workspace_prompt_steps() + execute_prompts() + resolve_workspace_answers()",
+      "Ensure no unwrap(), expect(), or println!() — use ? operator throughout",
+      "Run `cargo build -p aipm`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add --yes/-y flag and TTY detection to aipm init",
+    "steps": [
+      "In crates/aipm/src/main.rs, add `yes: bool` field with `#[arg(short = 'y', long)]` to Commands::Init",
+      "Add `use std::io::IsTerminal;` import",
+      "Add `mod wizard;` declaration",
+      "In run() Init handler, compute `let interactive = !yes && std::io::stdin().is_terminal();`",
+      "If interactive: call wizard::workspace_wizard(workspace, marketplace, no_starter)? to get (do_workspace, do_marketplace, do_no_starter)",
+      "If not interactive: use today's defaulting logic (if neither flag set → marketplace only)",
+      "Pass resolved values to Options and call workspace_init::init()",
+      "Preserve existing output (action messages to stdout)",
+      "Run `cargo build -p aipm`",
+      "Run `cargo clippy -p aipm -- -D warnings`",
+      "Run `cargo test -p aipm` to verify existing E2E tests still pass"
+    ],
     "passes": true
   },
   {
     "category": "testing",
-    "description": "Phase 2: Add init_marketplace_with_preconfigured_claude_settings test for workspace_init/mod.rs",
+    "description": "Snapshot tests for workspace wizard prompt step definitions (all 6 flag combinations)",
+    "steps": [
+      "In crates/aipm/src/wizard.rs #[cfg(test)] module, add snapshot tests using insta",
+      "Add test: workspace_prompts_no_flags_snapshot — (false, false, false) → Select + Confirm prompts",
+      "Add test: workspace_prompts_workspace_flag_snapshot — (true, false, false) → no prompts (no marketplace selected → no starter prompt)",
+      "Add test: workspace_prompts_marketplace_flag_snapshot — (false, true, false) → only Confirm prompt",
+      "Add test: workspace_prompts_both_flags_snapshot — (true, true, false) → only Confirm prompt",
+      "Add test: workspace_prompts_no_starter_flag_snapshot — (false, true, true) → no prompts (marketplace set, no_starter set)",
+      "Add test: workspace_prompts_all_flags_snapshot — (true, true, true) → empty Vec",
+      "Run `cargo test -p aipm` and `cargo insta review`"
+    ],
     "passes": true
   },
   {
     "category": "testing",
-    "description": "Phase 3: Add FailFs mock and I/O error tests for init.rs",
+    "description": "Snapshot tests for workspace wizard answer resolution (all select indices and confirm values)",
+    "steps": [
+      "Add test: resolve_workspace_marketplace_only_snapshot — Select(0) + Bool(true) → (false, true, false)",
+      "Add test: resolve_workspace_manifest_only_snapshot — Select(1) → (true, false, false)",
+      "Add test: resolve_workspace_both_snapshot — Select(2) + Bool(true) → (true, true, false)",
+      "Add test: resolve_workspace_decline_starter_snapshot — Select(0) + Bool(false) → (false, true, true)",
+      "Add test: resolve_workspace_flags_bypass_snapshot — with flag_workspace=true, verify no answers consumed for setup mode",
+      "Run `cargo test -p aipm` and `cargo insta review`"
+    ],
     "passes": true
   },
   {
     "category": "testing",
-    "description": "Phase 3: Add FailFs mock and I/O error tests for workspace_init/mod.rs",
+    "description": "E2E tests for aipm init --yes/-y flag",
+    "steps": [
+      "In crates/aipm/tests/init_e2e.rs, add test: yes_flag_creates_default_marketplace — run `aipm init -y <dir>`, assert .ai/starter-aipm-plugin exists",
+      "Add test: yes_long_form_works — run `aipm init --yes <dir>`, assert same behavior as -y",
+      "Add test: yes_flag_with_workspace_override — run `aipm init -y --workspace --marketplace <dir>`, assert both aipm.toml and .ai/ exist",
+      "Add test: yes_flag_marketplace_only — run `aipm init -y <dir>`, assert aipm.toml does NOT exist (marketplace only is the default)",
+      "Ensure all tests use assert_cmd piped stdin pattern (non-TTY)",
+      "Run `cargo test -p aipm`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "ui",
+    "description": "Implement styled_render_config() for consistent theming across both CLIs",
+    "steps": [
+      "Create a shared theming function (either in each wizard.rs or in a shared module)",
+      "Set prompt_prefix to '?' with LightCyan foreground",
+      "Set answered_prefix to '✓' with LightGreen foreground",
+      "Set placeholder style to DarkGrey foreground",
+      "Call `inquire::set_global_render_config(styled_render_config())` at the start of run() before any wizard calls",
+      "Only apply when interactive=true (skip when -y or non-TTY)",
+      "Run `cargo build --workspace`"
+    ],
     "passes": true
   },
   {
     "category": "testing",
-    "description": "Final verification: branch coverage at 86.21% — need ~7 more branches for 90%",
-    "passes": false
+    "description": "Snapshot test for theming RenderConfig to detect visual regressions",
+    "steps": [
+      "Add test: styled_render_config_snapshot — call styled_render_config(), snapshot prompt_prefix, answered_prefix, and placeholder fields",
+      "Verify snapshot captures color values (LightCyan, LightGreen, DarkGrey)",
+      "Verify snapshot captures prefix text ('?' and '✓')",
+      "Run `cargo test` and `cargo insta review`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "testing",
+    "description": "BDD feature scenarios for --yes flag on both CLIs",
+    "steps": [
+      "Add scenario to tests/features/manifest/workspace-init.feature: '--yes flag skips interactive prompts' — `aipm init --yes ws` succeeds, .ai/starter-aipm-plugin exists",
+      "Add scenario: '-y short flag works' — `aipm init -y ws` succeeds, .ai/ exists",
+      "Add scenario to tests/features/manifest/init.feature: '--yes flag skips interactive prompts for package init' — `aipm-pack init --yes pkg` succeeds, aipm.toml has composite type",
+      "Run `cargo test --workspace` to verify BDD scenarios pass"
+    ],
+    "passes": true
+  },
+  {
+    "category": "testing",
+    "description": "Verify all snapshot files via cargo insta review before committing",
+    "steps": [
+      "Run `cargo insta review` to interactively inspect all new .snap files",
+      "Verify workspace prompt snapshots match expected step sequences from spec section 5.3",
+      "Verify package prompt snapshots match expected step sequences from spec section 5.4",
+      "Verify answer resolution snapshots produce correct Options values",
+      "Verify theming snapshot matches spec section 5.5 values",
+      "Accept all correct snapshots, fix any that don't match expectations"
+    ],
+    "passes": true
+  },
+  {
+    "category": "testing",
+    "description": "Verify all four build gates pass with zero warnings",
+    "steps": [
+      "Run `cargo build --workspace` — must succeed",
+      "Run `cargo test --workspace` — must succeed (all existing + new tests pass)",
+      "Run `cargo clippy --workspace -- -D warnings` — must succeed with zero warnings",
+      "Run `cargo fmt --check` — must succeed"
+    ],
+    "passes": true
+  },
+  {
+    "category": "testing",
+    "description": "Verify branch coverage gate (89%) for wizard modules",
+    "steps": [
+      "Run `cargo +nightly llvm-cov clean --workspace`",
+      "Run `cargo +nightly llvm-cov --no-report --workspace --branch`",
+      "Run `cargo +nightly llvm-cov --no-report --doc`",
+      "Run `cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/)'`",
+      "Verify TOTAL branch column shows >= 89%",
+      "If coverage drops: add more snapshot tests for uncovered branches in prompt_steps/resolve functions",
+      "The execute_prompts() function (TTY-dependent) will have 0% coverage — ensure the testable logic around it compensates"
+    ],
+    "passes": true
   }
 ]
