@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.4.3] - 2026-03-23
+
+### Refactoring
+- Surgical coverage exclusion for wizard TTY code ([#52](https://github.com/TheLarkInn/aipm/pull/52)) (10cab01)
+
 ## [0.4.2] - 2026-03-23
 
 ### Features
