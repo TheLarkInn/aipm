@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.5.0] - 2026-03-23
+
+### Features
+- Add aipm migrate command ([#55](https://github.com/TheLarkInn/aipm/pull/55)) (237f240)
+
 ## [0.4.3] - 2026-03-23
 
 ## [0.4.2] - 2026-03-23
