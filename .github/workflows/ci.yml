@@ -71,13 +71,13 @@ jobs:
       - name: Generate lcov report
         run: >
           cargo llvm-cov report --doctests --branch
-          --ignore-filename-regex '(tests/|research/|specs/|wizard\.rs)'
+          --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs)'
           --lcov --output-path lcov.info
 
       - name: Enforce 89% branch coverage (strict — never lower this threshold)
         run: |
           OUTPUT=$(cargo llvm-cov report --doctests --branch \
-            --ignore-filename-regex '(tests/|research/|specs/|wizard\.rs)' 2>&1)
+            --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs)' 2>&1)
           echo "$OUTPUT"
           BRANCH_PCT=$(echo "$OUTPUT" | grep '^TOTAL' | awk '{print $NF}' | tr -d '%')
           if [ -z "$BRANCH_PCT" ]; then

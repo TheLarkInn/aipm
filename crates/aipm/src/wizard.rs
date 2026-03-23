@@ -141,39 +141,8 @@ pub fn resolve_workspace_answers(
 }
 
 // =============================================================================
-// Prompt execution — thin bridge to inquire (not unit-tested)
+// Resolve entry point — delegates to wizard_tty for the interactive path
 // =============================================================================
-
-/// Execute prompt steps against the real terminal via `inquire`.
-fn execute_prompts(steps: &[PromptStep]) -> Result<Vec<PromptAnswer>, Box<dyn std::error::Error>> {
-    let mut answers = Vec::with_capacity(steps.len());
-
-    for step in steps {
-        let answer = match &step.kind {
-            PromptKind::Select { options, default_index } => {
-                let mut prompt = inquire::Select::new(step.label, options.clone())
-                    .with_starting_cursor(*default_index);
-                if let Some(help) = step.help {
-                    prompt = prompt.with_help_message(help);
-                }
-                let choice = prompt.prompt()?;
-                let index = options.iter().position(|o| *o == choice).unwrap_or(0);
-                PromptAnswer::Selected(index)
-            },
-            PromptKind::Confirm { default } => {
-                let mut prompt = inquire::Confirm::new(step.label).with_default(*default);
-                if let Some(help) = step.help {
-                    prompt = prompt.with_help_message(help);
-                }
-                let result = prompt.prompt()?;
-                PromptAnswer::Bool(result)
-            },
-        };
-        answers.push(answer);
-    }
-
-    Ok(answers)
-}
 
 /// Resolve workspace init options.
 ///
@@ -187,10 +156,7 @@ pub fn resolve(
 ) -> Result<(bool, bool, bool), Box<dyn std::error::Error>> {
     let (workspace, marketplace, no_starter) = flags;
     if interactive {
-        inquire::set_global_render_config(styled_render_config());
-        let steps = workspace_prompt_steps(workspace, marketplace, no_starter);
-        let answers = execute_prompts(&steps)?;
-        Ok(resolve_workspace_answers(&answers, workspace, marketplace, no_starter))
+        super::wizard_tty::run(workspace, marketplace, no_starter)
     } else {
         let (w, m) =
             if !workspace && !marketplace { (false, true) } else { (workspace, marketplace) };
