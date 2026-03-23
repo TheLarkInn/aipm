@@ -141,27 +141,19 @@ pub fn resolve_workspace_answers(
 }
 
 // =============================================================================
-// Resolve entry point — delegates to wizard_tty for the interactive path
+// Non-interactive defaults
 // =============================================================================
 
-/// Resolve workspace init options.
+/// Apply today's defaulting logic for the non-interactive path.
 ///
-/// When `interactive` is `true`, launches the wizard for any values not set by flags.
-/// When `false`, applies today's defaulting logic (marketplace only if no flags).
-///
-/// `flags` is `(workspace, marketplace, no_starter)` from CLI args.
-pub fn resolve(
-    interactive: bool,
-    flags: (bool, bool, bool),
-) -> Result<(bool, bool, bool), Box<dyn std::error::Error>> {
-    let (workspace, marketplace, no_starter) = flags;
-    if interactive {
-        super::wizard_tty::run(workspace, marketplace, no_starter)
-    } else {
-        let (w, m) =
-            if !workspace && !marketplace { (false, true) } else { (workspace, marketplace) };
-        Ok((w, m, no_starter))
-    }
+/// If neither `--workspace` nor `--marketplace` is set, default to marketplace only.
+pub const fn resolve_defaults(
+    workspace: bool,
+    marketplace: bool,
+    no_starter: bool,
+) -> (bool, bool, bool) {
+    let (w, m) = if !workspace && !marketplace { (false, true) } else { (workspace, marketplace) };
+    (w, m, no_starter)
 }
 
 // =============================================================================
@@ -317,5 +309,30 @@ mod tests {
             config.prompt_prefix, config.answered_prompt_prefix, config.placeholder,
         );
         insta::assert_snapshot!(summary);
+    }
+
+    // =========================================================================
+    // resolve_defaults
+    // =========================================================================
+
+    #[test]
+    fn resolve_defaults_no_flags() {
+        // Neither flag → marketplace only
+        assert_eq!(resolve_defaults(false, false, false), (false, true, false));
+    }
+
+    #[test]
+    fn resolve_defaults_workspace_only() {
+        assert_eq!(resolve_defaults(true, false, false), (true, false, false));
+    }
+
+    #[test]
+    fn resolve_defaults_both_flags() {
+        assert_eq!(resolve_defaults(true, true, false), (true, true, false));
+    }
+
+    #[test]
+    fn resolve_defaults_no_starter() {
+        assert_eq!(resolve_defaults(false, false, true), (false, true, true));
     }
 }

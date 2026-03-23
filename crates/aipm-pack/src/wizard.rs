@@ -178,30 +178,6 @@ pub fn validate_package_name(input: &str) -> Result<(), String> {
 }
 
 // =============================================================================
-// Resolve entry point — delegates to wizard_tty for the interactive path
-// =============================================================================
-
-/// Resolved wizard output: `(name, plugin_type)`.
-type WizardResult = (Option<String>, Option<PluginType>);
-
-/// Resolve package init options.
-///
-/// When `interactive` is `true`, launches the wizard for any values not set by flags.
-/// When `false`, returns the flag values as-is (today's behavior).
-pub fn resolve(
-    interactive: bool,
-    dir: &Path,
-    flag_name: Option<String>,
-    flag_type: Option<PluginType>,
-) -> Result<WizardResult, Box<dyn std::error::Error>> {
-    if interactive {
-        super::wizard_tty::run(dir, flag_name.as_deref(), flag_type)
-    } else {
-        Ok((flag_name, flag_type))
-    }
-}
-
-// =============================================================================
 // Theming
 // =============================================================================
 

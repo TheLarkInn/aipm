@@ -52,8 +52,11 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
             let interactive = !yes && std::io::stdin().is_terminal();
 
-            let (do_workspace, do_marketplace, do_no_starter) =
-                wizard::resolve(interactive, (workspace, marketplace, no_starter))?;
+            let (do_workspace, do_marketplace, do_no_starter) = if interactive {
+                wizard_tty::run(workspace, marketplace, no_starter)?
+            } else {
+                wizard::resolve_defaults(workspace, marketplace, no_starter)
+            };
 
             let adaptors = libaipm::workspace_init::adaptors::defaults();
 
