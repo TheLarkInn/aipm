@@ -386,8 +386,8 @@ pub fn emit_package_plugin(
 
     let first_metadata =
         artifacts.first().map_or_else(ArtifactMetadata::default, |a| a.metadata.clone());
-    let first_kind = artifacts.first().map_or(&ArtifactKind::Skill, |a| &a.kind);
-    let plugin_json = generate_plugin_json(plugin_name, &first_metadata, first_kind);
+    let all_kinds: Vec<ArtifactKind> = artifacts.iter().map(|a| a.kind.clone()).collect();
+    let plugin_json = generate_plugin_json_multi(plugin_name, &first_metadata, &all_kinds);
     write_file(&plugin_dir.join(".claude-plugin").join("plugin.json"), &plugin_json, fs)?;
 
     let plugin_type = if has_multiple_types {
@@ -473,67 +473,60 @@ fn emit_package_artifacts(
     })
 }
 
-/// Copy agent `.md` file to `agents/<name>.md` inside the plugin directory.
+/// Copy agent `.md` file to `agents/<artifact.name>.md` inside the plugin directory.
+///
+/// The destination filename is always derived from `artifact.name` (not the original
+/// filename) so that manifest component paths (`agents/<name>.md`) are consistent.
 fn emit_agent_files(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
     let agents_dir = plugin_dir.join("agents");
     fs.create_dir_all(&agents_dir)?;
 
-    for file in &artifact.files {
-        let source = artifact
-            .source_path
-            .parent()
-            .map_or_else(|| artifact.source_path.join(file), |parent| parent.join(file));
-        // Agent files: source_path is the full path to the .md file,
-        // so we read source_path directly for single-file artifacts.
-        let content = if artifact.files.len() == 1 {
-            fs.read_to_string(&artifact.source_path)?
-        } else {
-            fs.read_to_string(&source)?
-        };
-        let dest = agents_dir.join(file);
-        if let Some(parent) = dest.parent() {
-            fs.create_dir_all(parent)?;
-        }
-        fs.write_file(&dest, content.as_bytes())?;
-    }
+    // Read from source_path (full path to the .md file)
+    let content = fs.read_to_string(&artifact.source_path)?;
+    // Always emit as <artifact.name>.md to match manifest/component paths
+    let dest = agents_dir.join(format!("{}.md", artifact.name));
+    fs.write_file(&dest, content.as_bytes())?;
+
     Ok(())
 }
 
-/// Write MCP config (`raw_content`) to `.mcp.json` at the plugin root.
+/// Write MCP config to `.mcp.json` at the plugin root.
+///
+/// Uses `raw_content` if available, otherwise falls back to reading from `source_path`.
 fn emit_mcp_config(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
-    if let Some(ref content) = artifact.metadata.raw_content {
-        let dest = plugin_dir.join(".mcp.json");
-        fs.write_file(&dest, content.as_bytes())?;
-    }
+    let content = match artifact.metadata.raw_content {
+        Some(ref c) => c.clone(),
+        None => fs.read_to_string(&artifact.source_path)?,
+    };
+    let dest = plugin_dir.join(".mcp.json");
+    fs.write_file(&dest, content.as_bytes())?;
     Ok(())
 }
 
-/// Write hooks config (`raw_content`) to `hooks/hooks.json` inside the plugin directory.
+/// Write hooks config to `hooks/hooks.json` inside the plugin directory.
+///
+/// Uses `raw_content` if available, otherwise falls back to reading from `source_path`.
+/// Rewrites relative `command` paths in hook handlers to absolute paths.
 fn emit_hooks_config(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
-    if let Some(ref content) = artifact.metadata.raw_content {
-        let hooks_dir = plugin_dir.join("hooks");
-        fs.create_dir_all(&hooks_dir)?;
-        write_file(&hooks_dir.join("hooks.json"), content, fs)?;
-    }
+    let content = match artifact.metadata.raw_content {
+        Some(ref c) => c.clone(),
+        None => fs.read_to_string(&artifact.source_path)?,
+    };
+
+    // Rewrite relative command paths to absolute paths (Fix #6)
+    let rewritten = rewrite_hook_command_paths(&content, &artifact.source_path);
+
+    let hooks_dir = plugin_dir.join("hooks");
+    fs.create_dir_all(&hooks_dir)?;
+    write_file(&hooks_dir.join("hooks.json"), &rewritten, fs)?;
     Ok(())
 }
 
-/// Copy output style `.md` file to the plugin root (no subdirectory).
+/// Copy output style `.md` file to the plugin root as `<artifact.name>.md`.
 fn emit_output_style(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
-    for file in &artifact.files {
-        // source_path is the full path to the .md file
-        let content = if artifact.files.len() == 1 {
-            fs.read_to_string(&artifact.source_path)?
-        } else {
-            let source = artifact
-                .source_path
-                .parent()
-                .map_or_else(|| artifact.source_path.join(file), |parent| parent.join(file));
-            fs.read_to_string(&source)?
-        };
-        let dest = plugin_dir.join(file);
-        fs.write_file(&dest, content.as_bytes())?;
-    }
+    let content = fs.read_to_string(&artifact.source_path)?;
+    let dest = plugin_dir.join(format!("{}.md", artifact.name));
+    fs.write_file(&dest, content.as_bytes())?;
     Ok(())
 }
 
@@ -547,17 +540,30 @@ fn copy_referenced_scripts(
     fs.create_dir_all(&scripts_dir)?;
     let scripts_root = Path::new("scripts");
     for script in &artifact.referenced_scripts {
-        // For hook artifacts, scripts are relative to the project root (parent of source_dir)
+        // Normalize the script path: strip leading "./" prefix
+        let normalized = script
+            .to_string_lossy()
+            .strip_prefix("./")
+            .map_or_else(|| script.clone(), PathBuf::from);
+
+        // For hook artifacts, resolve against project root (grandparent of settings.json)
+        // source_path is .claude/settings.json → parent is .claude/ → parent is project root
         let source = if artifact.kind == ArtifactKind::Hook {
-            artifact
+            let project_root = artifact
                 .source_path
-                .parent()
-                .map_or_else(|| artifact.source_path.join(script), |p| p.join(script))
+                .parent() // .claude/
+                .and_then(Path::parent); // project root
+            project_root.map_or_else(
+                || artifact.source_path.join(&normalized),
+                |root| root.join(&normalized),
+            )
         } else {
-            artifact.source_path.join(script)
+            artifact.source_path.join(&normalized)
         };
+
         if fs.exists(&source) {
-            let relative = script.strip_prefix(scripts_root).unwrap_or(script);
+            // Strip "scripts/" prefix for destination to avoid scripts/scripts/
+            let relative = normalized.strip_prefix(scripts_root).unwrap_or(&normalized);
             let dest = scripts_dir.join(relative);
             if let Some(parent) = dest.parent() {
                 fs.create_dir_all(parent)?;
@@ -658,7 +664,8 @@ fn generate_package_manifest(
         }
         let _ = write!(components_section, "scripts = [{}]", all_scripts.join(", "));
     }
-    if has_hooks_yaml {
+    // Only append hooks from skill/command frontmatter when no Hook artifact already emitted hooks
+    if has_hooks_yaml && hook_paths.is_empty() {
         if !components_section.is_empty() {
             components_section.push('\n');
         }
@@ -686,6 +693,76 @@ fn file_is_skill_md(path: &Path) -> bool {
 /// Rewrite `${CLAUDE_SKILL_DIR}/scripts/` paths in SKILL.md content.
 fn rewrite_skill_dir_paths(content: &str) -> String {
     content.replace("${CLAUDE_SKILL_DIR}/scripts/", "${CLAUDE_SKILL_DIR}/../../scripts/")
+}
+
+/// Rewrite relative `command` paths in hook handlers to absolute paths.
+///
+/// Parses the hooks JSON, finds `"type": "command"` handlers, and resolves
+/// relative `command` paths against the project root (derived from `source_path`).
+fn rewrite_hook_command_paths(content: &str, source_path: &Path) -> String {
+    let mut json: serde_json::Value = match serde_json::from_str(content) {
+        Ok(v) => v,
+        Err(_) => return content.to_string(),
+    };
+
+    // source_path is .claude/settings.json → project root is grandparent
+    let project_root = source_path
+        .parent() // .claude/
+        .and_then(Path::parent); // project root
+
+    if let Some(root) = project_root {
+        rewrite_commands_recursive(&mut json, root);
+    }
+
+    serde_json::to_string_pretty(&json).unwrap_or_else(|_| content.to_string())
+}
+
+/// Recursively walk JSON and rewrite relative command paths to absolute.
+fn rewrite_commands_recursive(value: &mut serde_json::Value, project_root: &Path) {
+    match value {
+        serde_json::Value::Object(map) => {
+            let is_command_type =
+                map.get("type").and_then(|v| v.as_str()).is_some_and(|t| t == "command");
+            if is_command_type {
+                if let Some(cmd_val) = map.get_mut("command") {
+                    if let Some(cmd_str) = cmd_val.as_str() {
+                        let rewritten = rewrite_single_command(cmd_str, project_root);
+                        *cmd_val = serde_json::Value::String(rewritten);
+                    }
+                }
+            }
+            for v in map.values_mut() {
+                rewrite_commands_recursive(v, project_root);
+            }
+        },
+        serde_json::Value::Array(arr) => {
+            for v in arr {
+                rewrite_commands_recursive(v, project_root);
+            }
+        },
+        _ => {},
+    }
+}
+
+/// Rewrite a single command string's script path from relative to absolute.
+fn rewrite_single_command(cmd: &str, project_root: &Path) -> String {
+    let parts: Vec<&str> = cmd.splitn(2, char::is_whitespace).collect();
+    let script = parts.first().copied().unwrap_or(cmd);
+
+    // Only rewrite relative paths (starts with ./ or contains / but not absolute)
+    let path = Path::new(script);
+    if path.is_absolute() || (!script.starts_with("./") && !script.contains('/')) {
+        return cmd.to_string();
+    }
+
+    let absolute = project_root.join(script);
+    let abs_str = absolute.to_string_lossy();
+
+    if parts.len() > 1 {
+        format!("{abs_str} {}", parts.get(1).copied().unwrap_or(""))
+    } else {
+        abs_str.into_owned()
+    }
 }
 
 /// Convert hooks YAML block to JSON format.
@@ -813,21 +890,43 @@ fn generate_plugin_manifest(artifact: &Artifact, plugin_name: &str) -> String {
 }
 
 /// Generate `.claude-plugin/plugin.json` for a migrated plugin.
+///
+/// For single-artifact plugins, includes the component field for that kind.
+/// Accepts a slice of kinds to include all relevant component fields for composites.
 fn generate_plugin_json(name: &str, metadata: &ArtifactMetadata, kind: &ArtifactKind) -> String {
+    generate_plugin_json_multi(name, metadata, std::slice::from_ref(kind))
+}
+
+/// Generate `plugin.json` with component fields for all provided artifact kinds.
+fn generate_plugin_json_multi(
+    name: &str,
+    metadata: &ArtifactMetadata,
+    kinds: &[ArtifactKind],
+) -> String {
     let description =
         metadata.description.as_deref().unwrap_or("Migrated from .claude/ configuration");
 
-    let component_field = match kind {
-        ArtifactKind::Skill | ArtifactKind::Command => ",\n  \"skills\": \"./skills/\"",
-        ArtifactKind::Agent => ",\n  \"agents\": \"./agents/\"",
-        ArtifactKind::McpServer => ",\n  \"mcpServers\": \"./.mcp.json\"",
-        ArtifactKind::Hook => ",\n  \"hooks\": \"./hooks/hooks.json\"",
-        ArtifactKind::OutputStyle => ",\n  \"outputStyles\": \"./\"",
-    };
+    let mut fields = String::new();
+    let distinct: HashSet<&ArtifactKind> = kinds.iter().collect();
+    if distinct.contains(&ArtifactKind::Skill) || distinct.contains(&ArtifactKind::Command) {
+        fields.push_str(",\n  \"skills\": \"./skills/\"");
+    }
+    if distinct.contains(&ArtifactKind::Agent) {
+        fields.push_str(",\n  \"agents\": \"./agents/\"");
+    }
+    if distinct.contains(&ArtifactKind::McpServer) {
+        fields.push_str(",\n  \"mcpServers\": \"./.mcp.json\"");
+    }
+    if distinct.contains(&ArtifactKind::Hook) {
+        fields.push_str(",\n  \"hooks\": \"./hooks/hooks.json\"");
+    }
+    if distinct.contains(&ArtifactKind::OutputStyle) {
+        fields.push_str(",\n  \"outputStyles\": \"./\"");
+    }
 
     format!(
         "{{\n  \"name\": \"{name}\",\n  \"version\": \"0.1.0\",\n  \
-         \"description\": \"{description}\"{component_field}\n}}\n"
+         \"description\": \"{description}\"{fields}\n}}\n"
     )
 }
 
@@ -1996,8 +2095,10 @@ mod tests {
     }
 
     #[test]
-    fn emit_mcp_no_raw_content_is_noop() {
-        let fs = MockFs::new();
+    fn emit_mcp_no_raw_content_falls_back_to_source() {
+        let mut fs = MockFs::new();
+        fs.files
+            .insert(PathBuf::from("/project/.mcp.json"), r#"{"mcpServers":{"s1":{}}}"#.to_string());
         let mut artifact = make_mcp_artifact();
         artifact.metadata.raw_content = None;
 
@@ -2005,13 +2106,30 @@ mod tests {
         let mut counter = 0;
         let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
         assert!(result.is_ok());
-        // .mcp.json should NOT be written if no raw_content
-        assert!(fs.get_written(Path::new("/ai/project-mcp-servers/.mcp.json")).is_none());
+        assert!(fs
+            .get_written(Path::new("/ai/project-mcp-servers/.mcp.json"))
+            .is_some_and(|c| c.contains("mcpServers")));
     }
 
     #[test]
-    fn emit_hooks_no_raw_content_is_noop() {
+    fn emit_mcp_no_raw_content_no_source_errors() {
         let fs = MockFs::new();
+        let mut artifact = make_mcp_artifact();
+        artifact.metadata.raw_content = None;
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn emit_hooks_no_raw_content_falls_back_to_source() {
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/project/.claude/settings.json"),
+            r#"{"hooks":{"PreToolUse":[]}}"#.to_string(),
+        );
         let mut artifact = make_hook_artifact();
         artifact.metadata.raw_content = None;
 
@@ -2019,8 +2137,7 @@ mod tests {
         let mut counter = 0;
         let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
         assert!(result.is_ok());
-        // hooks.json should NOT be written if no raw_content
-        assert!(fs.get_written(Path::new("/ai/project-hooks/hooks/hooks.json")).is_none());
+        assert!(fs.get_written(Path::new("/ai/project-hooks/hooks/hooks.json")).is_some());
     }
 
     #[test]

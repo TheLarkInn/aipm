@@ -106,8 +106,12 @@ fn collect_command_scripts(
 
 /// Check if a path looks like a relative script (not an absolute path, not a bare command).
 fn is_relative_script(path: &str, _source_dir: &Path) -> bool {
-    // Relative paths that reference files, not bare commands like "npx" or "node"
-    if path.is_empty() || path.starts_with('/') || path.starts_with('\\') {
+    if path.is_empty() {
+        return false;
+    }
+    let path_obj = Path::new(path);
+    // Reject absolute paths on any platform (handles C:\..., /usr/..., etc.)
+    if path_obj.is_absolute() || path_obj.has_root() {
         return false;
     }
     // Has directory separators — it's a path, not a bare command
@@ -115,7 +119,7 @@ fn is_relative_script(path: &str, _source_dir: &Path) -> bool {
         return true;
     }
     // Check for known script extensions (case-insensitive)
-    Path::new(path).extension().is_some_and(|ext| {
+    path_obj.extension().is_some_and(|ext| {
         ext.eq_ignore_ascii_case("sh")
             || ext.eq_ignore_ascii_case("py")
             || ext.eq_ignore_ascii_case("js")
@@ -369,8 +373,10 @@ mod tests {
         // Bare commands (not scripts)
         assert!(!is_relative_script("echo", Path::new(".")));
         assert!(!is_relative_script("npx", Path::new(".")));
-        // Absolute paths
+        // Absolute paths (Unix)
         assert!(!is_relative_script("/usr/bin/env", Path::new(".")));
+        // Absolute paths (Windows)
+        assert!(!is_relative_script("C:\\tools\\check.sh", Path::new(".")));
         // Empty
         assert!(!is_relative_script("", Path::new(".")));
     }
