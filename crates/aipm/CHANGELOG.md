@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.6.0] - 2026-03-24
+
+### Features
+- Add recursive .claude/ discovery to aipm migrate ([#57](https://github.com/TheLarkInn/aipm/pull/57)) (5313d5e)
+
 ## [0.5.0] - 2026-03-23
 
 ### Features
