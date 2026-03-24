@@ -2267,4 +2267,108 @@ mod tests {
         let actions = result.ok().unwrap_or_default();
         assert!(actions.iter().any(|a| matches!(a, Action::Skipped { .. })));
     }
+
+    // =====================================================================
+    // Tests for hook command path rewriting
+    // =====================================================================
+
+    #[test]
+    fn rewrite_hook_command_paths_rewrites_relative() {
+        let content = r#"{"hooks":{"PreToolUse":[{"type":"command","command":"./scripts/check.sh --strict"}]}}"#;
+        let result =
+            rewrite_hook_command_paths(content, Path::new("/project/.claude/settings.json"));
+        // The relative ./scripts/check.sh should no longer appear as-is
+        assert!(!result.contains("\"./scripts/check.sh"));
+        assert!(result.contains("check.sh"));
+        assert!(result.contains("--strict"));
+    }
+
+    #[test]
+    fn rewrite_hook_command_paths_leaves_absolute_alone() {
+        let content =
+            r#"{"hooks":{"PreToolUse":[{"type":"command","command":"/usr/bin/check --strict"}]}}"#;
+        let result =
+            rewrite_hook_command_paths(content, Path::new("/project/.claude/settings.json"));
+        assert!(result.contains("/usr/bin/check"));
+    }
+
+    #[test]
+    fn rewrite_hook_command_paths_leaves_bare_commands() {
+        let content =
+            r#"{"hooks":{"PreToolUse":[{"type":"command","command":"echo hello world"}]}}"#;
+        let result =
+            rewrite_hook_command_paths(content, Path::new("/project/.claude/settings.json"));
+        assert!(result.contains("echo hello world"));
+    }
+
+    #[test]
+    fn rewrite_hook_command_paths_invalid_json() {
+        let content = "not json at all";
+        let result =
+            rewrite_hook_command_paths(content, Path::new("/project/.claude/settings.json"));
+        assert_eq!(result, "not json at all");
+    }
+
+    #[test]
+    fn rewrite_hook_command_paths_no_args() {
+        let content =
+            r#"{"hooks":{"PreToolUse":[{"type":"command","command":"./scripts/run.sh"}]}}"#;
+        let result =
+            rewrite_hook_command_paths(content, Path::new("/project/.claude/settings.json"));
+        assert!(!result.contains("\"./scripts/run.sh\""));
+        assert!(result.contains("run.sh"));
+    }
+
+    #[test]
+    fn rewrite_hook_command_paths_nested_arrays() {
+        let content = r#"{"hooks":{"PreToolUse":[{"type":"command","command":"./a.sh"},{"type":"command","command":"./b.sh"}]}}"#;
+        let result =
+            rewrite_hook_command_paths(content, Path::new("/project/.claude/settings.json"));
+        // Both should be rewritten
+        assert!(!result.contains("\"./a.sh\""));
+        assert!(!result.contains("\"./b.sh\""));
+    }
+
+    #[test]
+    fn rewrite_single_command_with_slash_path() {
+        let result = rewrite_single_command("scripts/check.sh --flag", Path::new("/project"));
+        assert!(!result.starts_with("scripts/check.sh"));
+        assert!(result.contains("check.sh"));
+        assert!(result.contains("--flag"));
+    }
+
+    #[test]
+    fn rewrite_single_command_bare_command_unchanged() {
+        let result = rewrite_single_command("echo hello", Path::new("/project"));
+        assert_eq!(result, "echo hello");
+    }
+
+    #[test]
+    fn generate_plugin_json_multi_composite() {
+        let kinds = vec![ArtifactKind::Skill, ArtifactKind::Agent, ArtifactKind::OutputStyle];
+        let json = generate_plugin_json_multi("test", &ArtifactMetadata::default(), &kinds);
+        assert!(json.contains("\"skills\""));
+        assert!(json.contains("\"agents\""));
+        assert!(json.contains("\"outputStyles\""));
+        assert!(!json.contains("\"mcpServers\""));
+        assert!(!json.contains("\"hooks\""));
+    }
+
+    #[test]
+    fn generate_plugin_json_multi_all_kinds() {
+        let kinds = vec![
+            ArtifactKind::Skill,
+            ArtifactKind::Command,
+            ArtifactKind::Agent,
+            ArtifactKind::McpServer,
+            ArtifactKind::Hook,
+            ArtifactKind::OutputStyle,
+        ];
+        let json = generate_plugin_json_multi("test", &ArtifactMetadata::default(), &kinds);
+        assert!(json.contains("\"skills\""));
+        assert!(json.contains("\"agents\""));
+        assert!(json.contains("\"mcpServers\""));
+        assert!(json.contains("\"hooks\""));
+        assert!(json.contains("\"outputStyles\""));
+    }
 }
