@@ -10,10 +10,18 @@ Feature: Migrate AI tool configurations into marketplace plugins
       When the user runs "aipm migrate" in "my-project"
       Then the command succeeds
       And a plugin directory exists at ".ai/deploy/" in "my-project"
-      And the file ".ai/deploy/aipm.toml" in "my-project" contains 'name = "deploy"'
-      And the file ".ai/deploy/aipm.toml" in "my-project" contains 'type = "skill"'
+      And there is no file ".ai/deploy/aipm.toml" in "my-project"
       And a file ".ai/deploy/skills/deploy/SKILL.md" exists in "my-project"
       And the marketplace.json in "my-project" contains plugin "deploy"
+
+    Scenario: Migrate with --manifest generates aipm.toml
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a skill "deploy" exists in "my-project"
+      When the user runs "aipm migrate --manifest" in "my-project"
+      Then the command succeeds
+      And the file ".ai/deploy/aipm.toml" in "my-project" contains 'name = "deploy"'
+      And the file ".ai/deploy/aipm.toml" in "my-project" contains 'type = "skill"'
 
     Scenario: Original skill files are preserved after migration
       Given an empty directory "my-project"
@@ -69,8 +77,16 @@ Feature: Migrate AI tool configurations into marketplace plugins
       Then the command succeeds
       And a plugin directory exists at ".ai/auth/" in "my-project"
       And a file ".ai/auth/skills/deploy/SKILL.md" exists in "my-project"
-      And the file ".ai/auth/aipm.toml" in "my-project" contains 'name = "auth"'
+      And there is no file ".ai/auth/aipm.toml" in "my-project"
       And the marketplace.json in "my-project" contains plugin "auth"
+
+    Scenario: Recursive migrate with --manifest generates aipm.toml
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a skill "deploy" exists in sub-package "auth" of "my-project"
+      When the user runs "aipm migrate --manifest" in "my-project"
+      Then the command succeeds
+      And the file ".ai/auth/aipm.toml" in "my-project" contains 'name = "auth"'
 
     Scenario: Package-scoped plugin merges skills and commands
       Given an empty directory "my-project"

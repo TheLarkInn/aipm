@@ -74,6 +74,8 @@ pub struct Options<'a> {
     /// Maximum directory traversal depth for recursive discovery.
     /// `None` means unlimited. Ignored when `source` is `Some`.
     pub max_depth: Option<usize>,
+    /// Generate `aipm.toml` plugin manifests (opt-in).
+    pub manifest: bool,
 }
 
 /// A single action taken (or planned) during migration.
@@ -187,8 +189,8 @@ pub fn migrate(opts: &Options<'_>, fs: &dyn Fs) -> Result<Outcome, Error> {
     }
 
     opts.source.map_or_else(
-        || migrate_recursive(opts.dir, opts.max_depth, opts.dry_run, &ai_dir, fs),
-        |source| migrate_single_source(opts.dir, source, opts.dry_run, &ai_dir, fs),
+        || migrate_recursive(opts.dir, opts.max_depth, opts.dry_run, opts.manifest, &ai_dir, fs),
+        |source| migrate_single_source(opts.dir, source, opts.dry_run, opts.manifest, &ai_dir, fs),
     )
 }
 
@@ -197,6 +199,7 @@ fn migrate_single_source(
     dir: &Path,
     source: &str,
     dry_run: bool,
+    manifest: bool,
     ai_dir: &Path,
     fs: &dyn Fs,
 ) -> Result<Outcome, Error> {
@@ -220,7 +223,7 @@ fn migrate_single_source(
     let existing_plugins = collect_existing_plugin_names(ai_dir, fs)?;
 
     if dry_run {
-        let report = dry_run::generate_report(&all_artifacts, &existing_plugins, source);
+        let report = dry_run::generate_report(&all_artifacts, &existing_plugins, source, manifest);
         let report_path = dir.join("aipm-migrate-dryrun-report.md");
         fs.write_file(&report_path, report.as_bytes())?;
         return Ok(Outcome { actions: vec![Action::DryRunReport { path: report_path }] });
@@ -232,8 +235,14 @@ fn migrate_single_source(
     let mut rename_counter = 0u32;
 
     for artifact in &all_artifacts {
-        let (plugin_name, emit_actions) =
-            emitter::emit_plugin(artifact, ai_dir, &known_names, &mut rename_counter, fs)?;
+        let (plugin_name, emit_actions) = emitter::emit_plugin(
+            artifact,
+            ai_dir,
+            &known_names,
+            &mut rename_counter,
+            manifest,
+            fs,
+        )?;
         actions.extend(emit_actions);
         known_names.insert(plugin_name.clone());
         registered_names.push(plugin_name);
@@ -252,6 +261,7 @@ fn migrate_recursive(
     dir: &Path,
     max_depth: Option<usize>,
     dry_run: bool,
+    manifest: bool,
     ai_dir: &Path,
     fs: &dyn Fs,
 ) -> Result<Outcome, Error> {
@@ -339,13 +349,18 @@ fn migrate_recursive(
             let mut actions = Vec::new();
 
             if plan.is_package_scoped {
-                let emit_actions =
-                    emitter::emit_package_plugin(final_name, &plan.artifacts, ai_dir, fs)?;
+                let emit_actions = emitter::emit_package_plugin(
+                    final_name,
+                    &plan.artifacts,
+                    ai_dir,
+                    manifest,
+                    fs,
+                )?;
                 actions.extend(emit_actions);
             } else if let Some(artifact) = plan.artifacts.first() {
                 // Single artifact — use existing emit logic but with pre-resolved name
                 let emit_actions =
-                    emitter::emit_plugin_with_name(artifact, final_name, ai_dir, fs)?;
+                    emitter::emit_plugin_with_name(artifact, final_name, ai_dir, manifest, fs)?;
                 actions.extend(emit_actions);
             }
 
@@ -444,6 +459,7 @@ mod tests {
             source: Some(".claude"),
             dry_run: false,
             max_depth: None,
+            manifest: true,
         };
         let result = migrate(&opts, &fs);
         assert!(result.is_err());
@@ -460,6 +476,7 @@ mod tests {
             source: Some(".claude"),
             dry_run: false,
             max_depth: None,
+            manifest: true,
         };
         let result = migrate(&opts, &fs);
         assert!(result.is_err());
@@ -482,6 +499,7 @@ mod tests {
             source: Some(".claude"),
             dry_run: true,
             max_depth: None,
+            manifest: true,
         };
         let result = migrate(&opts, &fs);
         assert!(result.is_ok());
@@ -516,6 +534,7 @@ mod tests {
             source: Some(".claude"),
             dry_run: false,
             max_depth: None,
+            manifest: true,
         };
         let result = migrate(&opts, &fs);
         assert!(result.is_ok());
@@ -579,6 +598,7 @@ mod tests {
             source: Some(".claude"),
             dry_run: false,
             max_depth: None,
+            manifest: true,
         };
         let result = migrate(&opts, &fs);
         assert!(result.is_ok());

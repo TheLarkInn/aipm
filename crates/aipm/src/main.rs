@@ -37,6 +37,10 @@ enum Commands {
         #[arg(long)]
         no_starter: bool,
 
+        /// Generate aipm.toml plugin manifests (opt-in; dependency management not yet available).
+        #[arg(long)]
+        manifest: bool,
+
         /// Directory to initialize (defaults to current directory).
         #[arg(default_value = ".")]
         dir: PathBuf,
@@ -58,6 +62,10 @@ enum Commands {
         #[arg(long)]
         max_depth: Option<usize>,
 
+        /// Generate aipm.toml plugin manifests (opt-in; dependency management not yet available).
+        #[arg(long)]
+        manifest: bool,
+
         /// Project directory.
         #[arg(default_value = ".")]
         dir: PathBuf,
@@ -68,7 +76,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
-        Some(Commands::Init { yes, workspace, marketplace, no_starter, dir }) => {
+        Some(Commands::Init { yes, workspace, marketplace, no_starter, manifest, dir }) => {
             let dir = if dir.as_os_str() == "." { std::env::current_dir()? } else { dir };
 
             let interactive = !yes && std::io::stdin().is_terminal();
@@ -83,6 +91,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 workspace: do_workspace,
                 marketplace: do_marketplace,
                 no_starter: do_no_starter,
+                manifest,
             };
 
             let result = libaipm::workspace_init::init(&opts, &adaptors, &libaipm::fs::Real)?;
@@ -108,7 +117,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             }
             Ok(())
         },
-        Some(Commands::Migrate { dry_run, source, max_depth, dir }) => {
+        Some(Commands::Migrate { dry_run, source, max_depth, manifest, dir }) => {
             let dir = if dir.as_os_str() == "." { std::env::current_dir()? } else { dir };
 
             let opts = libaipm::migrate::Options {
@@ -116,6 +125,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 source: source.as_deref(),
                 dry_run,
                 max_depth,
+                manifest,
             };
 
             let result = libaipm::migrate::migrate(&opts, &libaipm::fs::Real)?;
