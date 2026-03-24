@@ -175,14 +175,14 @@ fn collect_files_recursive(dir: &Path, base: &Path, fs: &dyn Fs) -> Result<Vec<P
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::RefCell;
     use std::collections::{HashMap, HashSet};
+    use std::sync::Mutex;
 
     struct MockFs {
         exists: HashSet<PathBuf>,
         dirs: HashMap<PathBuf, Vec<crate::fs::DirEntry>>,
         files: HashMap<PathBuf, String>,
-        written: RefCell<HashMap<PathBuf, Vec<u8>>>,
+        written: Mutex<HashMap<PathBuf, Vec<u8>>>,
     }
 
     impl MockFs {
@@ -191,7 +191,7 @@ mod tests {
                 exists: HashSet::new(),
                 dirs: HashMap::new(),
                 files: HashMap::new(),
-                written: RefCell::new(HashMap::new()),
+                written: Mutex::new(HashMap::new()),
             }
         }
     }
@@ -206,7 +206,10 @@ mod tests {
         }
 
         fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
-            self.written.borrow_mut().insert(path.to_path_buf(), content.to_vec());
+            self.written
+                .lock()
+                .expect("MockFs::write_file: mutex poisoned")
+                .insert(path.to_path_buf(), content.to_vec());
             Ok(())
         }
 

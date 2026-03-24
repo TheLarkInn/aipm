@@ -16,7 +16,9 @@ pub struct DirEntry {
 }
 
 /// Abstraction over filesystem operations used by init and `workspace_init`.
-pub trait Fs {
+///
+/// `Send + Sync` enables sharing across threads for parallel detection and emission.
+pub trait Fs: Send + Sync {
     /// Check if a path exists.
     fn exists(&self, path: &Path) -> bool;
 
