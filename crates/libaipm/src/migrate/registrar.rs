@@ -49,31 +49,36 @@ pub fn register_plugins(ai_dir: &Path, plugin_names: &[String], fs: &dyn Fs) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::RefCell;
     use std::collections::{HashMap, HashSet};
     use std::path::PathBuf;
+    use std::sync::Mutex;
 
     struct MockFs {
         exists: HashSet<PathBuf>,
-        files: RefCell<HashMap<PathBuf, String>>,
-        written: RefCell<HashMap<PathBuf, Vec<u8>>>,
+        files: Mutex<HashMap<PathBuf, String>>,
+        written: Mutex<HashMap<PathBuf, Vec<u8>>>,
     }
 
     impl MockFs {
         fn new() -> Self {
             Self {
                 exists: HashSet::new(),
-                files: RefCell::new(HashMap::new()),
-                written: RefCell::new(HashMap::new()),
+                files: Mutex::new(HashMap::new()),
+                written: Mutex::new(HashMap::new()),
             }
         }
 
         fn set_file(&self, path: PathBuf, content: String) {
-            self.files.borrow_mut().insert(path, content);
+            if let Ok(mut f) = self.files.lock() {
+                f.insert(path, content);
+            }
         }
 
         fn get_written(&self, path: &Path) -> Option<String> {
-            self.written.borrow().get(path).and_then(|b| String::from_utf8(b.clone()).ok())
+            self.written
+                .lock()
+                .ok()
+                .and_then(|w| w.get(path).and_then(|b| String::from_utf8(b.clone()).ok()))
         }
     }
 
@@ -87,12 +92,14 @@ mod tests {
         }
 
         fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
-            self.written.borrow_mut().insert(path.to_path_buf(), content.to_vec());
+            if let Ok(mut w) = self.written.lock() {
+                w.insert(path.to_path_buf(), content.to_vec());
+            }
             Ok(())
         }
 
         fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
-            self.files.borrow().get(path).cloned().ok_or_else(|| {
+            self.files.lock().ok().and_then(|f| f.get(path).cloned()).ok_or_else(|| {
                 std::io::Error::new(
                     std::io::ErrorKind::NotFound,
                     format!("not found: {}", path.display()),

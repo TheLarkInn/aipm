@@ -52,6 +52,12 @@ tar = "0.4"
 # Filesystem (Windows junctions)
 junction = "1"
 
+# Recursive directory walking (gitignore-aware)
+ignore = "0.4"
+
+# Data-parallel iteration
+rayon = "1"
+
 # Logging
 tracing = "0.1"
 tracing-subscriber = "0.3"

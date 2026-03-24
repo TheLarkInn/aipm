@@ -222,11 +222,15 @@ fn migrate_no_source_dir_errors() {
         std::fs::remove_dir_all(&claude_dir).unwrap();
     }
 
+    // With explicit --source, missing .claude/ is an error
     aipm()
-        .args(["migrate", &dir.display().to_string()])
+        .args(["migrate", "--source", ".claude", &dir.display().to_string()])
         .assert()
         .failure()
         .stderr(predicate::str::contains("source directory"));
+
+    // Without --source (recursive mode), no .claude/ dirs is a quiet success
+    aipm().args(["migrate", &dir.display().to_string()]).assert().success();
 }
 
 // =========================================================================

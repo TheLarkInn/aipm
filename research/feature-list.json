@@ -1,337 +1,210 @@
 [
   {
     "category": "refactor",
-    "description": "Extend Fs trait with read_dir method and DirEntry type for directory scanning",
+    "description": "Add Send + Sync supertraits to Fs trait and migrate MockFs from RefCell to Mutex",
     "steps": [
-      "Add `DirEntry` struct with `name: String` and `is_dir: bool` fields to `crates/libaipm/src/fs.rs`",
-      "Add `fn read_dir(&self, path: &Path) -> std::io::Result<Vec<DirEntry>>` to the `Fs` trait",
-      "Implement `read_dir` for the `Real` struct using `std::fs::read_dir`, collecting entries into `Vec<DirEntry>`",
-      "In the `Real::read_dir` impl, use `entry?.file_type()?.is_dir()` for the `is_dir` field and `entry?.file_name().to_string_lossy().into_owned()` for `name`",
-      "Update ALL existing mock `Fs` implementations in test code (e.g., `FailFs`, `CountingFs` in `init.rs`, and any in `workspace_init/` tests) to include a `read_dir` stub that returns `Ok(Vec::new())`",
-      "Run `cargo build --workspace` to verify compilation",
-      "Run `cargo clippy --workspace -- -D warnings` to verify no lint issues"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Add unit tests for Fs::read_dir Real implementation",
-    "steps": [
-      "In `crates/libaipm/src/fs.rs` `#[cfg(test)]` module, add test `real_read_dir_lists_entries`: create a temp dir with files and subdirs, call `Real.read_dir()`, assert correct entries returned",
-      "Add test `real_read_dir_empty_dir`: create empty temp dir, assert `read_dir` returns empty Vec",
-      "Add test `real_read_dir_nonexistent`: call `read_dir` on nonexistent path, assert `io::Error` returned",
-      "Add test `real_read_dir_distinguishes_files_and_dirs`: create temp dir with both files and subdirs, assert `is_dir` flags are correct for each",
-      "Run `cargo test -p libaipm` to verify all pass",
-      "Run `cargo clippy -p libaipm -- -D warnings`"
+      "Open crates/libaipm/src/fs.rs and add Send + Sync bounds to the Fs trait definition",
+      "Verify the Real unit struct already auto-derives Send + Sync (no changes needed)",
+      "Find all MockFs implementations across the test suite that use RefCell",
+      "Replace RefCell with std::sync::Mutex (or parking_lot::Mutex) in MockFs fields",
+      "Update all .borrow() calls to .lock() and .borrow_mut() to .lock()",
+      "Add compile-time assertion tests: fn _assert_send_sync<T: Send + Sync>() {} with Real and MockFs",
+      "Run cargo build --workspace and cargo test --workspace to verify compilation",
+      "Run cargo clippy --workspace -- -D warnings"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Create migrate module with core types: Options, MigrateResult, MigrateAction, Artifact, ArtifactKind, ArtifactMetadata, Error",
+    "description": "Add ignore and rayon workspace dependencies",
     "steps": [
-      "Create directory `crates/libaipm/src/migrate/`",
-      "Create `crates/libaipm/src/migrate/mod.rs` with all public type definitions: `ArtifactKind` enum (Skill, Command), `ArtifactMetadata` struct (name, description, hooks, model_invocation_disabled), `Artifact` struct, `Options` struct, `MigrateAction` enum (PluginCreated, MarketplaceRegistered, Renamed, Skipped, DryRunReport), `MigrateResult` struct, `Error` enum with thiserror derive",
-      "Add submodule declarations: `pub mod detector;`, `pub mod skill_detector;`, `pub mod command_detector;`, `pub mod emitter;`, `pub mod registrar;`, `pub mod dry_run;`",
-      "Create stub files for each submodule (empty or with placeholder types) so the module compiles",
-      "Add `pub mod migrate;` to `crates/libaipm/src/lib.rs`",
-      "Run `cargo build -p libaipm` to verify compilation",
-      "Run `cargo clippy -p libaipm -- -D warnings`"
+      "Add ignore = \"0.4\" to [workspace.dependencies] in root Cargo.toml",
+      "Add rayon = \"1\" to [workspace.dependencies] in root Cargo.toml",
+      "Add ignore = { workspace = true } to [dependencies] in crates/libaipm/Cargo.toml",
+      "Add rayon = { workspace = true } to [dependencies] in crates/libaipm/Cargo.toml",
+      "Run cargo build --workspace to verify dependencies resolve correctly"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Implement Detector trait and claude_detectors() factory function",
+    "description": "Modify Options struct to support recursive mode: source becomes Option, add max_depth",
     "steps": [
-      "In `crates/libaipm/src/migrate/detector.rs`, define the `Detector` trait with `fn name(&self) -> &'static str` and `fn detect(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Artifact>, Error>`",
-      "Implement `claude_detectors()` function that returns `Vec<Box<dyn Detector>>` containing `SkillDetector` and `CommandDetector`",
-      "Ensure the trait is `pub` and usable from outside the module",
-      "Run `cargo build -p libaipm`"
+      "Open crates/libaipm/src/migrate/mod.rs and locate the Options struct",
+      "Change source field from &str to Option<&str>",
+      "Add max_depth: Option<usize> field to Options",
+      "Update all call sites that construct Options to pass source as Some(...) or None",
+      "Update the CLI Migrate command in crates/aipm/src/main.rs: remove default_value from --source, add --max-depth flag",
+      "Update the migrate() orchestrator to branch on opts.source: Some -> legacy single-path, None -> recursive mode (stub for now)",
+      "Run cargo build --workspace to ensure all references compile",
+      "Run cargo test --workspace to verify existing tests still pass with Some(...) source"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Implement SkillDetector with frontmatter parsing, script reference extraction, and recursive file collection",
+    "description": "Create discovery module with discover_claude_dirs() and DiscoveredSource",
     "steps": [
-      "In `crates/libaipm/src/migrate/skill_detector.rs`, implement `SkillDetector` struct with `Detector` trait",
-      "Implement `detect()`: scan `source_dir.join(\"skills\")` using `fs.read_dir()`, iterate directory entries, skip non-dirs, skip dirs without `SKILL.md`",
-      "Implement `parse_skill_frontmatter(content: &str) -> Result<ArtifactMetadata, Error>`: split on `---` delimiters, extract YAML block, parse `name`, `description`, `hooks` fields line-by-line (no YAML parser dependency \u00e2\u20ac\u201d use simple string matching)",
-      "Implement `extract_script_references(content: &str) -> Vec<PathBuf>`: scan markdown body for `${CLAUDE_SKILL_DIR}/scripts/<path>` and `${CLAUDE_SKILL_DIR}/<path>` patterns using string matching or regex-free approach",
-      "Implement `collect_files_recursive(dir: &Path, base: &Path, fs: &dyn Fs) -> Result<Vec<PathBuf>, Error>`: walk directory tree using `fs.read_dir()`, return all file paths relative to `base`",
-      "Use artifact name from frontmatter `name` field if present, otherwise use directory name",
-      "Run `cargo build -p libaipm`",
-      "Run `cargo clippy -p libaipm -- -D warnings`"
+      "Create new file crates/libaipm/src/migrate/discovery.rs",
+      "Define DiscoveredSource struct with fields: claude_dir (PathBuf), package_name (Option<String>), relative_path (PathBuf)",
+      "Implement discover_claude_dirs(project_root: &Path, max_depth: Option<usize>) -> Result<Vec<DiscoveredSource>, Error>",
+      "Use ignore::WalkBuilder::new(project_root) with .hidden(false) to find hidden .claude dirs",
+      "Set .max_depth(max_depth) when provided",
+      "Filter for directory entries named .claude",
+      "Skip any .claude/ found inside .ai/ directory",
+      "Derive package_name: None for root .claude, Some(parent_dir_name) for nested .claude",
+      "Sort results by claude_dir path for deterministic ordering",
+      "Add DiscoveryFailed error variant to the Error enum",
+      "Register the discovery module in crates/libaipm/src/migrate/mod.rs",
+      "Write unit tests: finds root .claude, finds nested .claude, correct package_name assignment, respects max_depth, excludes .ai/ subdirs, empty result when no .claude dirs, sorted results",
+      "Run cargo test --workspace"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Implement CommandDetector with command-to-skill conversion logic",
+    "description": "Implement PluginPlan struct and package-scoped artifact merging logic",
     "steps": [
-      "In `crates/libaipm/src/migrate/command_detector.rs`, implement `CommandDetector` struct with `Detector` trait",
-      "Implement `detect()`: scan `source_dir.join(\"commands\")` using `fs.read_dir()`, iterate entries, skip directories, skip non-.md files",
-      "Strip `.md` extension from filename to derive the command name",
-      "Implement `parse_command_frontmatter(content: &str) -> ArtifactMetadata`: extract frontmatter if present, always set `model_invocation_disabled = true`",
-      "Reuse `extract_script_references()` from skill_detector module (consider making it a shared helper in mod.rs or a helpers submodule)",
-      "Set `artifact.files` to `vec![PathBuf::from(&entry.name)]` (single file)",
-      "Set `artifact.source_path` to the full path of the command .md file",
-      "Run `cargo build -p libaipm`",
-      "Run `cargo clippy -p libaipm -- -D warnings`"
+      "Define PluginPlan struct in crates/libaipm/src/migrate/mod.rs with fields: name (String), artifacts (Vec<Artifact>), is_package_scoped (bool)",
+      "Implement logic in migrate() recursive branch: for each DiscoveredSource, run detectors and group artifacts",
+      "For package_name Some(pkg): create one PluginPlan with all artifacts merged under the package name",
+      "For package_name None (root): create individual PluginPlans per artifact (existing behavior)",
+      "Add unit tests: root artifacts become individual plugins, sub-package artifacts merge into one plugin",
+      "Run cargo test --workspace"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Implement emitter module: plugin directory creation, file copying, path rewriting, hooks extraction, manifest/JSON generation",
+    "description": "Implement parallel detection across discovered .claude directories using rayon",
     "steps": [
-      "In `crates/libaipm/src/migrate/emitter.rs`, implement `emit_plugin()` function per spec section 5.7",
-      "Implement `resolve_plugin_name()` for name conflict resolution: if name exists in `existing_names`, increment counter, return `{name}-renamed-{counter}`, push `MigrateAction::Renamed`",
-      "Implement `rewrite_skill_dir_paths(content, skill_name)`: replace `${CLAUDE_SKILL_DIR}/scripts/` with `${CLAUDE_SKILL_DIR}/../../scripts/`",
-      "Implement `file_is_skill_md(path)`: check if filename is `SKILL.md` (case-sensitive)",
-      "Implement command-to-skill conversion in emit: for `ArtifactKind::Command`, create `skills/<name>/SKILL.md` with frontmatter wrapper adding `disable-model-invocation: true`",
-      "Implement `convert_hooks_yaml_to_json(hooks_yaml: &str) -> Result<String, Error>`: convert YAML hooks block to JSON format for `hooks.json`",
-      "Implement `generate_plugin_manifest(artifact, plugin_name)` per spec section 5.10: produce `[package]` + `[components]` TOML",
-      "Implement `generate_plugin_json(name, metadata)` per spec section 5.11: produce JSON with name, version, description",
-      "Use `crate::workspace_init::write_file` helper (or equivalent) for writing files through Fs",
-      "Run `cargo build -p libaipm`",
-      "Run `cargo clippy -p libaipm -- -D warnings`"
+      "Import rayon::prelude::* in crates/libaipm/src/migrate/mod.rs",
+      "In the recursive branch of migrate(), use discovered.par_iter() to run detectors concurrently",
+      "Each thread creates its own claude_detectors() and runs them against the DiscoveredSource's claude_dir",
+      "Collect results into Vec<PluginPlan> using .collect()",
+      "Ensure Fs trait Send + Sync bounds allow &dyn Fs to be shared across threads",
+      "Add test verifying parallel detection produces same results as serial (deterministic ordering via sort)",
+      "Run cargo test --workspace"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Implement registrar module: append migrated plugins to marketplace.json",
+    "description": "Implement emit_package_plugin() in emitter for package-scoped plugins",
     "steps": [
-      "In `crates/libaipm/src/migrate/registrar.rs`, implement `register_plugins(ai_dir, plugin_names, fs)` per spec section 5.12",
-      "Read `.ai/.claude-plugin/marketplace.json` via `fs.read_to_string()`",
-      "Parse as `serde_json::Value`, get mutable reference to `plugins` array",
-      "For each plugin name: check if already registered (by name field), skip if so, otherwise append `{name, source, description}` entry",
-      "Serialize back with `serde_json::to_string_pretty` + trailing newline",
-      "Write back via `fs.write_file()`",
-      "Map parse errors to `Error::MarketplaceJsonParse`",
-      "Run `cargo build -p libaipm`",
-      "Run `cargo clippy -p libaipm -- -D warnings`"
+      "Open crates/libaipm/src/migrate/emitter.rs",
+      "Add emit_package_plugin() function with signature matching the spec",
+      "Resolve plugin name using existing rename counter mechanism",
+      "Create .ai/<plugin_name>/ directory structure",
+      "For each artifact, copy files into the plugin under skills/<artifact.name>/",
+      "Merge hooks from all artifacts into a single hooks/hooks.json",
+      "Generate aipm.toml with all component paths in [components]",
+      "Set type = composite when multiple component types exist, otherwise type = skill",
+      "Generate .claude-plugin/plugin.json with the package name",
+      "Write unit tests: correct directory structure, hook merging, aipm.toml generation, composite type handling, command-to-skill conversion",
+      "Run cargo test --workspace"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Implement dry_run module: generate structured markdown report",
+    "description": "Implement parallel emission of plugins via rayon",
     "steps": [
-      "In `crates/libaipm/src/migrate/dry_run.rs`, implement `generate_report(artifacts, existing_plugins, source_name) -> String`",
-      "Generate report header: `# aipm migrate \u00e2\u20ac\u201d Dry Run Report`, source, artifact count",
-      "Group artifacts by kind (Skills section, Legacy Commands section)",
-      "For each artifact: list source path, target path, files to copy, manifest changes, marketplace.json entry, path rewrites, hooks extraction status, conflict status",
-      "Generate summary table at the end: plugins to create, marketplace entries to add, name conflicts (auto-renamed), hooks to extract",
-      "Use the same `resolve_plugin_name` logic (or simulate it) to show what renames would occur",
-      "Run `cargo build -p libaipm`",
-      "Run `cargo clippy -p libaipm -- -D warnings`"
+      "In the recursive branch of migrate(), after sequential name resolution, use resolved_plans.par_iter() for file writes",
+      "Each thread calls emit_plugin or emit_package_plugin depending on is_package_scoped",
+      "Collect all Action results into a flat Vec<Action>",
+      "Ensure no shared mutable state between parallel plugin emissions",
+      "Add test verifying parallel emission produces correct file structure",
+      "Run cargo test --workspace"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Implement migrate() orchestrator function wiring detectors, emitter, and registrar",
+    "description": "Implement sequential name resolution for duplicate package names",
     "steps": [
-      "In `crates/libaipm/src/migrate/mod.rs`, implement `pub fn migrate(opts: &Options<'_>, fs: &dyn Fs) -> Result<MigrateResult, Error>` per spec section 5.14",
-      "Validate prerequisites: check `.ai/` exists (return `Error::MarketplaceNotFound`), check source dir exists (return `Error::SourceNotFound`)",
-      "Resolve detectors via `detector::claude_detectors()` for `.claude` source",
-      "Run all detectors, collect artifacts into `Vec<Artifact>`",
-      "Implement `collect_existing_plugin_names(ai_dir, fs)` using `fs.read_dir()` to get existing plugin directory names as `HashSet<String>`",
-      "If `opts.dry_run`: call `dry_run::generate_report()`, write to `aipm-migrate-dryrun-report.md`, return early with `DryRunReport` action",
-      "Otherwise: iterate artifacts, call `emitter::emit_plugin()` for each, collect actions and registered names",
-      "Call `registrar::register_plugins()` to append all to marketplace.json",
-      "Return `MigrateResult` with all collected actions",
-      "Run `cargo build -p libaipm`",
-      "Run `cargo clippy -p libaipm -- -D warnings`"
+      "Before parallel emission, iterate plugin plans sequentially to resolve final names",
+      "Use existing rename counter and known_names set for conflict resolution",
+      "When two packages have the same name (e.g., auth from different paths), apply rename-counter suffix (auth-renamed-1)",
+      "Store resolved names back into plugin plans for emission phase",
+      "Write unit test: duplicate package names trigger rename counter correctly",
+      "Run cargo test --workspace"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Add Commands::Migrate variant to aipm CLI and implement dispatch",
+    "description": "Wire up the full recursive migrate() orchestrator flow",
     "steps": [
-      "In `crates/aipm/src/main.rs`, add `Migrate` variant to `Commands` enum with fields: `dry_run: bool` (`#[arg(long)]`), `source: String` (`#[arg(long, default_value = \".claude\")]`), `dir: PathBuf` (`#[arg(default_value = \".\")]`)",
-      "Add doc comment: `/// Migrate AI tool configurations into marketplace plugins`",
-      "Add `Some(Commands::Migrate { dry_run, source, dir }) =>` match arm in `run()` function",
-      "Resolve `dir` (if `.` replace with `std::env::current_dir()?`)",
-      "Build `libaipm::migrate::Options` and call `libaipm::migrate::migrate()`",
-      "Print each `MigrateAction` to stdout using `writeln!` with `let _ =` pattern",
-      "Handle all action variants: PluginCreated, MarketplaceRegistered, Renamed, Skipped, DryRunReport",
-      "Add necessary `use` imports for `libaipm::migrate::MigrateAction`",
-      "Run `cargo build -p aipm`",
-      "Run `cargo clippy -p aipm -- -D warnings`"
+      "In migrate() when opts.source is None: call discover_claude_dirs with opts.dir and opts.max_depth",
+      "Handle empty discovery result by returning Ok(Outcome { actions: [] })",
+      "Run parallel detection over discovered dirs",
+      "Run sequential name resolution",
+      "Run parallel emission",
+      "Call register_plugins for all emitted plugins (unchanged sequential call)",
+      "Write integration test: full recursive migrate with monorepo layout produces correct .ai/ structure",
+      "Write test: recursive migrate with no .claude dirs returns empty outcome",
+      "Run cargo test --workspace"
     ],
     "passes": true
   },
   {
-    "category": "testing",
-    "description": "Unit tests for SkillDetector (8 tests covering all scan scenarios)",
+    "category": "functional",
+    "description": "Update dry-run report to show recursive discovery information",
     "steps": [
-      "In `crates/libaipm/src/migrate/skill_detector.rs` `#[cfg(test)]` module, create a `MockFs` implementation with configurable directory listings and file contents",
-      "Add test `detect_skill_with_skill_md`: mock `.claude/skills/deploy/` with `SKILL.md`, assert returns 1 artifact with correct name, kind=Skill, and files",
-      "Add test `detect_skill_without_skill_md`: mock skill dir without SKILL.md, assert returns 0 artifacts",
-      "Add test `detect_skill_with_scripts`: mock SKILL.md body containing `${CLAUDE_SKILL_DIR}/scripts/deploy.sh`, assert `referenced_scripts` is populated",
-      "Add test `detect_skill_extracts_frontmatter`: mock SKILL.md with `---\\nname: my-deploy\\ndescription: Deploy app\\nhooks:\\n  PreToolUse: ...\\n---`, assert metadata fields populated",
-      "Add test `detect_skill_no_skills_dir`: mock `.claude/` without `skills/` subdirectory, assert returns empty Vec",
-      "Add test `detect_skill_empty_skills_dir`: mock empty `skills/` directory, assert returns empty Vec",
-      "Add test `detect_multiple_skills`: mock two skill directories, assert returns 2 artifacts",
-      "Add test `detect_skill_nested_files`: mock skill with `examples/` subdir and `reference.md`, assert all files collected recursively",
-      "Run `cargo test -p libaipm`"
+      "Open crates/libaipm/src/migrate/dry_run.rs",
+      "Add Discovery section to report when in recursive mode",
+      "Show table of discovered .claude/ directories with Location, Package Name, Skills count, Commands count",
+      "Add Planned Plugins section showing each plugin's type, components, and source",
+      "Add Name Conflicts section when rename counter is triggered",
+      "Write unit test: dry-run output includes discovery table and planned plugins",
+      "Run cargo test --workspace"
     ],
     "passes": true
   },
   {
-    "category": "testing",
-    "description": "Unit tests for CommandDetector (7 tests covering all detection scenarios)",
+    "category": "functional",
+    "description": "Add BDD feature tests for recursive discovery scenarios",
     "steps": [
-      "In `crates/libaipm/src/migrate/command_detector.rs` `#[cfg(test)]` module, reuse or create a `MockFs`",
-      "Add test `detect_command_md_file`: mock `commands/review.md`, assert returns 1 artifact with kind=Command",
-      "Add test `detect_command_adds_disable_model_invocation`: assert metadata.model_invocation_disabled is true",
-      "Add test `detect_command_with_frontmatter`: mock command with `---\\nname: review\\ndescription: Code review\\n---`, assert metadata parsed",
-      "Add test `detect_command_without_frontmatter`: mock plain markdown, assert metadata has defaults + model_invocation_disabled=true",
-      "Add test `detect_command_ignores_non_md`: mock `commands/readme.txt`, assert skipped",
-      "Add test `detect_command_ignores_directories`: mock subdirectory in commands/, assert skipped",
-      "Add test `detect_no_commands_dir`: mock `.claude/` without `commands/`, assert empty Vec",
-      "Run `cargo test -p libaipm`"
+      "Open tests/features/manifest/migrate.feature",
+      "Add Scenario: Recursive discovery finds .claude/ in sub-packages",
+      "Add Scenario: Package-scoped plugin merges skills and commands",
+      "Add Scenario: Explicit --source uses legacy single-path behavior",
+      "Add Scenario: --max-depth 1 limits discovery to root .claude only",
+      "Add Scenario: Dry-run report shows discovered directories and planned plugins",
+      "Add Scenario: Duplicate package names trigger rename",
+      "Add Scenario: .gitignored directories are skipped during discovery",
+      "Implement step definitions for new scenarios as needed",
+      "Run cargo test --workspace to verify all scenarios pass"
     ],
     "passes": true
   },
   {
-    "category": "testing",
-    "description": "Unit tests for emitter module (9 tests covering plugin creation, path rewriting, hooks extraction, command conversion)",
+    "category": "functional",
+    "description": "Handle edge cases: no .claude dirs, .claude inside .ai, symlinks, empty artifacts",
     "steps": [
-      "In `crates/libaipm/src/migrate/emitter.rs` `#[cfg(test)]` module, create a recording `MockFs` that tracks all write operations",
-      "Add test `emit_creates_plugin_directory_structure`: assert `create_dir_all` called for plugin dir, `.claude-plugin/`, `skills/<name>/`",
-      "Add test `emit_generates_valid_aipm_toml`: capture written aipm.toml content, pass through `crate::manifest::parse_and_validate()`, assert Ok",
-      "Add test `emit_generates_plugin_json`: capture written plugin.json, parse as serde_json::Value, assert name/version/description fields",
-      "Add test `emit_copies_skill_files`: assert all artifact.files are written to correct destinations",
-      "Add test `emit_copies_referenced_scripts`: assert scripts written to `scripts/` directory",
-      "Add test `emit_rewrites_claude_skill_dir`: assert `${CLAUDE_SKILL_DIR}/scripts/` replaced with `${CLAUDE_SKILL_DIR}/../../scripts/`",
-      "Add test `emit_extracts_hooks_to_json`: mock artifact with hooks metadata, assert `hooks/hooks.json` written with valid JSON",
-      "Add test `emit_command_as_skill`: mock Command artifact, assert `skills/<name>/SKILL.md` created with `disable-model-invocation: true`",
-      "Add test `emit_command_wraps_with_frontmatter`: mock command without frontmatter, assert SKILL.md has `---` wrapper with name and disable-model-invocation",
-      "Run `cargo test -p libaipm`"
+      "Verify discover_claude_dirs returns empty vec when no .claude dirs exist anywhere",
+      "Verify .claude/ directories found under .ai/ are excluded from discovery results",
+      "Verify symlinked .claude/ directories are not followed (ignore crate default: follow_links=false)",
+      "Verify root .claude/ with no skills or commands produces no plugin (empty artifacts not emitted)",
+      "Verify package .claude/ with only commands produces a single skill-type plugin",
+      "Verify deeply nested .claude/ (e.g., a/b/c/d/.claude) uses immediate parent d as package name",
+      "Write unit tests for each edge case",
+      "Run cargo test --workspace"
     ],
     "passes": true
   },
   {
-    "category": "testing",
-    "description": "Unit tests for name conflict resolution (3 tests)",
+    "category": "performance",
+    "description": "Verify coverage meets 89% branch threshold for all new code",
     "steps": [
-      "In the emitter or mod.rs `#[cfg(test)]` module, add test `resolve_name_no_conflict`: name not in existing set, assert returns unchanged name and no Renamed action",
-      "Add test `resolve_name_conflict_renames`: name exists in set, assert returns `<name>-renamed-1` and pushes Renamed action",
-      "Add test `resolve_name_multiple_conflicts`: two different names both conflict, assert sequential IDs `-renamed-1`, `-renamed-2`",
-      "Run `cargo test -p libaipm`"
-    ],
-    "passes": true
-  },
-  {
-    "category": "testing",
-    "description": "Unit tests for registrar module (4 tests covering marketplace.json manipulation)",
-    "steps": [
-      "In `crates/libaipm/src/migrate/registrar.rs` `#[cfg(test)]` module, create a MockFs with readable/writable marketplace.json",
-      "Add test `register_appends_to_empty_plugins_array`: mock marketplace.json with empty plugins array, register 2 plugins, assert both appear in written JSON",
-      "Add test `register_appends_alongside_existing`: mock with existing `starter-aipm-plugin` entry, register new plugin, assert both old and new entries present",
-      "Add test `register_skips_already_registered`: mock with existing `deploy` entry, register `deploy` again, assert no duplicate",
-      "Add test `register_preserves_marketplace_metadata`: assert `name`, `owner`, `metadata` top-level fields unchanged after registration",
-      "Run `cargo test -p libaipm`"
-    ],
-    "passes": true
-  },
-  {
-    "category": "testing",
-    "description": "Unit tests for dry-run report generation (4 tests)",
-    "steps": [
-      "In `crates/libaipm/src/migrate/dry_run.rs` `#[cfg(test)]` module, add test `dry_run_report_lists_all_artifacts`: pass 2 artifacts, assert report contains sections for both",
-      "Add test `dry_run_report_shows_conflict_renames`: pass artifact whose name conflicts with existing, assert report shows renamed target",
-      "Add test `dry_run_report_shows_file_list`: pass artifact with files, assert report lists each file",
-      "Add test `dry_run_report_summary_table`: assert report ends with markdown summary table with correct counts",
-      "Run `cargo test -p libaipm`"
-    ],
-    "passes": true
-  },
-  {
-    "category": "testing",
-    "description": "Unit tests for orchestrator function (5 tests covering error paths and full flow)",
-    "steps": [
-      "In `crates/libaipm/src/migrate/mod.rs` `#[cfg(test)]` module, add test `migrate_errors_if_no_ai_dir`: mock where `.ai/` does not exist, assert `Error::MarketplaceNotFound`",
-      "Add test `migrate_errors_if_no_source_dir`: mock where `.claude/` does not exist, assert `Error::SourceNotFound`",
-      "Add test `migrate_dry_run_writes_report`: set `dry_run: true`, assert report file written and no plugin directories created",
-      "Add test `migrate_empty_source`: mock empty `.claude/skills/` and no `.claude/commands/`, assert empty MigrateResult with no errors",
-      "Add test `migrate_full_flow`: mock 1 skill + 1 command, assert PluginCreated + MarketplaceRegistered actions for both",
-      "Run `cargo test -p libaipm`"
-    ],
-    "passes": true
-  },
-  {
-    "category": "testing",
-    "description": "E2E tests for aipm migrate command (14 tests with assert_cmd + tempfile)",
-    "steps": [
-      "Create `crates/aipm/tests/migrate_e2e.rs` with `#![allow(clippy::unwrap_used, clippy::expect_used)]` for test code",
-      "Add helper function `aipm() -> Command` using `Command::cargo_bin(\"aipm\")`",
-      "Add helper to set up a workspace with marketplace: run `aipm init` in a temp dir",
-      "Add helper to create a skill: write `.claude/skills/<name>/SKILL.md` with sample content",
-      "Add helper to create a command: write `.claude/commands/<name>.md` with sample content",
-      "Add test `migrate_skill_creates_plugin`: set up skill, run `aipm migrate`, verify `.ai/deploy/aipm.toml` exists with correct content",
-      "Add test `migrate_command_creates_plugin`: set up command, verify `.ai/review/skills/review/SKILL.md` has `disable-model-invocation: true`",
-      "Add test `migrate_registers_in_marketplace`: verify `marketplace.json` plugins array contains new entry",
-      "Add test `migrate_does_not_enable_plugin`: verify `.claude/settings.json` does NOT contain `deploy@local-repo-plugins` in enabledPlugins",
-      "Add test `migrate_preserves_originals`: verify `.claude/skills/deploy/SKILL.md` still exists after migration",
-      "Add test `migrate_handles_name_conflict`: pre-create `.ai/deploy/` dir, run migrate, verify `deploy-renamed-1` directory created",
-      "Add test `migrate_dry_run_creates_report`: run with `--dry-run`, verify `aipm-migrate-dryrun-report.md` exists and `.ai/deploy/` does NOT exist",
-      "Add test `migrate_dry_run_no_side_effects`: verify marketplace.json unchanged after dry-run",
-      "Add test `migrate_no_ai_dir_errors`: skip `aipm init`, run migrate, assert failure with error mentioning `aipm init`",
-      "Add test `migrate_no_source_dir_errors`: init workspace but no `.claude/` dir, assert failure",
-      "Add test `migrate_empty_skills_dir`: create empty `.claude/skills/`, assert success with no plugin dirs created",
-      "Add test `migrate_multiple_skills`: create 2 skills, assert 2 plugin dirs + 2 marketplace entries",
-      "Add test `migrate_skill_with_scripts`: create skill referencing script, assert `scripts/` dir created in plugin",
-      "Add test `migrate_help_output`: run `aipm migrate --help`, assert contains `--dry-run` and `--source`",
-      "Run `cargo test -p aipm`"
-    ],
-    "passes": true
-  },
-  {
-    "category": "testing",
-    "description": "BDD feature scenarios for aipm migrate and wire into bdd.rs filter",
-    "steps": [
-      "Create `tests/features/manifest/migrate.feature` with the 7 Gherkin scenarios from spec section 8.3",
-      "In `crates/libaipm/tests/bdd.rs`, add Given step: `a skill {string} exists in {string}` \u00e2\u20ac\u201d creates the skill directory + SKILL.md in the scenario's temp dir",
-      "Add Given step: `a command {string} exists in {string}` \u00e2\u20ac\u201d creates the command .md file",
-      "Add Given step: `a plugin directory exists at {string}` \u00e2\u20ac\u201d creates a pre-existing directory in .ai/",
-      "Add Given step: `a workspace initialized with marketplace` \u00e2\u20ac\u201d runs `aipm init` in the scenario root (or sets up .ai/ + marketplace.json programmatically)",
-      "Add When step: `I run {string}` \u00e2\u20ac\u201d extend existing `run_command` to handle `aipm migrate` and its flags",
-      "Add Then steps for: plugin directory existence, file content assertions (`contains`), marketplace.json plugin presence, settings.json non-containment, file still-exists checks, output-contains assertions, dry-run report existence, no-plugin-directory-exists",
-      "Add `\"migrate.feature\"` to the filename filter list in `bdd.rs` main function (around line 698-709)",
-      "Run `cargo test -p libaipm -- bdd` to verify BDD scenarios pass"
-    ],
-    "passes": true
-  },
-  {
-    "category": "testing",
-    "description": "Verify all four build gates pass with zero warnings",
-    "steps": [
-      "Run `cargo build --workspace` \u00e2\u20ac\u201d must succeed with no errors",
-      "Run `cargo test --workspace` \u00e2\u20ac\u201d must succeed with all existing + new tests passing",
-      "Run `cargo clippy --workspace -- -D warnings` \u00e2\u20ac\u201d must succeed with zero warnings",
-      "Run `cargo fmt --check` \u00e2\u20ac\u201d must succeed with no formatting issues"
-    ],
-    "passes": true
-  },
-  {
-    "category": "testing",
-    "description": "Verify branch coverage gate (89%) including new migrate modules",
-    "steps": [
-      "Run `cargo +nightly llvm-cov clean --workspace`",
-      "Run `cargo +nightly llvm-cov --no-report --workspace --branch`",
-      "Run `cargo +nightly llvm-cov --no-report --doc`",
-      "Run `cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs)'`",
-      "Verify TOTAL branch column shows >= 89%",
-      "If coverage drops below 89%: identify uncovered branches in migrate modules and add targeted tests",
-      "The dry_run and emitter modules should have high coverage since all logic operates through testable Fs trait",
-      "If any TTY-dependent code is added later, exclude it via the coverage regex pattern"
+      "Run cargo +nightly llvm-cov clean --workspace",
+      "Run cargo +nightly llvm-cov --no-report --workspace --branch",
+      "Run cargo +nightly llvm-cov --no-report --doc",
+      "Run cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs)'",
+      "Verify TOTAL line branch column shows >= 89%",
+      "If below threshold, identify uncovered branches and add targeted tests",
+      "Re-run coverage until threshold is met"
     ],
     "passes": true
   }

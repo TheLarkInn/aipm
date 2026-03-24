@@ -48,9 +48,15 @@ enum Commands {
         #[arg(long)]
         dry_run: bool,
 
-        /// Source folder to scan (default: .claude).
-        #[arg(long, default_value = ".claude")]
-        source: String,
+        /// Source folder to scan (e.g., ".claude").
+        /// When omitted, recursively discovers all .claude/ directories.
+        #[arg(long)]
+        source: Option<String>,
+
+        /// Maximum directory depth for recursive discovery.
+        /// Ignored when --source is provided.
+        #[arg(long)]
+        max_depth: Option<usize>,
 
         /// Project directory.
         #[arg(default_value = ".")]
@@ -102,10 +108,15 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             }
             Ok(())
         },
-        Some(Commands::Migrate { dry_run, source, dir }) => {
+        Some(Commands::Migrate { dry_run, source, max_depth, dir }) => {
             let dir = if dir.as_os_str() == "." { std::env::current_dir()? } else { dir };
 
-            let opts = libaipm::migrate::Options { dir: &dir, source: &source, dry_run };
+            let opts = libaipm::migrate::Options {
+                dir: &dir,
+                source: source.as_deref(),
+                dry_run,
+                max_depth,
+            };
 
             let result = libaipm::migrate::migrate(&opts, &libaipm::fs::Real)?;
 

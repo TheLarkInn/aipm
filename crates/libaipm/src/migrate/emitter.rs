@@ -222,6 +222,228 @@ pub fn resolve_plugin_name<S: BuildHasher>(
     new_name
 }
 
+/// Emit a single artifact as a plugin with a pre-resolved name.
+///
+/// Similar to `emit_plugin` but the name is already resolved (no rename logic).
+/// Used by the recursive migration path where names are pre-resolved sequentially.
+pub fn emit_plugin_with_name(
+    artifact: &Artifact,
+    plugin_name: &str,
+    ai_dir: &Path,
+    fs: &dyn Fs,
+) -> Result<Vec<Action>, Error> {
+    let mut actions = Vec::new();
+    let plugin_dir = ai_dir.join(plugin_name);
+
+    fs.create_dir_all(&plugin_dir)?;
+    fs.create_dir_all(&plugin_dir.join(".claude-plugin"))?;
+    fs.create_dir_all(&plugin_dir.join("skills").join(&artifact.name))?;
+
+    match artifact.kind {
+        ArtifactKind::Skill => {
+            emit_skill_files(artifact, &plugin_dir, fs)?;
+        },
+        ArtifactKind::Command => {
+            emit_command_as_skill(artifact, &plugin_dir, fs)?;
+        },
+    }
+
+    if !artifact.referenced_scripts.is_empty() {
+        let scripts_dir = plugin_dir.join("scripts");
+        fs.create_dir_all(&scripts_dir)?;
+        let scripts_root = Path::new("scripts");
+        for script in &artifact.referenced_scripts {
+            let source = artifact.source_path.join(script);
+            if fs.exists(&source) {
+                let relative = script.strip_prefix(scripts_root).unwrap_or(script);
+                let dest = scripts_dir.join(relative);
+                if let Some(parent) = dest.parent() {
+                    fs.create_dir_all(parent)?;
+                }
+                let content = fs.read_to_string(&source)?;
+                fs.write_file(&dest, content.as_bytes())?;
+            }
+        }
+    }
+
+    if let Some(ref hooks_yaml) = artifact.metadata.hooks {
+        let hooks_dir = plugin_dir.join("hooks");
+        fs.create_dir_all(&hooks_dir)?;
+        let hooks_json = convert_hooks_yaml_to_json(hooks_yaml);
+        write_file(&hooks_dir.join("hooks.json"), &hooks_json, fs)?;
+    }
+
+    let manifest = generate_plugin_manifest(artifact, plugin_name);
+    write_file(&plugin_dir.join("aipm.toml"), &manifest, fs)?;
+
+    let plugin_json = generate_plugin_json(plugin_name, &artifact.metadata);
+    write_file(&plugin_dir.join(".claude-plugin").join("plugin.json"), &plugin_json, fs)?;
+
+    actions.push(Action::PluginCreated {
+        name: plugin_name.to_string(),
+        source: artifact.source_path.clone(),
+        plugin_type: artifact.kind.to_type_string().to_string(),
+    });
+
+    Ok(actions)
+}
+
+/// Emit a package-scoped plugin containing multiple artifacts.
+///
+/// All artifacts are placed under a single plugin directory named `plugin_name`.
+/// Skills retain their original names as subdirectories under `skills/`.
+/// Commands are converted to skills.
+pub fn emit_package_plugin(
+    plugin_name: &str,
+    artifacts: &[Artifact],
+    ai_dir: &Path,
+    fs: &dyn Fs,
+) -> Result<Vec<Action>, Error> {
+    let mut actions = Vec::new();
+    let plugin_dir = ai_dir.join(plugin_name);
+
+    fs.create_dir_all(&plugin_dir)?;
+    fs.create_dir_all(&plugin_dir.join(".claude-plugin"))?;
+
+    let mut all_component_paths = Vec::new();
+    let mut merged_hooks_parts = Vec::new();
+    let mut has_skill = false;
+    let mut has_command = false;
+
+    for artifact in artifacts {
+        match artifact.kind {
+            ArtifactKind::Skill => has_skill = true,
+            ArtifactKind::Command => has_command = true,
+        }
+
+        // Create skill subdirectory for this artifact
+        let skill_dir = plugin_dir.join("skills").join(&artifact.name);
+        fs.create_dir_all(&skill_dir)?;
+
+        match artifact.kind {
+            ArtifactKind::Skill => {
+                emit_skill_files(artifact, &plugin_dir, fs)?;
+            },
+            ArtifactKind::Command => {
+                emit_command_as_skill(artifact, &plugin_dir, fs)?;
+            },
+        }
+
+        all_component_paths.push(format!("skills/{}/SKILL.md", artifact.name));
+
+        // Copy referenced scripts
+        if !artifact.referenced_scripts.is_empty() {
+            let scripts_dir = plugin_dir.join("scripts");
+            fs.create_dir_all(&scripts_dir)?;
+            let scripts_root = Path::new("scripts");
+            for script in &artifact.referenced_scripts {
+                let source = artifact.source_path.join(script);
+                if fs.exists(&source) {
+                    let relative = script.strip_prefix(scripts_root).unwrap_or(script);
+                    let dest = scripts_dir.join(relative);
+                    if let Some(parent) = dest.parent() {
+                        fs.create_dir_all(parent)?;
+                    }
+                    let content = fs.read_to_string(&source)?;
+                    fs.write_file(&dest, content.as_bytes())?;
+                }
+            }
+        }
+
+        // Collect hooks for merging
+        if let Some(ref hooks_yaml) = artifact.metadata.hooks {
+            merged_hooks_parts.push(hooks_yaml.clone());
+        }
+    }
+
+    let has_multiple_types = has_skill && has_command;
+
+    // Merge hooks from all artifacts into one hooks.json
+    if !merged_hooks_parts.is_empty() {
+        let hooks_dir = plugin_dir.join("hooks");
+        fs.create_dir_all(&hooks_dir)?;
+        let merged_hooks = merged_hooks_parts.join("\n");
+        let hooks_json = convert_hooks_yaml_to_json(&merged_hooks);
+        write_file(&hooks_dir.join("hooks.json"), &hooks_json, fs)?;
+    }
+
+    // Generate aipm.toml for the package plugin
+    let manifest = generate_package_manifest(
+        plugin_name,
+        artifacts,
+        &all_component_paths,
+        has_multiple_types,
+        !merged_hooks_parts.is_empty(),
+    );
+    write_file(&plugin_dir.join("aipm.toml"), &manifest, fs)?;
+
+    // Generate plugin.json
+    let first_metadata =
+        artifacts.first().map_or_else(ArtifactMetadata::default, |a| a.metadata.clone());
+    let plugin_json = generate_plugin_json(plugin_name, &first_metadata);
+    write_file(&plugin_dir.join(".claude-plugin").join("plugin.json"), &plugin_json, fs)?;
+
+    // One PluginCreated action for the whole package
+    let plugin_type = if has_multiple_types { "composite" } else { "skill" };
+    if let Some(first) = artifacts.first() {
+        actions.push(Action::PluginCreated {
+            name: plugin_name.to_string(),
+            source: first.source_path.clone(),
+            plugin_type: plugin_type.to_string(),
+        });
+    }
+
+    Ok(actions)
+}
+
+/// Generate `aipm.toml` for a package-scoped plugin with multiple artifacts.
+fn generate_package_manifest(
+    plugin_name: &str,
+    artifacts: &[Artifact],
+    component_paths: &[String],
+    has_multiple_types: bool,
+    has_hooks: bool,
+) -> String {
+    let type_str = if has_multiple_types { "composite" } else { "skill" };
+    let description = artifacts
+        .first()
+        .and_then(|a| a.metadata.description.as_deref())
+        .unwrap_or("Migrated from .claude/ configuration");
+
+    let skills_list: Vec<String> = component_paths.iter().map(|p| format!("\"{p}\"")).collect();
+    let mut components_section = format!("skills = [{}]", skills_list.join(", "));
+
+    let all_scripts: Vec<String> = artifacts
+        .iter()
+        .flat_map(|a| {
+            let scripts_root = Path::new("scripts");
+            a.referenced_scripts.iter().map(move |p| {
+                let relative = p.strip_prefix(scripts_root).unwrap_or(p);
+                format!("\"scripts/{}\"", relative.to_string_lossy())
+            })
+        })
+        .collect();
+    if !all_scripts.is_empty() {
+        use std::fmt::Write;
+        let _ = write!(components_section, "\nscripts = [{}]", all_scripts.join(", "));
+    }
+    if has_hooks {
+        components_section.push_str("\nhooks = [\"hooks/hooks.json\"]");
+    }
+
+    format!(
+        "[package]\n\
+         name = \"{plugin_name}\"\n\
+         version = \"0.1.0\"\n\
+         type = \"{type_str}\"\n\
+         edition = \"2024\"\n\
+         description = \"{description}\"\n\
+         \n\
+         [components]\n\
+         {components_section}\n"
+    )
+}
+
 /// Check if a file path refers to a `SKILL.md` file.
 fn file_is_skill_md(path: &Path) -> bool {
     path.file_name().and_then(|f| f.to_str()).is_some_and(|f| f == "SKILL.md")
@@ -355,15 +577,15 @@ fn generate_plugin_json(name: &str, metadata: &ArtifactMetadata) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::RefCell;
     use std::collections::HashMap;
     use std::path::PathBuf;
+    use std::sync::Mutex;
 
     struct MockFs {
         exists: HashSet<PathBuf>,
         dirs: HashMap<PathBuf, Vec<crate::fs::DirEntry>>,
         files: HashMap<PathBuf, String>,
-        written: RefCell<HashMap<PathBuf, Vec<u8>>>,
+        written: Mutex<HashMap<PathBuf, Vec<u8>>>,
     }
 
     impl MockFs {
@@ -372,12 +594,15 @@ mod tests {
                 exists: HashSet::new(),
                 dirs: HashMap::new(),
                 files: HashMap::new(),
-                written: RefCell::new(HashMap::new()),
+                written: Mutex::new(HashMap::new()),
             }
         }
 
         fn get_written(&self, path: &Path) -> Option<String> {
-            self.written.borrow().get(path).and_then(|b| String::from_utf8(b.clone()).ok())
+            self.written
+                .lock()
+                .ok()
+                .and_then(|w| w.get(path).and_then(|b| String::from_utf8(b.clone()).ok()))
         }
     }
 
@@ -391,7 +616,9 @@ mod tests {
         }
 
         fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
-            self.written.borrow_mut().insert(path.to_path_buf(), content.to_vec());
+            if let Ok(mut w) = self.written.lock() {
+                w.insert(path.to_path_buf(), content.to_vec());
+            }
             Ok(())
         }
 
@@ -986,5 +1213,191 @@ mod tests {
         // README.md should be copied as-is
         let readme = fs.get_written(Path::new("/ai/deploy/skills/deploy/README.md"));
         assert!(readme.is_some_and(|c| c == "readme"));
+    }
+
+    #[test]
+    fn emit_plugin_with_name_creates_structure() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
+
+        let artifact = make_skill_artifact();
+        let result = emit_plugin_with_name(&artifact, "my-plugin", Path::new("/ai"), &fs);
+        assert!(result.is_ok());
+
+        // Check that files were written at the specified plugin name
+        assert!(fs.get_written(Path::new("/ai/my-plugin/aipm.toml")).is_some());
+        assert!(fs.get_written(Path::new("/ai/my-plugin/.claude-plugin/plugin.json")).is_some());
+        assert!(fs.get_written(Path::new("/ai/my-plugin/skills/deploy/SKILL.md")).is_some());
+    }
+
+    #[test]
+    fn emit_plugin_with_name_command_artifact() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/commands/review.md"), "Review code".to_string());
+
+        let artifact = make_command_artifact();
+        let result = emit_plugin_with_name(&artifact, "review-plugin", Path::new("/ai"), &fs);
+        assert!(result.is_ok());
+
+        let skill = fs.get_written(Path::new("/ai/review-plugin/skills/review/SKILL.md"));
+        assert!(skill.as_ref().is_some_and(|c| c.contains("disable-model-invocation: true")));
+    }
+
+    #[test]
+    fn emit_plugin_with_name_with_scripts() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
+        fs.files
+            .insert(PathBuf::from("/src/skills/deploy/scripts/run.sh"), "#!/bin/bash".to_string());
+        fs.exists.insert(PathBuf::from("/src/skills/deploy/scripts/run.sh"));
+
+        let mut artifact = make_skill_artifact();
+        artifact.referenced_scripts = vec![PathBuf::from("scripts/run.sh")];
+        let result = emit_plugin_with_name(&artifact, "deploy", Path::new("/ai"), &fs);
+        assert!(result.is_ok());
+
+        assert!(fs.get_written(Path::new("/ai/deploy/scripts/run.sh")).is_some());
+    }
+
+    #[test]
+    fn emit_plugin_with_name_with_hooks() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
+
+        let mut artifact = make_skill_artifact();
+        artifact.metadata.hooks = Some("PreToolUse: check".to_string());
+        let result = emit_plugin_with_name(&artifact, "deploy", Path::new("/ai"), &fs);
+        assert!(result.is_ok());
+
+        assert!(fs.get_written(Path::new("/ai/deploy/hooks/hooks.json")).is_some());
+    }
+
+    #[test]
+    fn emit_package_plugin_single_skill() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
+
+        let artifact = make_skill_artifact();
+        let result = emit_package_plugin("auth", &[artifact], Path::new("/ai"), &fs);
+        assert!(result.is_ok());
+
+        // Check plugin structure
+        assert!(fs.get_written(Path::new("/ai/auth/aipm.toml")).is_some());
+        assert!(fs.get_written(Path::new("/ai/auth/.claude-plugin/plugin.json")).is_some());
+        assert!(fs.get_written(Path::new("/ai/auth/skills/deploy/SKILL.md")).is_some());
+
+        // Check aipm.toml content
+        let toml = fs.get_written(Path::new("/ai/auth/aipm.toml"));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("name = \"auth\"")));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("type = \"skill\"")));
+    }
+
+    #[test]
+    fn emit_package_plugin_multiple_artifacts_composite() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
+        fs.files.insert(PathBuf::from("/src/commands/review.md"), "Review code".to_string());
+
+        let skill = make_skill_artifact();
+        let cmd = make_command_artifact();
+        let result = emit_package_plugin("auth", &[skill, cmd], Path::new("/ai"), &fs);
+        assert!(result.is_ok());
+
+        // Both artifacts should be present
+        assert!(fs.get_written(Path::new("/ai/auth/skills/deploy/SKILL.md")).is_some());
+        assert!(fs.get_written(Path::new("/ai/auth/skills/review/SKILL.md")).is_some());
+
+        // Should be composite type since it has both skills and commands
+        let toml = fs.get_written(Path::new("/ai/auth/aipm.toml"));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("type = \"composite\"")));
+    }
+
+    #[test]
+    fn emit_package_plugin_merges_hooks() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
+
+        let mut artifact = make_skill_artifact();
+        artifact.metadata.hooks = Some("PreToolUse: check_deploy".to_string());
+
+        let result = emit_package_plugin("auth", &[artifact], Path::new("/ai"), &fs);
+        assert!(result.is_ok());
+
+        let hooks = fs.get_written(Path::new("/ai/auth/hooks/hooks.json"));
+        assert!(hooks.is_some());
+        assert!(hooks.as_ref().is_some_and(|c| c.contains("PreToolUse")));
+
+        let toml = fs.get_written(Path::new("/ai/auth/aipm.toml"));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("hooks")));
+    }
+
+    #[test]
+    fn emit_package_plugin_with_scripts() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
+        fs.files
+            .insert(PathBuf::from("/src/skills/deploy/scripts/run.sh"), "#!/bin/bash".to_string());
+        fs.exists.insert(PathBuf::from("/src/skills/deploy/scripts/run.sh"));
+
+        let mut artifact = make_skill_artifact();
+        artifact.referenced_scripts = vec![PathBuf::from("scripts/run.sh")];
+
+        let result = emit_package_plugin("auth", &[artifact], Path::new("/ai"), &fs);
+        assert!(result.is_ok());
+
+        assert!(fs.get_written(Path::new("/ai/auth/scripts/run.sh")).is_some());
+        let toml = fs.get_written(Path::new("/ai/auth/aipm.toml"));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("scripts")));
+    }
+
+    #[test]
+    fn emit_plugin_with_name_missing_script_skipped() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
+        // Script referenced but does NOT exist on disk
+
+        let mut artifact = make_skill_artifact();
+        artifact.referenced_scripts = vec![PathBuf::from("scripts/missing.sh")];
+        let result = emit_plugin_with_name(&artifact, "deploy", Path::new("/ai"), &fs);
+        assert!(result.is_ok());
+        assert!(fs.get_written(Path::new("/ai/deploy/scripts/missing.sh")).is_none());
+    }
+
+    #[test]
+    fn emit_package_plugin_command_only() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/commands/review.md"), "Review code".to_string());
+
+        let cmd = make_command_artifact();
+        let result = emit_package_plugin("auth", &[cmd], Path::new("/ai"), &fs);
+        assert!(result.is_ok());
+
+        // Should be skill type (command converts to skill)
+        let toml = fs.get_written(Path::new("/ai/auth/aipm.toml"));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("type = \"skill\"")));
+        assert!(toml.as_ref().is_some_and(|c| !c.contains("composite")));
+    }
+
+    #[test]
+    fn emit_package_plugin_missing_script() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
+
+        let mut artifact = make_skill_artifact();
+        artifact.referenced_scripts = vec![PathBuf::from("scripts/missing.sh")];
+
+        let result = emit_package_plugin("auth", &[artifact], Path::new("/ai"), &fs);
+        assert!(result.is_ok());
+        // Missing script should not be written
+        assert!(fs.get_written(Path::new("/ai/auth/scripts/missing.sh")).is_none());
+    }
+
+    #[test]
+    fn emit_package_plugin_empty_artifacts() {
+        let fs = MockFs::new();
+        let result = emit_package_plugin("empty", &[], Path::new("/ai"), &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert!(actions.is_empty());
     }
 }

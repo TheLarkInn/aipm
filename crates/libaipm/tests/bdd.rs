@@ -721,6 +721,32 @@ async fn given_preexisting_plugin(world: &mut AipmWorld, name: String, dir: Stri
     std::fs::create_dir_all(base.join(".ai").join(&name)).expect("create plugin dir");
 }
 
+#[given(expr = "a skill {string} exists in sub-package {string} of {string}")]
+async fn given_skill_in_subpackage(world: &mut AipmWorld, name: String, pkg: String, dir: String) {
+    let base = world.dir_path(&dir);
+    let skill_dir = base.join("packages").join(&pkg).join(".claude").join("skills").join(&name);
+    std::fs::create_dir_all(&skill_dir).expect("create skill dir");
+    std::fs::write(
+        skill_dir.join("SKILL.md"),
+        format!("---\nname: {name}\ndescription: {name} skill\n---\n{name} instructions"),
+    )
+    .expect("write SKILL.md");
+}
+
+#[given(expr = "a command {string} exists in sub-package {string} of {string}")]
+async fn given_command_in_subpackage(
+    world: &mut AipmWorld,
+    name: String,
+    pkg: String,
+    dir: String,
+) {
+    let base = world.dir_path(&dir);
+    let cmd_dir = base.join("packages").join(&pkg).join(".claude").join("commands");
+    std::fs::create_dir_all(&cmd_dir).expect("create commands dir");
+    std::fs::write(cmd_dir.join(format!("{name}.md")), format!("{name} instructions"))
+        .expect("write command");
+}
+
 // =========================================================================
 // Migrate — assertion steps
 // =========================================================================

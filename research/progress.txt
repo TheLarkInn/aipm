@@ -1,25 +1,42 @@
-ALL 22 FEATURES COMPLETE.
+2026-03-23: Recursive .claude/ Discovery for aipm migrate — Implementation Complete
 
-Implementation summary:
-- Feature 1: Fs trait extended with read_dir + DirEntry, 4 unit tests, all mock impls updated
-- Feature 2: Fs::read_dir unit tests pass
-- Feature 3: migrate module with core types (ArtifactKind, ArtifactMetadata, Artifact, Options, Action, Outcome, Error)
-- Feature 4: Detector trait + claude_detectors() factory
-- Feature 5: SkillDetector with frontmatter parsing, script extraction, recursive file collection
-- Feature 6: CommandDetector with command-to-skill conversion
-- Feature 7: Emitter: plugin dir creation, file copying, path rewriting, hooks extraction, manifest/JSON generation
-- Feature 8: Registrar: marketplace.json append logic
-- Feature 9: DryRun: structured markdown report generator
-- Feature 10: migrate() orchestrator wiring detectors -> emitter -> registrar
-- Feature 11: Commands::Migrate CLI variant with dispatch
-- Features 12-18: Unit tests for all modules (SkillDetector 13 tests, CommandDetector 7 tests, Emitter 18 tests, Registrar 4 tests, DryRun 8 tests, Orchestrator 5 tests, Name conflict 3 tests)
-- Feature 19: 14 E2E tests (migrate_e2e.rs)
-- Feature 20: 7 BDD scenarios (migrate.feature) — all passing
-- Feature 21: All four build gates pass (build, test, clippy, fmt)
-- Feature 22: Branch coverage at 89.74% (>= 89% threshold)
+ALL 14 FEATURES IMPLEMENTED AND PASSING:
 
-Test counts:
-- 204 unit tests (libaipm)
-- 14 E2E tests (aipm migrate)
-- 58 BDD scenarios (including 7 new migrate scenarios)
-- 0 failures
+1. [DONE] Add Send + Sync supertraits to Fs trait, migrate MockFs from RefCell to Mutex
+2. [DONE] Add ignore and rayon workspace dependencies
+3. [DONE] Modify Options struct: source -> Option, add max_depth
+4. [DONE] Create discovery module with discover_claude_dirs()
+5. [DONE] Implement PluginPlan struct and package-scoped merging
+6. [DONE] Parallel detection via rayon
+7. [DONE] Implement emit_package_plugin() in emitter
+8. [DONE] Parallel emission via rayon
+9. [DONE] Sequential name resolution for duplicate package names
+10. [DONE] Wire up full recursive migrate() orchestrator
+11. [DONE] Update dry-run report for recursive discovery
+12. [DONE] Add BDD feature tests (4 new scenarios, 62 total)
+13. [DONE] Handle edge cases (no dirs, .ai exclusion, symlinks, empty artifacts, deep nesting)
+14. [DONE] Coverage verified at 89.05% branch coverage (threshold: 89%)
+
+VALIDATION:
+- cargo build --workspace: PASS
+- cargo test --workspace: 335 tests pass (0 failures)
+- cargo clippy --workspace -- -D warnings: PASS (0 warnings)
+- cargo fmt --check: PASS
+- Branch coverage: 89.05% (484 branches, 53 missed)
+
+FILES CHANGED:
+- Cargo.toml: Added ignore and rayon workspace dependencies
+- crates/libaipm/Cargo.toml: Added ignore and rayon
+- crates/libaipm/src/fs.rs: Added Send + Sync to Fs trait
+- crates/libaipm/src/init.rs: Cell -> AtomicU32 in CountingFs
+- crates/libaipm/src/migrate/mod.rs: Options struct, PluginPlan, recursive orchestrator
+- crates/libaipm/src/migrate/discovery.rs: NEW — discover_claude_dirs()
+- crates/libaipm/src/migrate/emitter.rs: emit_package_plugin(), emit_plugin_with_name()
+- crates/libaipm/src/migrate/dry_run.rs: generate_recursive_report()
+- crates/libaipm/src/migrate/command_detector.rs: RefCell -> Mutex
+- crates/libaipm/src/migrate/skill_detector.rs: RefCell -> Mutex
+- crates/libaipm/src/migrate/registrar.rs: RefCell -> Mutex
+- crates/aipm/src/main.rs: --source optional, --max-depth flag
+- crates/aipm/tests/migrate_e2e.rs: Updated for recursive behavior
+- crates/libaipm/tests/bdd.rs: Added sub-package step definitions
+- tests/features/manifest/migrate.feature: 4 new BDD scenarios

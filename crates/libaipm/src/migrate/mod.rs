@@ -2,6 +2,7 @@
 
 pub mod command_detector;
 pub mod detector;
+pub mod discovery;
 pub mod dry_run;
 pub mod emitter;
 pub mod registrar;
@@ -65,9 +66,14 @@ pub struct Options<'a> {
     /// Project root directory.
     pub dir: &'a Path,
     /// Source folder name (e.g., ".claude").
-    pub source: &'a str,
+    /// When `None`, recursive discovery is used.
+    /// When `Some`, only that single directory under `dir` is scanned (legacy behavior).
+    pub source: Option<&'a str>,
     /// Whether to run in dry-run mode (report only, no writes).
     pub dry_run: bool,
+    /// Maximum directory traversal depth for recursive discovery.
+    /// `None` means unlimited. Ignored when `source` is `Some`.
+    pub max_depth: Option<usize>,
 }
 
 /// A single action taken (or planned) during migration.
@@ -149,49 +155,75 @@ pub enum Error {
         reason: String,
     },
 
+    /// Discovery failed during recursive directory walking.
+    #[error("failed to discover .claude directories: {0}")]
+    DiscoveryFailed(String),
+
     /// An I/O error occurred.
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }
 
+/// A planned plugin to emit, which may contain artifacts from multiple detectors.
+#[derive(Debug, Clone)]
+pub struct PluginPlan {
+    /// The plugin name (package name or individual artifact name).
+    pub name: String,
+    /// All artifacts to include in this plugin.
+    pub artifacts: Vec<Artifact>,
+    /// Whether this was merged from a package (true) or is a single artifact (false).
+    pub is_package_scoped: bool,
+}
+
 /// Run the migration pipeline.
 pub fn migrate(opts: &Options<'_>, fs: &dyn Fs) -> Result<Outcome, Error> {
     let ai_dir = opts.dir.join(".ai");
-    let source_dir = opts.dir.join(opts.source);
 
-    // 1. Validate prerequisites
+    // 1. Validate .ai/ exists
     if !fs.exists(&ai_dir) {
         return Err(Error::MarketplaceNotFound(ai_dir));
     }
+
+    opts.source.map_or_else(
+        || migrate_recursive(opts.dir, opts.max_depth, opts.dry_run, &ai_dir, fs),
+        |source| migrate_single_source(opts.dir, source, opts.dry_run, &ai_dir, fs),
+    )
+}
+
+/// Legacy single-path migration mode (when `--source` is explicitly provided).
+fn migrate_single_source(
+    dir: &Path,
+    source: &str,
+    dry_run: bool,
+    ai_dir: &Path,
+    fs: &dyn Fs,
+) -> Result<Outcome, Error> {
+    let source_dir = dir.join(source);
+
     if !fs.exists(&source_dir) {
         return Err(Error::SourceNotFound(source_dir));
     }
 
-    // 2. Resolve detectors for this source
-    let detectors = match opts.source {
+    let detectors = match source {
         ".claude" => detector::claude_detectors(),
         other => return Err(Error::UnsupportedSource(other.to_string())),
     };
 
-    // 3. Run all detectors
     let mut all_artifacts = Vec::new();
     for det in &detectors {
         let artifacts = det.detect(&source_dir, fs)?;
         all_artifacts.extend(artifacts);
     }
 
-    // 4. Collect existing plugin names for conflict detection
-    let existing_plugins = collect_existing_plugin_names(&ai_dir, fs)?;
+    let existing_plugins = collect_existing_plugin_names(ai_dir, fs)?;
 
-    // 5. Dry run — generate report and return
-    if opts.dry_run {
-        let report = dry_run::generate_report(&all_artifacts, &existing_plugins, opts.source);
-        let report_path = opts.dir.join("aipm-migrate-dryrun-report.md");
+    if dry_run {
+        let report = dry_run::generate_report(&all_artifacts, &existing_plugins, source);
+        let report_path = dir.join("aipm-migrate-dryrun-report.md");
         fs.write_file(&report_path, report.as_bytes())?;
         return Ok(Outcome { actions: vec![Action::DryRunReport { path: report_path }] });
     }
 
-    // 6. Emit plugins
     let mut actions = Vec::new();
     let mut registered_names = Vec::new();
     let mut known_names = existing_plugins;
@@ -199,19 +231,138 @@ pub fn migrate(opts: &Options<'_>, fs: &dyn Fs) -> Result<Outcome, Error> {
 
     for artifact in &all_artifacts {
         let (plugin_name, emit_actions) =
-            emitter::emit_plugin(artifact, &ai_dir, &known_names, &mut rename_counter, fs)?;
+            emitter::emit_plugin(artifact, ai_dir, &known_names, &mut rename_counter, fs)?;
         actions.extend(emit_actions);
         known_names.insert(plugin_name.clone());
         registered_names.push(plugin_name);
     }
 
-    // 7. Register all in marketplace.json
-    registrar::register_plugins(&ai_dir, &registered_names, fs)?;
+    registrar::register_plugins(ai_dir, &registered_names, fs)?;
     for name in &registered_names {
         actions.push(Action::MarketplaceRegistered { name: name.clone() });
     }
 
     Ok(Outcome { actions })
+}
+
+/// Recursive discovery migration mode (when `--source` is not provided).
+fn migrate_recursive(
+    dir: &Path,
+    max_depth: Option<usize>,
+    dry_run: bool,
+    ai_dir: &Path,
+    fs: &dyn Fs,
+) -> Result<Outcome, Error> {
+    use rayon::prelude::*;
+
+    let discovered = discovery::discover_claude_dirs(dir, max_depth)?;
+    if discovered.is_empty() {
+        return Ok(Outcome { actions: Vec::new() });
+    }
+
+    // Parallel detection: run detectors across discovered dirs concurrently
+    let detection_results: Vec<Result<Vec<PluginPlan>, Error>> = discovered
+        .par_iter()
+        .map(|src| {
+            let detectors = detector::claude_detectors();
+            let mut all_artifacts = Vec::new();
+            for det in &detectors {
+                let artifacts = det.detect(&src.claude_dir, fs)?;
+                all_artifacts.extend(artifacts);
+            }
+
+            if let Some(ref pkg_name) = src.package_name {
+                // Package-scoped: merge all artifacts under one plugin
+                Ok(vec![PluginPlan {
+                    name: pkg_name.clone(),
+                    artifacts: all_artifacts,
+                    is_package_scoped: true,
+                }])
+            } else {
+                // Root-level: each artifact becomes its own plugin
+                Ok(all_artifacts
+                    .into_iter()
+                    .map(|a| PluginPlan {
+                        name: a.name.clone(),
+                        artifacts: vec![a],
+                        is_package_scoped: false,
+                    })
+                    .collect())
+            }
+        })
+        .collect();
+
+    // Collect results, propagating errors
+    let mut plugin_plans = Vec::new();
+    for result in detection_results {
+        plugin_plans.extend(result?);
+    }
+
+    // Filter out empty plans
+    plugin_plans.retain(|p| !p.artifacts.is_empty());
+
+    let existing_plugins = collect_existing_plugin_names(ai_dir, fs)?;
+
+    if dry_run {
+        let report =
+            dry_run::generate_recursive_report(&discovered, &plugin_plans, &existing_plugins);
+        let report_path = dir.join("aipm-migrate-dryrun-report.md");
+        fs.write_file(&report_path, report.as_bytes())?;
+        return Ok(Outcome { actions: vec![Action::DryRunReport { path: report_path }] });
+    }
+
+    // Sequential name resolution
+    let mut known_names = existing_plugins;
+    let mut rename_counter = 0u32;
+    let mut resolved: Vec<(PluginPlan, String)> = Vec::new();
+    for plan in plugin_plans {
+        let mut actions = Vec::new();
+        let final_name = emitter::resolve_plugin_name(
+            &plan.name,
+            &known_names,
+            &mut rename_counter,
+            &mut actions,
+        );
+        known_names.insert(final_name.clone());
+        resolved.push((plan, final_name));
+    }
+
+    // Parallel emission
+    let emission_results: Vec<Result<_, Error>> = resolved
+        .par_iter()
+        .map(|(plan, final_name)| {
+            let mut actions = Vec::new();
+
+            if plan.is_package_scoped {
+                let emit_actions =
+                    emitter::emit_package_plugin(final_name, &plan.artifacts, ai_dir, fs)?;
+                actions.extend(emit_actions);
+            } else if let Some(artifact) = plan.artifacts.first() {
+                // Single artifact — use existing emit logic but with pre-resolved name
+                let emit_actions =
+                    emitter::emit_plugin_with_name(artifact, final_name, ai_dir, fs)?;
+                actions.extend(emit_actions);
+            }
+
+            Ok((actions, final_name.clone()))
+        })
+        .collect();
+
+    let mut all_actions = Vec::new();
+    let mut registered_names = Vec::new();
+    for result in emission_results {
+        let (actions, name) = result?;
+        all_actions.extend(actions);
+        registered_names.push(name);
+    }
+
+    // Register all in marketplace.json
+    registrar::register_plugins(ai_dir, &registered_names, fs)?;
+    for name in &registered_names {
+        all_actions.push(Action::MarketplaceRegistered { name: name.clone() });
+    }
+
+    Ok(Outcome { actions: all_actions })
 }
 
 /// Collect names of existing plugins in .ai/ directory.
@@ -223,14 +374,14 @@ fn collect_existing_plugin_names(ai_dir: &Path, fs: &dyn Fs) -> Result<HashSet<S
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::cell::RefCell;
     use std::collections::HashMap;
+    use std::sync::Mutex;
 
     struct MockFs {
         exists: HashSet<PathBuf>,
         dirs: HashMap<PathBuf, Vec<crate::fs::DirEntry>>,
         files: HashMap<PathBuf, String>,
-        written: RefCell<HashMap<PathBuf, Vec<u8>>>,
+        written: Mutex<HashMap<PathBuf, Vec<u8>>>,
     }
 
     impl MockFs {
@@ -239,7 +390,7 @@ mod tests {
                 exists: HashSet::new(),
                 dirs: HashMap::new(),
                 files: HashMap::new(),
-                written: RefCell::new(HashMap::new()),
+                written: Mutex::new(HashMap::new()),
             }
         }
     }
@@ -254,7 +405,9 @@ mod tests {
         }
 
         fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
-            self.written.borrow_mut().insert(path.to_path_buf(), content.to_vec());
+            if let Ok(mut w) = self.written.lock() {
+                w.insert(path.to_path_buf(), content.to_vec());
+            }
             Ok(())
         }
 
@@ -280,7 +433,12 @@ mod tests {
     #[test]
     fn migrate_errors_if_no_ai_dir() {
         let fs = MockFs::new();
-        let opts = Options { dir: Path::new("/project"), source: ".claude", dry_run: false };
+        let opts = Options {
+            dir: Path::new("/project"),
+            source: Some(".claude"),
+            dry_run: false,
+            max_depth: None,
+        };
         let result = migrate(&opts, &fs);
         assert!(result.is_err());
         let err = result.err();
@@ -291,7 +449,12 @@ mod tests {
     fn migrate_errors_if_no_source_dir() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.ai"));
-        let opts = Options { dir: Path::new("/project"), source: ".claude", dry_run: false };
+        let opts = Options {
+            dir: Path::new("/project"),
+            source: Some(".claude"),
+            dry_run: false,
+            max_depth: None,
+        };
         let result = migrate(&opts, &fs);
         assert!(result.is_err());
         let err = result.err();
@@ -308,7 +471,12 @@ mod tests {
         fs.dirs.insert(PathBuf::from("/project/.claude/commands"), Vec::new());
         fs.dirs.insert(PathBuf::from("/project/.ai"), Vec::new());
 
-        let opts = Options { dir: Path::new("/project"), source: ".claude", dry_run: true };
+        let opts = Options {
+            dir: Path::new("/project"),
+            source: Some(".claude"),
+            dry_run: true,
+            max_depth: None,
+        };
         let result = migrate(&opts, &fs);
         assert!(result.is_ok());
         let result = result.ok();
@@ -318,8 +486,9 @@ mod tests {
         // Verify report file was written
         assert!(fs
             .written
-            .borrow()
-            .contains_key(Path::new("/project/aipm-migrate-dryrun-report.md")));
+            .lock()
+            .ok()
+            .is_some_and(|w| w.contains_key(Path::new("/project/aipm-migrate-dryrun-report.md"))));
     }
 
     #[test]
@@ -336,7 +505,12 @@ mod tests {
             r#"{"plugins":[]}"#.to_string(),
         );
 
-        let opts = Options { dir: Path::new("/project"), source: ".claude", dry_run: false };
+        let opts = Options {
+            dir: Path::new("/project"),
+            source: Some(".claude"),
+            dry_run: false,
+            max_depth: None,
+        };
         let result = migrate(&opts, &fs);
         assert!(result.is_ok());
         let result = result.ok();
@@ -394,7 +568,12 @@ mod tests {
             r#"{"plugins":[]}"#.to_string(),
         );
 
-        let opts = Options { dir: Path::new("/project"), source: ".claude", dry_run: false };
+        let opts = Options {
+            dir: Path::new("/project"),
+            source: Some(".claude"),
+            dry_run: false,
+            max_depth: None,
+        };
         let result = migrate(&opts, &fs);
         assert!(result.is_ok());
 

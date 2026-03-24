@@ -59,11 +59,55 @@ Feature: Migrate AI tool configurations into marketplace plugins
       Then a file "aipm-migrate-dryrun-report.md" exists in "my-project"
       And no plugin directory exists at ".ai/deploy/" in "my-project"
 
+  Rule: Recursive discovery finds .claude/ in sub-packages
+
+    Scenario: Recursive discovery finds skill in sub-package
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a skill "deploy" exists in sub-package "auth" of "my-project"
+      When the user runs "aipm migrate" in "my-project"
+      Then the command succeeds
+      And a plugin directory exists at ".ai/auth/" in "my-project"
+      And a file ".ai/auth/skills/deploy/SKILL.md" exists in "my-project"
+      And the file ".ai/auth/aipm.toml" in "my-project" contains 'name = "auth"'
+      And the marketplace.json in "my-project" contains plugin "auth"
+
+    Scenario: Package-scoped plugin merges skills and commands
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a skill "deploy" exists in sub-package "auth" of "my-project"
+      And a command "review" exists in sub-package "auth" of "my-project"
+      When the user runs "aipm migrate" in "my-project"
+      Then the command succeeds
+      And a plugin directory exists at ".ai/auth/" in "my-project"
+      And a file ".ai/auth/skills/deploy/SKILL.md" exists in "my-project"
+      And a file ".ai/auth/skills/review/SKILL.md" exists in "my-project"
+
+    Scenario: Explicit --source uses legacy single-path behavior
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a skill "deploy" exists in "my-project"
+      And a skill "lint" exists in sub-package "auth" of "my-project"
+      When the user runs "aipm migrate --source .claude" in "my-project"
+      Then the command succeeds
+      And a plugin directory exists at ".ai/deploy/" in "my-project"
+      And no plugin directory exists at ".ai/auth/" in "my-project"
+
+    Scenario: Recursive dry-run shows discovered directories
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a skill "deploy" exists in sub-package "auth" of "my-project"
+      When the user runs "aipm migrate --dry-run" in "my-project"
+      Then the command succeeds
+      And a file "aipm-migrate-dryrun-report.md" exists in "my-project"
+      And the file "aipm-migrate-dryrun-report.md" in "my-project" contains "Recursive discovery"
+      And no plugin directory exists at ".ai/auth/" in "my-project"
+
   Rule: Prerequisites are validated
 
     Scenario: Error when marketplace directory is missing
       Given an empty directory "my-project"
       And a skill "deploy" exists in "my-project"
-      When the user runs "aipm migrate" in "my-project"
+      When the user runs "aipm migrate --source .claude" in "my-project"
       Then the command fails
       And the error contains "aipm init"

@@ -455,8 +455,8 @@ mod tests {
 
     /// Mock that succeeds N times then fails on the (N+1)th call.
     struct CountingFs {
-        create_dir_fail_after: std::cell::Cell<u32>,
-        write_file_fail_after: std::cell::Cell<u32>,
+        create_dir_fail_after: std::sync::atomic::AtomicU32,
+        write_file_fail_after: std::sync::atomic::AtomicU32,
     }
 
     impl crate::fs::Fs for CountingFs {
@@ -465,26 +465,26 @@ mod tests {
         }
 
         fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
-            let n = self.create_dir_fail_after.get();
+            let n = self.create_dir_fail_after.load(std::sync::atomic::Ordering::Relaxed);
             if n == 0 {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::PermissionDenied,
                     "mock: create_dir failed",
                 ));
             }
-            self.create_dir_fail_after.set(n - 1);
+            self.create_dir_fail_after.store(n - 1, std::sync::atomic::Ordering::Relaxed);
             Ok(())
         }
 
         fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
-            let n = self.write_file_fail_after.get();
+            let n = self.write_file_fail_after.load(std::sync::atomic::Ordering::Relaxed);
             if n == 0 {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::Other,
                     "mock: write_file failed",
                 ));
             }
-            self.write_file_fail_after.set(n - 1);
+            self.write_file_fail_after.store(n - 1, std::sync::atomic::Ordering::Relaxed);
             Ok(())
         }
 
@@ -524,8 +524,8 @@ mod tests {
     fn init_skill_layout_fails_on_second_create_dir() {
         // First create_dir_all (init:88) succeeds, second (create_directory_layout:135) fails
         let fs = CountingFs {
-            create_dir_fail_after: std::cell::Cell::new(1),
-            write_file_fail_after: std::cell::Cell::new(u32::MAX),
+            create_dir_fail_after: std::sync::atomic::AtomicU32::new(1),
+            write_file_fail_after: std::sync::atomic::AtomicU32::new(u32::MAX),
         };
         let tmp = std::path::PathBuf::from("/tmp/fake-init-skill-dir");
         let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Skill) };
@@ -537,8 +537,8 @@ mod tests {
     fn init_composite_write_fails_on_gitkeep() {
         // create_dir_all succeeds (all of them), but write_file fails (gitkeep)
         let fs = CountingFs {
-            create_dir_fail_after: std::cell::Cell::new(u32::MAX),
-            write_file_fail_after: std::cell::Cell::new(0),
+            create_dir_fail_after: std::sync::atomic::AtomicU32::new(u32::MAX),
+            write_file_fail_after: std::sync::atomic::AtomicU32::new(0),
         };
         let tmp = std::path::PathBuf::from("/tmp/fake-init-composite-write");
         let opts =
@@ -551,8 +551,8 @@ mod tests {
     fn init_skill_write_fails_on_template() {
         // create_dir_all succeeds, first write (gitkeep) succeeds, second write (SKILL.md) fails
         let fs = CountingFs {
-            create_dir_fail_after: std::cell::Cell::new(u32::MAX),
-            write_file_fail_after: std::cell::Cell::new(1),
+            create_dir_fail_after: std::sync::atomic::AtomicU32::new(u32::MAX),
+            write_file_fail_after: std::sync::atomic::AtomicU32::new(1),
         };
         let tmp = std::path::PathBuf::from("/tmp/fake-init-skill-write");
         let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Skill) };
@@ -563,8 +563,8 @@ mod tests {
     #[test]
     fn init_agent_layout_write_fails() {
         let fs = CountingFs {
-            create_dir_fail_after: std::cell::Cell::new(u32::MAX),
-            write_file_fail_after: std::cell::Cell::new(0),
+            create_dir_fail_after: std::sync::atomic::AtomicU32::new(u32::MAX),
+            write_file_fail_after: std::sync::atomic::AtomicU32::new(0),
         };
         let tmp = std::path::PathBuf::from("/tmp/fake-init-agent-write");
         let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Agent) };
@@ -575,8 +575,8 @@ mod tests {
     #[test]
     fn init_mcp_layout_write_fails() {
         let fs = CountingFs {
-            create_dir_fail_after: std::cell::Cell::new(u32::MAX),
-            write_file_fail_after: std::cell::Cell::new(0),
+            create_dir_fail_after: std::sync::atomic::AtomicU32::new(u32::MAX),
+            write_file_fail_after: std::sync::atomic::AtomicU32::new(0),
         };
         let tmp = std::path::PathBuf::from("/tmp/fake-init-mcp-write");
         let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Mcp) };
@@ -587,8 +587,8 @@ mod tests {
     #[test]
     fn init_hook_layout_write_fails() {
         let fs = CountingFs {
-            create_dir_fail_after: std::cell::Cell::new(u32::MAX),
-            write_file_fail_after: std::cell::Cell::new(0),
+            create_dir_fail_after: std::sync::atomic::AtomicU32::new(u32::MAX),
+            write_file_fail_after: std::sync::atomic::AtomicU32::new(0),
         };
         let tmp = std::path::PathBuf::from("/tmp/fake-init-hook-write");
         let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Hook) };
@@ -599,8 +599,8 @@ mod tests {
     #[test]
     fn init_agent_layout_dir_fails() {
         let fs = CountingFs {
-            create_dir_fail_after: std::cell::Cell::new(1),
-            write_file_fail_after: std::cell::Cell::new(u32::MAX),
+            create_dir_fail_after: std::sync::atomic::AtomicU32::new(1),
+            write_file_fail_after: std::sync::atomic::AtomicU32::new(u32::MAX),
         };
         let tmp = std::path::PathBuf::from("/tmp/fake-init-agent-dir");
         let opts = Options { dir: &tmp, name: Some("test"), plugin_type: Some(PluginType::Agent) };
