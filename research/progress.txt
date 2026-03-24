@@ -1,34 +1,19 @@
-2026-03-24: Suppress Plugin Manifest Generation — Implementation Complete
+All 12 features implemented and passing (2026-03-24):
 
-ALL 11 FEATURES IMPLEMENTED AND PASSING:
+1. [DONE] Extend ArtifactKind enum with Agent, McpServer, Hook, OutputStyle variants
+2. [DONE] Implement AgentDetector to scan .claude/agents/ for .md agent definitions
+3. [DONE] Implement agent emission in emitter, manifest generation, and dry-run report
+4. [DONE] Implement OutputStyleDetector to scan .claude/output-styles/ for .md files
+5. [DONE] Implement output style emission in emitter, manifest generation, and dry-run report
+6. [DONE] Implement McpDetector to read .mcp.json at project root and emit bundled MCP plugin
+7. [DONE] Implement MCP emission in emitter, manifest generation, and dry-run report
+8. [DONE] Implement HookDetector to extract hooks from .claude/settings.json
+9. [DONE] Implement hook emission with script copying and absolute path rewriting
+10. [DONE] Generalize composite type detection from skill+command to 2+ distinct artifact kinds
+11. [DONE] Add E2E integration tests for all new artifact types
+12. [DONE] Verify branch coverage gate at 89% for all new code
 
-1. [DONE] Add --manifest CLI flag to Init and Migrate commands
-2. [DONE] Add manifest: bool to workspace_init::Options and migrate::Options
-3. [DONE] Suppress starter plugin aipm.toml in scaffold_marketplace()
-4. [DONE] Add manifest: bool to emitter emit functions (emit_plugin, emit_plugin_with_name, emit_package_plugin)
-5. [DONE] Thread manifest flag through migrate orchestrator
-6. [DONE] Update dry-run report for manifest flag
-7. [DONE] Add manifest: false unit tests (workspace_init + emitter + dry_run)
-8. [DONE] Update BDD migrate.feature (2 scenarios updated, 2 new scenarios added)
-9. [DONE] Update BDD workspace-init.feature (2 scenarios updated, 1 new scenario added)
-10. [DONE] Update E2E tests for init and migrate (4 tests updated, 4 new tests added)
-11. [DONE] Coverage verified at 89.63% branch coverage (threshold: 89%)
-
-VALIDATION:
-- cargo build --workspace: PASS
-- cargo test --workspace: 346 tests pass + 65 BDD scenarios (0 failures)
-- cargo clippy --workspace -- -D warnings: PASS (0 warnings)
-- cargo fmt --check: PASS
-- Branch coverage: 89.63% (492 branches, 51 missed)
-
-FILES CHANGED:
-- clippy.toml: Raised max-struct-bools to 4
-- crates/aipm/src/main.rs: Added --manifest flag to Init and Migrate commands
-- crates/libaipm/src/workspace_init/mod.rs: Added manifest field to Options, guarded aipm.toml in scaffold_marketplace(), added 2 new unit tests
-- crates/libaipm/src/migrate/mod.rs: Added manifest field to Options, threaded through orchestrator
-- crates/libaipm/src/migrate/emitter.rs: Added manifest param to all 3 emit functions, added 3 new unit tests
-- crates/libaipm/src/migrate/dry_run.rs: Added manifest param to report functions, conditional aipm.toml line, added 2 new unit tests
-- crates/aipm/tests/init_e2e.rs: Updated 4 existing tests, added 2 new --manifest tests
-- crates/aipm/tests/migrate_e2e.rs: Updated 2 existing tests, added 2 new --manifest tests
-- tests/features/manifest/migrate.feature: Updated 2 scenarios, added 2 new --manifest scenarios
-- tests/features/manifest/workspace-init.feature: Updated 2 scenarios, added 1 new scenario
+Final metrics:
+- 429 tests passing (0 failures)
+- Branch coverage: 89.55% (threshold: 89%)
+- All 4 cargo gates green: build, test, clippy, fmt

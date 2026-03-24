@@ -56,43 +56,44 @@ pub fn emit_plugin<S: BuildHasher>(
     // 2. Create directory structure
     fs.create_dir_all(&plugin_dir)?;
     fs.create_dir_all(&plugin_dir.join(".claude-plugin"))?;
-    fs.create_dir_all(&plugin_dir.join("skills").join(&artifact.name))?;
 
-    // 3. Handle skill vs command artifact types
+    // 3. Handle artifact types
     match artifact.kind {
         ArtifactKind::Skill => {
+            fs.create_dir_all(&plugin_dir.join("skills").join(&artifact.name))?;
             emit_skill_files(artifact, &plugin_dir, fs)?;
         },
         ArtifactKind::Command => {
+            fs.create_dir_all(&plugin_dir.join("skills").join(&artifact.name))?;
             emit_command_as_skill(artifact, &plugin_dir, fs)?;
+        },
+        ArtifactKind::Agent => {
+            emit_agent_files(artifact, &plugin_dir, fs)?;
+        },
+        ArtifactKind::McpServer => {
+            emit_mcp_config(artifact, &plugin_dir, fs)?;
+        },
+        ArtifactKind::Hook => {
+            emit_hooks_config(artifact, &plugin_dir, fs)?;
+        },
+        ArtifactKind::OutputStyle => {
+            emit_output_style(artifact, &plugin_dir, fs)?;
         },
     }
 
     // 4. Copy referenced scripts, preserving relative path structure
     if !artifact.referenced_scripts.is_empty() {
-        let scripts_dir = plugin_dir.join("scripts");
-        fs.create_dir_all(&scripts_dir)?;
-        let scripts_root = Path::new("scripts");
-        for script in &artifact.referenced_scripts {
-            let source = artifact.source_path.join(script);
-            if fs.exists(&source) {
-                let relative = script.strip_prefix(scripts_root).unwrap_or(script);
-                let dest = scripts_dir.join(relative);
-                if let Some(parent) = dest.parent() {
-                    fs.create_dir_all(parent)?;
-                }
-                let content = fs.read_to_string(&source)?;
-                fs.write_file(&dest, content.as_bytes())?;
-            }
-        }
+        copy_referenced_scripts(artifact, &plugin_dir, fs)?;
     }
 
-    // 5. Extract hooks (if any) into hooks/hooks.json
+    // 5. Extract hooks (if any) into hooks/hooks.json (for skill/command artifacts with hooks)
     if let Some(ref hooks_yaml) = artifact.metadata.hooks {
-        let hooks_dir = plugin_dir.join("hooks");
-        fs.create_dir_all(&hooks_dir)?;
-        let hooks_json = convert_hooks_yaml_to_json(hooks_yaml);
-        write_file(&hooks_dir.join("hooks.json"), &hooks_json, fs)?;
+        if artifact.kind != ArtifactKind::Hook {
+            let hooks_dir = plugin_dir.join("hooks");
+            fs.create_dir_all(&hooks_dir)?;
+            let hooks_json = convert_hooks_yaml_to_json(hooks_yaml);
+            write_file(&hooks_dir.join("hooks.json"), &hooks_json, fs)?;
+        }
     }
 
     // 6. Generate aipm.toml (only when --manifest is requested)
@@ -102,7 +103,7 @@ pub fn emit_plugin<S: BuildHasher>(
     }
 
     // 7. Generate .claude-plugin/plugin.json
-    let plugin_json = generate_plugin_json(&plugin_name, &artifact.metadata);
+    let plugin_json = generate_plugin_json(&plugin_name, &artifact.metadata, &artifact.kind);
     write_file(&plugin_dir.join(".claude-plugin").join("plugin.json"), &plugin_json, fs)?;
 
     actions.push(Action::PluginCreated {
@@ -262,40 +263,41 @@ pub fn emit_plugin_with_name(
 
     fs.create_dir_all(&plugin_dir)?;
     fs.create_dir_all(&plugin_dir.join(".claude-plugin"))?;
-    fs.create_dir_all(&plugin_dir.join("skills").join(&artifact.name))?;
 
     match artifact.kind {
         ArtifactKind::Skill => {
+            fs.create_dir_all(&plugin_dir.join("skills").join(&artifact.name))?;
             emit_skill_files(artifact, &plugin_dir, fs)?;
         },
         ArtifactKind::Command => {
+            fs.create_dir_all(&plugin_dir.join("skills").join(&artifact.name))?;
             emit_command_as_skill(artifact, &plugin_dir, fs)?;
+        },
+        ArtifactKind::Agent => {
+            emit_agent_files(artifact, &plugin_dir, fs)?;
+        },
+        ArtifactKind::McpServer => {
+            emit_mcp_config(artifact, &plugin_dir, fs)?;
+        },
+        ArtifactKind::Hook => {
+            emit_hooks_config(artifact, &plugin_dir, fs)?;
+        },
+        ArtifactKind::OutputStyle => {
+            emit_output_style(artifact, &plugin_dir, fs)?;
         },
     }
 
     if !artifact.referenced_scripts.is_empty() {
-        let scripts_dir = plugin_dir.join("scripts");
-        fs.create_dir_all(&scripts_dir)?;
-        let scripts_root = Path::new("scripts");
-        for script in &artifact.referenced_scripts {
-            let source = artifact.source_path.join(script);
-            if fs.exists(&source) {
-                let relative = script.strip_prefix(scripts_root).unwrap_or(script);
-                let dest = scripts_dir.join(relative);
-                if let Some(parent) = dest.parent() {
-                    fs.create_dir_all(parent)?;
-                }
-                let content = fs.read_to_string(&source)?;
-                fs.write_file(&dest, content.as_bytes())?;
-            }
-        }
+        copy_referenced_scripts(artifact, &plugin_dir, fs)?;
     }
 
     if let Some(ref hooks_yaml) = artifact.metadata.hooks {
-        let hooks_dir = plugin_dir.join("hooks");
-        fs.create_dir_all(&hooks_dir)?;
-        let hooks_json = convert_hooks_yaml_to_json(hooks_yaml);
-        write_file(&hooks_dir.join("hooks.json"), &hooks_json, fs)?;
+        if artifact.kind != ArtifactKind::Hook {
+            let hooks_dir = plugin_dir.join("hooks");
+            fs.create_dir_all(&hooks_dir)?;
+            let hooks_json = convert_hooks_yaml_to_json(hooks_yaml);
+            write_file(&hooks_dir.join("hooks.json"), &hooks_json, fs)?;
+        }
     }
 
     if manifest {
@@ -303,7 +305,7 @@ pub fn emit_plugin_with_name(
         write_file(&plugin_dir.join("aipm.toml"), &manifest_toml, fs)?;
     }
 
-    let plugin_json = generate_plugin_json(plugin_name, &artifact.metadata);
+    let plugin_json = generate_plugin_json(plugin_name, &artifact.metadata, &artifact.kind);
     write_file(&plugin_dir.join(".claude-plugin").join("plugin.json"), &plugin_json, fs)?;
 
     actions.push(Action::PluginCreated {
@@ -358,88 +360,41 @@ pub fn emit_package_plugin(
     fs.create_dir_all(&plugin_dir)?;
     fs.create_dir_all(&plugin_dir.join(".claude-plugin"))?;
 
-    let mut all_component_paths = Vec::new();
-    let mut merged_hooks_parts = Vec::new();
-    let mut has_skill = false;
-    let mut has_command = false;
+    let emit_result = emit_package_artifacts(artifacts, &plugin_dir, fs)?;
 
-    for artifact in artifacts {
-        match artifact.kind {
-            ArtifactKind::Skill => has_skill = true,
-            ArtifactKind::Command => has_command = true,
-        }
+    let has_multiple_types = emit_result.distinct_kind_count > 1;
 
-        // Create skill subdirectory for this artifact
-        let skill_dir = plugin_dir.join("skills").join(&artifact.name);
-        fs.create_dir_all(&skill_dir)?;
-
-        match artifact.kind {
-            ArtifactKind::Skill => {
-                emit_skill_files(artifact, &plugin_dir, fs)?;
-            },
-            ArtifactKind::Command => {
-                emit_command_as_skill(artifact, &plugin_dir, fs)?;
-            },
-        }
-
-        all_component_paths.push(format!("skills/{}/SKILL.md", artifact.name));
-
-        // Copy referenced scripts
-        if !artifact.referenced_scripts.is_empty() {
-            let scripts_dir = plugin_dir.join("scripts");
-            fs.create_dir_all(&scripts_dir)?;
-            let scripts_root = Path::new("scripts");
-            for script in &artifact.referenced_scripts {
-                let source = artifact.source_path.join(script);
-                if fs.exists(&source) {
-                    let relative = script.strip_prefix(scripts_root).unwrap_or(script);
-                    let dest = scripts_dir.join(relative);
-                    if let Some(parent) = dest.parent() {
-                        fs.create_dir_all(parent)?;
-                    }
-                    let content = fs.read_to_string(&source)?;
-                    fs.write_file(&dest, content.as_bytes())?;
-                }
-            }
-        }
-
-        // Collect hooks for merging
-        if let Some(ref hooks_yaml) = artifact.metadata.hooks {
-            merged_hooks_parts.push(hooks_yaml.clone());
-        }
-    }
-
-    let has_multiple_types = has_skill && has_command;
-
-    // Merge hooks from all artifacts into one hooks.json
-    if !merged_hooks_parts.is_empty() {
+    // Merge hooks from skill/command artifacts into one hooks.json
+    if !emit_result.hooks_yaml_parts.is_empty() {
         let hooks_dir = plugin_dir.join("hooks");
         fs.create_dir_all(&hooks_dir)?;
-        let merged_hooks = merged_hooks_parts.join("\n");
+        let merged_hooks = emit_result.hooks_yaml_parts.join("\n");
         let hooks_json = convert_hooks_yaml_to_json(&merged_hooks);
         write_file(&hooks_dir.join("hooks.json"), &hooks_json, fs)?;
     }
 
-    // Generate aipm.toml for the package plugin (only when --manifest is requested)
     if manifest {
         let manifest_toml = generate_package_manifest(
             plugin_name,
             artifacts,
-            &all_component_paths,
+            &emit_result.component_paths,
             has_multiple_types,
-            !merged_hooks_parts.is_empty(),
+            !emit_result.hooks_yaml_parts.is_empty(),
         );
         write_file(&plugin_dir.join("aipm.toml"), &manifest_toml, fs)?;
     }
 
-    // Generate plugin.json
     let first_metadata =
         artifacts.first().map_or_else(ArtifactMetadata::default, |a| a.metadata.clone());
-    let plugin_json = generate_plugin_json(plugin_name, &first_metadata);
+    let all_kinds: Vec<ArtifactKind> = artifacts.iter().map(|a| a.kind.clone()).collect();
+    let plugin_json = generate_plugin_json_multi(plugin_name, &first_metadata, &all_kinds);
     write_file(&plugin_dir.join(".claude-plugin").join("plugin.json"), &plugin_json, fs)?;
 
-    // One PluginCreated action for the whole package
-    let plugin_type = if has_multiple_types { "composite" } else { "skill" };
+    let plugin_type = if has_multiple_types {
+        "composite"
+    } else {
+        artifacts.first().map_or("composite", |a| a.kind.to_type_string())
+    };
     if let Some(first) = artifacts.first() {
         actions.push(Action::PluginCreated {
             name: plugin_name.to_string(),
@@ -451,22 +406,247 @@ pub fn emit_package_plugin(
     Ok(actions)
 }
 
+/// Result of emitting package artifacts: component paths, hooks YAML parts, distinct kind count.
+struct PackageEmitResult {
+    component_paths: Vec<String>,
+    hooks_yaml_parts: Vec<String>,
+    distinct_kind_count: usize,
+}
+
+/// Emit individual artifacts within a package plugin.
+fn emit_package_artifacts(
+    artifacts: &[Artifact],
+    plugin_dir: &Path,
+    fs: &dyn Fs,
+) -> Result<PackageEmitResult, Error> {
+    let mut all_component_paths = Vec::new();
+    let mut merged_hooks_parts = Vec::new();
+    let mut distinct_kinds: HashSet<&ArtifactKind> = HashSet::new();
+
+    for artifact in artifacts {
+        distinct_kinds.insert(&artifact.kind);
+
+        match artifact.kind {
+            ArtifactKind::Skill => {
+                fs.create_dir_all(&plugin_dir.join("skills").join(&artifact.name))?;
+                emit_skill_files(artifact, plugin_dir, fs)?;
+                all_component_paths.push(format!("skills/{}/SKILL.md", artifact.name));
+            },
+            ArtifactKind::Command => {
+                fs.create_dir_all(&plugin_dir.join("skills").join(&artifact.name))?;
+                emit_command_as_skill(artifact, plugin_dir, fs)?;
+                all_component_paths.push(format!("skills/{}/SKILL.md", artifact.name));
+            },
+            ArtifactKind::Agent => {
+                emit_agent_files(artifact, plugin_dir, fs)?;
+                all_component_paths.push(format!("agents/{}.md", artifact.name));
+            },
+            ArtifactKind::McpServer => {
+                emit_mcp_config(artifact, plugin_dir, fs)?;
+                all_component_paths.push(".mcp.json".to_string());
+            },
+            ArtifactKind::Hook => {
+                emit_hooks_config(artifact, plugin_dir, fs)?;
+                all_component_paths.push("hooks/hooks.json".to_string());
+            },
+            ArtifactKind::OutputStyle => {
+                emit_output_style(artifact, plugin_dir, fs)?;
+                all_component_paths.push(format!("{}.md", artifact.name));
+            },
+        }
+
+        if !artifact.referenced_scripts.is_empty() {
+            copy_referenced_scripts(artifact, plugin_dir, fs)?;
+        }
+
+        if artifact.kind != ArtifactKind::Hook {
+            if let Some(ref hooks_yaml) = artifact.metadata.hooks {
+                merged_hooks_parts.push(hooks_yaml.clone());
+            }
+        }
+    }
+
+    Ok(PackageEmitResult {
+        component_paths: all_component_paths,
+        hooks_yaml_parts: merged_hooks_parts,
+        distinct_kind_count: distinct_kinds.len(),
+    })
+}
+
+/// Copy agent `.md` file to `agents/<artifact.name>.md` inside the plugin directory.
+///
+/// The destination filename is always derived from `artifact.name` (not the original
+/// filename) so that manifest component paths (`agents/<name>.md`) are consistent.
+fn emit_agent_files(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
+    let agents_dir = plugin_dir.join("agents");
+    fs.create_dir_all(&agents_dir)?;
+
+    // Read from source_path (full path to the .md file)
+    let content = fs.read_to_string(&artifact.source_path)?;
+    // Always emit as <artifact.name>.md to match manifest/component paths
+    let dest = agents_dir.join(format!("{}.md", artifact.name));
+    fs.write_file(&dest, content.as_bytes())?;
+
+    Ok(())
+}
+
+/// Write MCP config to `.mcp.json` at the plugin root.
+///
+/// Uses `raw_content` if available, otherwise falls back to reading from `source_path`.
+fn emit_mcp_config(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
+    let content = match artifact.metadata.raw_content {
+        Some(ref c) => c.clone(),
+        None => fs.read_to_string(&artifact.source_path)?,
+    };
+    let dest = plugin_dir.join(".mcp.json");
+    fs.write_file(&dest, content.as_bytes())?;
+    Ok(())
+}
+
+/// Write hooks config to `hooks/hooks.json` inside the plugin directory.
+///
+/// Uses `raw_content` if available, otherwise falls back to reading from `source_path`.
+/// Rewrites relative `command` paths in hook handlers to absolute paths.
+fn emit_hooks_config(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
+    let content = match artifact.metadata.raw_content {
+        Some(ref c) => c.clone(),
+        None => fs.read_to_string(&artifact.source_path)?,
+    };
+
+    // Rewrite relative command paths to absolute paths (Fix #6)
+    let rewritten = rewrite_hook_command_paths(&content, &artifact.source_path);
+
+    let hooks_dir = plugin_dir.join("hooks");
+    fs.create_dir_all(&hooks_dir)?;
+    write_file(&hooks_dir.join("hooks.json"), &rewritten, fs)?;
+    Ok(())
+}
+
+/// Copy output style `.md` file to the plugin root as `<artifact.name>.md`.
+fn emit_output_style(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
+    let content = fs.read_to_string(&artifact.source_path)?;
+    let dest = plugin_dir.join(format!("{}.md", artifact.name));
+    fs.write_file(&dest, content.as_bytes())?;
+    Ok(())
+}
+
+/// Copy referenced scripts to the plugin's `scripts/` directory.
+fn copy_referenced_scripts(
+    artifact: &Artifact,
+    plugin_dir: &Path,
+    fs: &dyn Fs,
+) -> Result<(), Error> {
+    let scripts_dir = plugin_dir.join("scripts");
+    fs.create_dir_all(&scripts_dir)?;
+    let scripts_root = Path::new("scripts");
+    for script in &artifact.referenced_scripts {
+        // Normalize the script path: strip leading "./" prefix
+        let normalized = script
+            .to_string_lossy()
+            .strip_prefix("./")
+            .map_or_else(|| script.clone(), PathBuf::from);
+
+        // For hook artifacts, resolve against project root (grandparent of settings.json)
+        // source_path is .claude/settings.json → parent is .claude/ → parent is project root
+        let source = if artifact.kind == ArtifactKind::Hook {
+            let project_root = artifact
+                .source_path
+                .parent() // .claude/
+                .and_then(Path::parent); // project root
+            project_root.map_or_else(
+                || artifact.source_path.join(&normalized),
+                |root| root.join(&normalized),
+            )
+        } else {
+            artifact.source_path.join(&normalized)
+        };
+
+        if fs.exists(&source) {
+            // Strip "scripts/" prefix for destination to avoid scripts/scripts/
+            let relative = normalized.strip_prefix(scripts_root).unwrap_or(&normalized);
+            let dest = scripts_dir.join(relative);
+            if let Some(parent) = dest.parent() {
+                fs.create_dir_all(parent)?;
+            }
+            let content = fs.read_to_string(&source)?;
+            fs.write_file(&dest, content.as_bytes())?;
+        }
+    }
+    Ok(())
+}
+
 /// Generate `aipm.toml` for a package-scoped plugin with multiple artifacts.
 fn generate_package_manifest(
     plugin_name: &str,
     artifacts: &[Artifact],
     component_paths: &[String],
     has_multiple_types: bool,
-    has_hooks: bool,
+    has_hooks_yaml: bool,
 ) -> String {
-    let type_str = if has_multiple_types { "composite" } else { "skill" };
+    use std::fmt::Write;
+
+    let type_str = if has_multiple_types {
+        "composite"
+    } else {
+        artifacts.first().map_or("composite", |a| a.kind.to_type_string())
+    };
     let description = artifacts
         .first()
         .and_then(|a| a.metadata.description.as_deref())
         .unwrap_or("Migrated from .claude/ configuration");
 
-    let skills_list: Vec<String> = component_paths.iter().map(|p| format!("\"{p}\"")).collect();
-    let mut components_section = format!("skills = [{}]", skills_list.join(", "));
+    let mut components_section = String::new();
+
+    // Group component paths by type
+    let skill_paths: Vec<&String> =
+        component_paths.iter().filter(|p| p.starts_with("skills/")).collect();
+    let agent_paths: Vec<&String> =
+        component_paths.iter().filter(|p| p.starts_with("agents/")).collect();
+    let mcp_paths: Vec<&String> = component_paths.iter().filter(|p| *p == ".mcp.json").collect();
+    let hook_paths: Vec<&String> =
+        component_paths.iter().filter(|p| p.starts_with("hooks/")).collect();
+    let style_paths: Vec<&String> = component_paths
+        .iter()
+        .filter(|p| {
+            !p.starts_with("skills/")
+                && !p.starts_with("agents/")
+                && *p != ".mcp.json"
+                && !p.starts_with("hooks/")
+        })
+        .collect();
+
+    if !skill_paths.is_empty() {
+        let list: Vec<String> = skill_paths.iter().map(|p| format!("\"{p}\"")).collect();
+        let _ = write!(components_section, "skills = [{}]", list.join(", "));
+    }
+    if !agent_paths.is_empty() {
+        if !components_section.is_empty() {
+            components_section.push('\n');
+        }
+        let list: Vec<String> = agent_paths.iter().map(|p| format!("\"{p}\"")).collect();
+        let _ = write!(components_section, "agents = [{}]", list.join(", "));
+    }
+    if !mcp_paths.is_empty() {
+        if !components_section.is_empty() {
+            components_section.push('\n');
+        }
+        let list: Vec<String> = mcp_paths.iter().map(|p| format!("\"{p}\"")).collect();
+        let _ = write!(components_section, "mcp_servers = [{}]", list.join(", "));
+    }
+    if !hook_paths.is_empty() {
+        if !components_section.is_empty() {
+            components_section.push('\n');
+        }
+        let list: Vec<String> = hook_paths.iter().map(|p| format!("\"{p}\"")).collect();
+        let _ = write!(components_section, "hooks = [{}]", list.join(", "));
+    }
+    if !style_paths.is_empty() {
+        if !components_section.is_empty() {
+            components_section.push('\n');
+        }
+        let list: Vec<String> = style_paths.iter().map(|p| format!("\"{p}\"")).collect();
+        let _ = write!(components_section, "output_styles = [{}]", list.join(", "));
+    }
 
     let all_scripts: Vec<String> = artifacts
         .iter()
@@ -479,11 +659,17 @@ fn generate_package_manifest(
         })
         .collect();
     if !all_scripts.is_empty() {
-        use std::fmt::Write;
-        let _ = write!(components_section, "\nscripts = [{}]", all_scripts.join(", "));
+        if !components_section.is_empty() {
+            components_section.push('\n');
+        }
+        let _ = write!(components_section, "scripts = [{}]", all_scripts.join(", "));
     }
-    if has_hooks {
-        components_section.push_str("\nhooks = [\"hooks/hooks.json\"]");
+    // Only append hooks from skill/command frontmatter when no Hook artifact already emitted hooks
+    if has_hooks_yaml && hook_paths.is_empty() {
+        if !components_section.is_empty() {
+            components_section.push('\n');
+        }
+        components_section.push_str("hooks = [\"hooks/hooks.json\"]");
     }
 
     format!(
@@ -507,6 +693,76 @@ fn file_is_skill_md(path: &Path) -> bool {
 /// Rewrite `${CLAUDE_SKILL_DIR}/scripts/` paths in SKILL.md content.
 fn rewrite_skill_dir_paths(content: &str) -> String {
     content.replace("${CLAUDE_SKILL_DIR}/scripts/", "${CLAUDE_SKILL_DIR}/../../scripts/")
+}
+
+/// Rewrite relative `command` paths in hook handlers to absolute paths.
+///
+/// Parses the hooks JSON, finds `"type": "command"` handlers, and resolves
+/// relative `command` paths against the project root (derived from `source_path`).
+fn rewrite_hook_command_paths(content: &str, source_path: &Path) -> String {
+    let mut json: serde_json::Value = match serde_json::from_str(content) {
+        Ok(v) => v,
+        Err(_) => return content.to_string(),
+    };
+
+    // source_path is .claude/settings.json → project root is grandparent
+    let project_root = source_path
+        .parent() // .claude/
+        .and_then(Path::parent); // project root
+
+    if let Some(root) = project_root {
+        rewrite_commands_recursive(&mut json, root);
+    }
+
+    serde_json::to_string_pretty(&json).unwrap_or_else(|_| content.to_string())
+}
+
+/// Recursively walk JSON and rewrite relative command paths to absolute.
+fn rewrite_commands_recursive(value: &mut serde_json::Value, project_root: &Path) {
+    match value {
+        serde_json::Value::Object(map) => {
+            let is_command_type =
+                map.get("type").and_then(|v| v.as_str()).is_some_and(|t| t == "command");
+            if is_command_type {
+                if let Some(cmd_val) = map.get_mut("command") {
+                    if let Some(cmd_str) = cmd_val.as_str() {
+                        let rewritten = rewrite_single_command(cmd_str, project_root);
+                        *cmd_val = serde_json::Value::String(rewritten);
+                    }
+                }
+            }
+            for v in map.values_mut() {
+                rewrite_commands_recursive(v, project_root);
+            }
+        },
+        serde_json::Value::Array(arr) => {
+            for v in arr {
+                rewrite_commands_recursive(v, project_root);
+            }
+        },
+        _ => {},
+    }
+}
+
+/// Rewrite a single command string's script path from relative to absolute.
+fn rewrite_single_command(cmd: &str, project_root: &Path) -> String {
+    let parts: Vec<&str> = cmd.splitn(2, char::is_whitespace).collect();
+    let script = parts.first().copied().unwrap_or(cmd);
+
+    // Only rewrite relative paths (starts with ./ or contains / but not absolute)
+    let path = Path::new(script);
+    if path.is_absolute() || (!script.starts_with("./") && !script.contains('/')) {
+        return cmd.to_string();
+    }
+
+    let absolute = project_root.join(script);
+    let abs_str = absolute.to_string_lossy();
+
+    if parts.len() > 1 {
+        format!("{abs_str} {}", parts.get(1).copied().unwrap_or(""))
+    } else {
+        abs_str.into_owned()
+    }
 }
 
 /// Convert hooks YAML block to JSON format.
@@ -581,8 +837,23 @@ fn generate_plugin_manifest(artifact: &Artifact, plugin_name: &str) -> String {
 
     let mut components = Vec::new();
 
-    // Skills component
-    components.push(format!("skills = [\"skills/{}/SKILL.md\"]", artifact.name));
+    match artifact.kind {
+        ArtifactKind::Skill | ArtifactKind::Command => {
+            components.push(format!("skills = [\"skills/{}/SKILL.md\"]", artifact.name));
+        },
+        ArtifactKind::Agent => {
+            components.push(format!("agents = [\"agents/{}.md\"]", artifact.name));
+        },
+        ArtifactKind::McpServer => {
+            components.push("mcp_servers = [\".mcp.json\"]".to_string());
+        },
+        ArtifactKind::Hook => {
+            components.push("hooks = [\"hooks/hooks.json\"]".to_string());
+        },
+        ArtifactKind::OutputStyle => {
+            components.push(format!("output_styles = [\"{}.md\"]", artifact.name));
+        },
+    }
 
     // Scripts component (if any) — preserves relative path structure
     if !artifact.referenced_scripts.is_empty() {
@@ -598,8 +869,8 @@ fn generate_plugin_manifest(artifact: &Artifact, plugin_name: &str) -> String {
         components.push(format!("scripts = [{}]", scripts.join(", ")));
     }
 
-    // Hooks component (if extracted)
-    if artifact.metadata.hooks.is_some() {
+    // Hooks component (if extracted from skill/command frontmatter)
+    if artifact.metadata.hooks.is_some() && artifact.kind != ArtifactKind::Hook {
         components.push("hooks = [\"hooks/hooks.json\"]".to_string());
     }
 
@@ -619,13 +890,43 @@ fn generate_plugin_manifest(artifact: &Artifact, plugin_name: &str) -> String {
 }
 
 /// Generate `.claude-plugin/plugin.json` for a migrated plugin.
-fn generate_plugin_json(name: &str, metadata: &ArtifactMetadata) -> String {
+///
+/// For single-artifact plugins, includes the component field for that kind.
+/// Accepts a slice of kinds to include all relevant component fields for composites.
+fn generate_plugin_json(name: &str, metadata: &ArtifactMetadata, kind: &ArtifactKind) -> String {
+    generate_plugin_json_multi(name, metadata, std::slice::from_ref(kind))
+}
+
+/// Generate `plugin.json` with component fields for all provided artifact kinds.
+fn generate_plugin_json_multi(
+    name: &str,
+    metadata: &ArtifactMetadata,
+    kinds: &[ArtifactKind],
+) -> String {
     let description =
         metadata.description.as_deref().unwrap_or("Migrated from .claude/ configuration");
 
+    let mut fields = String::new();
+    let distinct: HashSet<&ArtifactKind> = kinds.iter().collect();
+    if distinct.contains(&ArtifactKind::Skill) || distinct.contains(&ArtifactKind::Command) {
+        fields.push_str(",\n  \"skills\": \"./skills/\"");
+    }
+    if distinct.contains(&ArtifactKind::Agent) {
+        fields.push_str(",\n  \"agents\": \"./agents/\"");
+    }
+    if distinct.contains(&ArtifactKind::McpServer) {
+        fields.push_str(",\n  \"mcpServers\": \"./.mcp.json\"");
+    }
+    if distinct.contains(&ArtifactKind::Hook) {
+        fields.push_str(",\n  \"hooks\": \"./hooks/hooks.json\"");
+    }
+    if distinct.contains(&ArtifactKind::OutputStyle) {
+        fields.push_str(",\n  \"outputStyles\": \"./\"");
+    }
+
     format!(
         "{{\n  \"name\": \"{name}\",\n  \"version\": \"0.1.0\",\n  \
-         \"description\": \"{description}\"\n}}\n"
+         \"description\": \"{description}\"{fields}\n}}\n"
     )
 }
 
@@ -708,8 +1009,7 @@ mod tests {
             metadata: ArtifactMetadata {
                 name: Some("deploy".to_string()),
                 description: Some("Deploy app".to_string()),
-                hooks: None,
-                model_invocation_disabled: false,
+                ..ArtifactMetadata::default()
             },
         }
     }
@@ -722,10 +1022,8 @@ mod tests {
             files: vec![PathBuf::from("review.md")],
             referenced_scripts: Vec::new(),
             metadata: ArtifactMetadata {
-                name: None,
-                description: None,
-                hooks: None,
                 model_invocation_disabled: true,
+                ..ArtifactMetadata::default()
             },
         }
     }
@@ -1012,7 +1310,7 @@ mod tests {
                 name: Some("deploy".to_string()),
                 description: Some("Deploy app".to_string()),
                 hooks: Some("PreToolUse: check".to_string()),
-                model_invocation_disabled: false,
+                ..ArtifactMetadata::default()
             },
         };
         let manifest = generate_plugin_manifest(&artifact, "deploy");
@@ -1040,13 +1338,13 @@ mod tests {
             description: Some("Test desc".to_string()),
             ..ArtifactMetadata::default()
         };
-        let json = generate_plugin_json("test", &metadata);
+        let json = generate_plugin_json("test", &metadata, &ArtifactKind::Skill);
         assert!(json.contains("Test desc"));
     }
 
     #[test]
     fn generate_plugin_json_no_description() {
-        let json = generate_plugin_json("test", &ArtifactMetadata::default());
+        let json = generate_plugin_json("test", &ArtifactMetadata::default(), &ArtifactKind::Skill);
         assert!(json.contains("Migrated from .claude/ configuration"));
     }
 
@@ -1493,5 +1791,480 @@ mod tests {
         assert!(result.is_ok());
         assert!(fs.get_written(Path::new("/ai/auth/aipm.toml")).is_none());
         assert!(fs.get_written(Path::new("/ai/auth/.claude-plugin/plugin.json")).is_some());
+    }
+
+    // =====================================================================
+    // Tests for new artifact types: Agent, McpServer, Hook, OutputStyle
+    // =====================================================================
+
+    fn make_agent_artifact() -> Artifact {
+        Artifact {
+            kind: ArtifactKind::Agent,
+            name: "reviewer".to_string(),
+            source_path: PathBuf::from("/src/agents/reviewer.md"),
+            files: vec![PathBuf::from("reviewer.md")],
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata {
+                name: Some("reviewer".to_string()),
+                description: Some("Reviews code".to_string()),
+                ..ArtifactMetadata::default()
+            },
+        }
+    }
+
+    fn make_mcp_artifact() -> Artifact {
+        Artifact {
+            kind: ArtifactKind::McpServer,
+            name: "project-mcp-servers".to_string(),
+            source_path: PathBuf::from("/project/.mcp.json"),
+            files: vec![PathBuf::from(".mcp.json")],
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata {
+                name: Some("project-mcp-servers".to_string()),
+                description: Some("2 MCP server(s) from .mcp.json".to_string()),
+                raw_content: Some(r#"{"mcpServers":{"s1":{},"s2":{}}}"#.to_string()),
+                ..ArtifactMetadata::default()
+            },
+        }
+    }
+
+    fn make_hook_artifact() -> Artifact {
+        Artifact {
+            kind: ArtifactKind::Hook,
+            name: "project-hooks".to_string(),
+            source_path: PathBuf::from("/project/.claude/settings.json"),
+            files: Vec::new(),
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata {
+                name: Some("project-hooks".to_string()),
+                description: Some("Hooks from settings.json".to_string()),
+                raw_content: Some(
+                    r#"{"hooks":{"PreToolUse":[{"type":"command","command":"echo check"}]}}"#
+                        .to_string(),
+                ),
+                ..ArtifactMetadata::default()
+            },
+        }
+    }
+
+    fn make_output_style_artifact() -> Artifact {
+        Artifact {
+            kind: ArtifactKind::OutputStyle,
+            name: "concise".to_string(),
+            source_path: PathBuf::from("/src/output-styles/concise.md"),
+            files: vec![PathBuf::from("concise.md")],
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata {
+                name: Some("concise".to_string()),
+                description: Some("Short outputs".to_string()),
+                ..ArtifactMetadata::default()
+            },
+        }
+    }
+
+    #[test]
+    fn emit_agent_creates_agents_dir() {
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/src/agents/reviewer.md"),
+            "You are a code reviewer.".to_string(),
+        );
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let artifact = make_agent_artifact();
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok());
+
+        assert!(fs.get_written(Path::new("/ai/reviewer/agents/reviewer.md")).is_some());
+        let toml = fs.get_written(Path::new("/ai/reviewer/aipm.toml"));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("type = \"agent\"")));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("agents = [\"agents/reviewer.md\"]")));
+    }
+
+    #[test]
+    fn emit_agent_plugin_json_has_agents_field() {
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/src/agents/reviewer.md"),
+            "You are a code reviewer.".to_string(),
+        );
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let artifact = make_agent_artifact();
+        let _result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+
+        let json = fs.get_written(Path::new("/ai/reviewer/.claude-plugin/plugin.json"));
+        assert!(json.as_ref().is_some_and(|c| c.contains("\"agents\"")));
+    }
+
+    #[test]
+    fn emit_mcp_writes_mcp_json() {
+        let fs = MockFs::new();
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let artifact = make_mcp_artifact();
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok());
+
+        let mcp_content = fs.get_written(Path::new("/ai/project-mcp-servers/.mcp.json"));
+        assert!(mcp_content.as_ref().is_some_and(|c| c.contains("mcpServers")));
+
+        let toml = fs.get_written(Path::new("/ai/project-mcp-servers/aipm.toml"));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("type = \"mcp\"")));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("mcp_servers = [\".mcp.json\"]")));
+    }
+
+    #[test]
+    fn emit_mcp_plugin_json_has_mcp_servers_field() {
+        let fs = MockFs::new();
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let artifact = make_mcp_artifact();
+        let _result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+
+        let json = fs.get_written(Path::new("/ai/project-mcp-servers/.claude-plugin/plugin.json"));
+        assert!(json.as_ref().is_some_and(|c| c.contains("\"mcpServers\"")));
+    }
+
+    #[test]
+    fn emit_hooks_writes_hooks_json() {
+        let fs = MockFs::new();
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let artifact = make_hook_artifact();
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok());
+
+        let hooks_content = fs.get_written(Path::new("/ai/project-hooks/hooks/hooks.json"));
+        assert!(hooks_content.as_ref().is_some_and(|c| c.contains("hooks")));
+
+        let toml = fs.get_written(Path::new("/ai/project-hooks/aipm.toml"));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("type = \"hook\"")));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("hooks = [\"hooks/hooks.json\"]")));
+    }
+
+    #[test]
+    fn emit_hooks_plugin_json_has_hooks_field() {
+        let fs = MockFs::new();
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let artifact = make_hook_artifact();
+        let _result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+
+        let json = fs.get_written(Path::new("/ai/project-hooks/.claude-plugin/plugin.json"));
+        assert!(json.as_ref().is_some_and(|c| c.contains("\"hooks\"")));
+    }
+
+    #[test]
+    fn emit_output_style_copies_to_plugin_root() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/output-styles/concise.md"), "Be concise.".to_string());
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let artifact = make_output_style_artifact();
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok());
+
+        let style_content = fs.get_written(Path::new("/ai/concise/concise.md"));
+        assert!(style_content.is_some_and(|c| c == "Be concise."));
+
+        let toml = fs.get_written(Path::new("/ai/concise/aipm.toml"));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("type = \"composite\"")));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("output_styles = [\"concise.md\"]")));
+    }
+
+    #[test]
+    fn emit_output_style_plugin_json_has_output_styles_field() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/output-styles/concise.md"), "Be concise.".to_string());
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let artifact = make_output_style_artifact();
+        let _result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+
+        let json = fs.get_written(Path::new("/ai/concise/.claude-plugin/plugin.json"));
+        assert!(json.as_ref().is_some_and(|c| c.contains("\"outputStyles\"")));
+    }
+
+    #[test]
+    fn emit_plugin_with_name_agent() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/agents/reviewer.md"), "Agent content.".to_string());
+
+        let artifact = make_agent_artifact();
+        let result = emit_plugin_with_name(&artifact, "reviewer", Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+        assert!(fs.get_written(Path::new("/ai/reviewer/agents/reviewer.md")).is_some());
+    }
+
+    #[test]
+    fn emit_plugin_with_name_mcp() {
+        let fs = MockFs::new();
+        let artifact = make_mcp_artifact();
+        let result =
+            emit_plugin_with_name(&artifact, "project-mcp-servers", Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+        assert!(fs.get_written(Path::new("/ai/project-mcp-servers/.mcp.json")).is_some());
+    }
+
+    #[test]
+    fn emit_plugin_with_name_hook() {
+        let fs = MockFs::new();
+        let artifact = make_hook_artifact();
+        let result = emit_plugin_with_name(&artifact, "project-hooks", Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+        assert!(fs.get_written(Path::new("/ai/project-hooks/hooks/hooks.json")).is_some());
+    }
+
+    #[test]
+    fn emit_plugin_with_name_output_style() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/output-styles/concise.md"), "Be concise.".to_string());
+
+        let artifact = make_output_style_artifact();
+        let result = emit_plugin_with_name(&artifact, "concise", Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+        assert!(fs.get_written(Path::new("/ai/concise/concise.md")).is_some());
+    }
+
+    #[test]
+    fn emit_package_plugin_mixed_agent_and_skill() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
+        fs.files.insert(PathBuf::from("/src/agents/reviewer.md"), "Agent content.".to_string());
+
+        let skill = make_skill_artifact();
+        let agent = make_agent_artifact();
+        let result = emit_package_plugin("auth", &[skill, agent], Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+
+        assert!(fs.get_written(Path::new("/ai/auth/skills/deploy/SKILL.md")).is_some());
+        assert!(fs.get_written(Path::new("/ai/auth/agents/reviewer.md")).is_some());
+
+        let toml = fs.get_written(Path::new("/ai/auth/aipm.toml"));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("type = \"composite\"")));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("skills =")));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("agents =")));
+    }
+
+    #[test]
+    fn emit_package_plugin_hook_and_mcp() {
+        let fs = MockFs::new();
+
+        let hook = make_hook_artifact();
+        let mcp = make_mcp_artifact();
+        let result = emit_package_plugin("infra", &[hook, mcp], Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+
+        assert!(fs.get_written(Path::new("/ai/infra/hooks/hooks.json")).is_some());
+        assert!(fs.get_written(Path::new("/ai/infra/.mcp.json")).is_some());
+
+        let toml = fs.get_written(Path::new("/ai/infra/aipm.toml"));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("type = \"composite\"")));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("hooks =")));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("mcp_servers =")));
+    }
+
+    #[test]
+    fn emit_hook_with_script_references() {
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/project/.claude/scripts/validate.sh"),
+            "#!/bin/bash\nexit 0".to_string(),
+        );
+        fs.exists.insert(PathBuf::from("/project/.claude/scripts/validate.sh"));
+
+        let mut artifact = make_hook_artifact();
+        artifact.referenced_scripts = vec![PathBuf::from("./scripts/validate.sh")];
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok());
+
+        // Hook scripts use source_path.parent() for resolution
+        assert!(fs.get_written(Path::new("/ai/project-hooks/hooks/hooks.json")).is_some());
+    }
+
+    #[test]
+    fn emit_mcp_no_raw_content_falls_back_to_source() {
+        let mut fs = MockFs::new();
+        fs.files
+            .insert(PathBuf::from("/project/.mcp.json"), r#"{"mcpServers":{"s1":{}}}"#.to_string());
+        let mut artifact = make_mcp_artifact();
+        artifact.metadata.raw_content = None;
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok());
+        assert!(fs
+            .get_written(Path::new("/ai/project-mcp-servers/.mcp.json"))
+            .is_some_and(|c| c.contains("mcpServers")));
+    }
+
+    #[test]
+    fn emit_mcp_no_raw_content_no_source_errors() {
+        let fs = MockFs::new();
+        let mut artifact = make_mcp_artifact();
+        artifact.metadata.raw_content = None;
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn emit_hooks_no_raw_content_falls_back_to_source() {
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/project/.claude/settings.json"),
+            r#"{"hooks":{"PreToolUse":[]}}"#.to_string(),
+        );
+        let mut artifact = make_hook_artifact();
+        artifact.metadata.raw_content = None;
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok());
+        assert!(fs.get_written(Path::new("/ai/project-hooks/hooks/hooks.json")).is_some());
+    }
+
+    #[test]
+    fn generate_plugin_json_agent_kind() {
+        let json = generate_plugin_json("test", &ArtifactMetadata::default(), &ArtifactKind::Agent);
+        assert!(json.contains("\"agents\": \"./agents/\""));
+    }
+
+    #[test]
+    fn generate_plugin_json_mcp_kind() {
+        let json =
+            generate_plugin_json("test", &ArtifactMetadata::default(), &ArtifactKind::McpServer);
+        assert!(json.contains("\"mcpServers\": \"./.mcp.json\""));
+    }
+
+    #[test]
+    fn generate_plugin_json_hook_kind() {
+        let json = generate_plugin_json("test", &ArtifactMetadata::default(), &ArtifactKind::Hook);
+        assert!(json.contains("\"hooks\": \"./hooks/hooks.json\""));
+    }
+
+    #[test]
+    fn generate_plugin_json_output_style_kind() {
+        let json =
+            generate_plugin_json("test", &ArtifactMetadata::default(), &ArtifactKind::OutputStyle);
+        assert!(json.contains("\"outputStyles\": \"./\""));
+    }
+
+    #[test]
+    fn generate_manifest_agent_kind() {
+        let artifact = make_agent_artifact();
+        let manifest = generate_plugin_manifest(&artifact, "reviewer");
+        assert!(manifest.contains("type = \"agent\""));
+        assert!(manifest.contains("agents = [\"agents/reviewer.md\"]"));
+    }
+
+    #[test]
+    fn generate_manifest_mcp_kind() {
+        let artifact = make_mcp_artifact();
+        let manifest = generate_plugin_manifest(&artifact, "project-mcp-servers");
+        assert!(manifest.contains("type = \"mcp\""));
+        assert!(manifest.contains("mcp_servers = [\".mcp.json\"]"));
+    }
+
+    #[test]
+    fn generate_manifest_hook_kind() {
+        let artifact = make_hook_artifact();
+        let manifest = generate_plugin_manifest(&artifact, "project-hooks");
+        assert!(manifest.contains("type = \"hook\""));
+        assert!(manifest.contains("hooks = [\"hooks/hooks.json\"]"));
+    }
+
+    #[test]
+    fn generate_manifest_output_style_kind() {
+        let artifact = make_output_style_artifact();
+        let manifest = generate_plugin_manifest(&artifact, "concise");
+        assert!(manifest.contains("type = \"composite\""));
+        assert!(manifest.contains("output_styles = [\"concise.md\"]"));
+    }
+
+    #[test]
+    fn emit_package_plugin_output_style_only() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/output-styles/concise.md"), "Be concise.".to_string());
+
+        let artifact = make_output_style_artifact();
+        let result = emit_package_plugin("styles", &[artifact], Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+
+        let toml = fs.get_written(Path::new("/ai/styles/aipm.toml"));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("type = \"composite\"")));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("output_styles =")));
+    }
+
+    #[test]
+    fn emit_package_plugin_mcp_only() {
+        let fs = MockFs::new();
+
+        let mcp = make_mcp_artifact();
+        let result = emit_package_plugin("mcp", &[mcp], Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+
+        let toml = fs.get_written(Path::new("/ai/mcp/aipm.toml"));
+        assert!(toml.as_ref().is_some_and(|c| c.contains("type = \"mcp\"")));
+    }
+
+    #[test]
+    fn emit_package_plugin_unsafe_plugin_name() {
+        let fs = MockFs::new();
+        let result = emit_package_plugin("../evil", &[], Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, Action::Skipped { .. })));
+    }
+
+    #[test]
+    fn emit_package_plugin_unsafe_artifact_name() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
+        let mut artifact = make_skill_artifact();
+        artifact.name = "../bad".to_string();
+        let result = emit_package_plugin("auth", &[artifact], Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, Action::Skipped { .. })));
+    }
+
+    #[test]
+    fn emit_plugin_with_name_unsafe_plugin_name() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
+        let artifact = make_skill_artifact();
+        let result = emit_plugin_with_name(&artifact, "../evil", Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, Action::Skipped { .. })));
+    }
+
+    #[test]
+    fn emit_plugin_with_name_unsafe_artifact_name() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
+        let mut artifact = make_skill_artifact();
+        artifact.name = "a/b".to_string();
+        let result = emit_plugin_with_name(&artifact, "plugin", Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, Action::Skipped { .. })));
     }
 }

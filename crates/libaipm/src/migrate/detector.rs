@@ -24,5 +24,9 @@ pub fn claude_detectors() -> Vec<Box<dyn Detector>> {
     vec![
         Box::new(super::skill_detector::SkillDetector),
         Box::new(super::command_detector::CommandDetector),
+        Box::new(super::agent_detector::AgentDetector),
+        Box::new(super::mcp_detector::McpDetector),
+        Box::new(super::hook_detector::HookDetector),
+        Box::new(super::output_style_detector::OutputStyleDetector),
     ]
 }

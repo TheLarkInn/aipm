@@ -24,39 +24,40 @@ pub fn generate_report<S: BuildHasher>(
     // Group by kind
     let skills: Vec<_> = artifacts.iter().filter(|a| a.kind == ArtifactKind::Skill).collect();
     let commands: Vec<_> = artifacts.iter().filter(|a| a.kind == ArtifactKind::Command).collect();
+    let agents: Vec<_> = artifacts.iter().filter(|a| a.kind == ArtifactKind::Agent).collect();
+    let mcp: Vec<_> = artifacts.iter().filter(|a| a.kind == ArtifactKind::McpServer).collect();
+    let hooks: Vec<_> = artifacts.iter().filter(|a| a.kind == ArtifactKind::Hook).collect();
+    let output_styles: Vec<_> =
+        artifacts.iter().filter(|a| a.kind == ArtifactKind::OutputStyle).collect();
 
     let mut rename_counter = 0u32;
     let mut used_names: HashSet<String> = existing_plugins.iter().cloned().collect();
     let mut total_conflicts = 0u32;
     let mut total_hooks = 0u32;
 
-    if !skills.is_empty() {
-        let _ = writeln!(report, "## Skills\n");
-        for artifact in &skills {
-            write_artifact_section(
-                &mut report,
-                artifact,
-                &mut used_names,
-                &mut rename_counter,
-                &mut total_conflicts,
-                &mut total_hooks,
-                manifest,
-            );
-        }
-    }
+    let sections: &[(&str, &[&Artifact])] = &[
+        ("Skills", &skills),
+        ("Legacy Commands", &commands),
+        ("Agents", &agents),
+        ("MCP Servers", &mcp),
+        ("Hooks", &hooks),
+        ("Output Styles", &output_styles),
+    ];
 
-    if !commands.is_empty() {
-        let _ = writeln!(report, "## Legacy Commands\n");
-        for artifact in &commands {
-            write_artifact_section(
-                &mut report,
-                artifact,
-                &mut used_names,
-                &mut rename_counter,
-                &mut total_conflicts,
-                &mut total_hooks,
-                manifest,
-            );
+    for (title, items) in sections {
+        if !items.is_empty() {
+            let _ = writeln!(report, "## {title}\n");
+            for artifact in *items {
+                write_artifact_section(
+                    &mut report,
+                    artifact,
+                    &mut used_names,
+                    &mut rename_counter,
+                    &mut total_conflicts,
+                    &mut total_hooks,
+                    manifest,
+                );
+            }
         }
     }
 
@@ -85,8 +86,14 @@ pub fn generate_recursive_report<S: BuildHasher>(
     let _ = writeln!(report, "**Discovered {} `.claude/` directories:**\n", discovered.len());
 
     // Discovery table
-    let _ = writeln!(report, "| Location | Package Name | Skills | Commands |");
-    let _ = writeln!(report, "|----------|-------------|--------|----------|");
+    let _ = writeln!(
+        report,
+        "| Location | Package Name | Skills | Commands | Agents | MCP | Hooks | Styles |"
+    );
+    let _ = writeln!(
+        report,
+        "|----------|-------------|--------|----------|--------|-----|-------|--------|"
+    );
 
     for src in discovered {
         let location = if src.relative_path.as_os_str().is_empty() {
@@ -96,17 +103,24 @@ pub fn generate_recursive_report<S: BuildHasher>(
         };
         let pkg_name = src.package_name.as_deref().unwrap_or("(root)");
 
-        // Count skills and commands from plans matching this specific source dir
-        let (skills, commands) = plugin_plans
+        // Count artifacts by kind from plans matching this specific source dir
+        let (skills, commands, agents, mcp, hooks, styles) = plugin_plans
             .iter()
             .filter(|p| p.source_dir == src.claude_dir)
             .flat_map(|p| &p.artifacts)
-            .fold((0u32, 0u32), |(s, c), a| match a.kind {
-                ArtifactKind::Skill => (s + 1, c),
-                ArtifactKind::Command => (s, c + 1),
+            .fold((0u32, 0u32, 0u32, 0u32, 0u32, 0u32), |(s, c, ag, m, h, st), a| match a.kind {
+                ArtifactKind::Skill => (s + 1, c, ag, m, h, st),
+                ArtifactKind::Command => (s, c + 1, ag, m, h, st),
+                ArtifactKind::Agent => (s, c, ag + 1, m, h, st),
+                ArtifactKind::McpServer => (s, c, ag, m + 1, h, st),
+                ArtifactKind::Hook => (s, c, ag, m, h + 1, st),
+                ArtifactKind::OutputStyle => (s, c, ag, m, h, st + 1),
             });
 
-        let _ = writeln!(report, "| {location} | {pkg_name} | {skills} | {commands} |");
+        let _ = writeln!(
+            report,
+            "| {location} | {pkg_name} | {skills} | {commands} | {agents} | {mcp} | {hooks} | {styles} |"
+        );
     }
 
     let _ = writeln!(report);
@@ -136,10 +150,14 @@ pub fn generate_recursive_report<S: BuildHasher>(
         };
         used_names.insert(final_name.clone());
 
-        // Composite only when both skills AND commands are present (matching emitter logic)
-        let has_skill = plan.artifacts.iter().any(|a| a.kind == ArtifactKind::Skill);
-        let has_command = plan.artifacts.iter().any(|a| a.kind == ArtifactKind::Command);
-        let type_str = if has_skill && has_command { "composite" } else { "skill" };
+        // Composite when 2+ distinct artifact kinds are present
+        let distinct_kinds: HashSet<&ArtifactKind> =
+            plan.artifacts.iter().map(|a| &a.kind).collect();
+        let type_str = if distinct_kinds.len() > 1 {
+            "composite"
+        } else {
+            plan.artifacts.first().map_or("composite", |a| a.kind.to_type_string())
+        };
 
         let source_label = if plan.is_package_scoped {
             format!("from {}", plan.name)
@@ -151,14 +169,14 @@ pub fn generate_recursive_report<S: BuildHasher>(
         let _ = writeln!(report, "- Type: {type_str}");
         if plan.artifacts.len() == 1 {
             if let Some(a) = plan.artifacts.first() {
-                let _ = writeln!(report, "- Components: skills/{}/SKILL.md", a.name);
+                let _ = writeln!(report, "- Components: {}", component_path(a));
             }
         } else {
             let _ = writeln!(report, "- Components:");
             for a in &plan.artifacts {
                 let suffix =
                     if a.kind == ArtifactKind::Command { " (converted from command)" } else { "" };
-                let _ = writeln!(report, "  - skills/{}/SKILL.md{suffix}", a.name);
+                let _ = writeln!(report, "  - {}{suffix}", component_path(a));
             }
         }
         let _ = writeln!(report);
@@ -175,6 +193,19 @@ pub fn generate_recursive_report<S: BuildHasher>(
     }
 
     report
+}
+
+/// Returns the component path for display in the dry-run report.
+fn component_path(artifact: &Artifact) -> String {
+    match artifact.kind {
+        ArtifactKind::Skill | ArtifactKind::Command => {
+            format!("skills/{}/SKILL.md", artifact.name)
+        },
+        ArtifactKind::Agent => format!("agents/{}.md", artifact.name),
+        ArtifactKind::McpServer => ".mcp.json".to_string(),
+        ArtifactKind::Hook => "hooks/hooks.json".to_string(),
+        ArtifactKind::OutputStyle => format!("{}.md", artifact.name),
+    }
 }
 
 /// Write a section for a single artifact in the dry-run report.
@@ -480,5 +511,141 @@ mod tests {
 
         assert!(report.contains("New aipm.toml with type"));
         assert!(!report.contains("No aipm.toml (pass --manifest to generate)"));
+    }
+
+    #[test]
+    fn dry_run_report_agents_section() {
+        let artifacts = vec![make_artifact("reviewer", ArtifactKind::Agent)];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", true);
+        assert!(report.contains("## Agents"));
+        assert!(report.contains("### reviewer"));
+    }
+
+    #[test]
+    fn dry_run_report_mcp_section() {
+        let artifacts = vec![make_artifact("project-mcp-servers", ArtifactKind::McpServer)];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", true);
+        assert!(report.contains("## MCP Servers"));
+        assert!(report.contains("### project-mcp-servers"));
+    }
+
+    #[test]
+    fn dry_run_report_hooks_section() {
+        let artifacts = vec![make_artifact("project-hooks", ArtifactKind::Hook)];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", true);
+        assert!(report.contains("## Hooks"));
+        assert!(report.contains("### project-hooks"));
+    }
+
+    #[test]
+    fn dry_run_report_output_styles_section() {
+        let artifacts = vec![make_artifact("concise", ArtifactKind::OutputStyle)];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", true);
+        assert!(report.contains("## Output Styles"));
+        assert!(report.contains("### concise"));
+    }
+
+    #[test]
+    fn dry_run_report_all_types() {
+        let artifacts = vec![
+            make_artifact("deploy", ArtifactKind::Skill),
+            make_artifact("review", ArtifactKind::Command),
+            make_artifact("reviewer", ArtifactKind::Agent),
+            make_artifact("mcp", ArtifactKind::McpServer),
+            make_artifact("hooks", ArtifactKind::Hook),
+            make_artifact("concise", ArtifactKind::OutputStyle),
+        ];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", true);
+        assert!(report.contains("**Artifacts found:** 6"));
+        assert!(report.contains("## Skills"));
+        assert!(report.contains("## Legacy Commands"));
+        assert!(report.contains("## Agents"));
+        assert!(report.contains("## MCP Servers"));
+        assert!(report.contains("## Hooks"));
+        assert!(report.contains("## Output Styles"));
+    }
+
+    #[test]
+    fn recursive_report_new_type_counts() {
+        let discovered = vec![DiscoveredSource {
+            claude_dir: PathBuf::from("/project/.claude"),
+            package_name: None,
+            relative_path: PathBuf::new(),
+        }];
+
+        let plugin_plans = vec![
+            PluginPlan {
+                name: "reviewer".to_string(),
+                artifacts: vec![make_artifact("reviewer", ArtifactKind::Agent)],
+                is_package_scoped: false,
+                source_dir: PathBuf::from("/project/.claude"),
+            },
+            PluginPlan {
+                name: "mcp".to_string(),
+                artifacts: vec![make_artifact("mcp", ArtifactKind::McpServer)],
+                is_package_scoped: false,
+                source_dir: PathBuf::from("/project/.claude"),
+            },
+        ];
+
+        let existing = HashSet::new();
+        let report = generate_recursive_report(&discovered, &plugin_plans, &existing);
+
+        // Table should show agent and MCP counts
+        assert!(report.contains("Plugin: `reviewer`"));
+        assert!(report.contains("Plugin: `mcp`"));
+        assert!(report.contains("Type: agent"));
+        assert!(report.contains("Type: mcp"));
+    }
+
+    #[test]
+    fn recursive_report_composite_with_new_types() {
+        let discovered = vec![DiscoveredSource {
+            claude_dir: PathBuf::from("/project/packages/auth/.claude"),
+            package_name: Some("auth".to_string()),
+            relative_path: PathBuf::from("packages/auth"),
+        }];
+
+        let plugin_plans = vec![PluginPlan {
+            name: "auth".to_string(),
+            artifacts: vec![
+                make_artifact("deploy", ArtifactKind::Skill),
+                make_artifact("reviewer", ArtifactKind::Agent),
+            ],
+            is_package_scoped: true,
+            source_dir: PathBuf::from("/project/packages/auth/.claude"),
+        }];
+
+        let existing = HashSet::new();
+        let report = generate_recursive_report(&discovered, &plugin_plans, &existing);
+
+        assert!(report.contains("Type: composite"));
+        assert!(report.contains("agents/reviewer.md"));
+    }
+
+    #[test]
+    fn component_path_all_kinds() {
+        let skill = make_artifact("deploy", ArtifactKind::Skill);
+        assert_eq!(component_path(&skill), "skills/deploy/SKILL.md");
+
+        let cmd = make_artifact("review", ArtifactKind::Command);
+        assert_eq!(component_path(&cmd), "skills/review/SKILL.md");
+
+        let agent = make_artifact("reviewer", ArtifactKind::Agent);
+        assert_eq!(component_path(&agent), "agents/reviewer.md");
+
+        let mcp = make_artifact("mcp", ArtifactKind::McpServer);
+        assert_eq!(component_path(&mcp), ".mcp.json");
+
+        let hook = make_artifact("hooks", ArtifactKind::Hook);
+        assert_eq!(component_path(&hook), "hooks/hooks.json");
+
+        let style = make_artifact("concise", ArtifactKind::OutputStyle);
+        assert_eq!(component_path(&style), "concise.md");
     }
 }
