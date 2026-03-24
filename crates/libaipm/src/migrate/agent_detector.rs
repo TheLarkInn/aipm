@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use crate::fs::Fs;
 
 use super::detector::Detector;
-use super::{Artifact, ArtifactKind, ArtifactMetadata, Error};
+use super::{strip_yaml_quotes, Artifact, ArtifactKind, ArtifactMetadata, Error};
 
 /// Scans `.claude/agents/` for `.md` files (subagent definitions).
 pub struct AgentDetector;
@@ -85,9 +85,9 @@ fn parse_agent_frontmatter(content: &str, path: &Path) -> Result<ArtifactMetadat
     for line in yaml_block.lines() {
         let trimmed_line = line.trim();
         if let Some(value) = trimmed_line.strip_prefix("name:") {
-            metadata.name = Some(value.trim().to_string());
+            metadata.name = Some(strip_yaml_quotes(value.trim()).to_string());
         } else if let Some(value) = trimmed_line.strip_prefix("description:") {
-            metadata.description = Some(value.trim().to_string());
+            metadata.description = Some(strip_yaml_quotes(value.trim()).to_string());
         }
     }
 
@@ -296,5 +296,25 @@ mod tests {
         let result = detector.detect(Path::new("/src"), &fs);
         let artifacts = result.ok().unwrap_or_default();
         assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("my-agent"));
+    }
+
+    #[test]
+    fn detect_agent_strips_quoted_description() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(PathBuf::from("/src/agents"), vec![de("reviewer.md", false)]);
+        fs.files.insert(
+            PathBuf::from("/src/agents/reviewer.md"),
+            "---\nname: \"reviewer\"\ndescription: \"Reviews code\"\n---\nBody.".to_string(),
+        );
+
+        let detector = AgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("reviewer"));
+        assert_eq!(
+            artifacts.first().and_then(|a| a.metadata.description.as_deref()),
+            Some("Reviews code")
+        );
     }
 }

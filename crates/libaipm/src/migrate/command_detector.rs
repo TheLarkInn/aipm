@@ -6,7 +6,7 @@ use crate::fs::Fs;
 
 use super::detector::Detector;
 use super::skill_detector::extract_script_references;
-use super::{Artifact, ArtifactKind, ArtifactMetadata, Error};
+use super::{strip_yaml_quotes, Artifact, ArtifactKind, ArtifactMetadata, Error};
 
 /// Scans `.claude/commands/` for `.md` files (legacy command format).
 pub struct CommandDetector;
@@ -83,9 +83,9 @@ fn parse_command_frontmatter(content: &str) -> ArtifactMetadata {
     for line in yaml_block.lines() {
         let trimmed_line = line.trim();
         if let Some(value) = trimmed_line.strip_prefix("name:") {
-            metadata.name = Some(value.trim().to_string());
+            metadata.name = Some(strip_yaml_quotes(value.trim()).to_string());
         } else if let Some(value) = trimmed_line.strip_prefix("description:") {
-            metadata.description = Some(value.trim().to_string());
+            metadata.description = Some(strip_yaml_quotes(value.trim()).to_string());
         }
     }
 
@@ -249,5 +249,24 @@ mod tests {
         let result = detector.detect(Path::new("/src"), &fs);
         assert!(result.is_ok());
         assert_eq!(result.ok().unwrap_or_default().len(), 0);
+    }
+
+    #[test]
+    fn detect_command_strips_quoted_description() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/commands"));
+        fs.dirs.insert(PathBuf::from("/src/commands"), vec![de("review.md", false)]);
+        fs.files.insert(
+            PathBuf::from("/src/commands/review.md"),
+            "---\nname: \"review\"\ndescription: \"Code review\"\n---\nBody".to_string(),
+        );
+
+        let detector = CommandDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(
+            artifacts.first().and_then(|a| a.metadata.description.as_deref()),
+            Some("Code review")
+        );
     }
 }

@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use crate::fs::Fs;
 
 use super::detector::Detector;
-use super::{Artifact, ArtifactKind, ArtifactMetadata, Error};
+use super::{strip_yaml_quotes, Artifact, ArtifactKind, ArtifactMetadata, Error};
 
 /// Scans `.claude/skills/` for directories containing `SKILL.md`.
 pub struct SkillDetector;
@@ -104,9 +104,9 @@ fn parse_skill_frontmatter(content: &str, path: &Path) -> Result<ArtifactMetadat
         }
 
         if let Some(value) = trimmed_line.strip_prefix("name:") {
-            metadata.name = Some(value.trim().to_string());
+            metadata.name = Some(strip_yaml_quotes(value.trim()).to_string());
         } else if let Some(value) = trimmed_line.strip_prefix("description:") {
-            metadata.description = Some(value.trim().to_string());
+            metadata.description = Some(strip_yaml_quotes(value.trim()).to_string());
         } else if trimmed_line.starts_with("hooks:") {
             in_hooks = true;
             let value = trimmed_line.strip_prefix("hooks:").unwrap_or_default().trim();
@@ -563,5 +563,28 @@ mod tests {
         let result = detector.detect(Path::new("/src"), &fs);
         assert!(result.is_ok());
         assert_eq!(result.ok().unwrap_or_default().len(), 0);
+    }
+
+    #[test]
+    fn detect_skill_strips_quoted_description() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/skills"));
+        fs.exists.insert(PathBuf::from("/src/skills/deploy/SKILL.md"));
+        fs.dirs.insert(PathBuf::from("/src/skills"), vec![de("deploy", true)]);
+        fs.dirs.insert(PathBuf::from("/src/skills/deploy"), vec![de("SKILL.md", false)]);
+        fs.files.insert(
+            PathBuf::from("/src/skills/deploy/SKILL.md"),
+            "---\nname: \"my-deploy\"\ndescription: \"Deploy app\"\n---\nBody".to_string(),
+        );
+
+        let detector = SkillDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("my-deploy"));
+        assert_eq!(
+            artifacts.first().and_then(|a| a.metadata.description.as_deref()),
+            Some("Deploy app")
+        );
     }
 }
