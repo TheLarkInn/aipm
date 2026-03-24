@@ -3,6 +3,9 @@
 All notable changes to this project will be documented in this file.
 ## [0.8.0] - 2026-03-24
 
+### Breaking changes
+- `libaipm::artifacts::ArtifactKind` has gained new enum variants. Code that matches exhaustively on `ArtifactKind` (for example, using `match` without a wildcard arm) may need to be updated to handle the additional variants.
+- `libaipm::artifacts::ArtifactMetadata` has gained a new `raw_content` field. Call sites that construct `ArtifactMetadata` directly via struct literals must be updated to initialize this field.
 ### Features
 - Extend aipm migrate to all .claude/ artifact types ([#61](https://github.com/TheLarkInn/aipm/pull/61)) (10f5be4)
 
