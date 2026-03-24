@@ -110,8 +110,9 @@ fn is_relative_script(path: &str, _source_dir: &Path) -> bool {
         return false;
     }
     let path_obj = Path::new(path);
-    // Reject absolute paths on any platform (handles C:\..., /usr/..., etc.)
-    if path_obj.is_absolute() || path_obj.has_root() {
+    // Reject absolute paths: std check + manual Windows drive letter check
+    // (Path::is_absolute on Linux doesn't recognize C:\... as absolute)
+    if path_obj.is_absolute() || path_obj.has_root() || has_windows_drive_prefix(path) {
         return false;
     }
     // Has directory separators — it's a path, not a bare command
@@ -124,6 +125,16 @@ fn is_relative_script(path: &str, _source_dir: &Path) -> bool {
             || ext.eq_ignore_ascii_case("py")
             || ext.eq_ignore_ascii_case("js")
     })
+}
+
+/// Check for Windows-style drive letter prefix (e.g., `C:\`, `D:/`).
+/// Works on all platforms — `Path::is_absolute` on Linux doesn't detect these.
+fn has_windows_drive_prefix(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    bytes.len() >= 3
+        && bytes.first().is_some_and(u8::is_ascii_alphabetic)
+        && bytes.get(1) == Some(&b':')
+        && (bytes.get(2) == Some(&b'\\') || bytes.get(2) == Some(&b'/'))
 }
 
 #[cfg(test)]
