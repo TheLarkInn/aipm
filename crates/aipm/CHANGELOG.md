@@ -1,6 +1,12 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.6.0] - 2026-03-24
+
+### Features
+- Change `aipm migrate` default behavior: when `--source` is omitted, migrations are now discovered **recursively** under the current working directory (searching nested `.claude/` directories) ([#57](https://github.com/TheLarkInn/aipm/pull/57)) (5313d5e)
+- Add a new `--max-depth` flag to `aipm migrate` to limit how deep the recursive `.claude/` discovery searches, allowing users to constrain the directories scanned.
+
 ## [0.5.0] - 2026-03-23
 
 ### Features
