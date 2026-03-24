@@ -3,6 +3,10 @@
 All notable changes to this project will be documented in this file.
 ## [0.6.0] - 2026-03-24
 
+### Breaking changes
+- `libaipm::fs::Fs` now requires `Send + Sync`. Any implementations, type aliases, or usages of `Fs` must satisfy these additional trait bounds.
+- `libaipm::migrate::Options` has gained a new `max_depth` field. Call sites that construct `Options` directly (including via struct literals) must be updated to initialize this field.
+- `libaipm::migrate::Error` has gained a new enum variant. Code that matches on `migrate::Error` may need to be updated to handle the additional variant, especially if using non-exhaustive match patterns.
 ### Features
 - Add recursive .claude/ discovery to aipm migrate ([#57](https://github.com/TheLarkInn/aipm/pull/57)) (5313d5e)
 
