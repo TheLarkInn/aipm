@@ -7,6 +7,8 @@ use std::path::Path;
 use crate::fs::Fs;
 use crate::workspace_init::write_file;
 
+use serde::Serialize;
+
 use super::{Action, Artifact, ArtifactKind, ArtifactMetadata, Error};
 
 use std::path::PathBuf;
@@ -583,8 +585,6 @@ fn generate_package_manifest(
     has_multiple_types: bool,
     has_hooks_yaml: bool,
 ) -> String {
-    use std::fmt::Write;
-
     let type_str = if has_multiple_types {
         "composite"
     } else {
@@ -595,17 +595,18 @@ fn generate_package_manifest(
         .and_then(|a| a.metadata.description.as_deref())
         .unwrap_or("Migrated from .claude/ configuration");
 
-    let mut components_section = String::new();
+    let mut components = PluginComponents::default();
 
     // Group component paths by type
-    let skill_paths: Vec<&String> =
-        component_paths.iter().filter(|p| p.starts_with("skills/")).collect();
-    let agent_paths: Vec<&String> =
-        component_paths.iter().filter(|p| p.starts_with("agents/")).collect();
-    let mcp_paths: Vec<&String> = component_paths.iter().filter(|p| *p == ".mcp.json").collect();
-    let hook_paths: Vec<&String> =
-        component_paths.iter().filter(|p| p.starts_with("hooks/")).collect();
-    let style_paths: Vec<&String> = component_paths
+    let skill_paths: Vec<String> =
+        component_paths.iter().filter(|p| p.starts_with("skills/")).cloned().collect();
+    let agent_paths: Vec<String> =
+        component_paths.iter().filter(|p| p.starts_with("agents/")).cloned().collect();
+    let mcp_paths: Vec<String> =
+        component_paths.iter().filter(|p| *p == ".mcp.json").cloned().collect();
+    let hook_paths: Vec<String> =
+        component_paths.iter().filter(|p| p.starts_with("hooks/")).cloned().collect();
+    let style_paths: Vec<String> = component_paths
         .iter()
         .filter(|p| {
             !p.starts_with("skills/")
@@ -613,39 +614,23 @@ fn generate_package_manifest(
                 && *p != ".mcp.json"
                 && !p.starts_with("hooks/")
         })
+        .cloned()
         .collect();
 
     if !skill_paths.is_empty() {
-        let list: Vec<String> = skill_paths.iter().map(|p| format!("\"{p}\"")).collect();
-        let _ = write!(components_section, "skills = [{}]", list.join(", "));
+        components.skills = Some(skill_paths);
     }
     if !agent_paths.is_empty() {
-        if !components_section.is_empty() {
-            components_section.push('\n');
-        }
-        let list: Vec<String> = agent_paths.iter().map(|p| format!("\"{p}\"")).collect();
-        let _ = write!(components_section, "agents = [{}]", list.join(", "));
+        components.agents = Some(agent_paths);
     }
     if !mcp_paths.is_empty() {
-        if !components_section.is_empty() {
-            components_section.push('\n');
-        }
-        let list: Vec<String> = mcp_paths.iter().map(|p| format!("\"{p}\"")).collect();
-        let _ = write!(components_section, "mcp_servers = [{}]", list.join(", "));
+        components.mcp_servers = Some(mcp_paths);
     }
     if !hook_paths.is_empty() {
-        if !components_section.is_empty() {
-            components_section.push('\n');
-        }
-        let list: Vec<String> = hook_paths.iter().map(|p| format!("\"{p}\"")).collect();
-        let _ = write!(components_section, "hooks = [{}]", list.join(", "));
+        components.hooks = Some(hook_paths.clone());
     }
     if !style_paths.is_empty() {
-        if !components_section.is_empty() {
-            components_section.push('\n');
-        }
-        let list: Vec<String> = style_paths.iter().map(|p| format!("\"{p}\"")).collect();
-        let _ = write!(components_section, "output_styles = [{}]", list.join(", "));
+        components.output_styles = Some(style_paths);
     }
 
     let all_scripts: Vec<String> = artifacts
@@ -654,35 +639,30 @@ fn generate_package_manifest(
             let scripts_root = Path::new("scripts");
             a.referenced_scripts.iter().map(move |p| {
                 let relative = p.strip_prefix(scripts_root).unwrap_or(p);
-                format!("\"scripts/{}\"", relative.to_string_lossy())
+                format!("scripts/{}", relative.to_string_lossy())
             })
         })
         .collect();
     if !all_scripts.is_empty() {
-        if !components_section.is_empty() {
-            components_section.push('\n');
-        }
-        let _ = write!(components_section, "scripts = [{}]", all_scripts.join(", "));
+        components.scripts = Some(all_scripts);
     }
     // Only append hooks from skill/command frontmatter when no Hook artifact already emitted hooks
     if has_hooks_yaml && hook_paths.is_empty() {
-        if !components_section.is_empty() {
-            components_section.push('\n');
-        }
-        components_section.push_str("hooks = [\"hooks/hooks.json\"]");
+        components.hooks = Some(vec!["hooks/hooks.json".to_string()]);
     }
 
-    format!(
-        "[package]\n\
-         name = \"{plugin_name}\"\n\
-         version = \"0.1.0\"\n\
-         type = \"{type_str}\"\n\
-         edition = \"2024\"\n\
-         description = \"{description}\"\n\
-         \n\
-         [components]\n\
-         {components_section}\n"
-    )
+    let manifest = PluginToml {
+        package: PluginPackage {
+            name: plugin_name.to_string(),
+            version: "0.1.0".to_string(),
+            kind: type_str.to_string(),
+            edition: "2024".to_string(),
+            description: description.to_string(),
+        },
+        components,
+    };
+
+    toml::to_string_pretty(&manifest).unwrap_or_default()
 }
 
 /// Check if a file path refers to a `SKILL.md` file.
@@ -828,6 +808,41 @@ fn convert_hooks_yaml_to_json(hooks_yaml: &str) -> String {
     }
 }
 
+/// Serializable structure for `aipm.toml` generation.
+#[derive(Serialize)]
+struct PluginToml {
+    package: PluginPackage,
+    components: PluginComponents,
+}
+
+/// The `[package]` table of `aipm.toml`.
+#[derive(Serialize)]
+struct PluginPackage {
+    name: String,
+    version: String,
+    #[serde(rename = "type")]
+    kind: String,
+    edition: String,
+    description: String,
+}
+
+/// The `[components]` table of `aipm.toml`.
+#[derive(Default, Serialize)]
+struct PluginComponents {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    skills: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    agents: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    mcp_servers: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hooks: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    output_styles: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scripts: Option<Vec<String>>,
+}
+
 /// Generate `aipm.toml` for a migrated plugin.
 fn generate_plugin_manifest(artifact: &Artifact, plugin_name: &str) -> String {
     let type_str = artifact.kind.to_type_string();
@@ -835,23 +850,23 @@ fn generate_plugin_manifest(artifact: &Artifact, plugin_name: &str) -> String {
     let description =
         artifact.metadata.description.as_deref().unwrap_or("Migrated from .claude/ configuration");
 
-    let mut components = Vec::new();
+    let mut components = PluginComponents::default();
 
     match artifact.kind {
         ArtifactKind::Skill | ArtifactKind::Command => {
-            components.push(format!("skills = [\"skills/{}/SKILL.md\"]", artifact.name));
+            components.skills = Some(vec![format!("skills/{}/SKILL.md", artifact.name)]);
         },
         ArtifactKind::Agent => {
-            components.push(format!("agents = [\"agents/{}.md\"]", artifact.name));
+            components.agents = Some(vec![format!("agents/{}.md", artifact.name)]);
         },
         ArtifactKind::McpServer => {
-            components.push("mcp_servers = [\".mcp.json\"]".to_string());
+            components.mcp_servers = Some(vec![".mcp.json".to_string()]);
         },
         ArtifactKind::Hook => {
-            components.push("hooks = [\"hooks/hooks.json\"]".to_string());
+            components.hooks = Some(vec!["hooks/hooks.json".to_string()]);
         },
         ArtifactKind::OutputStyle => {
-            components.push(format!("output_styles = [\"{}.md\"]", artifact.name));
+            components.output_styles = Some(vec![format!("{}.md", artifact.name)]);
         },
     }
 
@@ -863,30 +878,29 @@ fn generate_plugin_manifest(artifact: &Artifact, plugin_name: &str) -> String {
             .iter()
             .map(|p| {
                 let relative = p.strip_prefix(scripts_root).unwrap_or(p);
-                format!("\"scripts/{}\"", relative.to_string_lossy())
+                format!("scripts/{}", relative.to_string_lossy())
             })
             .collect();
-        components.push(format!("scripts = [{}]", scripts.join(", ")));
+        components.scripts = Some(scripts);
     }
 
     // Hooks component (if extracted from skill/command frontmatter)
     if artifact.metadata.hooks.is_some() && artifact.kind != ArtifactKind::Hook {
-        components.push("hooks = [\"hooks/hooks.json\"]".to_string());
+        components.hooks = Some(vec!["hooks/hooks.json".to_string()]);
     }
 
-    let components_section = components.join("\n");
+    let manifest = PluginToml {
+        package: PluginPackage {
+            name: plugin_name.to_string(),
+            version: "0.1.0".to_string(),
+            kind: type_str.to_string(),
+            edition: "2024".to_string(),
+            description: description.to_string(),
+        },
+        components,
+    };
 
-    format!(
-        "[package]\n\
-         name = \"{plugin_name}\"\n\
-         version = \"0.1.0\"\n\
-         type = \"{type_str}\"\n\
-         edition = \"2024\"\n\
-         description = \"{description}\"\n\
-         \n\
-         [components]\n\
-         {components_section}\n"
-    )
+    toml::to_string_pretty(&manifest).unwrap_or_default()
 }
 
 /// Generate `.claude-plugin/plugin.json` for a migrated plugin.
@@ -906,28 +920,35 @@ fn generate_plugin_json_multi(
     let description =
         metadata.description.as_deref().unwrap_or("Migrated from .claude/ configuration");
 
-    let mut fields = String::new();
+    let mut map = serde_json::Map::new();
+    map.insert("name".to_string(), serde_json::Value::String(name.to_string()));
+    map.insert("version".to_string(), serde_json::Value::String("0.1.0".to_string()));
+    map.insert("description".to_string(), serde_json::Value::String(description.to_string()));
+
     let distinct: HashSet<&ArtifactKind> = kinds.iter().collect();
     if distinct.contains(&ArtifactKind::Skill) || distinct.contains(&ArtifactKind::Command) {
-        fields.push_str(",\n  \"skills\": \"./skills/\"");
+        map.insert("skills".to_string(), serde_json::Value::String("./skills/".to_string()));
     }
     if distinct.contains(&ArtifactKind::Agent) {
-        fields.push_str(",\n  \"agents\": \"./agents/\"");
+        map.insert("agents".to_string(), serde_json::Value::String("./agents/".to_string()));
     }
     if distinct.contains(&ArtifactKind::McpServer) {
-        fields.push_str(",\n  \"mcpServers\": \"./.mcp.json\"");
+        map.insert("mcpServers".to_string(), serde_json::Value::String("./.mcp.json".to_string()));
     }
     if distinct.contains(&ArtifactKind::Hook) {
-        fields.push_str(",\n  \"hooks\": \"./hooks/hooks.json\"");
+        map.insert(
+            "hooks".to_string(),
+            serde_json::Value::String("./hooks/hooks.json".to_string()),
+        );
     }
     if distinct.contains(&ArtifactKind::OutputStyle) {
-        fields.push_str(",\n  \"outputStyles\": \"./\"");
+        map.insert("outputStyles".to_string(), serde_json::Value::String("./".to_string()));
     }
 
-    format!(
-        "{{\n  \"name\": \"{name}\",\n  \"version\": \"0.1.0\",\n  \
-         \"description\": \"{description}\"{fields}\n}}\n"
-    )
+    let obj = serde_json::Value::Object(map);
+    let mut output = serde_json::to_string_pretty(&obj).unwrap_or_default();
+    output.push('\n');
+    output
 }
 
 #[cfg(test)]
@@ -2370,5 +2391,76 @@ mod tests {
         assert!(json.contains("\"mcpServers\""));
         assert!(json.contains("\"hooks\""));
         assert!(json.contains("\"outputStyles\""));
+    }
+
+    #[test]
+    fn generate_plugin_json_valid_json_roundtrip() {
+        let metadata = ArtifactMetadata {
+            description: Some("Deploy app".to_string()),
+            ..ArtifactMetadata::default()
+        };
+        let json = generate_plugin_json("test", &metadata, &ArtifactKind::Skill);
+        let parsed: serde_json::Value = serde_json::from_str(&json).ok().unwrap_or_default();
+        assert_eq!(
+            parsed.get("description").and_then(serde_json::Value::as_str),
+            Some("Deploy app")
+        );
+        assert_eq!(parsed.get("name").and_then(serde_json::Value::as_str), Some("test"));
+    }
+
+    #[test]
+    fn generate_plugin_json_description_with_special_chars() {
+        let metadata = ArtifactMetadata {
+            description: Some("She said \"hello\" and \\backslash".to_string()),
+            ..ArtifactMetadata::default()
+        };
+        let json = generate_plugin_json("test", &metadata, &ArtifactKind::Skill);
+        let parsed: serde_json::Value = serde_json::from_str(&json).ok().unwrap_or_default();
+        assert_eq!(
+            parsed.get("description").and_then(serde_json::Value::as_str),
+            Some("She said \"hello\" and \\backslash")
+        );
+    }
+
+    #[test]
+    fn generate_manifest_valid_toml_roundtrip() {
+        let artifact = Artifact {
+            kind: ArtifactKind::Skill,
+            name: "deploy".to_string(),
+            source_path: PathBuf::from("/src"),
+            files: vec![PathBuf::from("SKILL.md")],
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata {
+                description: Some("Deploy app".to_string()),
+                ..ArtifactMetadata::default()
+            },
+        };
+        let manifest = generate_plugin_manifest(&artifact, "deploy");
+        let parsed: toml::Value =
+            toml::from_str(&manifest).ok().unwrap_or(toml::Value::Table(Default::default()));
+        let desc =
+            parsed.get("package").and_then(|p| p.get("description")).and_then(toml::Value::as_str);
+        assert_eq!(desc, Some("Deploy app"));
+    }
+
+    #[test]
+    fn generate_manifest_description_with_special_chars() {
+        let artifact = Artifact {
+            kind: ArtifactKind::Agent,
+            name: "reviewer".to_string(),
+            source_path: PathBuf::from("/src"),
+            files: vec![],
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata {
+                description: Some("She said \"hello\" and \\backslash".to_string()),
+                ..ArtifactMetadata::default()
+            },
+        };
+        let manifest = generate_plugin_manifest(&artifact, "reviewer");
+        let parsed: toml::Value =
+            toml::from_str(&manifest).ok().unwrap_or(toml::Value::Table(Default::default()));
+        let desc =
+            parsed.get("package").and_then(|p| p.get("description")).and_then(toml::Value::as_str);
+        assert_eq!(desc, Some("She said \"hello\" and \\backslash"));
     }
 }

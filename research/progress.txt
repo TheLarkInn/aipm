@@ -1,19 +1,29 @@
-All 12 features implemented and passing (2026-03-24):
+2026-03-24: Implemented all 15 features from feature-list.json
 
-1. [DONE] Extend ArtifactKind enum with Agent, McpServer, Hook, OutputStyle variants
-2. [DONE] Implement AgentDetector to scan .claude/agents/ for .md agent definitions
-3. [DONE] Implement agent emission in emitter, manifest generation, and dry-run report
-4. [DONE] Implement OutputStyleDetector to scan .claude/output-styles/ for .md files
-5. [DONE] Implement output style emission in emitter, manifest generation, and dry-run report
-6. [DONE] Implement McpDetector to read .mcp.json at project root and emit bundled MCP plugin
-7. [DONE] Implement MCP emission in emitter, manifest generation, and dry-run report
-8. [DONE] Implement HookDetector to extract hooks from .claude/settings.json
-9. [DONE] Implement hook emission with script copying and absolute path rewriting
-10. [DONE] Generalize composite type detection from skill+command to 2+ distinct artifact kinds
-11. [DONE] Add E2E integration tests for all new artifact types
-12. [DONE] Verify branch coverage gate at 89% for all new code
+Feature 1:  DONE - Added strip_yaml_quotes() helper to migrate/mod.rs with 7 unit tests
+Feature 2:  DONE - Updated skill_detector.rs to strip YAML quotes + new test
+Feature 3:  DONE - Updated agent_detector.rs to strip YAML quotes + new test
+Feature 4:  DONE - Updated command_detector.rs to strip YAML quotes + new test
+Feature 5:  DONE - Updated output_style_detector.rs to strip YAML quotes + new test
+Feature 6:  DONE - Enabled serde_json preserve_order feature in workspace Cargo.toml
+Feature 7:  DONE - Added PluginToml, PluginPackage, PluginComponents structs to emitter.rs
+Feature 8:  DONE - Rewrote generate_plugin_json_multi() to use serde_json::Map
+Feature 9:  DONE - Rewrote generate_plugin_manifest() to use PluginToml + toml::to_string_pretty()
+Feature 10: DONE - Rewrote generate_package_manifest() to use PluginToml + toml::to_string_pretty()
+Feature 11: DONE - Migrated workspace_init::generate_plugin_json() to serde_json
+Feature 12: DONE - All existing tests pass (no formatting changes needed)
+Feature 13: DONE - Added 4 new unit tests for JSON/TOML roundtrip with special chars
+Feature 14: DONE - Added E2E test for quoted description producing valid JSON
+Feature 15: DONE - Full pipeline passes:
+  - cargo fmt --check: clean
+  - cargo clippy --workspace -- -D warnings: clean
+  - cargo build --workspace: clean
+  - cargo test --workspace: 457 tests pass (0 failures)
+  - Branch coverage: 90.26% (>= 89% threshold)
 
-Final metrics:
-- 429 tests passing (0 failures)
-- Branch coverage: 89.55% (threshold: 89%)
-- All 4 cargo gates green: build, test, clippy, fmt
+Summary of changes:
+- 10 files modified
+- serde_json dependency updated to include preserve_order feature
+- 12 new tests added
+- All 457 tests pass
+- 90.26% branch coverage

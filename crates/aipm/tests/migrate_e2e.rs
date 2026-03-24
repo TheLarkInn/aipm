@@ -564,3 +564,36 @@ fn migrate_agent_with_manifest() {
     assert!(toml.contains("type = \"agent\""), "manifest type should be agent");
     assert!(toml.contains("agents = [\"agents/writer.md\"]"), "manifest should list agent file");
 }
+
+// =========================================================================
+// Scenario: Migrate skill with quoted description produces valid JSON
+// =========================================================================
+#[test]
+fn migrate_skill_with_quoted_description_produces_valid_json() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("project");
+    init_workspace(&dir);
+    create_skill(
+        &dir,
+        "analyze-bug",
+        "---\nname: analyze-bug\ndescription: \"Analyze bugs by reading bug reports.\"\n---\nBody",
+    );
+
+    aipm().args(["migrate", &dir.display().to_string()]).assert().success();
+
+    let plugin_json_path = dir.join(".ai/analyze-bug/.claude-plugin/plugin.json");
+    assert!(plugin_json_path.exists(), "plugin.json should exist");
+    let content = std::fs::read_to_string(&plugin_json_path).unwrap();
+    let parsed: serde_json::Value =
+        serde_json::from_str(&content).expect("plugin.json should be valid JSON");
+    assert_eq!(
+        parsed.get("description").and_then(serde_json::Value::as_str),
+        Some("Analyze bugs by reading bug reports."),
+        "description should not have extra quotes"
+    );
+    assert_eq!(
+        parsed.get("name").and_then(serde_json::Value::as_str),
+        Some("analyze-bug"),
+        "name should match"
+    );
+}

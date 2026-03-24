@@ -270,12 +270,20 @@ fn generate_starter_manifest() -> String {
 }
 
 fn generate_plugin_json() -> String {
-    "{\n\
-     \x20 \"name\": \"starter-aipm-plugin\",\n\
-     \x20 \"version\": \"0.1.0\",\n\
-     \x20 \"description\": \"Default starter plugin — scaffold new plugins, scan your marketplace, and log tool usage\"\n\
-     }\n"
-    .to_string()
+    let mut map = serde_json::Map::new();
+    map.insert("name".to_string(), serde_json::Value::String("starter-aipm-plugin".to_string()));
+    map.insert("version".to_string(), serde_json::Value::String("0.1.0".to_string()));
+    map.insert(
+        "description".to_string(),
+        serde_json::Value::String(
+            "Default starter plugin \u{2014} scaffold new plugins, scan your marketplace, and log tool usage"
+                .to_string(),
+        ),
+    );
+    let obj = serde_json::Value::Object(map);
+    let mut output = serde_json::to_string_pretty(&obj).unwrap_or_default();
+    output.push('\n');
+    output
 }
 
 fn generate_skill_template() -> String {
