@@ -12,6 +12,7 @@ pub fn generate_report<S: BuildHasher>(
     artifacts: &[Artifact],
     existing_plugins: &HashSet<String, S>,
     source_name: &str,
+    manifest: bool,
 ) -> String {
     let mut report = String::new();
 
@@ -39,6 +40,7 @@ pub fn generate_report<S: BuildHasher>(
                 &mut rename_counter,
                 &mut total_conflicts,
                 &mut total_hooks,
+                manifest,
             );
         }
     }
@@ -53,6 +55,7 @@ pub fn generate_report<S: BuildHasher>(
                 &mut rename_counter,
                 &mut total_conflicts,
                 &mut total_hooks,
+                manifest,
             );
         }
     }
@@ -182,6 +185,7 @@ fn write_artifact_section(
     rename_counter: &mut u32,
     total_conflicts: &mut u32,
     total_hooks: &mut u32,
+    manifest: bool,
 ) {
     let _ = writeln!(report, "### {}\n", artifact.name);
     let _ = writeln!(report, "- **Source:** {}", artifact.source_path.display());
@@ -209,8 +213,15 @@ fn write_artifact_section(
 
     // Manifest changes
     let _ = writeln!(report, "- **Manifest changes:**");
-    let _ =
-        writeln!(report, "  - New aipm.toml with type = \"{}\"", artifact.kind.to_type_string());
+    if manifest {
+        let _ = writeln!(
+            report,
+            "  - New aipm.toml with type = \"{}\"",
+            artifact.kind.to_type_string()
+        );
+    } else {
+        let _ = writeln!(report, "  - No aipm.toml (pass --manifest to generate)");
+    }
     let _ = writeln!(report, "  - New .claude-plugin/plugin.json");
 
     // Marketplace entry
@@ -266,7 +277,7 @@ mod tests {
             make_artifact("lint", ArtifactKind::Skill),
         ];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude");
+        let report = generate_report(&artifacts, &existing, ".claude", true);
 
         assert!(report.contains("### deploy"));
         assert!(report.contains("### lint"));
@@ -277,7 +288,7 @@ mod tests {
         let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
         let mut existing = HashSet::new();
         existing.insert("deploy".to_string());
-        let report = generate_report(&artifacts, &existing, ".claude");
+        let report = generate_report(&artifacts, &existing, ".claude", true);
 
         assert!(report.contains("deploy-renamed-1"));
         assert!(report.contains("Name conflicts (auto-renamed) | 1"));
@@ -289,7 +300,7 @@ mod tests {
         artifact.files = vec![PathBuf::from("SKILL.md"), PathBuf::from("scripts/run.sh")];
         let artifacts = vec![artifact];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude");
+        let report = generate_report(&artifacts, &existing, ".claude", true);
 
         assert!(report.contains("SKILL.md"));
         assert!(report.contains("scripts/run.sh"));
@@ -302,7 +313,7 @@ mod tests {
             make_artifact("review", ArtifactKind::Command),
         ];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude");
+        let report = generate_report(&artifacts, &existing, ".claude", true);
 
         assert!(report.contains("## Summary"));
         assert!(report.contains("Plugins to create | 2"));
@@ -313,7 +324,7 @@ mod tests {
     fn dry_run_report_empty_artifacts() {
         let artifacts: Vec<Artifact> = Vec::new();
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude");
+        let report = generate_report(&artifacts, &existing, ".claude", true);
 
         assert!(report.contains("**Artifacts found:** 0"));
         assert!(report.contains("Plugins to create | 0"));
@@ -325,7 +336,7 @@ mod tests {
         artifact.metadata.hooks = Some("PreToolUse: check".to_string());
         let artifacts = vec![artifact];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude");
+        let report = generate_report(&artifacts, &existing, ".claude", true);
 
         assert!(report.contains("**Hooks extracted:** yes"));
         assert!(report.contains("Hooks to extract | 1"));
@@ -337,7 +348,7 @@ mod tests {
         artifact.referenced_scripts = vec![PathBuf::from("scripts/run.sh")];
         let artifacts = vec![artifact];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude");
+        let report = generate_report(&artifacts, &existing, ".claude", true);
 
         assert!(report.contains("**Path rewrites:**"));
     }
@@ -346,7 +357,7 @@ mod tests {
     fn dry_run_report_commands_section() {
         let artifacts = vec![make_artifact("review", ArtifactKind::Command)];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude");
+        let report = generate_report(&artifacts, &existing, ".claude", true);
 
         assert!(report.contains("## Legacy Commands"));
     }
@@ -449,5 +460,25 @@ mod tests {
 
         assert!(report.contains("Plugin: `api`"));
         assert!(report.contains("Type: skill"));
+    }
+
+    #[test]
+    fn dry_run_report_no_manifest_shows_hint() {
+        let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", false);
+
+        assert!(report.contains("No aipm.toml (pass --manifest to generate)"));
+        assert!(!report.contains("New aipm.toml with type"));
+    }
+
+    #[test]
+    fn dry_run_report_with_manifest_shows_aipm_toml() {
+        let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", true);
+
+        assert!(report.contains("New aipm.toml with type"));
+        assert!(!report.contains("No aipm.toml (pass --manifest to generate)"));
     }
 }

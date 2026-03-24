@@ -27,13 +27,19 @@ Feature: Workspace initialization
       | .ai/starter-aipm-plugin/.claude-plugin/      |
     And a file ".ai/.gitignore" exists in "my-project"
 
-  Scenario: Marketplace generates a valid starter plugin manifest
+  Scenario: Marketplace generates a valid starter plugin manifest with --manifest
     Given an empty directory "my-project"
-    When the user runs "aipm init --workspace --marketplace" in "my-project"
+    When the user runs "aipm init --workspace --marketplace --manifest" in "my-project"
     Then a file ".ai/starter-aipm-plugin/aipm.toml" exists in "my-project"
     And the starter plugin manifest contains the package name "starter-aipm-plugin"
     And the starter plugin manifest contains a version of "0.1.0"
     And the starter plugin manifest contains the plugin type "composite"
+
+  Scenario: Default marketplace does not generate starter aipm.toml
+    Given an empty directory "my-project"
+    When the user runs "aipm init --marketplace" in "my-project"
+    Then a file ".ai/starter-aipm-plugin/skills/scaffold-plugin/SKILL.md" exists in "my-project"
+    And there is no file ".ai/starter-aipm-plugin/aipm.toml" in "my-project"
 
   Scenario: Marketplace generates a Claude Code plugin structure
     Given an empty directory "my-project"
@@ -130,7 +136,7 @@ Feature: Workspace initialization
 
   Scenario: Starter plugin manifest is valid TOML that round-trips through parser
     Given an empty directory "my-project"
-    When the user runs "aipm init --marketplace" in "my-project"
+    When the user runs "aipm init --marketplace --manifest" in "my-project"
     Then a file ".ai/starter-aipm-plugin/aipm.toml" exists in "my-project"
     And the starter plugin manifest is valid according to aipm schema
 

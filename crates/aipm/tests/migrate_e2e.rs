@@ -47,10 +47,16 @@ fn migrate_skill_creates_plugin() {
 
     aipm().args(["migrate", &dir.display().to_string()]).assert().success();
 
-    assert!(dir.join(".ai/deploy/aipm.toml").exists(), "aipm.toml should exist");
-    let toml_content = std::fs::read_to_string(dir.join(".ai/deploy/aipm.toml")).unwrap();
-    assert!(toml_content.contains("name = \"deploy\""));
-    assert!(toml_content.contains("type = \"skill\""));
+    // Plugin directory and components exist, but no aipm.toml (no --manifest)
+    assert!(dir.join(".ai/deploy/skills/deploy/SKILL.md").exists(), "SKILL.md should exist");
+    assert!(
+        !dir.join(".ai/deploy/aipm.toml").exists(),
+        "aipm.toml should NOT exist without --manifest"
+    );
+    assert!(
+        dir.join(".ai/deploy/.claude-plugin/plugin.json").exists(),
+        "plugin.json should still exist"
+    );
 }
 
 // =========================================================================
@@ -259,9 +265,11 @@ fn migrate_multiple_skills() {
 
     aipm().args(["migrate", &dir.display().to_string()]).assert().success();
 
-    assert!(dir.join(".ai/deploy/aipm.toml").exists());
-    assert!(dir.join(".ai/lint/aipm.toml").exists());
+    // No aipm.toml without --manifest
+    assert!(!dir.join(".ai/deploy/aipm.toml").exists());
+    assert!(!dir.join(".ai/lint/aipm.toml").exists());
 
+    // But plugins are registered in marketplace.json
     let mp = std::fs::read_to_string(dir.join(".ai/.claude-plugin/marketplace.json")).unwrap();
     assert!(mp.contains("\"deploy\""));
     assert!(mp.contains("\"lint\""));
@@ -303,5 +311,50 @@ fn migrate_help_output() {
         .assert()
         .success()
         .stdout(predicate::str::contains("--dry-run"))
-        .stdout(predicate::str::contains("--source"));
+        .stdout(predicate::str::contains("--source"))
+        .stdout(predicate::str::contains("--manifest"));
+}
+
+// =========================================================================
+// --manifest flag tests
+// =========================================================================
+
+#[test]
+fn migrate_with_manifest_flag_generates_toml() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("project");
+    init_workspace(&dir);
+    create_skill(
+        &dir,
+        "deploy",
+        "---\nname: deploy\ndescription: Deploy app\n---\nDeploy instructions",
+    );
+
+    aipm().args(["migrate", "--manifest", &dir.display().to_string()]).assert().success();
+
+    assert!(dir.join(".ai/deploy/aipm.toml").exists(), "aipm.toml should exist with --manifest");
+    let toml_content = std::fs::read_to_string(dir.join(".ai/deploy/aipm.toml")).unwrap();
+    assert!(toml_content.contains("name = \"deploy\""));
+    assert!(toml_content.contains("type = \"skill\""));
+}
+
+#[test]
+fn migrate_without_manifest_flag_skips_toml() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("project");
+    init_workspace(&dir);
+    create_skill(&dir, "deploy", "---\nname: deploy\n---\nDeploy");
+
+    aipm().args(["migrate", &dir.display().to_string()]).assert().success();
+
+    assert!(
+        !dir.join(".ai/deploy/aipm.toml").exists(),
+        "aipm.toml should NOT exist without --manifest"
+    );
+    // But plugin.json and components should exist
+    assert!(dir.join(".ai/deploy/.claude-plugin/plugin.json").exists());
+    assert!(dir.join(".ai/deploy/skills/deploy/SKILL.md").exists());
+    // And registration still works
+    let mp = std::fs::read_to_string(dir.join(".ai/.claude-plugin/marketplace.json")).unwrap();
+    assert!(mp.contains("\"deploy\""));
 }

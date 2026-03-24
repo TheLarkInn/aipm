@@ -26,9 +26,14 @@ fn init_default_creates_marketplace_only() {
     aipm().args(["init", &dir.display().to_string()]).assert().success();
 
     assert!(!dir.join("aipm.toml").exists(), "aipm.toml should NOT exist");
+    // Starter plugin directory and components exist, but no aipm.toml (no --manifest)
     assert!(
-        dir.join(".ai/starter-aipm-plugin/aipm.toml").exists(),
-        ".ai/starter-aipm-plugin/aipm.toml should exist"
+        dir.join(".ai/starter-aipm-plugin/skills/scaffold-plugin/SKILL.md").exists(),
+        "starter plugin components should exist"
+    );
+    assert!(
+        !dir.join(".ai/starter-aipm-plugin/aipm.toml").exists(),
+        "starter aipm.toml should NOT exist without --manifest"
     );
     assert!(dir.join(".claude/settings.json").exists(), ".claude/settings.json should exist");
 }
@@ -58,9 +63,14 @@ fn init_marketplace_only() {
 
     aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
 
+    // Starter plugin exists but no aipm.toml without --manifest
     assert!(
-        dir.join(".ai/starter-aipm-plugin/aipm.toml").exists(),
+        dir.join(".ai/starter-aipm-plugin/skills/scaffold-plugin/SKILL.md").exists(),
         ".ai/starter-aipm-plugin should exist"
+    );
+    assert!(
+        !dir.join(".ai/starter-aipm-plugin/aipm.toml").exists(),
+        "starter aipm.toml should NOT exist without --manifest"
     );
     assert!(!dir.join("aipm.toml").exists(), "aipm.toml should NOT exist");
 }
@@ -141,7 +151,11 @@ fn init_starter_manifest_valid_toml() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("starter-valid");
 
-    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
+    // Use --manifest to generate starter aipm.toml
+    aipm()
+        .args(["init", "--marketplace", "--manifest", &dir.display().to_string()])
+        .assert()
+        .success();
 
     let content = std::fs::read_to_string(dir.join(".ai/starter-aipm-plugin/aipm.toml")).unwrap();
     assert!(content.contains("name = \"starter-aipm-plugin\""));
@@ -376,7 +390,15 @@ fn yes_flag_creates_default_marketplace() {
     aipm().args(["init", "-y", &dir.display().to_string()]).assert().success();
 
     assert!(!dir.join("aipm.toml").exists(), "aipm.toml should NOT exist (marketplace only)");
-    assert!(dir.join(".ai/starter-aipm-plugin/aipm.toml").exists(), "starter plugin should exist");
+    // Starter plugin exists but no aipm.toml without --manifest
+    assert!(
+        dir.join(".ai/starter-aipm-plugin/skills/scaffold-plugin/SKILL.md").exists(),
+        "starter plugin components should exist"
+    );
+    assert!(
+        !dir.join(".ai/starter-aipm-plugin/aipm.toml").exists(),
+        "starter aipm.toml should NOT exist without --manifest"
+    );
 }
 
 #[test]
@@ -413,4 +435,43 @@ fn yes_flag_marketplace_only_no_workspace() {
     // Default is marketplace only, no workspace manifest
     assert!(!dir.join("aipm.toml").exists(), "default -y should NOT create aipm.toml");
     assert!(dir.join(".ai").exists(), ".ai should exist");
+}
+
+// =========================================================================
+// --manifest flag tests
+// =========================================================================
+
+#[test]
+fn init_manifest_flag_generates_starter_toml() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("manifest-flag");
+
+    aipm()
+        .args(["init", "--marketplace", "--manifest", &dir.display().to_string()])
+        .assert()
+        .success();
+
+    assert!(
+        dir.join(".ai/starter-aipm-plugin/aipm.toml").exists(),
+        "starter aipm.toml should exist with --manifest"
+    );
+    let content = std::fs::read_to_string(dir.join(".ai/starter-aipm-plugin/aipm.toml")).unwrap();
+    assert!(content.contains("name = \"starter-aipm-plugin\""));
+}
+
+#[test]
+fn init_without_manifest_flag_skips_starter_toml() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("no-manifest-flag");
+
+    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
+
+    assert!(
+        dir.join(".ai/starter-aipm-plugin/skills/scaffold-plugin/SKILL.md").exists(),
+        "components should exist"
+    );
+    assert!(
+        !dir.join(".ai/starter-aipm-plugin/aipm.toml").exists(),
+        "aipm.toml should NOT exist without --manifest"
+    );
 }

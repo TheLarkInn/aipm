@@ -1,42 +1,34 @@
-2026-03-23: Recursive .claude/ Discovery for aipm migrate — Implementation Complete
+2026-03-24: Suppress Plugin Manifest Generation — Implementation Complete
 
-ALL 14 FEATURES IMPLEMENTED AND PASSING:
+ALL 11 FEATURES IMPLEMENTED AND PASSING:
 
-1. [DONE] Add Send + Sync supertraits to Fs trait, migrate MockFs from RefCell to Mutex
-2. [DONE] Add ignore and rayon workspace dependencies
-3. [DONE] Modify Options struct: source -> Option, add max_depth
-4. [DONE] Create discovery module with discover_claude_dirs()
-5. [DONE] Implement PluginPlan struct and package-scoped merging
-6. [DONE] Parallel detection via rayon
-7. [DONE] Implement emit_package_plugin() in emitter
-8. [DONE] Parallel emission via rayon
-9. [DONE] Sequential name resolution for duplicate package names
-10. [DONE] Wire up full recursive migrate() orchestrator
-11. [DONE] Update dry-run report for recursive discovery
-12. [DONE] Add BDD feature tests (4 new scenarios, 62 total)
-13. [DONE] Handle edge cases (no dirs, .ai exclusion, symlinks, empty artifacts, deep nesting)
-14. [DONE] Coverage verified at 89.05% branch coverage (threshold: 89%)
+1. [DONE] Add --manifest CLI flag to Init and Migrate commands
+2. [DONE] Add manifest: bool to workspace_init::Options and migrate::Options
+3. [DONE] Suppress starter plugin aipm.toml in scaffold_marketplace()
+4. [DONE] Add manifest: bool to emitter emit functions (emit_plugin, emit_plugin_with_name, emit_package_plugin)
+5. [DONE] Thread manifest flag through migrate orchestrator
+6. [DONE] Update dry-run report for manifest flag
+7. [DONE] Add manifest: false unit tests (workspace_init + emitter + dry_run)
+8. [DONE] Update BDD migrate.feature (2 scenarios updated, 2 new scenarios added)
+9. [DONE] Update BDD workspace-init.feature (2 scenarios updated, 1 new scenario added)
+10. [DONE] Update E2E tests for init and migrate (4 tests updated, 4 new tests added)
+11. [DONE] Coverage verified at 89.63% branch coverage (threshold: 89%)
 
 VALIDATION:
 - cargo build --workspace: PASS
-- cargo test --workspace: 335 tests pass (0 failures)
+- cargo test --workspace: 346 tests pass + 65 BDD scenarios (0 failures)
 - cargo clippy --workspace -- -D warnings: PASS (0 warnings)
 - cargo fmt --check: PASS
-- Branch coverage: 89.05% (484 branches, 53 missed)
+- Branch coverage: 89.63% (492 branches, 51 missed)
 
 FILES CHANGED:
-- Cargo.toml: Added ignore and rayon workspace dependencies
-- crates/libaipm/Cargo.toml: Added ignore and rayon
-- crates/libaipm/src/fs.rs: Added Send + Sync to Fs trait
-- crates/libaipm/src/init.rs: Cell -> AtomicU32 in CountingFs
-- crates/libaipm/src/migrate/mod.rs: Options struct, PluginPlan, recursive orchestrator
-- crates/libaipm/src/migrate/discovery.rs: NEW — discover_claude_dirs()
-- crates/libaipm/src/migrate/emitter.rs: emit_package_plugin(), emit_plugin_with_name()
-- crates/libaipm/src/migrate/dry_run.rs: generate_recursive_report()
-- crates/libaipm/src/migrate/command_detector.rs: RefCell -> Mutex
-- crates/libaipm/src/migrate/skill_detector.rs: RefCell -> Mutex
-- crates/libaipm/src/migrate/registrar.rs: RefCell -> Mutex
-- crates/aipm/src/main.rs: --source optional, --max-depth flag
-- crates/aipm/tests/migrate_e2e.rs: Updated for recursive behavior
-- crates/libaipm/tests/bdd.rs: Added sub-package step definitions
-- tests/features/manifest/migrate.feature: 4 new BDD scenarios
+- clippy.toml: Raised max-struct-bools to 4
+- crates/aipm/src/main.rs: Added --manifest flag to Init and Migrate commands
+- crates/libaipm/src/workspace_init/mod.rs: Added manifest field to Options, guarded aipm.toml in scaffold_marketplace(), added 2 new unit tests
+- crates/libaipm/src/migrate/mod.rs: Added manifest field to Options, threaded through orchestrator
+- crates/libaipm/src/migrate/emitter.rs: Added manifest param to all 3 emit functions, added 3 new unit tests
+- crates/libaipm/src/migrate/dry_run.rs: Added manifest param to report functions, conditional aipm.toml line, added 2 new unit tests
+- crates/aipm/tests/init_e2e.rs: Updated 4 existing tests, added 2 new --manifest tests
+- crates/aipm/tests/migrate_e2e.rs: Updated 2 existing tests, added 2 new --manifest tests
+- tests/features/manifest/migrate.feature: Updated 2 scenarios, added 2 new --manifest scenarios
+- tests/features/manifest/workspace-init.feature: Updated 2 scenarios, added 1 new scenario

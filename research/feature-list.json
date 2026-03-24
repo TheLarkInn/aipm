@@ -1,209 +1,181 @@
 [
   {
     "category": "refactor",
-    "description": "Add Send + Sync supertraits to Fs trait and migrate MockFs from RefCell to Mutex",
+    "description": "Add --manifest CLI flag to Init and Migrate commands in crates/aipm/src/main.rs",
     "steps": [
-      "Open crates/libaipm/src/fs.rs and add Send + Sync bounds to the Fs trait definition",
-      "Verify the Real unit struct already auto-derives Send + Sync (no changes needed)",
-      "Find all MockFs implementations across the test suite that use RefCell",
-      "Replace RefCell with std::sync::Mutex (or parking_lot::Mutex) in MockFs fields",
-      "Update all .borrow() calls to .lock() and .borrow_mut() to .lock()",
-      "Add compile-time assertion tests: fn _assert_send_sync<T: Send + Sync>() {} with Real and MockFs",
-      "Run cargo build --workspace and cargo test --workspace to verify compilation",
+      "Open crates/aipm/src/main.rs and locate Commands::Init variant (line ~23)",
+      "Add `manifest: bool` field with `#[arg(long)]` after the `no_starter` field (line ~38)",
+      "Add doc comment: `/// Generate aipm.toml plugin manifests (opt-in; dependency management not yet available).`",
+      "Locate Commands::Migrate variant (line ~46)",
+      "Add `manifest: bool` field with `#[arg(long)]` after the `max_depth` field (line ~59)",
+      "Add same doc comment as Init variant",
+      "In the Init match arm (line ~81-86), add `manifest` to the workspace_init::Options struct construction",
+      "In the Migrate match arm (line ~114-118), add `manifest` to the migrate::Options struct construction",
+      "Run cargo build --workspace to verify compilation",
+      "Run cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Add manifest: bool field to workspace_init::Options and migrate::Options structs",
+    "steps": [
+      "Open crates/libaipm/src/workspace_init/mod.rs and locate Options struct (line ~33-42)",
+      "Add `pub manifest: bool` field after `no_starter`",
+      "Open crates/libaipm/src/migrate/mod.rs and locate Options struct (line ~65-77)",
+      "Add `pub manifest: bool` field after `max_depth`",
+      "Find all call sites that construct workspace_init::Options (unit tests, bdd.rs) and add `manifest: true` to preserve existing behavior temporarily",
+      "Find all call sites that construct migrate::Options (unit tests, bdd.rs) and add `manifest: true` to preserve existing behavior temporarily",
+      "Run cargo build --workspace to verify all references compile",
+      "Run cargo test --workspace to verify existing tests still pass with manifest: true"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Suppress starter plugin aipm.toml in scaffold_marketplace() based on manifest flag",
+    "steps": [
+      "Open crates/libaipm/src/workspace_init/mod.rs and locate scaffold_marketplace() (line ~171)",
+      "Add `manifest: bool` parameter to the function signature",
+      "Wrap the generate_starter_manifest() call (line ~224) and its write_file + parse_and_validate (lines ~225-229) in `if manifest { ... }`",
+      "Update the call site in init() (line ~111) to pass `opts.manifest`",
+      "Verify that when manifest is false: all component files (SKILL.md, hooks.json, scripts, agents, plugin.json) are still created but aipm.toml is NOT created",
+      "Verify that when manifest is true: behavior is identical to current (aipm.toml + validation)",
+      "Run cargo build --workspace",
+      "Run cargo test --workspace"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add manifest: bool parameter to all three emitter emit functions and guard aipm.toml writes",
+    "steps": [
+      "Open crates/libaipm/src/migrate/emitter.rs",
+      "Add `manifest: bool` parameter to emit_plugin() signature (line ~28), before the `fs` parameter",
+      "Guard the generate_plugin_manifest() call and write_file at lines ~97-99 with `if manifest { ... }`",
+      "Add `manifest: bool` parameter to emit_plugin_with_name() signature (line ~229), before the `fs` parameter",
+      "Guard the manifest write at line ~298 with `if manifest { ... }`",
+      "Add `manifest: bool` parameter to emit_package_plugin() signature (line ~317), before the `fs` parameter",
+      "Guard the generate_package_manifest() call and write at lines ~416-424 with `if manifest { ... }`",
+      "Ensure plugin.json generation (generate_plugin_json) is NOT guarded — it is required for Claude Code discovery",
+      "Run cargo build --workspace to verify compilation"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Thread manifest flag through migrate orchestrator (migrate, migrate_single_source, migrate_recursive)",
+    "steps": [
+      "Open crates/libaipm/src/migrate/mod.rs",
+      "Add `manifest: bool` parameter to migrate_single_source() (line ~196)",
+      "Pass manifest to emitter::emit_plugin() call at line ~236",
+      "Add `manifest: bool` parameter to migrate_recursive() (line ~250)",
+      "Pass manifest to emitter::emit_package_plugin() call at line ~343",
+      "Pass manifest to emitter::emit_plugin_with_name() call at line ~348",
+      "In migrate() (line ~181), pass opts.manifest to both migrate_single_source and migrate_recursive",
+      "Run cargo build --workspace",
+      "Run cargo test --workspace to verify all existing tests still pass (they should since manifest: true was set in feature 2)"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Update dry-run report to conditionally show aipm.toml line based on manifest flag",
+    "steps": [
+      "Open crates/libaipm/src/migrate/dry_run.rs",
+      "Thread `manifest: bool` into the report generation function(s)",
+      "Locate the line writing `New aipm.toml with type = ...` (line ~213)",
+      "When manifest is true: keep existing behavior (show the aipm.toml line)",
+      "When manifest is false: replace with `  - No aipm.toml (pass --manifest to generate)`",
+      "Update call sites in mod.rs that call dry_run functions to pass the manifest flag",
+      "Write unit test: dry-run with manifest=false shows the educational message",
+      "Write unit test: dry-run with manifest=true shows the existing aipm.toml line",
+      "Run cargo test --workspace"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Flip default: change all test Options constructors from manifest: true to manifest: false",
+    "steps": [
+      "In crates/libaipm/src/workspace_init/mod.rs unit tests: change manifest: true to manifest: false for tests that verify default behavior",
+      "Split tests that assert starter aipm.toml existence: one variant with manifest: false (asserts NOT exists), one with manifest: true (asserts exists)",
+      "In crates/libaipm/src/migrate/emitter.rs unit tests: change manifest: true to manifest: false for default-behavior tests",
+      "Split emitter tests: manifest: false variants assert aipm.toml NOT written, manifest: true variants assert it IS written",
+      "In crates/libaipm/tests/bdd.rs: update Options construction for default BDD scenarios to use manifest: false",
+      "For BDD scenarios that test --manifest flag: use manifest: true",
+      "Run cargo test --workspace — expect some test failures from the split tests (they need matching BDD scenarios, done in next feature)",
       "Run cargo clippy --workspace -- -D warnings"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Add ignore and rayon workspace dependencies",
-    "steps": [
-      "Add ignore = \"0.4\" to [workspace.dependencies] in root Cargo.toml",
-      "Add rayon = \"1\" to [workspace.dependencies] in root Cargo.toml",
-      "Add ignore = { workspace = true } to [dependencies] in crates/libaipm/Cargo.toml",
-      "Add rayon = { workspace = true } to [dependencies] in crates/libaipm/Cargo.toml",
-      "Run cargo build --workspace to verify dependencies resolve correctly"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Modify Options struct to support recursive mode: source becomes Option, add max_depth",
-    "steps": [
-      "Open crates/libaipm/src/migrate/mod.rs and locate the Options struct",
-      "Change source field from &str to Option<&str>",
-      "Add max_depth: Option<usize> field to Options",
-      "Update all call sites that construct Options to pass source as Some(...) or None",
-      "Update the CLI Migrate command in crates/aipm/src/main.rs: remove default_value from --source, add --max-depth flag",
-      "Update the migrate() orchestrator to branch on opts.source: Some -> legacy single-path, None -> recursive mode (stub for now)",
-      "Run cargo build --workspace to ensure all references compile",
-      "Run cargo test --workspace to verify existing tests still pass with Some(...) source"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Create discovery module with discover_claude_dirs() and DiscoveredSource",
-    "steps": [
-      "Create new file crates/libaipm/src/migrate/discovery.rs",
-      "Define DiscoveredSource struct with fields: claude_dir (PathBuf), package_name (Option<String>), relative_path (PathBuf)",
-      "Implement discover_claude_dirs(project_root: &Path, max_depth: Option<usize>) -> Result<Vec<DiscoveredSource>, Error>",
-      "Use ignore::WalkBuilder::new(project_root) with .hidden(false) to find hidden .claude dirs",
-      "Set .max_depth(max_depth) when provided",
-      "Filter for directory entries named .claude",
-      "Skip any .claude/ found inside .ai/ directory",
-      "Derive package_name: None for root .claude, Some(parent_dir_name) for nested .claude",
-      "Sort results by claude_dir path for deterministic ordering",
-      "Add DiscoveryFailed error variant to the Error enum",
-      "Register the discovery module in crates/libaipm/src/migrate/mod.rs",
-      "Write unit tests: finds root .claude, finds nested .claude, correct package_name assignment, respects max_depth, excludes .ai/ subdirs, empty result when no .claude dirs, sorted results",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Implement PluginPlan struct and package-scoped artifact merging logic",
-    "steps": [
-      "Define PluginPlan struct in crates/libaipm/src/migrate/mod.rs with fields: name (String), artifacts (Vec<Artifact>), is_package_scoped (bool)",
-      "Implement logic in migrate() recursive branch: for each DiscoveredSource, run detectors and group artifacts",
-      "For package_name Some(pkg): create one PluginPlan with all artifacts merged under the package name",
-      "For package_name None (root): create individual PluginPlans per artifact (existing behavior)",
-      "Add unit tests: root artifacts become individual plugins, sub-package artifacts merge into one plugin",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Implement parallel detection across discovered .claude directories using rayon",
-    "steps": [
-      "Import rayon::prelude::* in crates/libaipm/src/migrate/mod.rs",
-      "In the recursive branch of migrate(), use discovered.par_iter() to run detectors concurrently",
-      "Each thread creates its own claude_detectors() and runs them against the DiscoveredSource's claude_dir",
-      "Collect results into Vec<PluginPlan> using .collect()",
-      "Ensure Fs trait Send + Sync bounds allow &dyn Fs to be shared across threads",
-      "Add test verifying parallel detection produces same results as serial (deterministic ordering via sort)",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Implement emit_package_plugin() in emitter for package-scoped plugins",
-    "steps": [
-      "Open crates/libaipm/src/migrate/emitter.rs",
-      "Add emit_package_plugin() function with signature matching the spec",
-      "Resolve plugin name using existing rename counter mechanism",
-      "Create .ai/<plugin_name>/ directory structure",
-      "For each artifact, copy files into the plugin under skills/<artifact.name>/",
-      "Merge hooks from all artifacts into a single hooks/hooks.json",
-      "Generate aipm.toml with all component paths in [components]",
-      "Set type = composite when multiple component types exist, otherwise type = skill",
-      "Generate .claude-plugin/plugin.json with the package name",
-      "Write unit tests: correct directory structure, hook merging, aipm.toml generation, composite type handling, command-to-skill conversion",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Implement parallel emission of plugins via rayon",
-    "steps": [
-      "In the recursive branch of migrate(), after sequential name resolution, use resolved_plans.par_iter() for file writes",
-      "Each thread calls emit_plugin or emit_package_plugin depending on is_package_scoped",
-      "Collect all Action results into a flat Vec<Action>",
-      "Ensure no shared mutable state between parallel plugin emissions",
-      "Add test verifying parallel emission produces correct file structure",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Implement sequential name resolution for duplicate package names",
-    "steps": [
-      "Before parallel emission, iterate plugin plans sequentially to resolve final names",
-      "Use existing rename counter and known_names set for conflict resolution",
-      "When two packages have the same name (e.g., auth from different paths), apply rename-counter suffix (auth-renamed-1)",
-      "Store resolved names back into plugin plans for emission phase",
-      "Write unit test: duplicate package names trigger rename counter correctly",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Wire up the full recursive migrate() orchestrator flow",
-    "steps": [
-      "In migrate() when opts.source is None: call discover_claude_dirs with opts.dir and opts.max_depth",
-      "Handle empty discovery result by returning Ok(Outcome { actions: [] })",
-      "Run parallel detection over discovered dirs",
-      "Run sequential name resolution",
-      "Run parallel emission",
-      "Call register_plugins for all emitted plugins (unchanged sequential call)",
-      "Write integration test: full recursive migrate with monorepo layout produces correct .ai/ structure",
-      "Write test: recursive migrate with no .claude dirs returns empty outcome",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Update dry-run report to show recursive discovery information",
-    "steps": [
-      "Open crates/libaipm/src/migrate/dry_run.rs",
-      "Add Discovery section to report when in recursive mode",
-      "Show table of discovered .claude/ directories with Location, Package Name, Skills count, Commands count",
-      "Add Planned Plugins section showing each plugin's type, components, and source",
-      "Add Name Conflicts section when rename counter is triggered",
-      "Write unit test: dry-run output includes discovery table and planned plugins",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Add BDD feature tests for recursive discovery scenarios",
+    "description": "Update BDD feature files for migrate.feature — flip defaults and add --manifest scenarios",
     "steps": [
       "Open tests/features/manifest/migrate.feature",
-      "Add Scenario: Recursive discovery finds .claude/ in sub-packages",
-      "Add Scenario: Package-scoped plugin merges skills and commands",
-      "Add Scenario: Explicit --source uses legacy single-path behavior",
-      "Add Scenario: --max-depth 1 limits discovery to root .claude only",
-      "Add Scenario: Dry-run report shows discovered directories and planned plugins",
-      "Add Scenario: Duplicate package names trigger rename",
-      "Add Scenario: .gitignored directories are skipped during discovery",
-      "Implement step definitions for new scenarios as needed",
-      "Run cargo test --workspace to verify all scenarios pass"
+      "Update Scenario 'Migrate a single skill' (line ~6): remove aipm.toml content assertions, add `And there is no file \".ai/deploy/aipm.toml\" in \"my-project\"`",
+      "Update Scenario 'Recursive discovery finds skill in sub-package' (line ~64): remove aipm.toml content assertion, add non-existence assertion",
+      "Add new Scenario: 'Migrate with --manifest generates aipm.toml' — runs `aipm migrate --manifest` and asserts `.ai/deploy/aipm.toml` contains name and type",
+      "Add new Scenario: 'Recursive migrate with --manifest generates aipm.toml' — runs `aipm migrate --manifest` and asserts `.ai/auth/aipm.toml` contains name",
+      "Add new Scenario: 'Default migrate does not generate aipm.toml' — explicit test of the new default",
+      "Add new Scenario: 'Recursive migrate without --manifest skips aipm.toml' — explicit test with registration still working",
+      "Ensure the BDD step `there is no file ... in ...` exists in bdd.rs (check workspace-init.feature line 108 for existing usage)",
+      "If step does not exist, add it to bdd.rs as a Then step asserting !path.join(filename).exists()",
+      "Run cargo test --workspace"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Handle edge cases: no .claude dirs, .claude inside .ai, symlinks, empty artifacts",
+    "description": "Update BDD feature files for workspace-init.feature — flip defaults and add --manifest scenarios",
     "steps": [
-      "Verify discover_claude_dirs returns empty vec when no .claude dirs exist anywhere",
-      "Verify .claude/ directories found under .ai/ are excluded from discovery results",
-      "Verify symlinked .claude/ directories are not followed (ignore crate default: follow_links=false)",
-      "Verify root .claude/ with no skills or commands produces no plugin (empty artifacts not emitted)",
-      "Verify package .claude/ with only commands produces a single skill-type plugin",
-      "Verify deeply nested .claude/ (e.g., a/b/c/d/.claude) uses immediate parent d as package name",
-      "Write unit tests for each edge case",
+      "Open tests/features/manifest/workspace-init.feature",
+      "Update Scenario 'Marketplace generates a valid starter plugin manifest' (line ~30): change to assert `.ai/starter-aipm-plugin/aipm.toml` does NOT exist by default",
+      "Update Scenario 'Starter plugin manifest is valid TOML' (line ~131): change command to use `--manifest` flag",
+      "Add new Scenario: 'Default init does not generate starter aipm.toml' — runs `aipm init --marketplace` and asserts component files exist but aipm.toml does NOT",
+      "Add new Scenario: 'Init with --manifest generates starter aipm.toml' — runs `aipm init --marketplace --manifest` and asserts aipm.toml exists with correct content",
+      "Add new Scenario: 'Workspace flag is independent of --manifest' — runs `aipm init --workspace` and asserts root aipm.toml exists (unaffected)",
+      "Verify scenarios testing --workspace (lines 8, 15, 81, 116) are NOT changed",
+      "Run cargo test --workspace"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Update E2E tests for init and migrate to reflect new defaults and --manifest flag",
+    "steps": [
+      "Open crates/aipm/tests/migrate_e2e.rs",
+      "In migrate_skill_creates_plugin (line ~38): assert `.ai/deploy/aipm.toml` does NOT exist",
+      "In migrate_command_creates_plugin (line ~60): assert aipm.toml does NOT exist",
+      "In migrate_multiple_skills (line ~253): assert aipm.toml does NOT exist for either plugin",
+      "In migrate_skill_with_scripts (line ~274): assert aipm.toml does NOT exist",
+      "Add new test: migrate_with_manifest_flag_generates_toml — pass --manifest, assert aipm.toml exists with correct content",
+      "Add new test: migrate_manifest_flag_with_recursive_discovery — pass --manifest with recursive, verify manifests",
+      "Open crates/aipm/tests/init_e2e.rs",
+      "In init_default_creates_marketplace_only (line ~22): assert starter aipm.toml does NOT exist",
+      "In init_marketplace_only (line ~54): assert starter aipm.toml does NOT exist",
+      "In init_starter_manifest_valid_toml (line ~140): change to pass --manifest flag",
+      "In yes_flag_creates_default_marketplace (line ~372): assert starter aipm.toml does NOT exist",
+      "Add new test: init_manifest_flag_generates_starter_toml — pass --manifest, assert starter aipm.toml exists",
       "Run cargo test --workspace"
     ],
     "passes": true
   },
   {
     "category": "performance",
-    "description": "Verify coverage meets 89% branch threshold for all new code",
+    "description": "Verify all four gates pass and coverage meets 89% branch threshold",
     "steps": [
+      "Run cargo build --workspace",
+      "Run cargo test --workspace — all tests must pass (0 failures)",
+      "Run cargo clippy --workspace -- -D warnings — 0 warnings",
+      "Run cargo fmt --check — no formatting issues",
       "Run cargo +nightly llvm-cov clean --workspace",
       "Run cargo +nightly llvm-cov --no-report --workspace --branch",
       "Run cargo +nightly llvm-cov --no-report --doc",
       "Run cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs)'",
       "Verify TOTAL line branch column shows >= 89%",
-      "If below threshold, identify uncovered branches and add targeted tests",
+      "If below threshold, identify uncovered branches in changed files and add targeted tests",
       "Re-run coverage until threshold is met"
     ],
     "passes": true
