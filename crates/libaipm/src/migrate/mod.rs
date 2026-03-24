@@ -1,10 +1,14 @@
 //! Migration pipeline: scan AI tool configurations and convert to marketplace plugins.
 
+pub mod agent_detector;
 pub mod command_detector;
 pub mod detector;
 pub mod discovery;
 pub mod dry_run;
 pub mod emitter;
+pub mod hook_detector;
+pub mod mcp_detector;
+pub mod output_style_detector;
 pub mod registrar;
 pub mod skill_detector;
 
@@ -14,12 +18,20 @@ use std::path::{Path, PathBuf};
 use crate::fs::Fs;
 
 /// What kind of artifact was detected.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ArtifactKind {
     /// A skill from `.claude/skills/<name>/`.
     Skill,
     /// A legacy command from `.claude/commands/<name>.md`.
     Command,
+    /// A subagent from `.claude/agents/<name>.md`.
+    Agent,
+    /// MCP server configs from `.mcp.json` at the project root.
+    McpServer,
+    /// Hooks extracted from `.claude/settings.json`.
+    Hook,
+    /// An output style from `.claude/output-styles/<name>.md`.
+    OutputStyle,
 }
 
 impl ArtifactKind {
@@ -27,6 +39,11 @@ impl ArtifactKind {
     pub const fn to_type_string(&self) -> &'static str {
         match self {
             Self::Skill | Self::Command => "skill",
+            Self::Agent => "agent",
+            Self::McpServer => "mcp",
+            Self::Hook => "hook",
+            // OutputStyle has no standalone PluginType; always composite when mixed
+            Self::OutputStyle => "composite",
         }
     }
 }
@@ -42,6 +59,9 @@ pub struct ArtifactMetadata {
     pub hooks: Option<String>,
     /// Whether model invocation should be disabled (always true for commands).
     pub model_invocation_disabled: bool,
+    /// Raw file content for config-based artifacts (MCP JSON, hooks JSON, etc.).
+    /// Used by the emitter for pass-through without re-serialization.
+    pub raw_content: Option<String>,
 }
 
 /// A single detected artifact from a source folder.
@@ -152,6 +172,15 @@ pub enum Error {
     #[error("failed to parse SKILL.md frontmatter in {path}: {reason}")]
     FrontmatterParse {
         /// Path to the SKILL.md file.
+        path: PathBuf,
+        /// Description of the parse failure.
+        reason: String,
+    },
+
+    /// Failed to parse a JSON configuration file.
+    #[error("failed to parse {path}: {reason}")]
+    ConfigParse {
+        /// Path to the configuration file.
         path: PathBuf,
         /// Description of the parse failure.
         reason: String,

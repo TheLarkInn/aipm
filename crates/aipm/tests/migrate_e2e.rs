@@ -31,6 +31,32 @@ fn create_command(dir: &std::path::Path, name: &str, content: &str) {
     std::fs::write(cmd_dir.join(format!("{name}.md")), content).unwrap();
 }
 
+/// Create an agent at `.claude/agents/<name>.md`.
+fn create_agent(dir: &std::path::Path, name: &str, content: &str) {
+    let agents_dir = dir.join(".claude").join("agents");
+    std::fs::create_dir_all(&agents_dir).unwrap();
+    std::fs::write(agents_dir.join(format!("{name}.md")), content).unwrap();
+}
+
+/// Create `.mcp.json` at the project root.
+fn create_mcp_json(dir: &std::path::Path, content: &str) {
+    std::fs::write(dir.join(".mcp.json"), content).unwrap();
+}
+
+/// Create hooks in `.claude/settings.json`.
+fn create_hooks_settings(dir: &std::path::Path, content: &str) {
+    let claude_dir = dir.join(".claude");
+    std::fs::create_dir_all(&claude_dir).unwrap();
+    std::fs::write(claude_dir.join("settings.json"), content).unwrap();
+}
+
+/// Create an output style at `.claude/output-styles/<name>.md`.
+fn create_output_style(dir: &std::path::Path, name: &str, content: &str) {
+    let styles_dir = dir.join(".claude").join("output-styles");
+    std::fs::create_dir_all(&styles_dir).unwrap();
+    std::fs::write(styles_dir.join(format!("{name}.md")), content).unwrap();
+}
+
 // =========================================================================
 // Scenario: Migrate a single skill creates a plugin
 // =========================================================================
@@ -357,4 +383,184 @@ fn migrate_without_manifest_flag_skips_toml() {
     // And registration still works
     let mp = std::fs::read_to_string(dir.join(".ai/.claude-plugin/marketplace.json")).unwrap();
     assert!(mp.contains("\"deploy\""));
+}
+
+// =========================================================================
+// Scenario: Migrate agents from .claude/agents/
+// =========================================================================
+#[test]
+fn migrate_agent_creates_plugin() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("project");
+    init_workspace(&dir);
+    create_agent(
+        &dir,
+        "security-reviewer",
+        "---\nname: security-reviewer\ndescription: Reviews code for security\n---\nYou are a security code reviewer.",
+    );
+
+    aipm().args(["migrate", &dir.display().to_string()]).assert().success();
+
+    assert!(
+        dir.join(".ai/security-reviewer/agents/security-reviewer.md").exists(),
+        "agent .md should be in agents/ subdirectory"
+    );
+    assert!(
+        dir.join(".ai/security-reviewer/.claude-plugin/plugin.json").exists(),
+        "plugin.json should exist"
+    );
+
+    let plugin_json =
+        std::fs::read_to_string(dir.join(".ai/security-reviewer/.claude-plugin/plugin.json"))
+            .unwrap();
+    assert!(plugin_json.contains("\"agents\""), "plugin.json should have agents field");
+}
+
+// =========================================================================
+// Scenario: Migrate MCP servers from .mcp.json
+// =========================================================================
+#[test]
+fn migrate_mcp_creates_plugin() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("project");
+    init_workspace(&dir);
+    // Ensure .claude/ directory exists for the detector scan
+    std::fs::create_dir_all(dir.join(".claude")).unwrap();
+    create_mcp_json(&dir, r#"{"mcpServers":{"slack":{"command":"npx","args":["slack-mcp"]}}}"#);
+
+    aipm().args(["migrate", &dir.display().to_string()]).assert().success();
+
+    assert!(
+        dir.join(".ai/project-mcp-servers/.mcp.json").exists(),
+        ".mcp.json should be copied to plugin"
+    );
+    let plugin_json =
+        std::fs::read_to_string(dir.join(".ai/project-mcp-servers/.claude-plugin/plugin.json"))
+            .unwrap();
+    assert!(plugin_json.contains("\"mcpServers\""), "plugin.json should have mcpServers field");
+}
+
+// =========================================================================
+// Scenario: Migrate hooks from .claude/settings.json
+// =========================================================================
+#[test]
+fn migrate_hooks_creates_plugin() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("project");
+    init_workspace(&dir);
+    create_hooks_settings(
+        &dir,
+        r#"{"hooks":{"PreToolUse":[{"type":"command","command":"echo check"}]}}"#,
+    );
+
+    aipm().args(["migrate", &dir.display().to_string()]).assert().success();
+
+    assert!(
+        dir.join(".ai/project-hooks/hooks/hooks.json").exists(),
+        "hooks.json should be in hooks/ subdirectory"
+    );
+    let plugin_json =
+        std::fs::read_to_string(dir.join(".ai/project-hooks/.claude-plugin/plugin.json")).unwrap();
+    assert!(plugin_json.contains("\"hooks\""), "plugin.json should have hooks field");
+}
+
+// =========================================================================
+// Scenario: Migrate output styles from .claude/output-styles/
+// =========================================================================
+#[test]
+fn migrate_output_style_creates_plugin() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("project");
+    init_workspace(&dir);
+    create_output_style(
+        &dir,
+        "concise",
+        "---\nname: concise\ndescription: Short outputs\n---\nBe concise.",
+    );
+
+    aipm().args(["migrate", &dir.display().to_string()]).assert().success();
+
+    assert!(
+        dir.join(".ai/concise/concise.md").exists(),
+        "output style .md should be at plugin root"
+    );
+    let plugin_json =
+        std::fs::read_to_string(dir.join(".ai/concise/.claude-plugin/plugin.json")).unwrap();
+    assert!(plugin_json.contains("\"outputStyles\""), "plugin.json should have outputStyles field");
+}
+
+// =========================================================================
+// Scenario: Mixed project with multiple artifact types (root-level)
+// =========================================================================
+#[test]
+fn migrate_mixed_root_creates_separate_plugins() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("project");
+    init_workspace(&dir);
+    create_skill(&dir, "deploy", "---\nname: deploy\n---\nDeploy");
+    create_agent(&dir, "reviewer", "---\nname: reviewer\n---\nYou are a reviewer.");
+    create_mcp_json(&dir, r#"{"mcpServers":{"s1":{"command":"test"}}}"#);
+
+    aipm().args(["migrate", &dir.display().to_string()]).assert().success();
+
+    // Root-level produces separate plugins per artifact
+    assert!(dir.join(".ai/deploy").exists(), "deploy plugin should exist");
+    assert!(dir.join(".ai/reviewer").exists(), "reviewer plugin should exist");
+    assert!(dir.join(".ai/project-mcp-servers").exists(), "MCP plugin should exist");
+
+    let mp = std::fs::read_to_string(dir.join(".ai/.claude-plugin/marketplace.json")).unwrap();
+    assert!(mp.contains("\"deploy\""));
+    assert!(mp.contains("\"reviewer\""));
+    assert!(mp.contains("\"project-mcp-servers\""));
+}
+
+// =========================================================================
+// Scenario: Dry-run report includes all new artifact types
+// =========================================================================
+#[test]
+fn migrate_dry_run_shows_new_artifact_types() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("project");
+    init_workspace(&dir);
+    create_skill(&dir, "deploy", "---\nname: deploy\n---\nDeploy");
+    create_agent(&dir, "reviewer", "---\nname: reviewer\n---\nReview.");
+    create_output_style(&dir, "concise", "---\nname: concise\n---\nBe concise.");
+    create_hooks_settings(
+        &dir,
+        r#"{"hooks":{"PreToolUse":[{"type":"command","command":"echo check"}]}}"#,
+    );
+    create_mcp_json(&dir, r#"{"mcpServers":{"s1":{"command":"test"}}}"#);
+
+    aipm()
+        .args(["migrate", "--dry-run", "--source", ".claude", &dir.display().to_string()])
+        .assert()
+        .success();
+
+    let report = std::fs::read_to_string(dir.join("aipm-migrate-dryrun-report.md")).unwrap();
+    assert!(report.contains("## Skills"), "report should have Skills section");
+    assert!(report.contains("## Agents"), "report should have Agents section");
+    assert!(report.contains("## MCP Servers"), "report should have MCP Servers section");
+    assert!(report.contains("## Hooks"), "report should have Hooks section");
+    assert!(report.contains("## Output Styles"), "report should have Output Styles section");
+}
+
+// =========================================================================
+// Scenario: Manifest flag generates correct manifest for new types
+// =========================================================================
+#[test]
+fn migrate_agent_with_manifest() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("project");
+    init_workspace(&dir);
+    create_agent(
+        &dir,
+        "writer",
+        "---\nname: writer\ndescription: Writes docs\n---\nYou write documentation.",
+    );
+
+    aipm().args(["migrate", "--manifest", &dir.display().to_string()]).assert().success();
+
+    let toml = std::fs::read_to_string(dir.join(".ai/writer/aipm.toml")).unwrap();
+    assert!(toml.contains("type = \"agent\""), "manifest type should be agent");
+    assert!(toml.contains("agents = [\"agents/writer.md\"]"), "manifest should list agent file");
 }

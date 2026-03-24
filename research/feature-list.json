@@ -1,182 +1,217 @@
 [
   {
     "category": "refactor",
-    "description": "Add --manifest CLI flag to Init and Migrate commands in crates/aipm/src/main.rs",
+    "description": "Extend ArtifactKind enum with Agent, McpServer, Hook, OutputStyle variants",
     "steps": [
-      "Open crates/aipm/src/main.rs and locate Commands::Init variant (line ~23)",
-      "Add `manifest: bool` field with `#[arg(long)]` after the `no_starter` field (line ~38)",
-      "Add doc comment: `/// Generate aipm.toml plugin manifests (opt-in; dependency management not yet available).`",
-      "Locate Commands::Migrate variant (line ~46)",
-      "Add `manifest: bool` field with `#[arg(long)]` after the `max_depth` field (line ~59)",
-      "Add same doc comment as Init variant",
-      "In the Init match arm (line ~81-86), add `manifest` to the workspace_init::Options struct construction",
-      "In the Migrate match arm (line ~114-118), add `manifest` to the migrate::Options struct construction",
+      "Open crates/libaipm/src/migrate/mod.rs and locate the ArtifactKind enum",
+      "Add four new variants: Agent, McpServer, Hook, OutputStyle",
+      "Update the to_type_string() method to handle new variants: Agent -> 'agent', McpServer -> 'mcp', Hook -> 'hook', OutputStyle -> 'composite'",
+      "Update all existing match sites on ArtifactKind throughout the codebase (emitter.rs, dry_run.rs, mod.rs) with placeholder arms",
+      "Add raw_content: Option<String> field to ArtifactMetadata struct",
+      "Update ArtifactMetadata::default() or Default impl to include raw_content: None",
+      "Add ConfigParse error variant to the Error enum for JSON parse errors",
       "Run cargo build --workspace to verify compilation",
+      "Run cargo clippy --workspace -- -D warnings to verify no lint violations",
+      "Run cargo test --workspace to verify existing tests still pass"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Implement AgentDetector to scan .claude/agents/ for .md agent definitions",
+    "steps": [
+      "Create new file crates/libaipm/src/migrate/agent_detector.rs",
+      "Implement AgentDetector struct with Detector trait",
+      "Implement detect() method: scan .claude/agents/ directory for .md files",
+      "Implement parse_agent_frontmatter() function to extract name and description from YAML frontmatter (same delimiter parsing as parse_skill_frontmatter)",
+      "Return Artifact with kind: ArtifactKind::Agent, source_path, files list, and parsed metadata",
+      "Skip non-.md files and directories",
+      "Fall back to filename stem if frontmatter has no name field",
+      "Add pub mod agent_detector to crates/libaipm/src/migrate/mod.rs",
+      "Add Box::new(super::agent_detector::AgentDetector) to claude_detectors() in detector.rs",
+      "Write unit tests: happy path with valid agent .md, missing agents/ directory returns empty, empty agents/ directory returns empty, malformed frontmatter returns error, non-.md files are skipped, multiple agents detected",
+      "Run cargo build --workspace and cargo test --workspace",
       "Run cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Implement agent emission in emitter, manifest generation, and dry-run report",
+    "steps": [
+      "Add emit_agent_files() function in emitter.rs: copy agent .md file to agents/<name>.md inside plugin directory",
+      "Add ArtifactKind::Agent arm to all match sites in emitter.rs (emit_plugin, emit_plugin_with_name, emit_package_plugin)",
+      "Update generate_plugin_manifest() to produce agents = ['agents/<name>.md'] for Agent kind",
+      "Update generate_plugin_json() to emit 'agents': './agents/' field for Agent kind",
+      "Update generate_package_manifest() to accumulate agents entries when Agent artifacts are present",
+      "Add agent section to dry-run report in dry_run.rs: filter agents, display 'agents/<name>.md' path",
+      "Add agent count column to recursive report discovery table",
+      "Write emitter unit tests: verify agent .md file is copied to correct location, verify manifest contains agents component",
+      "Write dry-run unit tests: verify agent section header appears, verify component path formatting",
+      "Run cargo build --workspace, cargo test --workspace, cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Implement OutputStyleDetector to scan .claude/output-styles/ for .md files",
+    "steps": [
+      "Create new file crates/libaipm/src/migrate/output_style_detector.rs",
+      "Implement OutputStyleDetector struct with Detector trait",
+      "Implement detect() method: scan .claude/output-styles/ directory for .md files",
+      "Implement parse_output_style_frontmatter() function to extract name and description from YAML frontmatter",
+      "Return Artifact with kind: ArtifactKind::OutputStyle, source_path, files list, and parsed metadata",
+      "Skip non-.md files and directories",
+      "Fall back to filename stem if frontmatter has no name field",
+      "Add pub mod output_style_detector to crates/libaipm/src/migrate/mod.rs",
+      "Add Box::new(super::output_style_detector::OutputStyleDetector) to claude_detectors() in detector.rs",
+      "Write unit tests: happy path, missing directory, empty directory, multiple styles, name fallback to filename",
+      "Run cargo build --workspace and cargo test --workspace",
+      "Run cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Implement output style emission in emitter, manifest generation, and dry-run report",
+    "steps": [
+      "Add emit_output_style() function in emitter.rs: copy .md file to plugin root (no subdirectory)",
+      "Add ArtifactKind::OutputStyle arm to all match sites in emitter.rs",
+      "Update generate_plugin_manifest() to produce output_styles = ['<name>.md'] for OutputStyle kind",
+      "Update generate_plugin_json() to emit 'outputStyles': './' field for OutputStyle kind",
+      "Update generate_package_manifest() to accumulate output_styles entries when OutputStyle artifacts are present",
+      "Add output styles section to dry-run report in dry_run.rs: filter output styles, display '<name>.md' path",
+      "Add styles count column to recursive report discovery table",
+      "Write emitter unit tests: verify .md file is copied to plugin root, verify manifest contains output_styles component",
+      "Write dry-run unit tests: verify output styles section header appears, verify component path formatting",
+      "Run cargo build --workspace, cargo test --workspace, cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Implement McpDetector to read .mcp.json at project root and emit bundled MCP plugin",
+    "steps": [
+      "Create new file crates/libaipm/src/migrate/mcp_detector.rs",
+      "Implement McpDetector struct with Detector trait",
+      "Implement detect() method: derive project root from source_dir.parent(), read .mcp.json",
+      "Parse JSON and validate mcpServers key exists and is non-empty object",
+      "Return single Artifact with kind: ArtifactKind::McpServer, name 'project-mcp-servers', raw_content containing full JSON",
+      "Return empty Vec if .mcp.json missing, unparseable, or has no servers",
+      "Use ConfigParse error variant for JSON parse failures",
+      "Add pub mod mcp_detector to crates/libaipm/src/migrate/mod.rs",
+      "Add Box::new(super::mcp_detector::McpDetector) to claude_detectors() in detector.rs",
+      "Write unit tests: happy path with valid .mcp.json, missing file, empty mcpServers, malformed JSON, project-root derivation from source_dir.parent()",
+      "Run cargo build --workspace and cargo test --workspace",
+      "Run cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Implement MCP emission in emitter, manifest generation, and dry-run report",
+    "steps": [
+      "Add emit_mcp_config() function in emitter.rs: write raw_content to .mcp.json at plugin root",
+      "Add ArtifactKind::McpServer arm to all match sites in emitter.rs",
+      "Update generate_plugin_manifest() to produce mcp_servers = ['.mcp.json'] for McpServer kind",
+      "Update generate_plugin_json() to emit 'mcpServers': './.mcp.json' field for McpServer kind",
+      "Update generate_package_manifest() to accumulate mcp_servers entries when McpServer artifacts are present",
+      "Add MCP servers section to dry-run report in dry_run.rs: filter MCP artifacts, display '.mcp.json' path",
+      "Add MCP count column to recursive report discovery table",
+      "Write emitter unit tests: verify .mcp.json written with correct content, verify manifest contains mcp_servers component",
+      "Write dry-run unit tests: verify MCP section header appears, verify component path formatting",
+      "Run cargo build --workspace, cargo test --workspace, cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Implement HookDetector to extract hooks from .claude/settings.json",
+    "steps": [
+      "Create new file crates/libaipm/src/migrate/hook_detector.rs",
+      "Implement HookDetector struct with Detector trait",
+      "Implement detect() method: read .claude/settings.json, parse JSON, extract 'hooks' key",
+      "Build hooks.json format: wrap hooks value in { 'hooks': { ... } } structure",
+      "Implement extract_hook_script_references() function: walk hooks JSON recursively, find 'type': 'command' handlers, extract 'command' values that are relative paths (start with './' or are relative)",
+      "Return single Artifact with kind: ArtifactKind::Hook, name 'project-hooks', raw_content containing hooks JSON, referenced_scripts populated",
+      "Return empty Vec if settings.json missing, no hooks key, or hooks object is empty",
+      "Use ConfigParse error variant for JSON parse failures",
+      "Add pub mod hook_detector to crates/libaipm/src/migrate/mod.rs",
+      "Add Box::new(super::hook_detector::HookDetector) to claude_detectors() in detector.rs",
+      "Write unit tests: happy path with hooks in settings.json, missing settings.json, no hooks key, empty hooks object, script reference extraction from command fields, malformed JSON",
+      "Run cargo build --workspace and cargo test --workspace",
+      "Run cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Implement hook emission with script copying and absolute path rewriting",
+    "steps": [
+      "Add emit_hooks_config() function in emitter.rs: write raw_content to hooks/hooks.json inside plugin directory",
+      "Implement script path rewriting: for each command field with relative path, resolve to absolute path against project root at migration time",
+      "Copy referenced scripts to scripts/ directory inside the plugin",
+      "Add ArtifactKind::Hook arm to all match sites in emitter.rs",
+      "Update generate_plugin_manifest() to produce hooks = ['hooks/hooks.json'] for Hook kind",
+      "Update generate_plugin_json() to emit 'hooks': './hooks/hooks.json' field for Hook kind",
+      "Update generate_package_manifest() to accumulate hooks entries when Hook artifacts are present",
+      "Add hooks section to dry-run report in dry_run.rs: filter hooks, display 'hooks/hooks.json' path",
+      "Add hooks count column to recursive report discovery table",
+      "Write emitter unit tests: verify hooks.json written correctly, verify scripts copied, verify path rewriting to absolute paths, verify manifest contains hooks component",
+      "Write dry-run unit tests: verify hooks section header appears, verify component path formatting",
+      "Run cargo build --workspace, cargo test --workspace, cargo clippy --workspace -- -D warnings"
     ],
     "passes": true
   },
   {
     "category": "refactor",
-    "description": "Add manifest: bool field to workspace_init::Options and migrate::Options structs",
+    "description": "Generalize composite type detection from skill+command to 2+ distinct artifact kinds",
     "steps": [
-      "Open crates/libaipm/src/workspace_init/mod.rs and locate Options struct (line ~33-42)",
-      "Add `pub manifest: bool` field after `no_starter`",
-      "Open crates/libaipm/src/migrate/mod.rs and locate Options struct (line ~65-77)",
-      "Add `pub manifest: bool` field after `max_depth`",
-      "Find all call sites that construct workspace_init::Options (unit tests, bdd.rs) and add `manifest: true` to preserve existing behavior temporarily",
-      "Find all call sites that construct migrate::Options (unit tests, bdd.rs) and add `manifest: true` to preserve existing behavior temporarily",
-      "Run cargo build --workspace to verify all references compile",
-      "Run cargo test --workspace to verify existing tests still pass with manifest: true"
+      "Open crates/libaipm/src/migrate/emitter.rs and locate composite type detection logic",
+      "Replace has_skill && has_command check with distinct_kinds: HashSet collecting artifact kinds, then distinct_kinds.len() > 1",
+      "Update emit_package_plugin to use generalized composite detection",
+      "Update generate_package_manifest to use generalized composite detection for type_str",
+      "Open crates/libaipm/src/migrate/dry_run.rs and locate recursive report composite detection",
+      "Update generate_recursive_report planned plugins section to use distinct kinds count instead of has_skill && has_command",
+      "Verify root-level .claude/ still emits separate per-type plugins",
+      "Verify package-scoped .claude/ still emits one composite plugin per package",
+      "Write unit tests: verify composite detection with skill+agent, verify composite detection with hook+mcp, verify single-kind detection remains non-composite",
+      "Run cargo build --workspace, cargo test --workspace, cargo clippy --workspace -- -D warnings"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Suppress starter plugin aipm.toml in scaffold_marketplace() based on manifest flag",
+    "description": "Add E2E integration tests for all new artifact types",
     "steps": [
-      "Open crates/libaipm/src/workspace_init/mod.rs and locate scaffold_marketplace() (line ~171)",
-      "Add `manifest: bool` parameter to the function signature",
-      "Wrap the generate_starter_manifest() call (line ~224) and its write_file + parse_and_validate (lines ~225-229) in `if manifest { ... }`",
-      "Update the call site in init() (line ~111) to pass `opts.manifest`",
-      "Verify that when manifest is false: all component files (SKILL.md, hooks.json, scripts, agents, plugin.json) are still created but aipm.toml is NOT created",
-      "Verify that when manifest is true: behavior is identical to current (aipm.toml + validation)",
-      "Run cargo build --workspace",
-      "Run cargo test --workspace"
+      "Open crates/aipm/tests/migrate_e2e.rs and review existing E2E test patterns",
+      "Add E2E test: project with .claude/agents/ directory containing agent .md files",
+      "Add E2E test: project with .mcp.json at root containing mcpServers",
+      "Add E2E test: project with .claude/settings.json containing hooks key",
+      "Add E2E test: project with .claude/output-styles/ directory containing .md files",
+      "Add E2E test: mixed project (skills + agents + hooks + MCP) producing separate root plugins",
+      "Add E2E test: package-scoped .claude/ with multiple artifact types producing composite plugin",
+      "Add E2E test: dry-run mode shows all new artifact types with correct sections",
+      "Add E2E test: recursive discovery finds new artifact types across packages",
+      "Verify all tests pass with cargo test --workspace",
+      "Run cargo clippy --workspace -- -D warnings",
+      "Run cargo fmt --check"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Add manifest: bool parameter to all three emitter emit functions and guard aipm.toml writes",
+    "description": "Verify branch coverage gate at 89% for all new code",
     "steps": [
-      "Open crates/libaipm/src/migrate/emitter.rs",
-      "Add `manifest: bool` parameter to emit_plugin() signature (line ~28), before the `fs` parameter",
-      "Guard the generate_plugin_manifest() call and write_file at lines ~97-99 with `if manifest { ... }`",
-      "Add `manifest: bool` parameter to emit_plugin_with_name() signature (line ~229), before the `fs` parameter",
-      "Guard the manifest write at line ~298 with `if manifest { ... }`",
-      "Add `manifest: bool` parameter to emit_package_plugin() signature (line ~317), before the `fs` parameter",
-      "Guard the generate_package_manifest() call and write at lines ~416-424 with `if manifest { ... }`",
-      "Ensure plugin.json generation (generate_plugin_json) is NOT guarded — it is required for Claude Code discovery",
-      "Run cargo build --workspace to verify compilation"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Thread manifest flag through migrate orchestrator (migrate, migrate_single_source, migrate_recursive)",
-    "steps": [
-      "Open crates/libaipm/src/migrate/mod.rs",
-      "Add `manifest: bool` parameter to migrate_single_source() (line ~196)",
-      "Pass manifest to emitter::emit_plugin() call at line ~236",
-      "Add `manifest: bool` parameter to migrate_recursive() (line ~250)",
-      "Pass manifest to emitter::emit_package_plugin() call at line ~343",
-      "Pass manifest to emitter::emit_plugin_with_name() call at line ~348",
-      "In migrate() (line ~181), pass opts.manifest to both migrate_single_source and migrate_recursive",
-      "Run cargo build --workspace",
-      "Run cargo test --workspace to verify all existing tests still pass (they should since manifest: true was set in feature 2)"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Update dry-run report to conditionally show aipm.toml line based on manifest flag",
-    "steps": [
-      "Open crates/libaipm/src/migrate/dry_run.rs",
-      "Thread `manifest: bool` into the report generation function(s)",
-      "Locate the line writing `New aipm.toml with type = ...` (line ~213)",
-      "When manifest is true: keep existing behavior (show the aipm.toml line)",
-      "When manifest is false: replace with `  - No aipm.toml (pass --manifest to generate)`",
-      "Update call sites in mod.rs that call dry_run functions to pass the manifest flag",
-      "Write unit test: dry-run with manifest=false shows the educational message",
-      "Write unit test: dry-run with manifest=true shows the existing aipm.toml line",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Flip default: change all test Options constructors from manifest: true to manifest: false",
-    "steps": [
-      "In crates/libaipm/src/workspace_init/mod.rs unit tests: change manifest: true to manifest: false for tests that verify default behavior",
-      "Split tests that assert starter aipm.toml existence: one variant with manifest: false (asserts NOT exists), one with manifest: true (asserts exists)",
-      "In crates/libaipm/src/migrate/emitter.rs unit tests: change manifest: true to manifest: false for default-behavior tests",
-      "Split emitter tests: manifest: false variants assert aipm.toml NOT written, manifest: true variants assert it IS written",
-      "In crates/libaipm/tests/bdd.rs: update Options construction for default BDD scenarios to use manifest: false",
-      "For BDD scenarios that test --manifest flag: use manifest: true",
-      "Run cargo test --workspace — expect some test failures from the split tests (they need matching BDD scenarios, done in next feature)",
-      "Run cargo clippy --workspace -- -D warnings"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Update BDD feature files for migrate.feature — flip defaults and add --manifest scenarios",
-    "steps": [
-      "Open tests/features/manifest/migrate.feature",
-      "Update Scenario 'Migrate a single skill' (line ~6): remove aipm.toml content assertions, add `And there is no file \".ai/deploy/aipm.toml\" in \"my-project\"`",
-      "Update Scenario 'Recursive discovery finds skill in sub-package' (line ~64): remove aipm.toml content assertion, add non-existence assertion",
-      "Add new Scenario: 'Migrate with --manifest generates aipm.toml' — runs `aipm migrate --manifest` and asserts `.ai/deploy/aipm.toml` contains name and type",
-      "Add new Scenario: 'Recursive migrate with --manifest generates aipm.toml' — runs `aipm migrate --manifest` and asserts `.ai/auth/aipm.toml` contains name",
-      "Add new Scenario: 'Default migrate does not generate aipm.toml' — explicit test of the new default",
-      "Add new Scenario: 'Recursive migrate without --manifest skips aipm.toml' — explicit test with registration still working",
-      "Ensure the BDD step `there is no file ... in ...` exists in bdd.rs (check workspace-init.feature line 108 for existing usage)",
-      "If step does not exist, add it to bdd.rs as a Then step asserting !path.join(filename).exists()",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Update BDD feature files for workspace-init.feature — flip defaults and add --manifest scenarios",
-    "steps": [
-      "Open tests/features/manifest/workspace-init.feature",
-      "Update Scenario 'Marketplace generates a valid starter plugin manifest' (line ~30): change to assert `.ai/starter-aipm-plugin/aipm.toml` does NOT exist by default",
-      "Update Scenario 'Starter plugin manifest is valid TOML' (line ~131): change command to use `--manifest` flag",
-      "Add new Scenario: 'Default init does not generate starter aipm.toml' — runs `aipm init --marketplace` and asserts component files exist but aipm.toml does NOT",
-      "Add new Scenario: 'Init with --manifest generates starter aipm.toml' — runs `aipm init --marketplace --manifest` and asserts aipm.toml exists with correct content",
-      "Add new Scenario: 'Workspace flag is independent of --manifest' — runs `aipm init --workspace` and asserts root aipm.toml exists (unaffected)",
-      "Verify scenarios testing --workspace (lines 8, 15, 81, 116) are NOT changed",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Update E2E tests for init and migrate to reflect new defaults and --manifest flag",
-    "steps": [
-      "Open crates/aipm/tests/migrate_e2e.rs",
-      "In migrate_skill_creates_plugin (line ~38): assert `.ai/deploy/aipm.toml` does NOT exist",
-      "In migrate_command_creates_plugin (line ~60): assert aipm.toml does NOT exist",
-      "In migrate_multiple_skills (line ~253): assert aipm.toml does NOT exist for either plugin",
-      "In migrate_skill_with_scripts (line ~274): assert aipm.toml does NOT exist",
-      "Add new test: migrate_with_manifest_flag_generates_toml — pass --manifest, assert aipm.toml exists with correct content",
-      "Add new test: migrate_manifest_flag_with_recursive_discovery — pass --manifest with recursive, verify manifests",
-      "Open crates/aipm/tests/init_e2e.rs",
-      "In init_default_creates_marketplace_only (line ~22): assert starter aipm.toml does NOT exist",
-      "In init_marketplace_only (line ~54): assert starter aipm.toml does NOT exist",
-      "In init_starter_manifest_valid_toml (line ~140): change to pass --manifest flag",
-      "In yes_flag_creates_default_marketplace (line ~372): assert starter aipm.toml does NOT exist",
-      "Add new test: init_manifest_flag_generates_starter_toml — pass --manifest, assert starter aipm.toml exists",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "performance",
-    "description": "Verify all four gates pass and coverage meets 89% branch threshold",
-    "steps": [
-      "Run cargo build --workspace",
-      "Run cargo test --workspace — all tests must pass (0 failures)",
-      "Run cargo clippy --workspace -- -D warnings — 0 warnings",
-      "Run cargo fmt --check — no formatting issues",
-      "Run cargo +nightly llvm-cov clean --workspace",
-      "Run cargo +nightly llvm-cov --no-report --workspace --branch",
-      "Run cargo +nightly llvm-cov --no-report --doc",
-      "Run cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs)'",
+      "Run cargo +nightly llvm-cov clean --workspace to reset coverage data",
+      "Run cargo +nightly llvm-cov --no-report --workspace --branch to collect test coverage",
+      "Run cargo +nightly llvm-cov --no-report --doc to collect doctest coverage",
+      "Run cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs)' to generate report",
       "Verify TOTAL line branch column shows >= 89%",
-      "If below threshold, identify uncovered branches in changed files and add targeted tests",
-      "Re-run coverage until threshold is met"
+      "If coverage is below 89%, identify uncovered branches in new detector/emitter/dry-run code",
+      "Add targeted tests to cover missing branches (error paths, edge cases, empty inputs)",
+      "Re-run coverage until >= 89% threshold is met",
+      "Run all four cargo gates: build, test, clippy, fmt to confirm final green state"
     ],
     "passes": true
   }
