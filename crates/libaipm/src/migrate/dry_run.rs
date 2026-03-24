@@ -93,16 +93,10 @@ pub fn generate_recursive_report<S: BuildHasher>(
         };
         let pkg_name = src.package_name.as_deref().unwrap_or("(root)");
 
-        // Count skills and commands from matching plugin plans
+        // Count skills and commands from plans matching this specific source dir
         let (skills, commands) = plugin_plans
             .iter()
-            .filter(|p| {
-                if src.package_name.is_some() {
-                    p.name == src.package_name.as_deref().unwrap_or("")
-                } else {
-                    !p.is_package_scoped
-                }
-            })
+            .filter(|p| p.source_dir == src.claude_dir)
             .flat_map(|p| &p.artifacts)
             .fold((0u32, 0u32), |(s, c), a| match a.kind {
                 ArtifactKind::Skill => (s + 1, c),
@@ -122,9 +116,16 @@ pub fn generate_recursive_report<S: BuildHasher>(
     let mut conflicts = Vec::new();
 
     for plan in plugin_plans {
+        // Re-check for collisions in a loop (the generated name itself could collide)
         let final_name = if used_names.contains(&plan.name) {
-            rename_counter += 1;
-            let new_name = format!("{}-renamed-{rename_counter}", plan.name);
+            let mut new_name;
+            loop {
+                rename_counter += 1;
+                new_name = format!("{}-renamed-{rename_counter}", plan.name);
+                if !used_names.contains(&new_name) {
+                    break;
+                }
+            }
             conflicts.push((plan.name.clone(), new_name.clone()));
             new_name
         } else {
@@ -132,8 +133,10 @@ pub fn generate_recursive_report<S: BuildHasher>(
         };
         used_names.insert(final_name.clone());
 
-        let type_str =
-            if plan.is_package_scoped && plan.artifacts.len() > 1 { "composite" } else { "skill" };
+        // Composite only when both skills AND commands are present (matching emitter logic)
+        let has_skill = plan.artifacts.iter().any(|a| a.kind == ArtifactKind::Skill);
+        let has_command = plan.artifacts.iter().any(|a| a.kind == ArtifactKind::Command);
+        let type_str = if has_skill && has_command { "composite" } else { "skill" };
 
         let source_label = if plan.is_package_scoped {
             format!("from {}", plan.name)
@@ -368,6 +371,7 @@ mod tests {
                 name: "deploy".to_string(),
                 artifacts: vec![make_artifact("deploy", ArtifactKind::Skill)],
                 is_package_scoped: false,
+                source_dir: PathBuf::from("/project/.claude"),
             },
             PluginPlan {
                 name: "auth".to_string(),
@@ -376,6 +380,7 @@ mod tests {
                     make_artifact("review", ArtifactKind::Command),
                 ],
                 is_package_scoped: true,
+                source_dir: PathBuf::from("/project/packages/auth/.claude"),
             },
         ];
 
@@ -403,6 +408,7 @@ mod tests {
             name: "auth".to_string(),
             artifacts: vec![make_artifact("deploy", ArtifactKind::Skill)],
             is_package_scoped: true,
+            source_dir: PathBuf::from("/project/packages/auth/.claude"),
         }];
 
         let mut existing = HashSet::new();
@@ -435,6 +441,7 @@ mod tests {
             name: "api".to_string(),
             artifacts: vec![make_artifact("deploy", ArtifactKind::Skill)],
             is_package_scoped: true,
+            source_dir: PathBuf::from("/project/packages/api/.claude"),
         }];
 
         let existing = HashSet::new();

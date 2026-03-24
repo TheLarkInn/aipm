@@ -126,9 +126,10 @@ mod tests {
         }
 
         fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
-            if let Ok(mut w) = self.written.lock() {
-                w.insert(path.to_path_buf(), content.to_vec());
-            }
+            self.written
+                .lock()
+                .expect("MockFs::write_file: mutex poisoned")
+                .insert(path.to_path_buf(), content.to_vec());
             Ok(())
         }
 

@@ -233,6 +233,27 @@ pub fn emit_plugin_with_name(
     fs: &dyn Fs,
 ) -> Result<Vec<Action>, Error> {
     let mut actions = Vec::new();
+
+    if !is_safe_path_segment(plugin_name) {
+        actions.push(Action::Skipped {
+            name: plugin_name.to_string(),
+            reason: format!(
+                "unsafe plugin name '{plugin_name}': must be a single path segment without separators or '..'"
+            ),
+        });
+        return Ok(actions);
+    }
+    if !is_safe_path_segment(&artifact.name) {
+        actions.push(Action::Skipped {
+            name: artifact.name.clone(),
+            reason: format!(
+                "unsafe artifact name '{}': must be a single path segment without separators or '..'",
+                artifact.name
+            ),
+        });
+        return Ok(actions);
+    }
+
     let plugin_dir = ai_dir.join(plugin_name);
 
     fs.create_dir_all(&plugin_dir)?;
@@ -300,6 +321,31 @@ pub fn emit_package_plugin(
     fs: &dyn Fs,
 ) -> Result<Vec<Action>, Error> {
     let mut actions = Vec::new();
+
+    if !is_safe_path_segment(plugin_name) {
+        actions.push(Action::Skipped {
+            name: plugin_name.to_string(),
+            reason: format!(
+                "unsafe plugin name '{plugin_name}': must be a single path segment without separators or '..'"
+            ),
+        });
+        return Ok(actions);
+    }
+
+    // Validate all artifact names for path safety
+    for artifact in artifacts {
+        if !is_safe_path_segment(&artifact.name) {
+            actions.push(Action::Skipped {
+                name: artifact.name.clone(),
+                reason: format!(
+                    "unsafe artifact name '{}': must be a single path segment without separators or '..'",
+                    artifact.name
+                ),
+            });
+            return Ok(actions);
+        }
+    }
+
     let plugin_dir = ai_dir.join(plugin_name);
 
     fs.create_dir_all(&plugin_dir)?;
@@ -601,8 +647,9 @@ mod tests {
         fn get_written(&self, path: &Path) -> Option<String> {
             self.written
                 .lock()
-                .ok()
-                .and_then(|w| w.get(path).and_then(|b| String::from_utf8(b.clone()).ok()))
+                .expect("MockFs::get_written: mutex poisoned")
+                .get(path)
+                .and_then(|b| String::from_utf8(b.clone()).ok())
         }
     }
 
@@ -616,9 +663,10 @@ mod tests {
         }
 
         fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
-            if let Ok(mut w) = self.written.lock() {
-                w.insert(path.to_path_buf(), content.to_vec());
-            }
+            self.written
+                .lock()
+                .expect("MockFs::write_file: mutex poisoned")
+                .insert(path.to_path_buf(), content.to_vec());
             Ok(())
         }
 

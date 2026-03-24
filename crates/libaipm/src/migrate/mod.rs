@@ -173,6 +173,8 @@ pub struct PluginPlan {
     pub artifacts: Vec<Artifact>,
     /// Whether this was merged from a package (true) or is a single artifact (false).
     pub is_package_scoped: bool,
+    /// The `.claude/` directory this plan originated from (for report accuracy).
+    pub source_dir: PathBuf,
 }
 
 /// Run the migration pipeline.
@@ -277,15 +279,18 @@ fn migrate_recursive(
                     name: pkg_name.clone(),
                     artifacts: all_artifacts,
                     is_package_scoped: true,
+                    source_dir: src.claude_dir.clone(),
                 }])
             } else {
                 // Root-level: each artifact becomes its own plugin
+                let source = src.claude_dir.clone();
                 Ok(all_artifacts
                     .into_iter()
                     .map(|a| PluginPlan {
                         name: a.name.clone(),
                         artifacts: vec![a],
                         is_package_scoped: false,
+                        source_dir: source.clone(),
                     })
                     .collect())
             }
@@ -314,14 +319,14 @@ fn migrate_recursive(
     // Sequential name resolution
     let mut known_names = existing_plugins;
     let mut rename_counter = 0u32;
+    let mut rename_actions = Vec::new();
     let mut resolved: Vec<(PluginPlan, String)> = Vec::new();
     for plan in plugin_plans {
-        let mut actions = Vec::new();
         let final_name = emitter::resolve_plugin_name(
             &plan.name,
             &known_names,
             &mut rename_counter,
-            &mut actions,
+            &mut rename_actions,
         );
         known_names.insert(final_name.clone());
         resolved.push((plan, final_name));
@@ -348,7 +353,7 @@ fn migrate_recursive(
         })
         .collect();
 
-    let mut all_actions = Vec::new();
+    let mut all_actions = rename_actions;
     let mut registered_names = Vec::new();
     for result in emission_results {
         let (actions, name) = result?;
@@ -405,9 +410,10 @@ mod tests {
         }
 
         fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
-            if let Ok(mut w) = self.written.lock() {
-                w.insert(path.to_path_buf(), content.to_vec());
-            }
+            self.written
+                .lock()
+                .expect("MockFs::write_file: mutex poisoned")
+                .insert(path.to_path_buf(), content.to_vec());
             Ok(())
         }
 
@@ -487,8 +493,8 @@ mod tests {
         assert!(fs
             .written
             .lock()
-            .ok()
-            .is_some_and(|w| w.contains_key(Path::new("/project/aipm-migrate-dryrun-report.md"))));
+            .expect("mutex poisoned")
+            .contains_key(Path::new("/project/aipm-migrate-dryrun-report.md")));
     }
 
     #[test]

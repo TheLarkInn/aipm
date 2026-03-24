@@ -69,16 +69,15 @@ mod tests {
         }
 
         fn set_file(&self, path: PathBuf, content: String) {
-            if let Ok(mut f) = self.files.lock() {
-                f.insert(path, content);
-            }
+            self.files.lock().expect("MockFs::set_file: mutex poisoned").insert(path, content);
         }
 
         fn get_written(&self, path: &Path) -> Option<String> {
             self.written
                 .lock()
-                .ok()
-                .and_then(|w| w.get(path).and_then(|b| String::from_utf8(b.clone()).ok()))
+                .expect("MockFs::get_written: mutex poisoned")
+                .get(path)
+                .and_then(|b| String::from_utf8(b.clone()).ok())
         }
     }
 
@@ -92,19 +91,25 @@ mod tests {
         }
 
         fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
-            if let Ok(mut w) = self.written.lock() {
-                w.insert(path.to_path_buf(), content.to_vec());
-            }
+            self.written
+                .lock()
+                .expect("MockFs::write_file: mutex poisoned")
+                .insert(path.to_path_buf(), content.to_vec());
             Ok(())
         }
 
         fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
-            self.files.lock().ok().and_then(|f| f.get(path).cloned()).ok_or_else(|| {
-                std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
-                    format!("not found: {}", path.display()),
-                )
-            })
+            self.files
+                .lock()
+                .expect("MockFs::read_to_string: mutex poisoned")
+                .get(path)
+                .cloned()
+                .ok_or_else(|| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::NotFound,
+                        format!("not found: {}", path.display()),
+                    )
+                })
         }
 
         fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
