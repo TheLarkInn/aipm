@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.8.0] - 2026-03-24
+
+### Features
+- Extend aipm migrate to all .claude/ artifact types ([#61](https://github.com/TheLarkInn/aipm/pull/61)) (10f5be4)
+
 ## [0.7.0] - 2026-03-24
 
 ### Features
