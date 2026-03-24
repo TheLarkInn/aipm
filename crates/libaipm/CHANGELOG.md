@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.8.1] - 2026-03-24
+
+### Testing
+- Improve branch coverage and cross-platform test assertions ([#63](https://github.com/TheLarkInn/aipm/pull/63)) (988f585)
+
 ## [0.8.0] - 2026-03-24
 
 ### Breaking changes
