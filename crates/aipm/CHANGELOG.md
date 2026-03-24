@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.8.2] - 2026-03-24
+
+### Bug Fixes
+- Use serde_json/toml serialization in migrate emitter to prevent invalid output ([#65](https://github.com/TheLarkInn/aipm/pull/65)) (d72aed1)
+
 ## [0.8.1] - 2026-03-24
 
 ## [0.8.0] - 2026-03-24
