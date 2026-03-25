@@ -1,219 +1,88 @@
 [
   {
     "category": "refactor",
-    "description": "Add strip_yaml_quotes() helper to migrate/mod.rs for stripping YAML quote delimiters from parsed frontmatter values",
-    "steps": [
-      "Open crates/libaipm/src/migrate/mod.rs",
-      "Add a pub(crate) fn strip_yaml_quotes(s: &str) -> &str function after the ArtifactMetadata struct definition (after line 65)",
-      "The function checks if the input has length >= 2 and starts/ends with matching \" or ' characters",
-      "If matching quotes found, return the inner slice &s[1..s.len()-1]; otherwise return s unchanged",
-      "Add unit tests in the existing #[cfg(test)] mod tests block in mod.rs:",
-      "  - strip_yaml_quotes_double: assert_eq!(strip_yaml_quotes(r#\"\"hello\"\"#), \"hello\")",
-      "  - strip_yaml_quotes_single: assert_eq!(strip_yaml_quotes(\"'hello'\"), \"hello\")",
-      "  - strip_yaml_quotes_no_quotes: assert_eq!(strip_yaml_quotes(\"hello\"), \"hello\")",
-      "  - strip_yaml_quotes_mismatched: assert_eq!(strip_yaml_quotes(\"\\\"hello'\"), \"\\\"hello'\")",
-      "  - strip_yaml_quotes_empty_quoted: assert_eq!(strip_yaml_quotes(\"\\\"\\\"\"), \"\")",
-      "  - strip_yaml_quotes_single_char: assert_eq!(strip_yaml_quotes(\"x\"), \"x\")",
-      "  - strip_yaml_quotes_empty: assert_eq!(strip_yaml_quotes(\"\"), \"\")",
-      "Run: cargo test --workspace -- strip_yaml_quotes to verify"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Update skill_detector.rs frontmatter parser to strip YAML quotes from name and description values",
-    "steps": [
-      "Open crates/libaipm/src/migrate/skill_detector.rs",
-      "Add import: use super::strip_yaml_quotes; at the top of the file (with other imports)",
-      "At line 107, change: metadata.name = Some(value.trim().to_string()); to: metadata.name = Some(strip_yaml_quotes(value.trim()).to_string());",
-      "At line 109, change: metadata.description = Some(value.trim().to_string()); to: metadata.description = Some(strip_yaml_quotes(value.trim()).to_string());",
-      "Add a new unit test detect_skill_strips_quoted_description in the existing #[cfg(test)] mod:",
-      "  - Create MockFs with SKILL.md content: ---\\nname: \"my-deploy\"\\ndescription: \"Deploy app\"\\n---\\nBody",
-      "  - Run detect(), assert metadata.name == Some(\"my-deploy\") (no quotes)",
-      "  - Assert metadata.description == Some(\"Deploy app\") (no quotes)",
-      "Run: cargo test --workspace -- skill_detector to verify"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Update agent_detector.rs frontmatter parser to strip YAML quotes from name and description values",
-    "steps": [
-      "Open crates/libaipm/src/migrate/agent_detector.rs",
-      "Add import: use super::strip_yaml_quotes; at the top of the file (with other imports)",
-      "At line 88, change: metadata.name = Some(value.trim().to_string()); to: metadata.name = Some(strip_yaml_quotes(value.trim()).to_string());",
-      "At line 90, change: metadata.description = Some(value.trim().to_string()); to: metadata.description = Some(strip_yaml_quotes(value.trim()).to_string());",
-      "Add a new unit test detect_agent_strips_quoted_description in the existing #[cfg(test)] mod:",
-      "  - Create MockFs with agent .md content: ---\\nname: \"reviewer\"\\ndescription: \"Reviews code\"\\n---\\nBody",
-      "  - Run detect(), assert metadata.name == Some(\"reviewer\") and metadata.description == Some(\"Reviews code\")",
-      "Run: cargo test --workspace -- agent_detector to verify"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Update command_detector.rs frontmatter parser to strip YAML quotes from name and description values",
-    "steps": [
-      "Open crates/libaipm/src/migrate/command_detector.rs",
-      "Add import: use super::strip_yaml_quotes; at the top of the file (with other imports)",
-      "At line 86, change: metadata.name = Some(value.trim().to_string()); to: metadata.name = Some(strip_yaml_quotes(value.trim()).to_string());",
-      "At line 88, change: metadata.description = Some(value.trim().to_string()); to: metadata.description = Some(strip_yaml_quotes(value.trim()).to_string());",
-      "Add a new unit test detect_command_strips_quoted_description in the existing #[cfg(test)] mod:",
-      "  - Create MockFs with command .md content: ---\\nname: \"review\"\\ndescription: \"Code review\"\\n---\\nBody",
-      "  - Run detect(), assert metadata.description == Some(\"Code review\")",
-      "Run: cargo test --workspace -- command_detector to verify"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Update output_style_detector.rs frontmatter parser to strip YAML quotes from name and description values",
-    "steps": [
-      "Open crates/libaipm/src/migrate/output_style_detector.rs",
-      "Add import: use super::strip_yaml_quotes; at the top of the file (with other imports)",
-      "At line 82, change: metadata.name = Some(value.trim().to_string()); to: metadata.name = Some(strip_yaml_quotes(value.trim()).to_string());",
-      "At line 84, change: metadata.description = Some(value.trim().to_string()); to: metadata.description = Some(strip_yaml_quotes(value.trim()).to_string());",
-      "Add a new unit test detect_output_style_strips_quoted_description in the existing #[cfg(test)] mod:",
-      "  - Create MockFs with output style .md content: ---\\nname: \"concise\"\\ndescription: \"Short outputs\"\\n---\\nBody",
-      "  - Run detect(), assert metadata.description == Some(\"Short outputs\")",
-      "Run: cargo test --workspace -- output_style_detector to verify"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Enable serde_json preserve_order feature in workspace Cargo.toml to maintain JSON field insertion order",
-    "steps": [
-      "Open Cargo.toml (workspace root)",
-      "At line 33, change: serde_json = \"1\" to: serde_json = { version = \"1\", features = [\"preserve_order\"] }",
-      "Run: cargo build --workspace to verify the dependency change compiles",
-      "Run: cargo test --workspace to verify no regressions"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Add PluginToml, PluginPackage, PluginComponents serializable structs to emitter.rs for TOML generation",
-    "steps": [
-      "Open crates/libaipm/src/migrate/emitter.rs",
-      "Add use serde::Serialize; to the imports at the top of the file",
-      "Add the following structs before the generate_plugin_manifest function (near line 830):",
-      "  - #[derive(Serialize)] struct PluginToml { package: PluginPackage, components: PluginComponents }",
-      "  - #[derive(Serialize)] struct PluginPackage { name: String, version: String, #[serde(rename = \"type\")] kind: String, edition: String, description: String }",
-      "  - #[derive(Default, Serialize)] struct PluginComponents with Optional Vec<String> fields: skills, agents, mcp_servers, hooks, output_styles, scripts — each with #[serde(skip_serializing_if = \"Option::is_none\")]",
-      "Run: cargo build --workspace to verify structs compile (no usage yet)"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Rewrite generate_plugin_json_multi() to use serde_json::Map and to_string_pretty() instead of format!()",
-    "steps": [
-      "Open crates/libaipm/src/migrate/emitter.rs",
-      "Locate generate_plugin_json_multi function (around line 901-931)",
-      "Replace the function body: create a serde_json::Map::new()",
-      "Insert fields in order: name, version, description (using serde_json::Value::String)",
-      "Conditionally insert component fields using the same HashSet<&ArtifactKind> logic: skills (./skills/), agents (./agents/), mcpServers (./.mcp.json), hooks (./hooks/hooks.json), outputStyles (./)",
-      "Build serde_json::Value::Object(map) and call serde_json::to_string_pretty(&obj).unwrap_or_default()",
-      "Append a trailing newline to the output string",
-      "Run: cargo test --workspace -- generate_plugin_json to verify existing tests pass",
-      "Verify the output is valid JSON by checking the generate_plugin_json_with_description and generate_plugin_json_no_description tests",
-      "Verify generate_plugin_json_multi_composite and generate_plugin_json_multi_all_kinds tests pass",
-      "Verify generate_plugin_json_agent_kind, generate_plugin_json_mcp_kind, generate_plugin_json_hook_kind, generate_plugin_json_output_style_kind tests pass"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Rewrite generate_plugin_manifest() to use PluginToml struct and toml::to_string_pretty() instead of format!()",
-    "steps": [
-      "Open crates/libaipm/src/migrate/emitter.rs",
-      "Locate generate_plugin_manifest function (around line 831-889)",
-      "Replace the function body: build PluginComponents::default() and populate fields based on artifact.kind match",
-      "Handle Skill|Command -> skills, Agent -> agents, McpServer -> mcp_servers, Hook -> hooks, OutputStyle -> output_styles",
-      "Handle referenced_scripts: if non-empty, strip scripts/ prefix and build scripts field",
-      "Handle hooks from frontmatter: if artifact.metadata.hooks.is_some() && kind != Hook, set hooks field",
-      "Build PluginToml { package: PluginPackage { name, version: 0.1.0, kind: type_str, edition: 2024, description }, components }",
-      "Return toml::to_string_pretty(&manifest).unwrap_or_default()",
-      "Run: cargo test --workspace -- generate_manifest to verify existing tests",
-      "Update test assertions if toml crate formatting differs from hand-built format (e.g. array formatting)",
-      "Verify generate_manifest_no_description, generate_manifest_with_scripts_and_hooks, generate_manifest_agent_kind, generate_manifest_mcp_kind, generate_manifest_hook_kind, generate_manifest_output_style_kind tests pass"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Rewrite generate_package_manifest() to use PluginToml struct and toml::to_string_pretty() instead of format!()",
-    "steps": [
-      "Open crates/libaipm/src/migrate/emitter.rs",
-      "Locate generate_package_manifest function (around line 578-686)",
-      "Replace the function body: keep the existing logic for grouping component_paths by type (skill_paths, agent_paths, mcp_paths, hook_paths, style_paths)",
-      "Instead of writing to a String via write!(), populate PluginComponents fields from the grouped paths",
-      "Handle all_scripts collection the same way (flat_map over artifacts' referenced_scripts)",
-      "Handle has_hooks_yaml && hook_paths.is_empty() case for hooks component",
-      "Build PluginToml { package: PluginPackage { name: plugin_name, version: 0.1.0, kind: type_str, edition: 2024, description }, components }",
-      "Return toml::to_string_pretty(&manifest).unwrap_or_default()",
-      "Run: cargo test --workspace -- emit_package_plugin to verify existing tests pass",
-      "Update test assertions if toml crate formatting differs from hand-built format"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Migrate workspace_init::generate_plugin_json() to use serde_json for consistency with the migrate emitter",
+    "description": "Update ToolAdaptor::apply() trait signature to accept no_starter: bool parameter",
     "steps": [
       "Open crates/libaipm/src/workspace_init/mod.rs",
-      "Locate generate_plugin_json function (around line 272-279)",
-      "Replace the hand-built string with serde_json::Map construction:",
-      "  - Insert name: starter-aipm-plugin, version: 0.1.0, description: (existing description text)",
-      "  - Build serde_json::Value::Object(map), call serde_json::to_string_pretty().unwrap_or_default()",
-      "  - Append trailing newline",
-      "Run: cargo test --workspace -- workspace_init to verify existing tests pass",
-      "Run the E2E tests to verify init still produces valid plugin.json"
+      "At line 29, change: fn apply(&self, dir: &Path, fs: &dyn Fs) -> Result<bool, Error>; to: fn apply(&self, dir: &Path, no_starter: bool, fs: &dyn Fs) -> Result<bool, Error>;",
+      "Update the doc comment on apply() to document the no_starter parameter",
+      "At line 117 in init(), change: if adaptor.apply(opts.dir, fs)? { to: if adaptor.apply(opts.dir, opts.no_starter, fs)? {",
+      "Run: cargo build --workspace to verify the trait change compiles (expect errors in claude.rs until next feature)"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Update existing emitter unit tests to accommodate serde_json and toml crate output formatting differences",
+    "description": "Update claude::Adaptor::apply() fresh-write path to conditionally omit enabledPlugins when no_starter is true",
     "steps": [
-      "Open crates/libaipm/src/migrate/emitter.rs test module (starts around line 933)",
-      "Review all tests that use .contains() assertions on generated plugin.json or aipm.toml content",
-      "For plugin.json tests: serde_json::to_string_pretty uses 2-space indent — existing .contains() checks should still pass since field values are preserved",
-      "For aipm.toml tests: toml::to_string_pretty may produce different whitespace or array formatting than the hand-built format!() strings",
-      "Specifically check tests that assert contains(\"skills = [\\\"skills/deploy/SKILL.md\\\"]\") — toml crate may format as multi-line array or with different quoting",
-      "Update any failing assertions to either: (a) parse the TOML/JSON output and check values programmatically, or (b) adjust the expected string to match toml crate output",
-      "Run: cargo test --workspace to verify all existing tests pass after adjustments"
+      "Open crates/libaipm/src/workspace_init/adaptors/claude.rs",
+      "At line 19, change apply signature: fn apply(&self, dir: &Path, fs: &dyn Fs) to: fn apply(&self, dir: &Path, no_starter: bool, fs: &dyn Fs)",
+      "For the fresh-write path (lines 27-44): when no_starter is true, write the JSON string WITHOUT the enabledPlugins block (only extraKnownMarketplaces)",
+      "When no_starter is false, write the existing JSON string WITH enabledPlugins (unchanged behavior)",
+      "Simplest approach: use an if/else with two string variants — one with enabledPlugins, one without",
+      "Run: cargo build --workspace to verify compilation"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Add new unit tests for quoted description handling in emitter JSON and TOML generation",
+    "description": "Update merge_claude_settings() to accept no_starter and skip enabledPlugins insertion when true",
     "steps": [
-      "Open crates/libaipm/src/migrate/emitter.rs test module",
-      "Add test generate_plugin_json_quoted_description: create ArtifactMetadata with description containing pre-stripped value (e.g. 'Deploy app'), generate JSON, parse with serde_json::from_str, verify description == 'Deploy app' and the JSON is valid",
-      "Add test generate_plugin_json_description_with_special_chars: description with backslash and internal quotes (e.g. 'She said \\\"hello\\\"'), generate JSON, parse it, verify it round-trips correctly",
-      "Add test generate_manifest_quoted_description: similar for TOML — create artifact with description, generate manifest, parse with toml::from_str, verify description value",
-      "Add test generate_manifest_description_with_special_chars: description with backslash/newline, generate TOML, parse it, verify round-trip",
-      "Run: cargo test --workspace -- emitter to verify"
+      "Open crates/libaipm/src/workspace_init/adaptors/claude.rs",
+      "At line 49, change merge_claude_settings signature to add no_starter: bool parameter: fn merge_claude_settings(settings_path: &Path, no_starter: bool, fs: &dyn Fs)",
+      "At line 24, update the call site: return merge_claude_settings(&settings_path, no_starter, fs);",
+      "Update the early-return 'fully configured' check at lines 62-71: when no_starter is true, only check has_marketplace (skip has_enabled check). When no_starter is false, keep existing logic (check both has_marketplace && has_enabled)",
+      "Wrap the enabledPlugins insertion block at lines 92-98 in: if !no_starter { ... }",
+      "Run: cargo build --workspace to verify compilation",
+      "Run: cargo test --workspace to see which tests need updating"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Add E2E test for migrating a skill with quoted description and verifying valid JSON output",
+    "description": "Update all existing claude.rs tests to pass no_starter argument to apply()",
     "steps": [
-      "Open crates/aipm/tests/migrate_e2e.rs",
-      "Add test migrate_skill_with_quoted_description_produces_valid_json:",
-      "  - Create tempdir, init workspace",
-      "  - Create skill with content: ---\\nname: analyze-bug\\ndescription: \\\"Analyze bugs by reading bug reports.\\\"\\n---\\nBody",
-      "  - Run aipm migrate",
-      "  - Read the generated .ai/analyze-bug/.claude-plugin/plugin.json",
-      "  - Parse it with serde_json::from_str::<serde_json::Value>() — assert it succeeds (valid JSON)",
-      "  - Extract the description field, assert it equals 'Analyze bugs by reading bug reports.' (no extra quotes)",
-      "  - Extract the name field, assert it equals 'analyze-bug'",
-      "Run: cargo test --workspace -- migrate_skill_with_quoted_description to verify"
+      "Open crates/libaipm/src/workspace_init/adaptors/claude.rs test module (line 108+)",
+      "In claude_settings_created_fresh (line 130): change adaptor.apply(&tmp, &Real) to adaptor.apply(&tmp, false, &Real)",
+      "In claude_settings_merge_existing (line 161): change adaptor.apply(&tmp, &Real) to adaptor.apply(&tmp, false, &Real)",
+      "In claude_settings_skip_if_fully_configured (line 190): change adaptor.apply(&tmp, &Real) to adaptor.apply(&tmp, false, &Real)",
+      "In claude_settings_adds_enabled_plugins_when_marketplace_exists (line 206): change adaptor.apply(&tmp, &Real) to adaptor.apply(&tmp, false, &Real)",
+      "In claude_settings_rejects_invalid_json (line 225): change adaptor.apply(&tmp, &Real) to adaptor.apply(&tmp, false, &Real)",
+      "In claude_settings_rejects_non_object_root (line 240): change adaptor.apply(&tmp, &Real) to adaptor.apply(&tmp, false, &Real)",
+      "In claude_settings_handles_non_object_marketplace_value (line 255): change adaptor.apply(&tmp, &Real) to adaptor.apply(&tmp, false, &Real)",
+      "In claude_settings_handles_non_object_enabled_plugins (line 270): change adaptor.apply(&tmp, &Real) to adaptor.apply(&tmp, false, &Real)",
+      "Run: cargo test --workspace -- claude to verify all existing tests still pass"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add new test claude_settings_created_fresh_no_starter verifying enabledPlugins is omitted when no_starter is true",
+    "steps": [
+      "Open crates/libaipm/src/workspace_init/adaptors/claude.rs test module",
+      "Add test claude_settings_created_fresh_no_starter after the existing claude_settings_created_fresh test:",
+      "  - Create temp dir, create Adaptor, call adaptor.apply(&tmp, true, &Real) with no_starter=true",
+      "  - Assert result is Ok(true)",
+      "  - Read and parse .claude/settings.json",
+      "  - Assert extraKnownMarketplaces.local-repo-plugins is present (marketplace always written)",
+      "  - Assert enabledPlugins key does NOT exist in the parsed JSON (v.get('enabledPlugins').is_none() or v['enabledPlugins'].is_null())",
+      "  - Cleanup temp dir",
+      "Run: cargo test --workspace -- claude_settings_created_fresh_no_starter to verify"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Update init_no_starter_still_configures_tools test to assert enabledPlugins does NOT contain starter plugin key",
+    "steps": [
+      "Open crates/libaipm/src/workspace_init/mod.rs test module (around line 958)",
+      "In init_no_starter_still_configures_tools, after the existing assertion that settings.json exists (line 972):",
+      "  - Read settings.json content with std::fs::read_to_string()",
+      "  - Parse it as serde_json::Value",
+      "  - Assert extraKnownMarketplaces.local-repo-plugins is present (marketplace registration should always happen)",
+      "  - Assert enabledPlugins either does not exist as a key OR does not contain 'starter-aipm-plugin@local-repo-plugins'",
+      "  - Keep the existing assertion that .ai/starter-aipm-plugin does not exist (line 974)",
+      "Run: cargo test --workspace -- init_no_starter_still_configures_tools to verify"
     ],
     "passes": true
   },
@@ -231,7 +100,7 @@
       "  - cargo +nightly llvm-cov --no-report --doc",
       "  - cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs)'",
       "Verify TOTAL branch column shows >= 89%",
-      "If coverage is below 89%, add additional tests targeting uncovered branches in the changed functions"
+      "If coverage is below 89%, add additional tests targeting uncovered branches"
     ],
     "passes": true
   }
