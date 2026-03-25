@@ -59,13 +59,14 @@ runs:
         GH_TOKEN: ${{ inputs.github_token }}
         AWF_VERSION: ${{ inputs.awf_version }}
       run: |
-        # Copilot CLI — download latest release binary
+        # Copilot CLI — download latest release tarball and extract
         VERSION=$(gh release view --repo github/copilot-cli --json tagName -q .tagName)
         gh release download "${VERSION}" \
           --repo github/copilot-cli \
-          --pattern "*linux*amd64*" \
-          --output /usr/local/bin/copilot
-        chmod +x /usr/local/bin/copilot
+          --pattern "copilot-linux-x64.tar.gz" \
+          --dir /tmp
+        tar -xzf /tmp/copilot-linux-x64.tar.gz -C /tmp
+        install -m 0755 /tmp/copilot /usr/local/bin/copilot
 
         # AWF binary
         curl -fsSL \
