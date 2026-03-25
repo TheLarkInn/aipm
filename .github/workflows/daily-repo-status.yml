@@ -3,7 +3,6 @@
 # Produces a daily issue summarising recent repo activity (issues, PRs,
 # releases, code changes) using a sandboxed Copilot CLI agent.
 #
-# Prompt source: .github/workflows/daily-repo-status.md
 # Reusable actions:
 #   .github/actions/copilot-agent-setup   — pre-pull, install, start MCP gateway
 #   .github/actions/copilot-agent-teardown — stop gateway, upload artifacts
@@ -74,7 +73,7 @@ jobs:
                 --allow-all-paths \
                 --log-level all \
                 --log-dir /tmp/gh-aw/agent-logs \
-                --prompt "$(cat $GITHUB_WORKSPACE/.github/workflows/daily-repo-status.md)"' \
+                --prompt "Provide a daily repo status include the number of issues opened, pull requests opened, and pull requests closed. Make it in beautiful markdown. Make no mistakes."' \
             2>&1 | tee /tmp/gh-aw/agent-stdio.log
 
       # ── Publish the agent's output as a repo issue ───────────────────────────
