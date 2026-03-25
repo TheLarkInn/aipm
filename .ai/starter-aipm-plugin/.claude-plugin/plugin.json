@@ -1,0 +1,5 @@
+{
+  "name": "starter-aipm-plugin",
+  "version": "0.1.0",
+  "description": "Default starter plugin — scaffold new plugins, scan your marketplace, and log tool usage"
+}

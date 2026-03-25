@@ -1,0 +1,9 @@
+{
+  "name": "aipm-atomic-plugin",
+  "author": {
+    "name": "Sean Larkin",
+    "email": "thelarkinn@users.noreply.github.com"
+  },
+  "description": "Atomic Workflow plugin for structured research, specification, and feature implementation",
+  "version": "0.1.0"
+}
