@@ -64,13 +64,12 @@ runs:
         gh release download "${VERSION}" \
           --repo github/copilot-cli \
           --pattern "*linux-x64*" \
-          --dir /tmp/copilot-dl
-        tar -xzf /tmp/copilot-dl/*linux-x64* -C /tmp/copilot-dl
-        install -m 0755 /tmp/copilot-dl/copilot /usr/local/bin/copilot
+          --output /usr/local/bin/copilot
+        chmod +x /usr/local/bin/copilot
 
         # AWF binary
         curl -fsSL \
-          "https://github.com/github/gh-aw-firewall/releases/download/v${AWF_VERSION}/awf-linux-amd64" \
+          "https://github.com/github/gh-aw-firewall/releases/download/v${AWF_VERSION}/awf-linux-x64" \
           -o /usr/local/bin/awf
         chmod +x /usr/local/bin/awf
 
