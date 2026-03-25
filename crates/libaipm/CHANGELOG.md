@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.9.0] - 2026-03-25
+
+### Bug Fixes
+- Respect --no-starter flag in Claude Code adaptor settings.json ([#67](https://github.com/TheLarkInn/aipm/pull/67)) (7e4c41b)
+
 ## [0.8.2] - 2026-03-24
 
 ### Bug Fixes
