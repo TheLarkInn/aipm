@@ -1,106 +1,125 @@
 [
   {
     "category": "refactor",
-    "description": "Update ToolAdaptor::apply() trait signature to accept no_starter: bool parameter",
+    "description": "Add PluginEntry struct to mod.rs for carrying plugin name + description to registrar",
     "steps": [
-      "Open crates/libaipm/src/workspace_init/mod.rs",
-      "At line 29, change: fn apply(&self, dir: &Path, fs: &dyn Fs) -> Result<bool, Error>; to: fn apply(&self, dir: &Path, no_starter: bool, fs: &dyn Fs) -> Result<bool, Error>;",
-      "Update the doc comment on apply() to document the no_starter parameter",
-      "At line 117 in init(), change: if adaptor.apply(opts.dir, fs)? { to: if adaptor.apply(opts.dir, opts.no_starter, fs)? {",
-      "Run: cargo build --workspace to verify the trait change compiles (expect errors in claude.rs until next feature)"
+      "Open crates/libaipm/src/migrate/mod.rs",
+      "Add a new `PluginEntry` struct with `name: String` and `description: Option<String>` fields",
+      "Derive Debug and Clone on the struct",
+      "Add doc comments explaining this is data needed to register a plugin in marketplace.json",
+      "Verify the struct is public (`pub struct`) so registrar.rs can access it",
+      "Run `cargo build --workspace` to confirm compilation"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Update claude::Adaptor::apply() fresh-write path to conditionally omit enabledPlugins when no_starter is true",
+    "description": "Update registrar::register_plugins signature to accept &[PluginEntry] instead of &[String]",
     "steps": [
-      "Open crates/libaipm/src/workspace_init/adaptors/claude.rs",
-      "At line 19, change apply signature: fn apply(&self, dir: &Path, fs: &dyn Fs) to: fn apply(&self, dir: &Path, no_starter: bool, fs: &dyn Fs)",
-      "For the fresh-write path (lines 27-44): when no_starter is true, write the JSON string WITHOUT the enabledPlugins block (only extraKnownMarketplaces)",
-      "When no_starter is false, write the existing JSON string WITH enabledPlugins (unchanged behavior)",
-      "Simplest approach: use an if/else with two string variants — one with enabledPlugins, one without",
-      "Run: cargo build --workspace to verify compilation"
+      "Open crates/libaipm/src/migrate/registrar.rs",
+      "Import `super::PluginEntry` at the top of the file",
+      "Change function signature from `plugin_names: &[String]` to `entries: &[PluginEntry]`",
+      "Change the early-return guard from `plugin_names.is_empty()` to `entries.is_empty()`",
+      "Update the loop to iterate over `entries` instead of `plugin_names`",
+      "In the `already_registered` check, use `entry.name.as_str()` instead of `name.as_str()`",
+      "Extract description with fallback: `entry.description.as_deref().unwrap_or(\"Migrated from .claude/ configuration\")`",
+      "Use the extracted description in the `serde_json::json!` macro instead of the hardcoded string",
+      "Use `format!(\"./{}\", entry.name)` for the source field",
+      "Run `cargo build --workspace` to confirm compilation (expect errors at call sites — those are fixed in next features)"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Update merge_claude_settings() to accept no_starter and skip enabledPlugins insertion when true",
+    "description": "Update migrate_single_source in mod.rs to collect PluginEntry with descriptions and pass to registrar",
     "steps": [
-      "Open crates/libaipm/src/workspace_init/adaptors/claude.rs",
-      "At line 49, change merge_claude_settings signature to add no_starter: bool parameter: fn merge_claude_settings(settings_path: &Path, no_starter: bool, fs: &dyn Fs)",
-      "At line 24, update the call site: return merge_claude_settings(&settings_path, no_starter, fs);",
-      "Update the early-return 'fully configured' check at lines 62-71: when no_starter is true, only check has_marketplace (skip has_enabled check). When no_starter is false, keep existing logic (check both has_marketplace && has_enabled)",
-      "Wrap the enabledPlugins insertion block at lines 92-98 in: if !no_starter { ... }",
-      "Run: cargo build --workspace to verify compilation",
-      "Run: cargo test --workspace to see which tests need updating"
+      "Open crates/libaipm/src/migrate/mod.rs, locate `migrate_single_source` function (~line 241)",
+      "Change `let mut registered_names: Vec<String>` to `let mut registered_entries: Vec<PluginEntry>`",
+      "In the artifact loop, after `emitter::emit_plugin()` returns `plugin_name`, push a `PluginEntry { name: plugin_name, description: artifact.metadata.description.clone() }` instead of just `plugin_name`",
+      "Update the `registrar::register_plugins(ai_dir, &registered_entries, fs)?` call",
+      "Update the `MarketplaceRegistered` action loop to iterate `&registered_entries` and use `entry.name`",
+      "Run `cargo build --workspace` to confirm compilation"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Update all existing claude.rs tests to pass no_starter argument to apply()",
+    "description": "Update migrate_recursive in mod.rs to collect PluginEntry with descriptions and pass to registrar",
     "steps": [
-      "Open crates/libaipm/src/workspace_init/adaptors/claude.rs test module (line 108+)",
-      "In claude_settings_created_fresh (line 130): change adaptor.apply(&tmp, &Real) to adaptor.apply(&tmp, false, &Real)",
-      "In claude_settings_merge_existing (line 161): change adaptor.apply(&tmp, &Real) to adaptor.apply(&tmp, false, &Real)",
-      "In claude_settings_skip_if_fully_configured (line 190): change adaptor.apply(&tmp, &Real) to adaptor.apply(&tmp, false, &Real)",
-      "In claude_settings_adds_enabled_plugins_when_marketplace_exists (line 206): change adaptor.apply(&tmp, &Real) to adaptor.apply(&tmp, false, &Real)",
-      "In claude_settings_rejects_invalid_json (line 225): change adaptor.apply(&tmp, &Real) to adaptor.apply(&tmp, false, &Real)",
-      "In claude_settings_rejects_non_object_root (line 240): change adaptor.apply(&tmp, &Real) to adaptor.apply(&tmp, false, &Real)",
-      "In claude_settings_handles_non_object_marketplace_value (line 255): change adaptor.apply(&tmp, &Real) to adaptor.apply(&tmp, false, &Real)",
-      "In claude_settings_handles_non_object_enabled_plugins (line 270): change adaptor.apply(&tmp, &Real) to adaptor.apply(&tmp, false, &Real)",
-      "Run: cargo test --workspace -- claude to verify all existing tests still pass"
+      "Open crates/libaipm/src/migrate/mod.rs, locate `migrate_recursive` function (~line 302)",
+      "Change `let mut registered_names: Vec<String>` to `let mut registered_entries: Vec<PluginEntry>`",
+      "In the emission results collection loop, build `PluginEntry` with: name from result, description from `plan.artifacts.first().and_then(|a| a.metadata.description.clone())`",
+      "This requires capturing the plan reference alongside the emission result — adjust the parallel emission to return `(actions, name, Option<String>)` or capture description before parallel emission",
+      "Update the `registrar::register_plugins(ai_dir, &registered_entries, fs)?` call",
+      "Update the `MarketplaceRegistered` action loop to iterate `&registered_entries` and use `entry.name`",
+      "Run `cargo build --workspace` to confirm compilation"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Add new test claude_settings_created_fresh_no_starter verifying enabledPlugins is omitted when no_starter is true",
+    "description": "Update existing registrar unit tests to use PluginEntry instead of String",
     "steps": [
-      "Open crates/libaipm/src/workspace_init/adaptors/claude.rs test module",
-      "Add test claude_settings_created_fresh_no_starter after the existing claude_settings_created_fresh test:",
-      "  - Create temp dir, create Adaptor, call adaptor.apply(&tmp, true, &Real) with no_starter=true",
-      "  - Assert result is Ok(true)",
-      "  - Read and parse .claude/settings.json",
-      "  - Assert extraKnownMarketplaces.local-repo-plugins is present (marketplace always written)",
-      "  - Assert enabledPlugins key does NOT exist in the parsed JSON (v.get('enabledPlugins').is_none() or v['enabledPlugins'].is_null())",
-      "  - Cleanup temp dir",
-      "Run: cargo test --workspace -- claude_settings_created_fresh_no_starter to verify"
+      "Open crates/libaipm/src/migrate/registrar.rs, locate #[cfg(test)] module (~line 49)",
+      "In `register_appends_to_empty_plugins_array`: change `vec![\"deploy\".to_string(), ...]` to `vec![PluginEntry { name: \"deploy\".to_string(), description: None }, ...]`",
+      "In `register_appends_alongside_existing`: change names vec to PluginEntry vec with `description: None`",
+      "In `register_skips_already_registered`: change names vec to PluginEntry vec with `description: None`",
+      "In `register_preserves_marketplace_metadata`: change names vec to PluginEntry vec with `description: None`",
+      "Run `cargo test --workspace` to confirm all existing tests still pass"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Update init_no_starter_still_configures_tools test to assert enabledPlugins does NOT contain starter plugin key",
+    "description": "Add new registrar unit tests verifying description propagation",
     "steps": [
-      "Open crates/libaipm/src/workspace_init/mod.rs test module (around line 958)",
-      "In init_no_starter_still_configures_tools, after the existing assertion that settings.json exists (line 972):",
-      "  - Read settings.json content with std::fs::read_to_string()",
-      "  - Parse it as serde_json::Value",
-      "  - Assert extraKnownMarketplaces.local-repo-plugins is present (marketplace registration should always happen)",
-      "  - Assert enabledPlugins either does not exist as a key OR does not contain 'starter-aipm-plugin@local-repo-plugins'",
-      "  - Keep the existing assertion that .ai/starter-aipm-plugin does not exist (line 974)",
-      "Run: cargo test --workspace -- init_no_starter_still_configures_tools to verify"
+      "Open crates/libaipm/src/migrate/registrar.rs tests module",
+      "Add test `register_uses_entry_description`: create PluginEntry with `description: Some(\"Deploy app\".to_string())`, register it, parse written JSON, assert description equals \"Deploy app\"",
+      "Add test `register_uses_fallback_when_no_description`: create PluginEntry with `description: None`, register it, parse written JSON, assert description equals \"Migrated from .claude/ configuration\"",
+      "Add test `register_mixed_descriptions`: create two entries — one with `Some(\"My desc\")` and one with `None` — register both, parse written JSON, verify each plugin has the correct description",
+      "Run `cargo test --workspace` to confirm all new tests pass"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Run full build pipeline (build, test, clippy, fmt, coverage) to verify all changes pass with zero warnings and >= 89% branch coverage",
+    "description": "Update migrate_full_flow unit test to verify marketplace.json descriptions match plugin.json",
     "steps": [
-      "Run: cargo fmt --check — verify no formatting issues",
-      "Run: cargo clippy --workspace -- -D warnings — verify no clippy warnings",
-      "Run: cargo build --workspace — verify clean build",
-      "Run: cargo test --workspace — verify all tests pass",
-      "Run coverage pipeline:",
-      "  - cargo +nightly llvm-cov clean --workspace",
-      "  - cargo +nightly llvm-cov --no-report --workspace --branch",
-      "  - cargo +nightly llvm-cov --no-report --doc",
-      "  - cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs)'",
-      "Verify TOTAL branch column shows >= 89%",
-      "If coverage is below 89%, add additional tests targeting uncovered branches"
+      "Open crates/libaipm/src/migrate/mod.rs, locate `migrate_full_flow` test (~line 588)",
+      "After asserting action counts, read the written marketplace.json from `MockFs`",
+      "Parse the marketplace.json as serde_json::Value",
+      "Find the 'deploy' plugin entry and assert its description is \"Deploy app\" (matching SKILL.md frontmatter)",
+      "Find the 'review' plugin entry and assert its description is \"Migrated from .claude/ configuration\" (command has no frontmatter description in the test fixture)",
+      "Run `cargo test --workspace` to confirm test passes"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add E2E test verifying marketplace description matches plugin.json description after migrate",
+    "steps": [
+      "Open crates/aipm/tests/migrate_e2e.rs",
+      "Add test `migrate_marketplace_description_matches_plugin_json`",
+      "Create a temp directory with .ai/.claude-plugin/marketplace.json (empty plugins array) and .claude/skills/deploy/SKILL.md with frontmatter containing `description: Deploy the application`",
+      "Run the migrate CLI command (or call the library directly)",
+      "Read the emitted .ai/deploy/.claude-plugin/plugin.json and parse it",
+      "Read the updated .ai/.claude-plugin/marketplace.json and parse it",
+      "Find the 'deploy' entry in marketplace.json plugins array",
+      "Assert that marketplace description equals plugin.json description",
+      "Run `cargo test --workspace` to confirm the E2E test passes"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Run full build, clippy, fmt, and coverage checks to verify all quality gates pass",
+    "steps": [
+      "Run `cargo build --workspace` — zero errors",
+      "Run `cargo test --workspace` — all tests pass",
+      "Run `cargo clippy --workspace -- -D warnings` — zero warnings",
+      "Run `cargo fmt --check` — no formatting issues",
+      "Run coverage commands per CLAUDE.md: `cargo +nightly llvm-cov clean --workspace`, then collect workspace + doctest coverage, then verify >= 89% branch coverage",
+      "Fix any issues found until all gates pass"
     ],
     "passes": true
   }
