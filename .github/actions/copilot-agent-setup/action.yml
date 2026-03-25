@@ -156,47 +156,75 @@ runs:
       id: gateway
       shell: bash
       env:
-        GITHUB_MCP_TOKEN: ${{ inputs.github_token }}
+        GITHUB_MCP_SERVER_TOKEN: ${{ inputs.github_token }}
         MCP_TOOLSETS: ${{ inputs.mcp_toolsets }}
         MCP_SERVER_VERSION: ${{ inputs.mcp_server_version }}
         MCPG_VERSION: ${{ inputs.mcpg_version }}
-        MCP_PORT: ${{ inputs.mcp_port }}
-        SAFE_OUTPUTS_PORT: ${{ steps.safe-outputs-start.outputs.port }}
-        SAFE_OUTPUTS_API_KEY: ${{ steps.safe-outputs-start.outputs.api_key }}
+        GH_AW_SAFE_OUTPUTS_PORT: ${{ steps.safe-outputs-start.outputs.port }}
+        GH_AW_SAFE_OUTPUTS_API_KEY: ${{ steps.safe-outputs-start.outputs.api_key }}
+        GH_AW_SAFE_OUTPUTS: ${{ runner.temp }}/gh-aw/safeoutputs/outputs.jsonl
+        GH_AW_SAFE_OUTPUTS_CONFIG_PATH: ${{ runner.temp }}/gh-aw/safeoutputs/config.json
+        GH_AW_SAFE_OUTPUTS_TOOLS_PATH: ${{ runner.temp }}/gh-aw/safeoutputs/tools.json
       run: |
         mkdir -p /tmp/gh-aw/mcp-logs /tmp/gh-aw/mcp-payloads /home/runner/.copilot
 
-        MCP_API_KEY=$(openssl rand -base64 45 | tr -d '/+=')
-        echo "::add-mask::${MCP_API_KEY}"
+        export MCP_GATEWAY_PORT="80"
+        export MCP_GATEWAY_DOMAIN="host.docker.internal"
+        MCP_GATEWAY_API_KEY=$(openssl rand -base64 45 | tr -d '/+=')
+        echo "::add-mask::${MCP_GATEWAY_API_KEY}"
+        export MCP_GATEWAY_API_KEY
+        export MCP_GATEWAY_PAYLOAD_DIR="/tmp/gh-aw/mcp-payloads"
+        export DEBUG="*"
+        export GH_AW_ENGINE="copilot"
 
-        docker run -d --name mcp-gateway --network host \
-          -e MCP_GATEWAY_PORT="${MCP_PORT}" \
-          -e MCP_GATEWAY_API_KEY="${MCP_API_KEY}" \
-          -e MCP_GATEWAY_PAYLOAD_DIR="/tmp/gh-aw/mcp-payloads" \
-          -e MCP_GATEWAY_LOG_DIR="/tmp/gh-aw/mcp-logs" \
-          -e GITHUB_MCP_TOKEN="${GITHUB_MCP_TOKEN}" \
-          -e GH_AW_SAFE_OUTPUTS_PORT="${SAFE_OUTPUTS_PORT}" \
-          -e GH_AW_SAFE_OUTPUTS_API_KEY="${SAFE_OUTPUTS_API_KEY}" \
+        export MCP_GATEWAY_DOCKER_COMMAND="docker run -i --rm --network host \
           -v /var/run/docker.sock:/var/run/docker.sock \
-          -v /tmp/gh-aw:/tmp/gh-aw \
-          -v ${RUNNER_TEMP}/gh-aw:${RUNNER_TEMP}/gh-aw:ro \
-          ghcr.io/github/gh-aw-mcpg:${MCPG_VERSION}
+          -e MCP_GATEWAY_PORT -e MCP_GATEWAY_DOMAIN -e MCP_GATEWAY_API_KEY \
+          -e MCP_GATEWAY_PAYLOAD_DIR -e MCP_GATEWAY_PAYLOAD_SIZE_THRESHOLD \
+          -e DEBUG -e MCP_GATEWAY_LOG_DIR -e GH_AW_MCP_LOG_DIR \
+          -e GH_AW_SAFE_OUTPUTS -e GH_AW_SAFE_OUTPUTS_CONFIG_PATH \
+          -e GH_AW_SAFE_OUTPUTS_TOOLS_PATH \
+          -e GH_AW_ASSETS_BRANCH -e GH_AW_ASSETS_MAX_SIZE_KB -e GH_AW_ASSETS_ALLOWED_EXTS \
+          -e DEFAULT_BRANCH -e GITHUB_MCP_SERVER_TOKEN -e GITHUB_REPOSITORY \
+          -e GITHUB_SERVER_URL -e GITHUB_SHA -e GITHUB_WORKSPACE -e GITHUB_TOKEN \
+          -e GH_AW_SAFE_OUTPUTS_PORT -e GH_AW_SAFE_OUTPUTS_API_KEY \
+          -v /tmp/gh-aw/mcp-payloads:/tmp/gh-aw/mcp-payloads:rw \
+          -v /opt:/opt:ro -v /tmp:/tmp:rw \
+          -v ${GITHUB_WORKSPACE}:${GITHUB_WORKSPACE}:rw \
+          ghcr.io/github/gh-aw-mcpg:${MCPG_VERSION}"
 
-        # Wait for gateway health (up to 30 s)
-        for i in $(seq 1 30); do
-          curl -sf "http://localhost:${MCP_PORT}/health" > /dev/null 2>&1 && break
-          sleep 1
-        done
-        echo "MCP gateway ready on :${MCP_PORT}"
-
-        # Client-side config for the Copilot CLI
-        cat > /home/runner/.copilot/mcp-config.json << EOF
+        # Pipe the MCP server config (with safe outputs endpoint) into the gateway script
+        cat << MCP_CONFIG_EOF | bash ${RUNNER_TEMP}/gh-aw/actions/start_mcp_gateway.sh
         {
+          "mcpServers": {
+            "github": {
+              "type": "stdio",
+              "container": "ghcr.io/github/github-mcp-server:${MCP_SERVER_VERSION}",
+              "env": {
+                "GITHUB_HOST": "\${GITHUB_SERVER_URL}",
+                "GITHUB_PERSONAL_ACCESS_TOKEN": "\${GITHUB_MCP_SERVER_TOKEN}",
+                "GITHUB_READ_ONLY": "1",
+                "GITHUB_TOOLSETS": "${MCP_TOOLSETS}"
+              }
+            },
+            "safeoutputs": {
+              "type": "http",
+              "url": "http://host.docker.internal:${GH_AW_SAFE_OUTPUTS_PORT}",
+              "headers": {
+                "Authorization": "\${GH_AW_SAFE_OUTPUTS_API_KEY}"
+              },
+              "guard-policies": {
+                "write-sink": { "accept": ["*"] }
+              }
+            }
+          },
           "gateway": {
-            "url": "http://host.docker.internal:${MCP_PORT}",
-            "apiKey": "${MCP_API_KEY}"
+            "port": ${MCP_GATEWAY_PORT},
+            "domain": "${MCP_GATEWAY_DOMAIN}",
+            "apiKey": "${MCP_GATEWAY_API_KEY}",
+            "payloadDir": "${MCP_GATEWAY_PAYLOAD_DIR}"
           }
         }
-        EOF
+        MCP_CONFIG_EOF
 
         echo "mcp_config_path=/home/runner/.copilot/mcp-config.json" >> "$GITHUB_OUTPUT"
