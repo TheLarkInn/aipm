@@ -597,3 +597,47 @@ fn migrate_skill_with_quoted_description_produces_valid_json() {
         "name should match"
     );
 }
+
+// =========================================================================
+// Scenario: marketplace.json description matches plugin.json description
+// =========================================================================
+#[test]
+fn migrate_marketplace_description_matches_plugin_json() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("project");
+    init_workspace(&dir);
+    create_skill(
+        &dir,
+        "deploy",
+        "---\nname: deploy\ndescription: Deploy the application\n---\nDeploy instructions",
+    );
+
+    aipm().args(["migrate", &dir.display().to_string()]).assert().success();
+
+    // Read plugin.json
+    let plugin_json_path = dir.join(".ai/deploy/.claude-plugin/plugin.json");
+    assert!(plugin_json_path.exists(), "plugin.json should exist");
+    let plugin_content = std::fs::read_to_string(&plugin_json_path).unwrap();
+    let plugin_parsed: serde_json::Value =
+        serde_json::from_str(&plugin_content).expect("plugin.json should be valid JSON");
+    let plugin_desc = plugin_parsed.get("description").and_then(serde_json::Value::as_str);
+
+    // Read marketplace.json
+    let marketplace_path = dir.join(".ai/.claude-plugin/marketplace.json");
+    assert!(marketplace_path.exists(), "marketplace.json should exist");
+    let marketplace_content = std::fs::read_to_string(&marketplace_path).unwrap();
+    let marketplace_parsed: serde_json::Value =
+        serde_json::from_str(&marketplace_content).expect("marketplace.json should be valid JSON");
+    let deploy_entry = marketplace_parsed
+        .get("plugins")
+        .and_then(|v| v.as_array())
+        .and_then(|a| a.iter().find(|p| p.get("name").and_then(|n| n.as_str()) == Some("deploy")));
+    let marketplace_desc =
+        deploy_entry.and_then(|p| p.get("description")).and_then(serde_json::Value::as_str);
+
+    assert_eq!(plugin_desc, Some("Deploy the application"));
+    assert_eq!(
+        marketplace_desc, plugin_desc,
+        "marketplace.json description should match plugin.json description"
+    );
+}

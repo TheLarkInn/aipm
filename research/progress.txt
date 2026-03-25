@@ -1,20 +1,17 @@
-2026-03-24: Implemented all 7 features from feature-list.json
+2026-03-24: Implemented all 9 features from feature-list.json for marketplace description mismatch bug fix.
 
-Feature 1: DONE - Updated ToolAdaptor::apply() trait signature to add no_starter: bool + init() call site
-Feature 2: DONE - Updated claude::Adaptor::apply() fresh-write path to conditionally omit enabledPlugins
-Feature 3: DONE - Updated merge_claude_settings() to accept no_starter and skip enabledPlugins when true
-Feature 4: DONE - Updated all 8 existing claude.rs tests to pass no_starter=false argument
-Feature 5: DONE - Added new test claude_settings_created_fresh_no_starter
-Feature 6: DONE - Updated init_no_starter_still_configures_tools test to assert enabledPlugins content
-Feature 7: DONE - Full pipeline passes:
-  - cargo fmt --check: clean
-  - cargo clippy --workspace -- -D warnings: clean
-  - cargo build --workspace: clean
-  - cargo test --workspace: 458 tests pass (0 failures)
-  - Branch coverage: 89.74% (>= 89% threshold)
+Changes made:
+- Added PluginEntry struct to mod.rs (feature 1)
+- Updated registrar::register_plugins signature to accept &[PluginEntry] (feature 2)
+- Updated migrate_single_source to collect PluginEntry with descriptions (feature 3)
+- Updated migrate_recursive to collect PluginEntry with descriptions (feature 4)
+- Updated existing registrar unit tests to use PluginEntry (feature 5)
+- Added 3 new registrar unit tests for description propagation (feature 6)
+- Updated migrate_full_flow test to verify marketplace descriptions (feature 7)
+- Added E2E test migrate_marketplace_description_matches_plugin_json (feature 8)
+- All quality gates pass: build, test (462 total), clippy, fmt, coverage 89.61% (feature 9)
 
-Summary of changes:
-- 2 files modified (workspace_init/mod.rs, adaptors/claude.rs)
-- 1 new test added, 1 test updated with content assertions, 8 tests updated with new parameter
-- All 458 tests pass
-- 89.74% branch coverage
+Files modified:
+- crates/libaipm/src/migrate/mod.rs
+- crates/libaipm/src/migrate/registrar.rs
+- crates/aipm/tests/migrate_e2e.rs

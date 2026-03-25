@@ -209,6 +209,15 @@ pub enum Error {
     Io(#[from] std::io::Error),
 }
 
+/// Data needed to register a plugin in `marketplace.json`.
+#[derive(Debug, Clone)]
+pub struct PluginEntry {
+    /// Plugin name.
+    pub name: String,
+    /// Plugin description (from artifact metadata).
+    pub description: Option<String>,
+}
+
 /// A planned plugin to emit, which may contain artifacts from multiple detectors.
 #[derive(Debug, Clone)]
 pub struct PluginPlan {
@@ -273,7 +282,7 @@ fn migrate_single_source(
     }
 
     let mut actions = Vec::new();
-    let mut registered_names = Vec::new();
+    let mut registered_entries = Vec::new();
     let mut known_names = existing_plugins;
     let mut rename_counter = 0u32;
 
@@ -288,12 +297,15 @@ fn migrate_single_source(
         )?;
         actions.extend(emit_actions);
         known_names.insert(plugin_name.clone());
-        registered_names.push(plugin_name);
+        registered_entries.push(PluginEntry {
+            name: plugin_name,
+            description: artifact.metadata.description.clone(),
+        });
     }
 
-    registrar::register_plugins(ai_dir, &registered_names, fs)?;
-    for name in &registered_names {
-        actions.push(Action::MarketplaceRegistered { name: name.clone() });
+    registrar::register_plugins(ai_dir, &registered_entries, fs)?;
+    for entry in &registered_entries {
+        actions.push(Action::MarketplaceRegistered { name: entry.name.clone() });
     }
 
     Ok(Outcome { actions })
@@ -407,22 +419,23 @@ fn migrate_recursive(
                 actions.extend(emit_actions);
             }
 
-            Ok((actions, final_name.clone()))
+            let description = plan.artifacts.first().and_then(|a| a.metadata.description.clone());
+            Ok((actions, final_name.clone(), description))
         })
         .collect();
 
     let mut all_actions = rename_actions;
-    let mut registered_names = Vec::new();
+    let mut registered_entries = Vec::new();
     for result in emission_results {
-        let (actions, name) = result?;
+        let (actions, name, description) = result?;
         all_actions.extend(actions);
-        registered_names.push(name);
+        registered_entries.push(PluginEntry { name, description });
     }
 
     // Register all in marketplace.json
-    registrar::register_plugins(ai_dir, &registered_names, fs)?;
-    for name in &registered_names {
-        all_actions.push(Action::MarketplaceRegistered { name: name.clone() });
+    registrar::register_plugins(ai_dir, &registered_entries, fs)?;
+    for entry in &registered_entries {
+        all_actions.push(Action::MarketplaceRegistered { name: entry.name.clone() });
     }
 
     Ok(Outcome { actions: all_actions })
@@ -657,6 +670,40 @@ mod tests {
             assert_eq!(plugin_created_count, 2);
             assert_eq!(marketplace_count, 2);
         }
+
+        // Verify marketplace.json descriptions match plugin.json descriptions
+        let marketplace_bytes = fs
+            .written
+            .lock()
+            .expect("mutex poisoned")
+            .get(Path::new("/project/.ai/.claude-plugin/marketplace.json"))
+            .expect("marketplace.json should have been written")
+            .clone();
+        let content =
+            String::from_utf8(marketplace_bytes).expect("marketplace.json must be valid UTF-8");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&content).expect("marketplace.json must contain valid JSON");
+        let plugins = parsed.get("plugins").and_then(|v| v.as_array());
+
+        // "deploy" skill has description "Deploy app" in its SKILL.md frontmatter
+        let deploy = plugins.and_then(|a| {
+            a.iter().find(|p| p.get("name").and_then(|n| n.as_str()) == Some("deploy"))
+        });
+        assert_eq!(
+            deploy.and_then(|p| p.get("description")).and_then(serde_json::Value::as_str),
+            Some("Deploy app"),
+            "deploy marketplace description should match SKILL.md frontmatter"
+        );
+
+        // "review" command has no frontmatter description — should get fallback
+        let review = plugins.and_then(|a| {
+            a.iter().find(|p| p.get("name").and_then(|n| n.as_str()) == Some("review"))
+        });
+        assert_eq!(
+            review.and_then(|p| p.get("description")).and_then(serde_json::Value::as_str),
+            Some("Migrated from .claude/ configuration"),
+            "review marketplace description should use fallback when no frontmatter"
+        );
     }
 
     #[test]

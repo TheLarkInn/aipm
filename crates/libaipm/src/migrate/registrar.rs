@@ -4,11 +4,11 @@ use std::path::Path;
 
 use crate::fs::Fs;
 
-use super::Error;
+use super::{Error, PluginEntry};
 
 /// Append migrated plugins to `marketplace.json` without modifying existing entries.
-pub fn register_plugins(ai_dir: &Path, plugin_names: &[String], fs: &dyn Fs) -> Result<(), Error> {
-    if plugin_names.is_empty() {
+pub fn register_plugins(ai_dir: &Path, entries: &[PluginEntry], fs: &dyn Fs) -> Result<(), Error> {
+    if entries.is_empty() {
         return Ok(());
     }
 
@@ -25,18 +25,22 @@ pub fn register_plugins(ai_dir: &Path, plugin_names: &[String], fs: &dyn Fs) -> 
             ))
         })?;
 
-    for name in plugin_names {
-        let already_registered = plugins
-            .iter()
-            .any(|p| p.get("name").and_then(serde_json::Value::as_str) == Some(name.as_str()));
+    for entry in entries {
+        let already_registered = plugins.iter().any(|p| {
+            p.get("name").and_then(serde_json::Value::as_str) == Some(entry.name.as_str())
+        });
         if already_registered {
             continue;
         }
 
+        let name = &entry.name;
+        let description =
+            entry.description.as_deref().unwrap_or("Migrated from .claude/ configuration");
+
         plugins.push(serde_json::json!({
             "name": name,
             "source": format!("./{name}"),
-            "description": "Migrated from .claude/ configuration"
+            "description": description
         }));
     }
 
@@ -121,13 +125,17 @@ mod tests {
         PathBuf::from("/ai/.claude-plugin/marketplace.json")
     }
 
+    fn entry(name: &str, description: Option<&str>) -> PluginEntry {
+        PluginEntry { name: name.to_string(), description: description.map(String::from) }
+    }
+
     #[test]
     fn register_appends_to_empty_plugins_array() {
         let fs = MockFs::new();
         fs.set_file(marketplace_path(), r#"{"name":"test-marketplace","plugins":[]}"#.to_string());
 
-        let names = vec!["deploy".to_string(), "lint".to_string()];
-        let result = register_plugins(Path::new("/ai"), &names, &fs);
+        let entries = vec![entry("deploy", None), entry("lint", None)];
+        let result = register_plugins(Path::new("/ai"), &entries, &fs);
         assert!(result.is_ok());
 
         let written = fs.get_written(&marketplace_path());
@@ -143,8 +151,8 @@ mod tests {
             r#"{"name":"test","plugins":[{"name":"starter-aipm-plugin","source":"./starter-aipm-plugin"}]}"#.to_string(),
         );
 
-        let names = vec!["deploy".to_string()];
-        let result = register_plugins(Path::new("/ai"), &names, &fs);
+        let entries = vec![entry("deploy", None)];
+        let result = register_plugins(Path::new("/ai"), &entries, &fs);
         assert!(result.is_ok());
 
         let written = fs.get_written(&marketplace_path());
@@ -160,8 +168,8 @@ mod tests {
             r#"{"plugins":[{"name":"deploy","source":"./deploy"}]}"#.to_string(),
         );
 
-        let names = vec!["deploy".to_string()];
-        let result = register_plugins(Path::new("/ai"), &names, &fs);
+        let entries = vec![entry("deploy", None)];
+        let result = register_plugins(Path::new("/ai"), &entries, &fs);
         assert!(result.is_ok());
 
         let written = fs.get_written(&marketplace_path());
@@ -186,13 +194,83 @@ mod tests {
                 .to_string(),
         );
 
-        let names = vec!["deploy".to_string()];
-        let result = register_plugins(Path::new("/ai"), &names, &fs);
+        let entries = vec![entry("deploy", None)];
+        let result = register_plugins(Path::new("/ai"), &entries, &fs);
         assert!(result.is_ok());
 
         let written = fs.get_written(&marketplace_path());
         assert!(written.as_ref().is_some_and(|c| c.contains("my-marketplace")));
         assert!(written.as_ref().is_some_and(|c| c.contains("team")));
         assert!(written.as_ref().is_some_and(|c| c.contains("version")));
+    }
+
+    /// Parse the written marketplace.json from MockFs, asserting it was written and is valid.
+    fn parse_written_marketplace(fs: &MockFs) -> serde_json::Value {
+        let content =
+            fs.get_written(&marketplace_path()).expect("marketplace.json should have been written");
+        serde_json::from_str(&content).expect("marketplace.json should be valid JSON")
+    }
+
+    #[test]
+    fn register_uses_entry_description() {
+        let fs = MockFs::new();
+        fs.set_file(marketplace_path(), r#"{"plugins":[]}"#.to_string());
+
+        let entries = vec![entry("deploy", Some("Deploy app"))];
+        let result = register_plugins(Path::new("/ai"), &entries, &fs);
+        assert!(result.is_ok());
+
+        let parsed = parse_written_marketplace(&fs);
+        let plugin = parsed.get("plugins").and_then(|v| v.as_array()).and_then(|a| a.first());
+        assert_eq!(
+            plugin.and_then(|p| p.get("description")).and_then(serde_json::Value::as_str),
+            Some("Deploy app")
+        );
+    }
+
+    #[test]
+    fn register_uses_fallback_when_no_description() {
+        let fs = MockFs::new();
+        fs.set_file(marketplace_path(), r#"{"plugins":[]}"#.to_string());
+
+        let entries = vec![entry("deploy", None)];
+        let result = register_plugins(Path::new("/ai"), &entries, &fs);
+        assert!(result.is_ok());
+
+        let parsed = parse_written_marketplace(&fs);
+        let plugin = parsed.get("plugins").and_then(|v| v.as_array()).and_then(|a| a.first());
+        assert_eq!(
+            plugin.and_then(|p| p.get("description")).and_then(serde_json::Value::as_str),
+            Some("Migrated from .claude/ configuration")
+        );
+    }
+
+    #[test]
+    fn register_mixed_descriptions() {
+        let fs = MockFs::new();
+        fs.set_file(marketplace_path(), r#"{"plugins":[]}"#.to_string());
+
+        let entries = vec![entry("deploy", Some("Deploy app")), entry("lint", None)];
+        let result = register_plugins(Path::new("/ai"), &entries, &fs);
+        assert!(result.is_ok());
+
+        let parsed = parse_written_marketplace(&fs);
+        let plugins = parsed.get("plugins").and_then(|v| v.as_array());
+
+        let deploy = plugins.and_then(|a| {
+            a.iter().find(|p| p.get("name").and_then(|n| n.as_str()) == Some("deploy"))
+        });
+        assert_eq!(
+            deploy.and_then(|p| p.get("description")).and_then(serde_json::Value::as_str),
+            Some("Deploy app")
+        );
+
+        let lint = plugins.and_then(|a| {
+            a.iter().find(|p| p.get("name").and_then(|n| n.as_str()) == Some("lint"))
+        });
+        assert_eq!(
+            lint.and_then(|p| p.get("description")).and_then(serde_json::Value::as_str),
+            Some("Migrated from .claude/ configuration")
+        );
     }
 }
