@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.9.1] - 2026-03-25
+
+### Bug Fixes
+- Marketplace.json descriptions match plugin.json during migrate ([#69](https://github.com/TheLarkInn/aipm/pull/69)) (9588c60)
+
 ## [0.9.0] - 2026-03-25
 
 ### Bug Fixes
