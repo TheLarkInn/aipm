@@ -69,7 +69,7 @@ runs:
 
         # AWF binary
         curl -fsSL \
-          "https://github.com/github/gh-aw-firewall/releases/download/v${AWF_VERSION}/awf-linux-amd64" \
+          "https://github.com/github/gh-aw-firewall/releases/download/v${AWF_VERSION}/awf-linux-x64" \
           -o /usr/local/bin/awf
         chmod +x /usr/local/bin/awf
 
