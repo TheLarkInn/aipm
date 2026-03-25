@@ -20,13 +20,17 @@ pub trait ToolAdaptor {
 
     /// Apply tool-specific settings to the workspace directory.
     ///
+    /// When `no_starter` is `true`, adaptors should skip enabling the starter
+    /// plugin (e.g., omit `enabledPlugins` entries) while still registering the
+    /// marketplace directory.
+    ///
     /// Returns `true` if files were written or modified, `false` if the tool
     /// was already configured and no changes were needed.
     ///
     /// # Errors
     ///
     /// Returns `Error` if I/O operations fail or existing config files cannot be parsed.
-    fn apply(&self, dir: &Path, fs: &dyn Fs) -> Result<bool, Error>;
+    fn apply(&self, dir: &Path, no_starter: bool, fs: &dyn Fs) -> Result<bool, Error>;
 }
 
 /// Options for workspace initialization.
@@ -114,7 +118,7 @@ pub fn init(
         actions.push(InitAction::MarketplaceCreated);
 
         for adaptor in adaptors {
-            if adaptor.apply(opts.dir, fs)? {
+            if adaptor.apply(opts.dir, opts.no_starter, fs)? {
                 actions.push(InitAction::ToolConfigured(adaptor.name().to_string()));
             }
         }
@@ -972,6 +976,23 @@ mod tests {
         assert!(tmp.join(".claude/settings.json").exists());
         // But no starter plugin
         assert!(!tmp.join(".ai/starter-aipm-plugin").exists());
+
+        // settings.json should have marketplace but NOT enabledPlugins with starter
+        let content =
+            std::fs::read_to_string(tmp.join(".claude/settings.json")).unwrap_or_default();
+        let v: serde_json::Value = serde_json::from_str(&content).ok().unwrap_or_default();
+        assert!(
+            v["extraKnownMarketplaces"]["local-repo-plugins"].is_object(),
+            "marketplace should still be registered"
+        );
+        let has_starter = v
+            .get("enabledPlugins")
+            .and_then(|ep| ep.as_object())
+            .is_some_and(|ep| ep.contains_key("starter-aipm-plugin@local-repo-plugins"));
+        assert!(
+            !has_starter,
+            "enabledPlugins should not reference starter plugin when no_starter is true"
+        );
 
         cleanup(&tmp);
     }

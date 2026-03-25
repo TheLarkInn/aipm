@@ -16,17 +16,28 @@ impl ToolAdaptor for Adaptor {
         "Claude Code"
     }
 
-    fn apply(&self, dir: &Path, fs: &dyn Fs) -> Result<bool, Error> {
+    fn apply(&self, dir: &Path, no_starter: bool, fs: &dyn Fs) -> Result<bool, Error> {
         let settings_dir = dir.join(".claude");
         let settings_path = settings_dir.join("settings.json");
 
         if fs.exists(&settings_path) {
-            return merge_claude_settings(&settings_path, fs);
+            return merge_claude_settings(&settings_path, no_starter, fs);
         }
 
         fs.create_dir_all(&settings_dir)?;
-        crate::workspace_init::write_file(
-            &settings_path,
+
+        let content = if no_starter {
+            "{\n\
+             \x20 \"extraKnownMarketplaces\": {\n\
+             \x20   \"local-repo-plugins\": {\n\
+             \x20     \"source\": {\n\
+             \x20       \"source\": \"directory\",\n\
+             \x20       \"path\": \"./.ai\"\n\
+             \x20     }\n\
+             \x20   }\n\
+             \x20 }\n\
+             }\n"
+        } else {
             "{\n\
              \x20 \"extraKnownMarketplaces\": {\n\
              \x20   \"local-repo-plugins\": {\n\
@@ -39,14 +50,19 @@ impl ToolAdaptor for Adaptor {
              \x20 \"enabledPlugins\": {\n\
              \x20   \"starter-aipm-plugin@local-repo-plugins\": true\n\
              \x20 }\n\
-             }\n",
-            fs,
-        )?;
+             }\n"
+        };
+
+        crate::workspace_init::write_file(&settings_path, content, fs)?;
         Ok(true)
     }
 }
 
-fn merge_claude_settings(settings_path: &Path, fs: &dyn Fs) -> Result<bool, Error> {
+fn merge_claude_settings(
+    settings_path: &Path,
+    no_starter: bool,
+    fs: &dyn Fs,
+) -> Result<bool, Error> {
     let content = fs.read_to_string(settings_path)?;
     let mut json: serde_json::Value = serde_json::from_str(&content)
         .map_err(|source| Error::JsonParse { path: settings_path.to_path_buf(), source })?;
@@ -59,15 +75,23 @@ fn merge_claude_settings(settings_path: &Path, fs: &dyn Fs) -> Result<bool, Erro
         )),
     })?;
 
-    // Check if both marketplace and enabledPlugins are already correctly configured
+    // Check if already correctly configured
     let has_marketplace =
         obj.get("extraKnownMarketplaces").and_then(|ekm| ekm.get("local-repo-plugins")).is_some();
-    let has_enabled = obj
-        .get("enabledPlugins")
-        .and_then(|ep| ep.as_object())
-        .is_some_and(|ep| ep.contains_key("starter-aipm-plugin@local-repo-plugins"));
-    if has_marketplace && has_enabled {
-        return Ok(false);
+
+    if no_starter {
+        // When no_starter, we only need the marketplace entry
+        if has_marketplace {
+            return Ok(false);
+        }
+    } else {
+        let has_enabled = obj
+            .get("enabledPlugins")
+            .and_then(|ep| ep.as_object())
+            .is_some_and(|ep| ep.contains_key("starter-aipm-plugin@local-repo-plugins"));
+        if has_marketplace && has_enabled {
+            return Ok(false);
+        }
     }
 
     // Ensure marketplace entry exists
@@ -89,12 +113,14 @@ fn merge_claude_settings(settings_path: &Path, fs: &dyn Fs) -> Result<bool, Erro
         );
     }
 
-    // Add enabledPlugins at the top level (sibling of extraKnownMarketplaces)
-    let enabled = obj.entry("enabledPlugins").or_insert_with(|| serde_json::json!({}));
-    if let Some(enabled_obj) = enabled.as_object_mut() {
-        enabled_obj
-            .entry("starter-aipm-plugin@local-repo-plugins")
-            .or_insert(serde_json::json!(true));
+    // Add enabledPlugins only when starter plugin is requested
+    if !no_starter {
+        let enabled = obj.entry("enabledPlugins").or_insert_with(|| serde_json::json!({}));
+        if let Some(enabled_obj) = enabled.as_object_mut() {
+            enabled_obj
+                .entry("starter-aipm-plugin@local-repo-plugins")
+                .or_insert(serde_json::json!(true));
+        }
     }
 
     let mut output = serde_json::to_string_pretty(&json)
@@ -127,7 +153,7 @@ mod tests {
     fn claude_settings_created_fresh() {
         let tmp = make_temp_dir("fresh");
         let adaptor = Adaptor;
-        let result = adaptor.apply(&tmp, &Real);
+        let result = adaptor.apply(&tmp, false, &Real);
         assert!(result.is_ok_and(|v| v));
         assert!(tmp.join(".claude/settings.json").exists());
 
@@ -148,6 +174,32 @@ mod tests {
     }
 
     #[test]
+    fn claude_settings_created_fresh_no_starter() {
+        let tmp = make_temp_dir("fresh-no-starter");
+        let adaptor = Adaptor;
+        let result = adaptor.apply(&tmp, true, &Real);
+        assert!(result.is_ok_and(|v| v));
+        assert!(tmp.join(".claude/settings.json").exists());
+
+        let content = std::fs::read_to_string(tmp.join(".claude/settings.json"));
+        assert!(content.is_ok());
+        let v: serde_json::Value =
+            serde_json::from_str(content.as_deref().unwrap_or("")).ok().unwrap_or_default();
+
+        // extraKnownMarketplaces should still be present
+        assert!(v["extraKnownMarketplaces"]["local-repo-plugins"].is_object());
+        assert_eq!(v["extraKnownMarketplaces"]["local-repo-plugins"]["source"]["path"], "./.ai");
+
+        // enabledPlugins should NOT exist when no_starter is true
+        assert!(
+            v.get("enabledPlugins").is_none(),
+            "enabledPlugins should not exist when no_starter is true"
+        );
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn claude_settings_merge_existing() {
         let tmp = make_temp_dir("merge");
         std::fs::create_dir_all(tmp.join(".claude")).ok();
@@ -158,7 +210,7 @@ mod tests {
         .ok();
 
         let adaptor = Adaptor;
-        let result = adaptor.apply(&tmp, &Real);
+        let result = adaptor.apply(&tmp, false, &Real);
         assert!(result.is_ok_and(|v| v));
 
         let content = std::fs::read_to_string(tmp.join(".claude/settings.json"));
@@ -187,7 +239,7 @@ mod tests {
         ).ok();
 
         let adaptor = Adaptor;
-        let result = adaptor.apply(&tmp, &Real);
+        let result = adaptor.apply(&tmp, false, &Real);
         assert!(result.is_ok_and(|v| !v));
 
         cleanup(&tmp);
@@ -203,7 +255,7 @@ mod tests {
         ).ok();
 
         let adaptor = Adaptor;
-        let result = adaptor.apply(&tmp, &Real);
+        let result = adaptor.apply(&tmp, false, &Real);
         assert!(result.is_ok_and(|v| v));
 
         let content = std::fs::read_to_string(tmp.join(".claude/settings.json"));
@@ -222,7 +274,7 @@ mod tests {
         std::fs::write(tmp.join(".claude/settings.json"), "{{invalid json").ok();
 
         let adaptor = Adaptor;
-        let result = adaptor.apply(&tmp, &Real);
+        let result = adaptor.apply(&tmp, false, &Real);
         assert!(result.is_err());
         let err = result.err();
         assert!(err.is_some_and(|e| e.to_string().contains("JSON parse")));
@@ -237,7 +289,7 @@ mod tests {
         std::fs::write(tmp.join(".claude/settings.json"), "[1, 2, 3]").ok();
 
         let adaptor = Adaptor;
-        let result = adaptor.apply(&tmp, &Real);
+        let result = adaptor.apply(&tmp, false, &Real);
         assert!(result.is_err());
         let err = result.err();
         assert!(err.is_some_and(|e| e.to_string().contains("expected JSON object")));
@@ -252,7 +304,7 @@ mod tests {
         std::fs::write(tmp.join(".claude/settings.json"), r#"{"extraKnownMarketplaces": 42}"#).ok();
 
         let adaptor = Adaptor;
-        let result = adaptor.apply(&tmp, &Real);
+        let result = adaptor.apply(&tmp, false, &Real);
         // Should succeed — silently skips non-object mutation, still writes enabledPlugins
         assert!(result.is_ok());
 
@@ -267,7 +319,7 @@ mod tests {
             .ok();
 
         let adaptor = Adaptor;
-        let result = adaptor.apply(&tmp, &Real);
+        let result = adaptor.apply(&tmp, false, &Real);
         // Should succeed — skips non-object enabledPlugins, still writes marketplace
         assert!(result.is_ok());
 

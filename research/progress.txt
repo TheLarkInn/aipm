@@ -1,29 +1,20 @@
-2026-03-24: Implemented all 15 features from feature-list.json
+2026-03-24: Implemented all 7 features from feature-list.json
 
-Feature 1:  DONE - Added strip_yaml_quotes() helper to migrate/mod.rs with 7 unit tests
-Feature 2:  DONE - Updated skill_detector.rs to strip YAML quotes + new test
-Feature 3:  DONE - Updated agent_detector.rs to strip YAML quotes + new test
-Feature 4:  DONE - Updated command_detector.rs to strip YAML quotes + new test
-Feature 5:  DONE - Updated output_style_detector.rs to strip YAML quotes + new test
-Feature 6:  DONE - Enabled serde_json preserve_order feature in workspace Cargo.toml
-Feature 7:  DONE - Added PluginToml, PluginPackage, PluginComponents structs to emitter.rs
-Feature 8:  DONE - Rewrote generate_plugin_json_multi() to use serde_json::Map
-Feature 9:  DONE - Rewrote generate_plugin_manifest() to use PluginToml + toml::to_string_pretty()
-Feature 10: DONE - Rewrote generate_package_manifest() to use PluginToml + toml::to_string_pretty()
-Feature 11: DONE - Migrated workspace_init::generate_plugin_json() to serde_json
-Feature 12: DONE - All existing tests pass (no formatting changes needed)
-Feature 13: DONE - Added 4 new unit tests for JSON/TOML roundtrip with special chars
-Feature 14: DONE - Added E2E test for quoted description producing valid JSON
-Feature 15: DONE - Full pipeline passes:
+Feature 1: DONE - Updated ToolAdaptor::apply() trait signature to add no_starter: bool + init() call site
+Feature 2: DONE - Updated claude::Adaptor::apply() fresh-write path to conditionally omit enabledPlugins
+Feature 3: DONE - Updated merge_claude_settings() to accept no_starter and skip enabledPlugins when true
+Feature 4: DONE - Updated all 8 existing claude.rs tests to pass no_starter=false argument
+Feature 5: DONE - Added new test claude_settings_created_fresh_no_starter
+Feature 6: DONE - Updated init_no_starter_still_configures_tools test to assert enabledPlugins content
+Feature 7: DONE - Full pipeline passes:
   - cargo fmt --check: clean
   - cargo clippy --workspace -- -D warnings: clean
   - cargo build --workspace: clean
-  - cargo test --workspace: 457 tests pass (0 failures)
-  - Branch coverage: 90.26% (>= 89% threshold)
+  - cargo test --workspace: 458 tests pass (0 failures)
+  - Branch coverage: 89.74% (>= 89% threshold)
 
 Summary of changes:
-- 10 files modified
-- serde_json dependency updated to include preserve_order feature
-- 12 new tests added
-- All 457 tests pass
-- 90.26% branch coverage
+- 2 files modified (workspace_init/mod.rs, adaptors/claude.rs)
+- 1 new test added, 1 test updated with content assertions, 8 tests updated with new parameter
+- All 458 tests pass
+- 89.74% branch coverage
