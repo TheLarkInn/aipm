@@ -2,4 +2,4 @@
 source: crates/aipm/src/wizard.rs
 expression: "format!(\"{:?}\", result)"
 ---
-(true, true, false)
+(true, true, false, "local-repo-plugins")

@@ -39,19 +39,18 @@ writeFileSync(
   JSON.stringify({ name, version: "0.1.0", description: `TODO: describe ${name}` }, null, 2) + "\n"
 );
 
-// Register in marketplace.json
+// Read or create marketplace.json (hoisted for use in settings section)
+const marketplacePath = join(aiDir, ".claude-plugin", "marketplace.json");
+let marketplace: { name: string; owner: { name: string }; metadata: { description: string }; plugins: Array<{ name: string; source: string; description: string }> } = {
+  name: "local-repo-plugins",
+  owner: { name: "local" },
+  metadata: { description: "Local plugins for this repository" },
+  plugins: []
+};
 try {
-  const marketplacePath = join(aiDir, ".claude-plugin", "marketplace.json");
-  let marketplace;
   if (existsSync(marketplacePath)) {
     marketplace = JSON.parse(readFileSync(marketplacePath, "utf-8"));
   } else {
-    marketplace = {
-      name: "local-repo-plugins",
-      owner: { name: "local" },
-      metadata: { description: "Local plugins for this repository" },
-      plugins: []
-    };
     mkdirSync(join(aiDir, ".claude-plugin"), { recursive: true });
   }
   if (!marketplace.plugins.some((p: { name: string }) => p.name === name)) {
@@ -79,7 +78,7 @@ try {
   if (!settings.enabledPlugins || typeof settings.enabledPlugins !== "object") {
     settings.enabledPlugins = {};
   }
-  const pluginKey = `${name}@local-repo-plugins`;
+  const pluginKey = `${name}@${marketplace.name}`;
   const enabled = settings.enabledPlugins as Record<string, boolean>;
   if (!(pluginKey in enabled)) {
     enabled[pluginKey] = true;

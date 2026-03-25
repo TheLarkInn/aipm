@@ -1,17 +1,26 @@
-2026-03-24: Implemented all 9 features from feature-list.json for marketplace description mismatch bug fix.
+2026-03-25 — Marketplace Name Customization Implementation
 
-Changes made:
-- Added PluginEntry struct to mod.rs (feature 1)
-- Updated registrar::register_plugins signature to accept &[PluginEntry] (feature 2)
-- Updated migrate_single_source to collect PluginEntry with descriptions (feature 3)
-- Updated migrate_recursive to collect PluginEntry with descriptions (feature 4)
-- Updated existing registrar unit tests to use PluginEntry (feature 5)
-- Added 3 new registrar unit tests for description propagation (feature 6)
-- Updated migrate_full_flow test to verify marketplace descriptions (feature 7)
-- Added E2E test migrate_marketplace_description_matches_plugin_json (feature 8)
-- All quality gates pass: build, test (462 total), clippy, fmt, coverage 89.61% (feature 9)
+All 15 features from feature-list.json implemented and verified.
+
+Gate checks:
+  - cargo build --workspace: PASS
+  - cargo test --workspace: PASS (475 tests, 0 failures)
+  - cargo clippy --workspace -- -D warnings: PASS
+  - cargo fmt --check: PASS
+  - Branch coverage: 89.78% (>= 89% threshold)
 
 Files modified:
-- crates/libaipm/src/migrate/mod.rs
-- crates/libaipm/src/migrate/registrar.rs
-- crates/aipm/tests/migrate_e2e.rs
+  - crates/aipm/src/main.rs — Added --name CLI flag, updated dispatch and output
+  - crates/aipm/src/wizard.rs — Added Text variant, validate_marketplace_name(), name prompt step, 4-tuple resolution
+  - crates/aipm/src/wizard_tty.rs — Added Text prompt handling, WizardResult type alias
+  - crates/libaipm/src/workspace_init/mod.rs — Added marketplace_name to Options, ToolAdaptor, scaffold_marketplace, generate_marketplace_json; scaffold script reads name at runtime
+  - crates/libaipm/src/workspace_init/adaptors/mod.rs — No changes needed (trait change propagated via mod.rs)
+  - crates/libaipm/src/workspace_init/adaptors/claude.rs — Parameterized apply() and merge_claude_settings(), replaced 8 hardcoded literals with serde_json Map construction
+  - crates/aipm/src/snapshots/*.snap — 17 snapshot files updated
+  - crates/libaipm/src/workspace_init/snapshots/*.snap — 1 scaffold script snapshot updated
+
+Key implementation notes:
+  - serde_json::json!() macro does NOT interpolate variables as keys; used serde_json::Map for dynamic keys
+  - Scaffold script: hoisted marketplace variable declaration for cross-try-block scope access
+  - Wizard: used str::to_string instead of closure to satisfy clippy::redundant_closure_for_method_calls
+  - TTY bridge: used WizardResult type alias to satisfy clippy::type_complexity

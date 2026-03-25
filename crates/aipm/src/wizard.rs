@@ -34,6 +34,13 @@ pub enum PromptKind {
         /// Default value (true = yes).
         default: bool,
     },
+    /// Free-form text input.
+    Text {
+        /// Grey placeholder text (shown when input is empty).
+        placeholder: String,
+        /// Whether to apply marketplace-name validation.
+        validate: bool,
+    },
 }
 
 /// Raw answer collected from a prompt.
@@ -43,6 +50,8 @@ pub enum PromptAnswer {
     Selected(usize),
     /// Boolean confirmation.
     Bool(bool),
+    /// Text input.
+    Text(String),
 }
 
 // =============================================================================
@@ -60,6 +69,7 @@ pub fn workspace_prompt_steps(
     flag_workspace: bool,
     flag_marketplace: bool,
     flag_no_starter: bool,
+    flag_name: Option<&str>,
 ) -> Vec<PromptStep> {
     let mut steps = Vec::new();
 
@@ -82,6 +92,18 @@ pub fn workspace_prompt_steps(
     // we're asking the user).
     let marketplace_possible = flag_marketplace || needs_setup_prompt;
 
+    // Marketplace name prompt — skip if --name was provided or marketplace not possible.
+    if marketplace_possible && flag_name.is_none() {
+        steps.push(PromptStep {
+            label: "Marketplace name:",
+            kind: PromptKind::Text {
+                placeholder: "local-repo-plugins".to_string(),
+                validate: true,
+            },
+            help: Some("Lowercase alphanumeric with hyphens, or press Enter for default"),
+        });
+    }
+
     // Include starter prompt only if marketplace is possible AND --no-starter wasn't set.
     if marketplace_possible && !flag_no_starter {
         steps.push(PromptStep {
@@ -94,7 +116,7 @@ pub fn workspace_prompt_steps(
     steps
 }
 
-/// Map raw wizard answers to final `(workspace, marketplace, no_starter)` values.
+/// Map raw wizard answers to final `(workspace, marketplace, no_starter, marketplace_name)`.
 ///
 /// `answers` correspond 1:1 with the steps returned by [`workspace_prompt_steps`].
 pub fn resolve_workspace_answers(
@@ -102,7 +124,8 @@ pub fn resolve_workspace_answers(
     flag_workspace: bool,
     flag_marketplace: bool,
     flag_no_starter: bool,
-) -> (bool, bool, bool) {
+    flag_name: Option<&str>,
+) -> (bool, bool, bool, String) {
     let needs_setup_prompt = !flag_workspace && !flag_marketplace;
     let mut idx = 0;
 
@@ -119,8 +142,25 @@ pub fn resolve_workspace_answers(
         (flag_workspace, flag_marketplace)
     };
 
-    // Resolve no_starter
+    // Resolve marketplace name
     let marketplace_possible = flag_marketplace || needs_setup_prompt;
+    let marketplace_name = flag_name.map_or_else(
+        || {
+            if marketplace_possible {
+                let resolved = match answers.get(idx) {
+                    Some(PromptAnswer::Text(t)) if !t.is_empty() => t.clone(),
+                    _ => "local-repo-plugins".to_string(),
+                };
+                idx += 1;
+                resolved
+            } else {
+                "local-repo-plugins".to_string()
+            }
+        },
+        str::to_string,
+    );
+
+    // Resolve no_starter
     let no_starter = if marketplace_possible && !flag_no_starter {
         // There was a confirm prompt
         match answers.get(idx) {
@@ -137,7 +177,7 @@ pub fn resolve_workspace_answers(
         flag_no_starter
     };
 
-    (do_workspace, do_marketplace, no_starter)
+    (do_workspace, do_marketplace, no_starter, marketplace_name)
 }
 
 // =============================================================================
@@ -147,13 +187,37 @@ pub fn resolve_workspace_answers(
 /// Apply today's defaulting logic for the non-interactive path.
 ///
 /// If neither `--workspace` nor `--marketplace` is set, default to marketplace only.
-pub const fn resolve_defaults(
+pub fn resolve_defaults(
     workspace: bool,
     marketplace: bool,
     no_starter: bool,
-) -> (bool, bool, bool) {
+    name: Option<&str>,
+) -> (bool, bool, bool, String) {
     let (w, m) = if !workspace && !marketplace { (false, true) } else { (workspace, marketplace) };
-    (w, m, no_starter)
+    let marketplace_name = name.unwrap_or("local-repo-plugins").to_string();
+    (w, m, no_starter, marketplace_name)
+}
+
+// =============================================================================
+// Validation
+// =============================================================================
+
+/// Validate a marketplace name.
+///
+/// Empty string is valid (means "use default").
+/// Otherwise must be lowercase alphanumeric with hyphens, optionally `@org/name`.
+pub fn validate_marketplace_name(input: &str) -> Result<(), String> {
+    if input.is_empty() {
+        return Ok(());
+    }
+
+    for c in input.chars() {
+        if !(c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '@' || c == '/') {
+            return Err("Must be lowercase alphanumeric with hyphens".to_string());
+        }
+    }
+
+    Ok(())
 }
 
 // =============================================================================
@@ -200,6 +264,12 @@ mod tests {
                 PromptKind::Confirm { default } => {
                     out.push_str(&format!("  Kind: Confirm (default: {})\n", default));
                 },
+                PromptKind::Text { placeholder, validate } => {
+                    out.push_str(&format!("  Kind: Text (placeholder: \"{}\")\n", placeholder));
+                    if *validate {
+                        out.push_str("  Validate: marketplace-name\n");
+                    }
+                },
             }
             if let Some(help) = step.help {
                 out.push_str(&format!("  Help: {}\n", help));
@@ -210,42 +280,55 @@ mod tests {
     }
 
     // =========================================================================
-    // Prompt step snapshots — all 6 flag combinations
+    // Prompt step snapshots — flag combinations
     // =========================================================================
 
     #[test]
     fn workspace_prompts_no_flags_snapshot() {
-        let steps = workspace_prompt_steps(false, false, false);
+        let steps = workspace_prompt_steps(false, false, false, None);
         insta::assert_snapshot!(format_steps(&steps));
     }
 
     #[test]
     fn workspace_prompts_workspace_flag_snapshot() {
-        let steps = workspace_prompt_steps(true, false, false);
+        let steps = workspace_prompt_steps(true, false, false, None);
         insta::assert_snapshot!(format_steps(&steps));
     }
 
     #[test]
     fn workspace_prompts_marketplace_flag_snapshot() {
-        let steps = workspace_prompt_steps(false, true, false);
+        let steps = workspace_prompt_steps(false, true, false, None);
         insta::assert_snapshot!(format_steps(&steps));
     }
 
     #[test]
     fn workspace_prompts_both_flags_snapshot() {
-        let steps = workspace_prompt_steps(true, true, false);
+        let steps = workspace_prompt_steps(true, true, false, None);
         insta::assert_snapshot!(format_steps(&steps));
     }
 
     #[test]
     fn workspace_prompts_no_starter_flag_snapshot() {
-        let steps = workspace_prompt_steps(false, true, true);
+        let steps = workspace_prompt_steps(false, true, true, None);
         insta::assert_snapshot!(format_steps(&steps));
     }
 
     #[test]
     fn workspace_prompts_all_flags_snapshot() {
-        let steps = workspace_prompt_steps(true, true, true);
+        let steps = workspace_prompt_steps(true, true, true, None);
+        insta::assert_snapshot!(format_steps(&steps));
+    }
+
+    #[test]
+    fn workspace_prompts_name_flag_omits_name_prompt() {
+        let steps = workspace_prompt_steps(false, false, false, Some("custom-mkt"));
+        insta::assert_snapshot!(format_steps(&steps));
+    }
+
+    #[test]
+    fn workspace_prompts_workspace_only_omits_name_prompt() {
+        // --workspace alone means no marketplace, so no name prompt
+        let steps = workspace_prompt_steps(true, false, false, None);
         insta::assert_snapshot!(format_steps(&steps));
     }
 
@@ -255,45 +338,91 @@ mod tests {
 
     #[test]
     fn resolve_workspace_marketplace_only_snapshot() {
-        let answers = vec![PromptAnswer::Selected(0), PromptAnswer::Bool(true)];
-        let result = resolve_workspace_answers(&answers, false, false, false);
+        let answers = vec![
+            PromptAnswer::Selected(0),
+            PromptAnswer::Text(String::new()),
+            PromptAnswer::Bool(true),
+        ];
+        let result = resolve_workspace_answers(&answers, false, false, false, None);
         insta::assert_snapshot!(format!("{:?}", result));
     }
 
     #[test]
     fn resolve_workspace_manifest_only_snapshot() {
         // Selecting "Workspace only" — no confirm prompt follows because marketplace=false
-        let answers = vec![PromptAnswer::Selected(1), PromptAnswer::Bool(true)];
-        let result = resolve_workspace_answers(&answers, false, false, false);
+        let answers = vec![
+            PromptAnswer::Selected(1),
+            PromptAnswer::Text(String::new()),
+            PromptAnswer::Bool(true),
+        ];
+        let result = resolve_workspace_answers(&answers, false, false, false, None);
         insta::assert_snapshot!(format!("{:?}", result));
     }
 
     #[test]
     fn resolve_workspace_both_snapshot() {
-        let answers = vec![PromptAnswer::Selected(2), PromptAnswer::Bool(true)];
-        let result = resolve_workspace_answers(&answers, false, false, false);
+        let answers = vec![
+            PromptAnswer::Selected(2),
+            PromptAnswer::Text(String::new()),
+            PromptAnswer::Bool(true),
+        ];
+        let result = resolve_workspace_answers(&answers, false, false, false, None);
         insta::assert_snapshot!(format!("{:?}", result));
     }
 
     #[test]
     fn resolve_workspace_decline_starter_snapshot() {
-        let answers = vec![PromptAnswer::Selected(0), PromptAnswer::Bool(false)];
-        let result = resolve_workspace_answers(&answers, false, false, false);
+        let answers = vec![
+            PromptAnswer::Selected(0),
+            PromptAnswer::Text(String::new()),
+            PromptAnswer::Bool(false),
+        ];
+        let result = resolve_workspace_answers(&answers, false, false, false, None);
         insta::assert_snapshot!(format!("{:?}", result));
     }
 
     #[test]
     fn resolve_workspace_flags_bypass_snapshot() {
-        // Both flags set — confirm prompt is the only one, and it's for starter
-        let answers = vec![PromptAnswer::Bool(true)];
-        let result = resolve_workspace_answers(&answers, true, true, false);
+        // Both flags set — name + confirm prompts shown (setup skipped)
+        let answers = vec![PromptAnswer::Text(String::new()), PromptAnswer::Bool(true)];
+        let result = resolve_workspace_answers(&answers, true, true, false, None);
         insta::assert_snapshot!(format!("{:?}", result));
     }
 
     #[test]
     fn resolve_workspace_all_flags_no_prompts_snapshot() {
         let answers: Vec<PromptAnswer> = vec![];
-        let result = resolve_workspace_answers(&answers, true, true, true);
+        let result = resolve_workspace_answers(&answers, true, true, true, Some("my-mkt"));
+        insta::assert_snapshot!(format!("{:?}", result));
+    }
+
+    #[test]
+    fn resolve_workspace_custom_name_snapshot() {
+        let answers = vec![
+            PromptAnswer::Selected(0),
+            PromptAnswer::Text("my-custom-plugins".to_string()),
+            PromptAnswer::Bool(true),
+        ];
+        let result = resolve_workspace_answers(&answers, false, false, false, None);
+        insta::assert_snapshot!(format!("{:?}", result));
+    }
+
+    #[test]
+    fn resolve_workspace_empty_name_uses_default_snapshot() {
+        let answers = vec![
+            PromptAnswer::Selected(0),
+            PromptAnswer::Text(String::new()),
+            PromptAnswer::Bool(true),
+        ];
+        let result = resolve_workspace_answers(&answers, false, false, false, None);
+        insta::assert_snapshot!(format!("{:?}", result));
+    }
+
+    #[test]
+    fn resolve_workspace_name_flag_snapshot() {
+        // --name flag provided — name prompt skipped, only setup + confirm
+        let answers = vec![PromptAnswer::Selected(0), PromptAnswer::Bool(true)];
+        let result = resolve_workspace_answers(&answers, false, false, false, Some("preset-mkt"));
         insta::assert_snapshot!(format!("{:?}", result));
     }
 
@@ -317,22 +446,81 @@ mod tests {
 
     #[test]
     fn resolve_defaults_no_flags() {
-        // Neither flag → marketplace only
-        assert_eq!(resolve_defaults(false, false, false), (false, true, false));
+        // Neither flag → marketplace only, default name
+        assert_eq!(
+            resolve_defaults(false, false, false, None),
+            (false, true, false, "local-repo-plugins".to_string())
+        );
     }
 
     #[test]
     fn resolve_defaults_workspace_only() {
-        assert_eq!(resolve_defaults(true, false, false), (true, false, false));
+        assert_eq!(
+            resolve_defaults(true, false, false, None),
+            (true, false, false, "local-repo-plugins".to_string())
+        );
     }
 
     #[test]
     fn resolve_defaults_both_flags() {
-        assert_eq!(resolve_defaults(true, true, false), (true, true, false));
+        assert_eq!(
+            resolve_defaults(true, true, false, None),
+            (true, true, false, "local-repo-plugins".to_string())
+        );
     }
 
     #[test]
     fn resolve_defaults_no_starter() {
-        assert_eq!(resolve_defaults(false, false, true), (false, true, true));
+        assert_eq!(
+            resolve_defaults(false, false, true, None),
+            (false, true, true, "local-repo-plugins".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_defaults_with_name() {
+        assert_eq!(
+            resolve_defaults(false, false, false, Some("custom-mkt")),
+            (false, true, false, "custom-mkt".to_string())
+        );
+    }
+
+    // =========================================================================
+    // validate_marketplace_name
+    // =========================================================================
+
+    #[test]
+    fn validate_marketplace_name_accepts_lowercase() {
+        assert!(validate_marketplace_name("my-plugins").is_ok());
+    }
+
+    #[test]
+    fn validate_marketplace_name_accepts_scoped() {
+        assert!(validate_marketplace_name("@org/plugins").is_ok());
+    }
+
+    #[test]
+    fn validate_marketplace_name_accepts_empty_for_default() {
+        assert!(validate_marketplace_name("").is_ok());
+    }
+
+    #[test]
+    fn validate_marketplace_name_accepts_digits() {
+        assert!(validate_marketplace_name("123abc").is_ok());
+    }
+
+    #[test]
+    fn validate_marketplace_name_rejects_uppercase() {
+        assert!(validate_marketplace_name("MyPlugins").is_err());
+    }
+
+    #[test]
+    fn validate_marketplace_name_rejects_spaces() {
+        assert!(validate_marketplace_name("my plugins").is_err());
+    }
+
+    #[test]
+    fn validate_marketplace_name_rejects_underscores() {
+        assert!(validate_marketplace_name("my_plugins").is_err());
     }
 }
