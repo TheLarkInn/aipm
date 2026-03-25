@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.10.0] - 2026-03-25
+
+### Features
+- Add --name flag to customize marketplace name in aipm init ([#71](https://github.com/TheLarkInn/aipm/pull/71)) (e9a4657)
+
 ## [0.9.1] - 2026-03-25
 
 ### Bug Fixes
