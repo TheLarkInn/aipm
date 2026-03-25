@@ -1,0 +1,8 @@
+{
+  "hooks": [
+    {
+      "event": "PostToolUse",
+      "command": "echo \"$(date -u +%Y-%m-%dT%H:%M:%SZ) tool=$TOOL_NAME\" >> .ai/.tool-usage.log"
+    }
+  ]
+}

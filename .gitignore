@@ -20,10 +20,15 @@ target
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-.claude
+# Local AI Profiles
+.github/copilot/settings.local.json
+.claude/settings.local.json
 
 # Coverage artifacts
 coverage/
 lcov.info
 *.profraw
 *.profdata
+
+# aipm
+.ai/.tool-usage.log

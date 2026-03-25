@@ -1,0 +1,21 @@
+{
+  "name": "aipm-local-plugins",
+  "owner": {
+    "name": "local"
+  },
+  "metadata": {
+    "description": "Local plugins for this repository"
+  },
+  "plugins": [
+    {
+      "name": "starter-aipm-plugin",
+      "source": "./starter-aipm-plugin",
+      "description": "Default starter plugin — scaffold new plugins, scan your marketplace, and log tool usage"
+    },
+    {
+      "name": "aipm-atomic-plugin",
+      "source": "./aipm-atomic-plugin",
+      "description": "Atomic Workflow plugin for structured research, specification, and feature implementation"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "extraKnownMarketplaces": {
+    "aipm-local-plugins": {
+      "source": {
+        "source": "directory",
+        "path": "./.ai"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "starter-aipm-plugin@aipm-local-plugins": true,
+    "aipm-atomic-plugin@aipm-local-plugins": true
+  },
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  }
+}
