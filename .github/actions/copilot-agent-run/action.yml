@@ -1,0 +1,72 @@
+name: "Run Copilot Agent"
+description: >
+  Executes a Copilot CLI agent inside the AWF sandbox with the given prompt.
+  Requires copilot-agent-setup to have run first.
+
+inputs:
+  prompt:
+    description: "The prompt to send to the Copilot agent"
+    required: true
+  copilot_token:
+    description: "COPILOT_GITHUB_TOKEN secret"
+    required: true
+  safe_outputs_path:
+    description: "Path to the safe outputs JSONL (from setup output)"
+    default: ""
+  mcp_config:
+    description: "Path to MCP config JSON"
+    default: "/home/runner/.copilot/mcp-config.json"
+  timeout_minutes:
+    description: "Timeout for agent execution"
+    default: "20"
+  awf_image_tag:
+    description: "AWF container image tag"
+    default: "0.25.0"
+  awf_log_level:
+    description: "AWF log level"
+    default: "info"
+  copilot_log_level:
+    description: "Copilot CLI log level"
+    default: "all"
+  allowed_domains:
+    description: "Comma-separated domain allowlist for the AWF firewall"
+    default: "api.github.com,api.githubcopilot.com,api.business.githubcopilot.com,api.enterprise.githubcopilot.com,api.individual.githubcopilot.com,github.com,host.docker.internal,raw.githubusercontent.com,registry.npmjs.org,telemetry.enterprise.githubcopilot.com"
+  stdio_log:
+    description: "Path to write the agent stdio log"
+    default: "/tmp/gh-aw/agent-stdio.log"
+
+runs:
+  using: composite
+  steps:
+    - name: Execute Copilot agent in AWF sandbox
+      shell: bash
+      timeout-minutes: ${{ fromJSON(inputs.timeout_minutes) }}
+      env:
+        COPILOT_GITHUB_TOKEN: ${{ inputs.copilot_token }}
+        GH_AW_MCP_CONFIG: ${{ inputs.mcp_config }}
+        GH_AW_SAFE_OUTPUTS: ${{ inputs.safe_outputs_path }}
+        GITHUB_STEP_SUMMARY: /tmp/gh-aw/agent-step-summary.md
+      run: |
+        set -o pipefail
+        touch /tmp/gh-aw/agent-step-summary.md
+
+        sudo -E awf \
+          --env-all \
+          --container-workdir "$GITHUB_WORKSPACE" \
+          --allow-domains "${{ inputs.allowed_domains }}" \
+          --log-level ${{ inputs.awf_log_level }} \
+          --proxy-logs-dir /tmp/gh-aw/firewall-logs \
+          --enable-host-access \
+          --image-tag ${{ inputs.awf_image_tag }} \
+          --skip-pull \
+          --enable-api-proxy \
+          -- /bin/bash -c \
+            '/usr/local/bin/copilot \
+              --add-dir "$GITHUB_WORKSPACE" \
+              --disable-builtin-mcps \
+              --allow-all-tools \
+              --allow-all-paths \
+              --log-level ${{ inputs.copilot_log_level }} \
+              --log-dir /tmp/gh-aw/agent-logs \
+              --prompt "'"${{ inputs.prompt }}"'"' \
+          2>&1 | tee ${{ inputs.stdio_log }}

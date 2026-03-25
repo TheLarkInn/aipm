@@ -1,0 +1,95 @@
+name: "Publish Copilot Agent Issue"
+description: >
+  Processes safe output tool calls recorded by the agent and creates the
+  issue via the gh-aw safe output handler. Falls back to filtered stdio
+  if safe outputs are unavailable.
+
+inputs:
+  github_token:
+    description: "GitHub token with issues:write"
+    default: ${{ github.token }}
+  safe_outputs_config:
+    description: "JSON config for safe output handler (must match setup config)"
+    default: '{"create_issue":{"max":1},"noop":{"max":1}}'
+  stdio_log:
+    description: "Fallback: path to agent-stdio.log"
+    default: "/tmp/gh-aw/agent-stdio.log"
+  title_prefix:
+    description: "Fallback: prefix for issue title (used only without safe outputs)"
+    default: "[repo-status]"
+  labels:
+    description: "Fallback: comma-separated labels (used only without safe outputs)"
+    default: "report,daily-status"
+  close_label:
+    description: "Fallback: label to find and close older issues"
+    default: "daily-status"
+
+runs:
+  using: composite
+  steps:
+    - name: Process safe outputs or fallback to stdio
+      shell: bash
+      env:
+        GH_AW_SAFE_OUTPUTS_HANDLER_CONFIG: ${{ inputs.safe_outputs_config }}
+        GITHUB_SERVER_URL: ${{ github.server_url }}
+        GITHUB_API_URL: ${{ github.api_url }}
+        GH_TOKEN: ${{ inputs.github_token }}
+      run: |
+        HANDLER="${RUNNER_TEMP}/gh-aw/actions/safe_output_handler_manager.cjs"
+        OUTPUTS="${RUNNER_TEMP}/gh-aw/safeoutputs/outputs.jsonl"
+
+        # ── Try safe outputs first ──────────────────────────────────────
+        if [ -f "$HANDLER" ] && [ -f "$OUTPUTS" ] && [ -s "$OUTPUTS" ]; then
+          echo "Processing safe outputs…"
+          node "$HANDLER"
+          exit 0
+        fi
+
+        echo "::notice::Safe outputs not available, falling back to stdio filtering"
+
+        # ── Fallback: filter stdio log ──────────────────────────────────
+        LOG="${{ inputs.stdio_log }}"
+        if [ ! -f "$LOG" ]; then
+          echo "::warning::No agent output found"
+          exit 0
+        fi
+
+        # Close older issues
+        gh issue list \
+          --label "${{ inputs.close_label }}" \
+          --state open \
+          --json number \
+          --jq '.[].number' \
+        | while read -r n; do
+            gh issue close "$n" --comment "Superseded by new daily status report"
+          done
+
+        # Strip AWF noise
+        BODY=$(sed -n '
+          /^\[WARN\]/d
+          /^\[INFO\]/d
+          /^\[SUCCESS\]/d
+          /^\[ERROR\]/d
+          /^\[entrypoint\]/d
+          /^\[health-check\]/d
+          /^ Container awf-/d
+          /^Process exiting/d
+          /^Total usage/d
+          /^API time/d
+          /^Total session/d
+          /^Total code/d
+          /^Breakdown by/d
+          /^ claude-/d
+          p
+        ' "$LOG" | tail -c 60000)
+
+        if [ -z "$BODY" ]; then
+          echo "::warning::No agent output after filtering"
+          exit 0
+        fi
+
+        DATE=$(date +%Y-%m-%d)
+        gh issue create \
+          --title "${{ inputs.title_prefix }} Daily Status ${DATE}" \
+          --body "${BODY}" \
+          --label "${{ inputs.labels }}"

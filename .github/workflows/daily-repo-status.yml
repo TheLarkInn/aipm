@@ -4,8 +4,10 @@
 # releases, code changes) using a sandboxed Copilot CLI agent.
 #
 # Reusable actions:
-#   .github/actions/copilot-agent-setup   — pre-pull, install, start MCP gateway
-#   .github/actions/copilot-agent-teardown — stop gateway, upload artifacts
+#   .github/actions/copilot-agent-setup         — install, safe outputs, MCP gateway
+#   .github/actions/copilot-agent-run           — execute agent in AWF sandbox
+#   .github/actions/copilot-agent-publish-issue — process safe outputs → create issue
+#   .github/actions/copilot-agent-teardown      — stop gateway, upload artifacts
 
 name: "Daily Repo Status"
 
@@ -22,6 +24,10 @@ concurrency:
   group: "daily-repo-status"
   cancel-in-progress: false
 
+env:
+  SAFE_OUTPUTS_CONFIG: >-
+    {"create_issue":{"close_older_issues":true,"labels":["report","daily-status"],"max":1,"title_prefix":"[repo-status] "},"noop":{"max":1,"report-as-issue":"true"}}
+
 jobs:
   run:
     runs-on: ubuntu-latest
@@ -35,69 +41,34 @@ jobs:
         with:
           persist-credentials: false
 
-      # ── Reusable setup: pre-pull images, install CLI+AWF, start MCP gateway ─
       - name: Setup Copilot agent
+        id: setup
         uses: ./.github/actions/copilot-agent-setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           copilot_token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
           mcp_toolsets: "context,repos,issues,pull_requests"
+          safe_outputs_config: ${{ env.SAFE_OUTPUTS_CONFIG }}
 
-      # ── Agent execution (sandboxed inside AWF network firewall) ─────────────
       - name: Run Copilot agent
-        id: agent
-        timeout-minutes: 20
-        env:
-          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
-          GH_AW_MCP_CONFIG:     /home/runner/.copilot/mcp-config.json
-          GITHUB_STEP_SUMMARY:  /tmp/gh-aw/agent-step-summary.md
-        run: |
-          set -o pipefail
-          touch /tmp/gh-aw/agent-step-summary.md
+        uses: ./.github/actions/copilot-agent-run
+        with:
+          copilot_token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          safe_outputs_path: ${{ steps.setup.outputs.safe_outputs_path }}
+          prompt: >-
+            Provide a daily repo status including the number of issues opened,
+            pull requests opened, and pull requests closed. Make it in beautiful
+            markdown. Make no mistakes.
 
-          sudo -E awf \
-            --env-all \
-            --container-workdir "$GITHUB_WORKSPACE" \
-            --allow-domains "api.github.com,api.githubcopilot.com,api.business.githubcopilot.com,api.enterprise.githubcopilot.com,api.individual.githubcopilot.com,github.com,host.docker.internal,raw.githubusercontent.com,registry.npmjs.org,telemetry.enterprise.githubcopilot.com" \
-            --log-level info \
-            --proxy-logs-dir /tmp/gh-aw/firewall-logs \
-            --enable-host-access \
-            --image-tag 0.25.0 \
-            --skip-pull \
-            --enable-api-proxy \
-            -- /bin/bash -c \
-              '/usr/local/bin/copilot \
-                --add-dir "$GITHUB_WORKSPACE" \
-                --disable-builtin-mcps \
-                --allow-all-tools \
-                --allow-all-paths \
-                --log-level all \
-                --log-dir /tmp/gh-aw/agent-logs \
-                --prompt "Provide a daily repo status include the number of issues opened, pull requests opened, and pull requests closed. Make it in beautiful markdown. Make no mistakes."' \
-            2>&1 | tee /tmp/gh-aw/agent-stdio.log
-
-      # ── Publish the agent's output as a repo issue ───────────────────────────
-      - name: Create repo status issue
+      - name: Publish repo status issue
         if: success()
-        run: |
-          # Close any open issues from prior runs
-          gh issue list \
-            --label "daily-status" \
-            --state open \
-            --json number \
-            --jq '.[].number' \
-          | while read -r n; do
-              gh issue close "$n" --comment "Superseded by new daily status report"
-            done
+        uses: ./.github/actions/copilot-agent-publish-issue
+        with:
+          safe_outputs_config: ${{ env.SAFE_OUTPUTS_CONFIG }}
+          title_prefix: "[repo-status]"
+          labels: "report,daily-status"
+          close_label: "daily-status"
 
-          BODY=$(tail -c 60000 /tmp/gh-aw/agent-stdio.log)
-          DATE=$(date +%Y-%m-%d)
-          gh issue create \
-            --title "[repo-status] Daily Status ${DATE}" \
-            --body "${BODY}" \
-            --label "report,daily-status"
-
-      # ── Reusable teardown: stop gateway, upload artifacts, firewall summary ──
       - name: Teardown Copilot agent
         if: always()
         uses: ./.github/actions/copilot-agent-teardown
@@ -105,7 +76,6 @@ jobs:
           run_id: ${{ github.run_id }}
           artifact_name: "daily-status"
 
-      # ── Failure notice ────────────────────────────────────────────────────────
       - name: Create failure issue
         if: failure()
         run: |

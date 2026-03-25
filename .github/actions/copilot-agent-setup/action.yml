@@ -1,7 +1,8 @@
 name: "Setup Copilot Agent"
 description: >
-  Pre-pulls Docker images in parallel, installs the Copilot CLI and AWF sandbox,
-  and starts the MCP gateway. Reusable across any Copilot agentic workflow.
+  Pre-pulls Docker images, installs Copilot CLI and AWF, starts the safe
+  outputs MCP server, and launches the MCP gateway. Reusable across any
+  Copilot agentic workflow.
 
 inputs:
   github_token:
@@ -13,8 +14,11 @@ inputs:
   mcp_toolsets:
     description: "Comma-separated MCP toolsets to expose to the agent"
     default: "context,repos,issues,pull_requests"
+  safe_outputs_config:
+    description: "JSON config for safe output tools (create_issue, noop, etc.)"
+    default: '{"create_issue":{"max":1},"noop":{"max":1}}'
   awf_version:
-    description: "AWF (Agent Workflow Firewall) image/binary version tag"
+    description: "AWF image/binary version tag"
     default: "0.25.0"
   mcpg_version:
     description: "MCP gateway image version tag"
@@ -25,17 +29,28 @@ inputs:
   mcp_port:
     description: "Port for the local MCP gateway"
     default: "8080"
+  gh_aw_actions_ref:
+    description: "Pinned ref for github/gh-aw-actions/setup"
+    default: "53e09ec0be6271e81a69f51ef93f37212c8834b0"
 
 outputs:
   mcp_config_path:
     description: "Absolute path to the generated MCP config JSON file"
     value: ${{ steps.gateway.outputs.mcp_config_path }}
+  safe_outputs_path:
+    description: "Absolute path to the safe outputs JSONL file"
+    value: ${{ steps.safe-outputs-paths.outputs.safe_outputs_path }}
 
 runs:
   using: composite
   steps:
-    # ── Docker optimisation ──────────────────────────────────────────────────
-    # Kick off all image pulls in parallel so they're cached before we need them.
+    # ── gh-aw scripts (provides safe outputs server + handler) ─────────────
+    - name: Install gh-aw-actions scripts
+      uses: github/gh-aw-actions/setup@53e09ec0be6271e81a69f51ef93f37212c8834b0 # v0.63.1
+      with:
+        destination: ${{ runner.temp }}/gh-aw/actions
+
+    # ── Docker optimisation ────────────────────────────────────────────────
     - name: Pre-pull Docker images
       shell: bash
       env:
@@ -49,10 +64,11 @@ runs:
         docker pull ghcr.io/github/gh-aw-firewall/squid:${AWF_VERSION}    &
         docker pull ghcr.io/github/gh-aw-mcpg:${MCPG_VERSION}             &
         docker pull ghcr.io/github/github-mcp-server:${MCP_SERVER_VERSION} &
+        docker pull node:lts-alpine                                        &
         wait
         echo "All images ready."
 
-    # ── Binary install ───────────────────────────────────────────────────────
+    # ── Binary install ─────────────────────────────────────────────────────
     - name: Install Copilot CLI and AWF
       shell: bash
       env:
@@ -74,7 +90,68 @@ runs:
           -o /usr/local/bin/awf
         chmod +x /usr/local/bin/awf
 
-    # ── MCP gateway ──────────────────────────────────────────────────────────
+    # ── Safe outputs ───────────────────────────────────────────────────────
+    - name: Set safe outputs paths
+      id: safe-outputs-paths
+      shell: bash
+      run: |
+        mkdir -p ${RUNNER_TEMP}/gh-aw/safeoutputs /tmp/gh-aw/safeoutputs /tmp/gh-aw/mcp-logs/safeoutputs
+        echo "safe_outputs_path=${RUNNER_TEMP}/gh-aw/safeoutputs/outputs.jsonl" >> "$GITHUB_OUTPUT"
+
+    - name: Write safe outputs config
+      shell: bash
+      run: |
+        cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/config.json << 'EOF'
+        ${{ inputs.safe_outputs_config }}
+        EOF
+
+        cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/validation.json << 'VALIDATION_EOF'
+        {
+          "create_issue": {
+            "defaultMax": 1,
+            "fields": {
+              "body":  { "required": true, "type": "string", "sanitize": true, "maxLength": 65000 },
+              "title": { "required": true, "type": "string", "sanitize": true, "maxLength": 128 },
+              "labels": { "type": "array", "itemType": "string", "itemSanitize": true, "itemMaxLength": 128 },
+              "repo":  { "type": "string", "maxLength": 256 },
+              "temporary_id": { "type": "string" },
+              "parent": { "issueOrPRNumber": true }
+            }
+          },
+          "noop": {
+            "defaultMax": 1,
+            "fields": {
+              "message": { "required": true, "type": "string", "sanitize": true, "maxLength": 65000 }
+            }
+          }
+        }
+        VALIDATION_EOF
+
+        cat > ${RUNNER_TEMP}/gh-aw/safeoutputs/tools_meta.json << 'META_EOF'
+        { "description_suffixes": {}, "repo_params": {}, "dynamic_tools": [] }
+        META_EOF
+
+        node ${RUNNER_TEMP}/gh-aw/actions/generate_safe_outputs_tools.cjs
+      env:
+        GH_AW_SAFE_OUTPUTS_TOOLS_PATH: ${{ runner.temp }}/gh-aw/safeoutputs/tools.json
+        GH_AW_SAFE_OUTPUTS_CONFIG_PATH: ${{ runner.temp }}/gh-aw/safeoutputs/config.json
+
+    - name: Start safe outputs MCP server
+      id: safe-outputs-start
+      shell: bash
+      env:
+        GH_AW_SAFE_OUTPUTS_PORT: "3001"
+        GH_AW_SAFE_OUTPUTS_TOOLS_PATH: ${{ runner.temp }}/gh-aw/safeoutputs/tools.json
+        GH_AW_SAFE_OUTPUTS_CONFIG_PATH: ${{ runner.temp }}/gh-aw/safeoutputs/config.json
+        GH_AW_MCP_LOG_DIR: /tmp/gh-aw/mcp-logs/safeoutputs
+      run: |
+        API_KEY=$(openssl rand -base64 45 | tr -d '/+=')
+        echo "::add-mask::${API_KEY}"
+        export GH_AW_SAFE_OUTPUTS_API_KEY="${API_KEY}"
+
+        bash ${RUNNER_TEMP}/gh-aw/actions/start_safe_outputs_server.sh
+
+    # ── MCP gateway (with safe outputs) ────────────────────────────────────
     - name: Start MCP gateway
       id: gateway
       shell: bash
@@ -84,35 +161,13 @@ runs:
         MCP_SERVER_VERSION: ${{ inputs.mcp_server_version }}
         MCPG_VERSION: ${{ inputs.mcpg_version }}
         MCP_PORT: ${{ inputs.mcp_port }}
+        SAFE_OUTPUTS_PORT: ${{ steps.safe-outputs-start.outputs.port }}
+        SAFE_OUTPUTS_API_KEY: ${{ steps.safe-outputs-start.outputs.api_key }}
       run: |
         mkdir -p /tmp/gh-aw/mcp-logs /tmp/gh-aw/mcp-payloads /home/runner/.copilot
 
         MCP_API_KEY=$(openssl rand -base64 45 | tr -d '/+=')
         echo "::add-mask::${MCP_API_KEY}"
-
-        # Write the server-side config consumed by the gateway container
-        cat > /tmp/gh-aw/mcp-servers.json << EOF
-        {
-          "mcpServers": {
-            "github": {
-              "type": "stdio",
-              "container": "ghcr.io/github/github-mcp-server:${MCP_SERVER_VERSION}",
-              "env": {
-                "GITHUB_HOST":                   "${GITHUB_SERVER_URL}",
-                "GITHUB_PERSONAL_ACCESS_TOKEN":   "${GITHUB_MCP_TOKEN}",
-                "GITHUB_READ_ONLY":               "1",
-                "GITHUB_TOOLSETS":                "${MCP_TOOLSETS}"
-              }
-            }
-          },
-          "gateway": {
-            "port": ${MCP_PORT},
-            "domain": "host.docker.internal",
-            "apiKey": "${MCP_API_KEY}",
-            "payloadDir": "/tmp/gh-aw/mcp-payloads"
-          }
-        }
-        EOF
 
         docker run -d --name mcp-gateway --network host \
           -e MCP_GATEWAY_PORT="${MCP_PORT}" \
@@ -120,18 +175,21 @@ runs:
           -e MCP_GATEWAY_PAYLOAD_DIR="/tmp/gh-aw/mcp-payloads" \
           -e MCP_GATEWAY_LOG_DIR="/tmp/gh-aw/mcp-logs" \
           -e GITHUB_MCP_TOKEN="${GITHUB_MCP_TOKEN}" \
+          -e GH_AW_SAFE_OUTPUTS_PORT="${SAFE_OUTPUTS_PORT}" \
+          -e GH_AW_SAFE_OUTPUTS_API_KEY="${SAFE_OUTPUTS_API_KEY}" \
           -v /var/run/docker.sock:/var/run/docker.sock \
           -v /tmp/gh-aw:/tmp/gh-aw \
+          -v ${RUNNER_TEMP}/gh-aw:${RUNNER_TEMP}/gh-aw:ro \
           ghcr.io/github/gh-aw-mcpg:${MCPG_VERSION}
 
-        # Wait for gateway to be healthy (up to 30 s)
+        # Wait for gateway health (up to 30 s)
         for i in $(seq 1 30); do
           curl -sf "http://localhost:${MCP_PORT}/health" > /dev/null 2>&1 && break
           sleep 1
         done
         echo "MCP gateway ready on :${MCP_PORT}"
 
-        # Write the client-side config used by the Copilot CLI
+        # Client-side config for the Copilot CLI
         cat > /home/runner/.copilot/mcp-config.json << EOF
         {
           "gateway": {
