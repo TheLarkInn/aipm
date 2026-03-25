@@ -8,9 +8,12 @@
 //! [`super::wizard`] and is fully tested (snapshot + unit tests).
 
 use super::wizard::{
-    resolve_defaults, resolve_workspace_answers, styled_render_config, workspace_prompt_steps,
-    PromptAnswer, PromptKind, PromptStep,
+    resolve_defaults, resolve_workspace_answers, styled_render_config, validate_marketplace_name,
+    workspace_prompt_steps, PromptAnswer, PromptKind, PromptStep,
 };
+
+/// Resolved wizard output: `(workspace, marketplace, no_starter, marketplace_name)`.
+type WizardResult = (bool, bool, bool, String);
 
 /// Resolve workspace init options, launching the interactive wizard if needed.
 ///
@@ -22,15 +25,16 @@ use super::wizard::{
 pub fn resolve(
     interactive: bool,
     flags: (bool, bool, bool),
-) -> Result<(bool, bool, bool), Box<dyn std::error::Error>> {
+    flag_name: Option<&str>,
+) -> Result<WizardResult, Box<dyn std::error::Error>> {
     let (workspace, marketplace, no_starter) = flags;
     if interactive {
         inquire::set_global_render_config(styled_render_config());
-        let steps = workspace_prompt_steps(workspace, marketplace, no_starter);
+        let steps = workspace_prompt_steps(workspace, marketplace, no_starter, flag_name);
         let answers = execute_prompts(&steps)?;
-        Ok(resolve_workspace_answers(&answers, workspace, marketplace, no_starter))
+        Ok(resolve_workspace_answers(&answers, workspace, marketplace, no_starter, flag_name))
     } else {
-        Ok(resolve_defaults(workspace, marketplace, no_starter))
+        Ok(resolve_defaults(workspace, marketplace, no_starter, flag_name))
     }
 }
 
@@ -64,6 +68,22 @@ fn execute_prompts(steps: &[PromptStep]) -> Result<Vec<PromptAnswer>, Box<dyn st
                 }
                 let result = prompt.prompt()?;
                 PromptAnswer::Bool(result)
+            },
+            PromptKind::Text { placeholder, validate } => {
+                let mut prompt = inquire::Text::new(step.label).with_placeholder(placeholder);
+                if let Some(help) = step.help {
+                    prompt = prompt.with_help_message(help);
+                }
+                if *validate {
+                    prompt = prompt.with_validator(|input: &str| {
+                        match validate_marketplace_name(input) {
+                            Ok(()) => Ok(inquire::validator::Validation::Valid),
+                            Err(msg) => Ok(inquire::validator::Validation::Invalid(msg.into())),
+                        }
+                    });
+                }
+                let result = prompt.prompt()?;
+                PromptAnswer::Text(result)
             },
         };
         answers.push(answer);

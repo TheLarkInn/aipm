@@ -1,125 +1,222 @@
 [
   {
     "category": "refactor",
-    "description": "Add PluginEntry struct to mod.rs for carrying plugin name + description to registrar",
+    "description": "Add Text variant to PromptKind and PromptAnswer enums in aipm wizard.rs",
     "steps": [
-      "Open crates/libaipm/src/migrate/mod.rs",
-      "Add a new `PluginEntry` struct with `name: String` and `description: Option<String>` fields",
-      "Derive Debug and Clone on the struct",
-      "Add doc comments explaining this is data needed to register a plugin in marketplace.json",
-      "Verify the struct is public (`pub struct`) so registrar.rs can access it",
-      "Run `cargo build --workspace` to confirm compilation"
+      "Open crates/aipm/src/wizard.rs",
+      "Add `Text { placeholder: String, validate: bool }` variant to `PromptKind` enum after the Confirm variant",
+      "Add `Text(String)` variant to `PromptAnswer` enum after the Bool variant",
+      "Update the `format_steps` test helper to handle the new Text variant (serialize placeholder and validate fields)",
+      "Run `cargo build --workspace` to verify compilation",
+      "Run `cargo clippy --workspace -- -D warnings` to verify no lint violations"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Update registrar::register_plugins signature to accept &[PluginEntry] instead of &[String]",
+    "description": "Add validate_marketplace_name() function in wizard.rs",
     "steps": [
-      "Open crates/libaipm/src/migrate/registrar.rs",
-      "Import `super::PluginEntry` at the top of the file",
-      "Change function signature from `plugin_names: &[String]` to `entries: &[PluginEntry]`",
-      "Change the early-return guard from `plugin_names.is_empty()` to `entries.is_empty()`",
-      "Update the loop to iterate over `entries` instead of `plugin_names`",
-      "In the `already_registered` check, use `entry.name.as_str()` instead of `name.as_str()`",
-      "Extract description with fallback: `entry.description.as_deref().unwrap_or(\"Migrated from .claude/ configuration\")`",
-      "Use the extracted description in the `serde_json::json!` macro instead of the hardcoded string",
-      "Use `format!(\"./{}\", entry.name)` for the source field",
-      "Run `cargo build --workspace` to confirm compilation (expect errors at call sites — those are fixed in next features)"
+      "Open crates/aipm/src/wizard.rs",
+      "Add `pub fn validate_marketplace_name(input: &str) -> Result<(), String>` after the existing resolve_defaults function",
+      "Implement: empty string returns Ok(()), otherwise iterate chars and reject anything not lowercase ascii, digit, hyphen, @ or /",
+      "Add unit tests: accepts 'my-plugins', '@org/plugins', '', '123abc'",
+      "Add unit tests: rejects 'MyPlugins', 'my plugins', 'my_plugins'",
+      "Run `cargo test --workspace` to verify tests pass",
+      "Run `cargo clippy --workspace -- -D warnings`"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Update migrate_single_source in mod.rs to collect PluginEntry with descriptions and pass to registrar",
+    "description": "Update workspace_prompt_steps() to accept flag_name and add marketplace name prompt",
     "steps": [
-      "Open crates/libaipm/src/migrate/mod.rs, locate `migrate_single_source` function (~line 241)",
-      "Change `let mut registered_names: Vec<String>` to `let mut registered_entries: Vec<PluginEntry>`",
-      "In the artifact loop, after `emitter::emit_plugin()` returns `plugin_name`, push a `PluginEntry { name: plugin_name, description: artifact.metadata.description.clone() }` instead of just `plugin_name`",
-      "Update the `registrar::register_plugins(ai_dir, &registered_entries, fs)?` call",
-      "Update the `MarketplaceRegistered` action loop to iterate `&registered_entries` and use `entry.name`",
-      "Run `cargo build --workspace` to confirm compilation"
+      "Open crates/aipm/src/wizard.rs",
+      "Add `flag_name: Option<&str>` parameter to `workspace_prompt_steps()` signature",
+      "After the setup-mode prompt and before the starter-plugin prompt, add conditional marketplace name Text prompt",
+      "Condition: `marketplace_possible && flag_name.is_none()`",
+      "Use placeholder 'local-repo-plugins', validate: true, help text 'Lowercase alphanumeric with hyphens, or press Enter for default'",
+      "Update all existing test calls to workspace_prompt_steps to pass the new parameter (None for backward compat)",
+      "Add new snapshot tests: no flags shows name prompt as step 2, --name flag omits name prompt, --workspace only omits name prompt",
+      "Run `cargo test --workspace` and update insta snapshots with `cargo insta review`"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Update migrate_recursive in mod.rs to collect PluginEntry with descriptions and pass to registrar",
+    "description": "Update resolve_workspace_answers() to return marketplace name as 4-tuple",
     "steps": [
-      "Open crates/libaipm/src/migrate/mod.rs, locate `migrate_recursive` function (~line 302)",
-      "Change `let mut registered_names: Vec<String>` to `let mut registered_entries: Vec<PluginEntry>`",
-      "In the emission results collection loop, build `PluginEntry` with: name from result, description from `plan.artifacts.first().and_then(|a| a.metadata.description.clone())`",
-      "This requires capturing the plan reference alongside the emission result — adjust the parallel emission to return `(actions, name, Option<String>)` or capture description before parallel emission",
-      "Update the `registrar::register_plugins(ai_dir, &registered_entries, fs)?` call",
-      "Update the `MarketplaceRegistered` action loop to iterate `&registered_entries` and use `entry.name`",
-      "Run `cargo build --workspace` to confirm compilation"
+      "Open crates/aipm/src/wizard.rs",
+      "Add `flag_name: Option<&str>` parameter to `resolve_workspace_answers()` signature",
+      "Change return type from `(bool, bool, bool)` to `(bool, bool, bool, String)`",
+      "After resolving setup mode and before resolving no_starter, add marketplace name resolution logic",
+      "If flag_name is Some, use it; else if marketplace_possible, read PromptAnswer::Text from answers (empty -> default); else use default",
+      "Increment idx after consuming the name answer",
+      "Update resolve_defaults() to accept `name: Option<&str>` and return 4-tuple with marketplace_name",
+      "Update all existing test calls to pass the new flag_name parameter and destructure 4-tuples",
+      "Add snapshot tests: custom name text input, empty text input -> default name",
+      "Add unit tests for resolve_defaults with and without name flag",
+      "Run `cargo test --workspace` and update insta snapshots"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Update existing registrar unit tests to use PluginEntry instead of String",
+    "description": "Update wizard_tty.rs to handle Text prompts and pass marketplace name",
     "steps": [
-      "Open crates/libaipm/src/migrate/registrar.rs, locate #[cfg(test)] module (~line 49)",
-      "In `register_appends_to_empty_plugins_array`: change `vec![\"deploy\".to_string(), ...]` to `vec![PluginEntry { name: \"deploy\".to_string(), description: None }, ...]`",
-      "In `register_appends_alongside_existing`: change names vec to PluginEntry vec with `description: None`",
-      "In `register_skips_already_registered`: change names vec to PluginEntry vec with `description: None`",
-      "In `register_preserves_marketplace_metadata`: change names vec to PluginEntry vec with `description: None`",
-      "Run `cargo test --workspace` to confirm all existing tests still pass"
+      "Open crates/aipm/src/wizard_tty.rs",
+      "Update `resolve()` signature: add `flag_name: Option<String>` parameter, change return to `Result<(bool, bool, bool, String), ...>`",
+      "Update import list to include `validate_marketplace_name` and `PromptAnswer::Text`",
+      "Pass `flag_name.as_deref()` to `workspace_prompt_steps()` and `resolve_workspace_answers()`",
+      "Update non-interactive path to call `resolve_defaults(workspace, marketplace, no_starter, flag_name.as_deref())`",
+      "Add `PromptKind::Text` match arm to `execute_prompts()`: use `inquire::Text::new()` with placeholder, help, and optional validator",
+      "The validator should call `validate_marketplace_name()` and convert to `inquire::validator::Validation`",
+      "Run `cargo build --workspace` to verify compilation"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Add new registrar unit tests verifying description propagation",
+    "description": "Add --name CLI flag to Commands::Init and update main.rs dispatch",
     "steps": [
-      "Open crates/libaipm/src/migrate/registrar.rs tests module",
-      "Add test `register_uses_entry_description`: create PluginEntry with `description: Some(\"Deploy app\".to_string())`, register it, parse written JSON, assert description equals \"Deploy app\"",
-      "Add test `register_uses_fallback_when_no_description`: create PluginEntry with `description: None`, register it, parse written JSON, assert description equals \"Migrated from .claude/ configuration\"",
-      "Add test `register_mixed_descriptions`: create two entries — one with `Some(\"My desc\")` and one with `None` — register both, parse written JSON, verify each plugin has the correct description",
-      "Run `cargo test --workspace` to confirm all new tests pass"
+      "Open crates/aipm/src/main.rs",
+      "Add `name: Option<String>` field with `#[arg(long)]` to the Init variant, before the dir field",
+      "Add doc comment: '/// Custom marketplace name (default: \"local-repo-plugins\").'",
+      "Update the match arm destructure to include `name`",
+      "Pass `name` as third argument to `wizard_tty::resolve()`",
+      "Destructure the 4-tuple return: `(do_workspace, do_marketplace, do_no_starter, marketplace_name)`",
+      "Add `marketplace_name: &marketplace_name` to the Options struct construction",
+      "Update MarketplaceCreated output to include the marketplace name in the message",
+      "Run `cargo build --workspace` to verify compilation"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Add marketplace_name field to Options struct in workspace_init/mod.rs",
+    "steps": [
+      "Open crates/libaipm/src/workspace_init/mod.rs",
+      "Add `pub marketplace_name: &'a str` field to `Options<'a>` struct with doc comment",
+      "Update `scaffold_marketplace()` signature to accept `marketplace_name: &str` parameter",
+      "Update the call to `generate_marketplace_json()` to pass marketplace_name",
+      "Update the call site in `init()` to pass `opts.marketplace_name` to scaffold_marketplace and adaptor.apply",
+      "Update all test Options constructions in the test module to include `marketplace_name: \"local-repo-plugins\"`",
+      "Run `cargo build --workspace` to verify compilation"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Add marketplace_name parameter to ToolAdaptor trait apply() method",
+    "steps": [
+      "Open crates/libaipm/src/workspace_init/mod.rs",
+      "Add `marketplace_name: &str` parameter to the `apply()` method in the `ToolAdaptor` trait definition, between no_starter and fs",
+      "Update the doc comment to mention the marketplace_name parameter",
+      "Update the call site in `init()` to pass `opts.marketplace_name` when calling `adaptor.apply()`",
+      "Run `cargo build --workspace` — expect compile error in claude.rs adaptor (will be fixed in next feature)"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Update migrate_full_flow unit test to verify marketplace.json descriptions match plugin.json",
+    "description": "Parameterize generate_marketplace_json() to accept marketplace name",
     "steps": [
-      "Open crates/libaipm/src/migrate/mod.rs, locate `migrate_full_flow` test (~line 588)",
-      "After asserting action counts, read the written marketplace.json from `MockFs`",
-      "Parse the marketplace.json as serde_json::Value",
-      "Find the 'deploy' plugin entry and assert its description is \"Deploy app\" (matching SKILL.md frontmatter)",
-      "Find the 'review' plugin entry and assert its description is \"Migrated from .claude/ configuration\" (command has no frontmatter description in the test fixture)",
-      "Run `cargo test --workspace` to confirm test passes"
+      "Open crates/libaipm/src/workspace_init/mod.rs",
+      "Change `generate_marketplace_json(no_starter: bool)` signature to `generate_marketplace_json(marketplace_name: &str, no_starter: bool)`",
+      "Replace the two hardcoded string-literal JSON templates with serde_json::Map construction",
+      "Insert 'name', 'owner', 'metadata', 'plugins' keys programmatically using the marketplace_name parameter",
+      "Use serde_json::to_string_pretty() with unwrap_or_default() for serialization (never .unwrap())",
+      "Append trailing newline to output",
+      "Update the call in scaffold_marketplace() to pass the marketplace_name",
+      "Update existing tests: marketplace_json_with_starter_is_valid, marketplace_json_no_starter_has_empty_plugins to pass name parameter",
+      "Add new test: custom name produces JSON with that name",
+      "Run `cargo test --workspace`"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Add E2E test verifying marketplace description matches plugin.json description after migrate",
+    "description": "Parameterize Claude Code adaptor to use marketplace_name parameter",
     "steps": [
-      "Open crates/aipm/tests/migrate_e2e.rs",
-      "Add test `migrate_marketplace_description_matches_plugin_json`",
-      "Create a temp directory with .ai/.claude-plugin/marketplace.json (empty plugins array) and .claude/skills/deploy/SKILL.md with frontmatter containing `description: Deploy the application`",
-      "Run the migrate CLI command (or call the library directly)",
-      "Read the emitted .ai/deploy/.claude-plugin/plugin.json and parse it",
-      "Read the updated .ai/.claude-plugin/marketplace.json and parse it",
-      "Find the 'deploy' entry in marketplace.json plugins array",
-      "Assert that marketplace description equals plugin.json description",
-      "Run `cargo test --workspace` to confirm the E2E test passes"
+      "Open crates/libaipm/src/workspace_init/adaptors/claude.rs",
+      "Update `apply()` signature to include `marketplace_name: &str` parameter",
+      "Replace fresh-file string templates with serde_json::Map construction using marketplace_name",
+      "Build extraKnownMarketplaces with marketplace_name as key and the source entry as value",
+      "Build enabledPlugins with format!('starter-aipm-plugin@{marketplace_name}') as key when no_starter is false",
+      "Use serde_json::to_string_pretty().unwrap_or_default() for serialization",
+      "Update merge_claude_settings() signature to accept marketplace_name: &str",
+      "Replace all 6 hardcoded 'local-repo-plugins' references in merge_claude_settings with the parameter",
+      "Build starter_key with format!('starter-aipm-plugin@{marketplace_name}')",
+      "Update all existing tests to pass marketplace_name parameter",
+      "Add new tests: fresh settings with custom name, merge with custom name",
+      "Run `cargo test --workspace`"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Run full build, clippy, fmt, and coverage checks to verify all quality gates pass",
+    "description": "Update scaffold script to read marketplace name from marketplace.json at runtime",
     "steps": [
-      "Run `cargo build --workspace` — zero errors",
-      "Run `cargo test --workspace` — all tests pass",
-      "Run `cargo clippy --workspace -- -D warnings` — zero warnings",
-      "Run `cargo fmt --check` — no formatting issues",
-      "Run coverage commands per CLAUDE.md: `cargo +nightly llvm-cov clean --workspace`, then collect workspace + doctest coverage, then verify >= 89% branch coverage",
-      "Fix any issues found until all gates pass"
+      "Open crates/libaipm/src/workspace_init/mod.rs",
+      "Locate generate_scaffold_script() function",
+      "Find the enabledPlugins key construction line: `const pluginKey = `${name}@local-repo-plugins`;`",
+      "Replace with: `const pluginKey = `${name}@${marketplace.name}`;`",
+      "Keep the fallback marketplace object with 'local-repo-plugins' as safety net (no change to fallback)",
+      "Update scaffold_script_enables_in_settings test to check for 'marketplace.name' instead of '@local-repo-plugins'",
+      "Update scaffold_script_marketplace_name_matches_generator cross-consistency test",
+      "Run `cargo test --workspace` and update insta snapshots"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Update integration tests in workspace_init/mod.rs for marketplace name",
+    "steps": [
+      "Open crates/libaipm/src/workspace_init/mod.rs test module",
+      "Update init_marketplace_creates_marketplace_json to verify custom name in marketplace.json",
+      "Update init_no_starter_creates_marketplace_json_with_empty_plugins to pass marketplace_name",
+      "Update init_no_starter_still_configures_tools to verify custom name in settings.json",
+      "Update init_marketplace_with_preconfigured_claude_settings to use custom name",
+      "Add new integration test: init() with custom name produces marketplace.json with that name and settings.json with that name",
+      "Add new integration test: init() with default name produces unchanged behavior",
+      "Run `cargo test --workspace`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Update BDD feature scenarios for marketplace name",
+    "steps": [
+      "Open tests/features/manifest/workspace-init.feature",
+      "Verify existing scenarios that assert 'the marketplace.json name is \"local-repo-plugins\"' still pass with default",
+      "Add new scenario: 'aipm init --marketplace --name \"my-plugins\"' and assert marketplace.json name is 'my-plugins'",
+      "Check if BDD step definitions in crates/libaipm/tests/bdd.rs need updates for the new --name flag",
+      "Run `cargo test --workspace` to verify BDD scenarios pass"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Update E2E tests for marketplace name customization",
+    "steps": [
+      "Open crates/aipm/tests/init_e2e.rs",
+      "Update existing E2E tests that parse marketplace.json to account for the new Options field",
+      "Add new E2E test: `aipm init --marketplace --name \"custom-mkt\" -y` produces marketplace.json with name 'custom-mkt'",
+      "Add new E2E test: `aipm init --marketplace -y` produces marketplace.json with default name 'local-repo-plugins'",
+      "Run `cargo test --workspace` to verify E2E tests pass"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Regenerate all insta snapshots and verify full test suite",
+    "steps": [
+      "Run `cargo insta test --workspace` to identify all snapshot changes",
+      "Run `cargo insta review` to accept updated snapshots in crates/aipm/src/snapshots/",
+      "Run `cargo insta review` to accept updated snapshots in crates/libaipm/src/workspace_init/snapshots/",
+      "Run `cargo test --workspace` to verify all tests pass",
+      "Run `cargo clippy --workspace -- -D warnings` to verify no lint violations",
+      "Run `cargo fmt --check` to verify formatting",
+      "Run the coverage commands from CLAUDE.md to verify >= 89% branch coverage"
     ],
     "passes": true
   }

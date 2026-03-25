@@ -41,6 +41,10 @@ enum Commands {
         #[arg(long)]
         manifest: bool,
 
+        /// Custom marketplace name (default: "local-repo-plugins").
+        #[arg(long)]
+        name: Option<String>,
+
         /// Directory to initialize (defaults to current directory).
         #[arg(default_value = ".")]
         dir: PathBuf,
@@ -76,13 +80,17 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
-        Some(Commands::Init { yes, workspace, marketplace, no_starter, manifest, dir }) => {
+        Some(Commands::Init { yes, workspace, marketplace, no_starter, manifest, name, dir }) => {
             let dir = if dir.as_os_str() == "." { std::env::current_dir()? } else { dir };
 
             let interactive = !yes && std::io::stdin().is_terminal();
 
-            let (do_workspace, do_marketplace, do_no_starter) =
-                wizard_tty::resolve(interactive, (workspace, marketplace, no_starter))?;
+            let (do_workspace, do_marketplace, do_no_starter, marketplace_name) =
+                wizard_tty::resolve(
+                    interactive,
+                    (workspace, marketplace, no_starter),
+                    name.as_deref(),
+                )?;
 
             let adaptors = libaipm::workspace_init::adaptors::defaults();
 
@@ -92,6 +100,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 marketplace: do_marketplace,
                 no_starter: do_no_starter,
                 manifest,
+                marketplace_name: &marketplace_name,
             };
 
             let result = libaipm::workspace_init::init(&opts, &adaptors, &libaipm::fs::Real)?;
@@ -104,9 +113,13 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     },
                     libaipm::workspace_init::InitAction::MarketplaceCreated => {
                         if do_no_starter {
-                            "Created .ai/ marketplace (no starter plugin)".to_string()
+                            format!(
+                                "Created .ai/ marketplace '{marketplace_name}' (no starter plugin)"
+                            )
                         } else {
-                            "Created .ai/ marketplace with starter plugin".to_string()
+                            format!(
+                                "Created .ai/ marketplace '{marketplace_name}' with starter plugin"
+                            )
                         }
                     },
                     libaipm::workspace_init::InitAction::ToolConfigured(name) => {

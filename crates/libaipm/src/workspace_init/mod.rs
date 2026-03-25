@@ -20,6 +20,12 @@ pub trait ToolAdaptor {
 
     /// Apply tool-specific settings to the workspace directory.
     ///
+    /// `marketplace_name` is the user-chosen identifier for the local marketplace
+    /// (e.g., `"local-repo-plugins"`). Adaptors should use it as the key when
+    /// registering the marketplace in tool-specific config files and when
+    /// constructing composite plugin keys (e.g., `"starter-aipm-plugin@{name}"`
+    /// in `enabledPlugins`).
+    ///
     /// When `no_starter` is `true`, adaptors should skip enabling the starter
     /// plugin (e.g., omit `enabledPlugins` entries) while still registering the
     /// marketplace directory.
@@ -30,7 +36,13 @@ pub trait ToolAdaptor {
     /// # Errors
     ///
     /// Returns `Error` if I/O operations fail or existing config files cannot be parsed.
-    fn apply(&self, dir: &Path, no_starter: bool, fs: &dyn Fs) -> Result<bool, Error>;
+    fn apply(
+        &self,
+        dir: &Path,
+        no_starter: bool,
+        marketplace_name: &str,
+        fs: &dyn Fs,
+    ) -> Result<bool, Error>;
 }
 
 /// Options for workspace initialization.
@@ -45,6 +57,8 @@ pub struct Options<'a> {
     pub no_starter: bool,
     /// Generate `aipm.toml` plugin manifests (opt-in).
     pub manifest: bool,
+    /// Marketplace name (e.g., `"local-repo-plugins"`).
+    pub marketplace_name: &'a str,
 }
 
 /// Actions taken during initialization — used for user feedback.
@@ -114,11 +128,11 @@ pub fn init(
     }
 
     if opts.marketplace {
-        scaffold_marketplace(opts.dir, opts.no_starter, opts.manifest, fs)?;
+        scaffold_marketplace(opts.dir, opts.no_starter, opts.manifest, opts.marketplace_name, fs)?;
         actions.push(InitAction::MarketplaceCreated);
 
         for adaptor in adaptors {
-            if adaptor.apply(opts.dir, opts.no_starter, fs)? {
+            if adaptor.apply(opts.dir, opts.no_starter, opts.marketplace_name, fs)? {
                 actions.push(InitAction::ToolConfigured(adaptor.name().to_string()));
             }
         }
@@ -178,6 +192,7 @@ fn scaffold_marketplace(
     dir: &Path,
     no_starter: bool,
     manifest: bool,
+    marketplace_name: &str,
     fs: &dyn Fs,
 ) -> Result<(), Error> {
     let ai_dir = dir.join(".ai");
@@ -200,7 +215,7 @@ fn scaffold_marketplace(
     fs.create_dir_all(&ai_dir.join(".claude-plugin"))?;
     fs.write_file(
         &ai_dir.join(".claude-plugin").join("marketplace.json"),
-        generate_marketplace_json(no_starter).as_bytes(),
+        generate_marketplace_json(marketplace_name, no_starter).as_bytes(),
     )?;
 
     if no_starter {
@@ -355,19 +370,18 @@ fn generate_scaffold_script() -> String {
      \x20 JSON.stringify({ name, version: \"0.1.0\", description: `TODO: describe ${name}` }, null, 2) + \"\\n\"\n\
      );\n\
      \n\
-     // Register in marketplace.json\n\
+     // Read or create marketplace.json (hoisted for use in settings section)\n\
+     const marketplacePath = join(aiDir, \".claude-plugin\", \"marketplace.json\");\n\
+     let marketplace: { name: string; owner: { name: string }; metadata: { description: string }; plugins: Array<{ name: string; source: string; description: string }> } = {\n\
+     \x20 name: \"local-repo-plugins\",\n\
+     \x20 owner: { name: \"local\" },\n\
+     \x20 metadata: { description: \"Local plugins for this repository\" },\n\
+     \x20 plugins: []\n\
+     };\n\
      try {\n\
-     \x20 const marketplacePath = join(aiDir, \".claude-plugin\", \"marketplace.json\");\n\
-     \x20 let marketplace;\n\
      \x20 if (existsSync(marketplacePath)) {\n\
      \x20   marketplace = JSON.parse(readFileSync(marketplacePath, \"utf-8\"));\n\
      \x20 } else {\n\
-     \x20   marketplace = {\n\
-     \x20     name: \"local-repo-plugins\",\n\
-     \x20     owner: { name: \"local\" },\n\
-     \x20     metadata: { description: \"Local plugins for this repository\" },\n\
-     \x20     plugins: []\n\
-     \x20   };\n\
      \x20   mkdirSync(join(aiDir, \".claude-plugin\"), { recursive: true });\n\
      \x20 }\n\
      \x20 if (!marketplace.plugins.some((p: { name: string }) => p.name === name)) {\n\
@@ -395,7 +409,7 @@ fn generate_scaffold_script() -> String {
      \x20 if (!settings.enabledPlugins || typeof settings.enabledPlugins !== \"object\") {\n\
      \x20   settings.enabledPlugins = {};\n\
      \x20 }\n\
-     \x20 const pluginKey = `${name}@local-repo-plugins`;\n\
+     \x20 const pluginKey = `${name}@${marketplace.name}`;\n\
      \x20 const enabled = settings.enabledPlugins as Record<string, boolean>;\n\
      \x20 if (!(pluginKey in enabled)) {\n\
      \x20   enabled[pluginKey] = true;\n\
@@ -453,38 +467,29 @@ fn generate_hook_template() -> String {
     .to_string()
 }
 
-fn generate_marketplace_json(no_starter: bool) -> String {
-    if no_starter {
-        "{\n\
-         \x20 \"name\": \"local-repo-plugins\",\n\
-         \x20 \"owner\": {\n\
-         \x20   \"name\": \"local\"\n\
-         \x20 },\n\
-         \x20 \"metadata\": {\n\
-         \x20   \"description\": \"Local plugins for this repository\"\n\
-         \x20 },\n\
-         \x20 \"plugins\": []\n\
-         }\n"
-        .to_string()
+fn generate_marketplace_json(marketplace_name: &str, no_starter: bool) -> String {
+    let plugins = if no_starter {
+        serde_json::json!([])
     } else {
-        "{\n\
-         \x20 \"name\": \"local-repo-plugins\",\n\
-         \x20 \"owner\": {\n\
-         \x20   \"name\": \"local\"\n\
-         \x20 },\n\
-         \x20 \"metadata\": {\n\
-         \x20   \"description\": \"Local plugins for this repository\"\n\
-         \x20 },\n\
-         \x20 \"plugins\": [\n\
-         \x20   {\n\
-         \x20     \"name\": \"starter-aipm-plugin\",\n\
-         \x20     \"source\": \"./starter-aipm-plugin\",\n\
-         \x20     \"description\": \"Default starter plugin — scaffold new plugins, scan your marketplace, and log tool usage\"\n\
-         \x20   }\n\
-         \x20 ]\n\
-         }\n"
-        .to_string()
-    }
+        serde_json::json!([
+            {
+                "name": "starter-aipm-plugin",
+                "source": "./starter-aipm-plugin",
+                "description": "Default starter plugin \u{2014} scaffold new plugins, scan your marketplace, and log tool usage"
+            }
+        ])
+    };
+
+    let obj = serde_json::json!({
+        "name": marketplace_name,
+        "owner": { "name": "local" },
+        "metadata": { "description": "Local plugins for this repository" },
+        "plugins": plugins
+    });
+
+    let mut output = serde_json::to_string_pretty(&obj).unwrap_or_default();
+    output.push('\n');
+    output
 }
 
 fn generate_mcp_stub() -> String {
@@ -571,6 +576,7 @@ mod tests {
             marketplace: false,
             no_starter: false,
             manifest: true,
+            marketplace_name: "local-repo-plugins",
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -593,6 +599,7 @@ mod tests {
             marketplace: true,
             no_starter: false,
             manifest: true,
+            marketplace_name: "local-repo-plugins",
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -623,6 +630,7 @@ mod tests {
             marketplace: false,
             no_starter: false,
             manifest: true,
+            marketplace_name: "local-repo-plugins",
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_err());
@@ -644,6 +652,7 @@ mod tests {
             marketplace: true,
             no_starter: false,
             manifest: true,
+            marketplace_name: "local-repo-plugins",
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_err());
@@ -663,6 +672,7 @@ mod tests {
             marketplace: true,
             no_starter: false,
             manifest: true,
+            marketplace_name: "local-repo-plugins",
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -685,6 +695,7 @@ mod tests {
             marketplace: true,
             no_starter: false,
             manifest: true,
+            marketplace_name: "local-repo-plugins",
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -705,6 +716,7 @@ mod tests {
             marketplace: true,
             no_starter: false,
             manifest: true,
+            marketplace_name: "local-repo-plugins",
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -808,8 +820,8 @@ mod tests {
         // settings.json path construction
         assert!(content.contains("settings.json"));
         assert!(content.contains(".claude"));
-        // Key format
-        assert!(content.contains("@local-repo-plugins"));
+        // Key format — reads marketplace name dynamically
+        assert!(content.contains("${marketplace.name}"));
         // enabledPlugins object handling
         assert!(content.contains("enabledPlugins"));
         // Write-back
@@ -818,7 +830,7 @@ mod tests {
 
     #[test]
     fn scaffold_script_marketplace_name_matches_generator() {
-        let marketplace_json = generate_marketplace_json(false);
+        let marketplace_json = generate_marketplace_json("local-repo-plugins", false);
         let parsed: serde_json::Value =
             serde_json::from_str(&marketplace_json).ok().unwrap_or_default();
         let marketplace_name = parsed.get("name").and_then(|n| n.as_str()).unwrap_or("");
@@ -841,6 +853,7 @@ mod tests {
             marketplace: true,
             no_starter: true,
             manifest: true,
+            marketplace_name: "local-repo-plugins",
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -857,7 +870,7 @@ mod tests {
 
     #[test]
     fn marketplace_json_with_starter_is_valid() {
-        let json = generate_marketplace_json(false);
+        let json = generate_marketplace_json("local-repo-plugins", false);
         let parsed: Result<serde_json::Value, _> = serde_json::from_str(&json);
         assert!(parsed.is_ok(), "marketplace.json should be valid JSON: {parsed:?}");
         let v = parsed.ok();
@@ -882,7 +895,7 @@ mod tests {
 
     #[test]
     fn marketplace_json_no_starter_has_empty_plugins() {
-        let json = generate_marketplace_json(true);
+        let json = generate_marketplace_json("local-repo-plugins", true);
         let parsed: Result<serde_json::Value, _> = serde_json::from_str(&json);
         assert!(parsed.is_ok(), "marketplace.json should be valid JSON: {parsed:?}");
         let v = parsed.ok();
@@ -903,6 +916,7 @@ mod tests {
             marketplace: true,
             no_starter: false,
             manifest: true,
+            marketplace_name: "local-repo-plugins",
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -939,6 +953,7 @@ mod tests {
             marketplace: true,
             no_starter: true,
             manifest: true,
+            marketplace_name: "local-repo-plugins",
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -968,6 +983,7 @@ mod tests {
             marketplace: true,
             no_starter: true,
             manifest: true,
+            marketplace_name: "local-repo-plugins",
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -1014,6 +1030,7 @@ mod tests {
             marketplace: true,
             no_starter: false,
             manifest: true,
+            marketplace_name: "local-repo-plugins",
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -1092,6 +1109,7 @@ mod tests {
             marketplace: false,
             no_starter: false,
             manifest: true,
+            marketplace_name: "local-repo-plugins",
         };
         let result = init(&opts, &adaptors, &FailDirFs);
         assert!(result.is_err());
@@ -1109,6 +1127,7 @@ mod tests {
             marketplace: false,
             no_starter: false,
             manifest: true,
+            marketplace_name: "local-repo-plugins",
         };
         let result = init(&opts, &adaptors, &FailWriteFs);
         assert!(result.is_err());
@@ -1126,6 +1145,7 @@ mod tests {
             marketplace: true,
             no_starter: true,
             manifest: true,
+            marketplace_name: "local-repo-plugins",
         };
         let result = init(&opts, &adaptors, &FailDirFs);
         assert!(result.is_err());
@@ -1141,6 +1161,7 @@ mod tests {
             marketplace: true,
             no_starter: true,
             manifest: true,
+            marketplace_name: "local-repo-plugins",
         };
         let result = init(&opts, &adaptors, &FailWriteFs);
         assert!(result.is_err());
@@ -1156,6 +1177,7 @@ mod tests {
             marketplace: true,
             no_starter: false,
             manifest: false,
+            marketplace_name: "local-repo-plugins",
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -1180,6 +1202,7 @@ mod tests {
             marketplace: true,
             no_starter: false,
             manifest: true,
+            marketplace_name: "local-repo-plugins",
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
