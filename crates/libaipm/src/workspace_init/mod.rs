@@ -20,6 +20,12 @@ pub trait ToolAdaptor {
 
     /// Apply tool-specific settings to the workspace directory.
     ///
+    /// `marketplace_name` is the user-chosen identifier for the local marketplace
+    /// (e.g., `"local-repo-plugins"`). Adaptors should use it as the key when
+    /// registering the marketplace in tool-specific config files and when
+    /// constructing composite plugin keys (e.g., `"starter-aipm-plugin@{name}"`
+    /// in `enabledPlugins`).
+    ///
     /// When `no_starter` is `true`, adaptors should skip enabling the starter
     /// plugin (e.g., omit `enabledPlugins` entries) while still registering the
     /// marketplace directory.

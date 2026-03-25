@@ -92,8 +92,9 @@ pub fn workspace_prompt_steps(
     // we're asking the user).
     let marketplace_possible = flag_marketplace || needs_setup_prompt;
 
-    // Marketplace name prompt — skip if --name was provided or marketplace not possible.
-    if marketplace_possible && flag_name.is_none() {
+    // Marketplace name prompt — skip if a non-empty --name was provided or marketplace not possible.
+    let has_name = flag_name.is_some_and(|s| !s.is_empty());
+    if marketplace_possible && !has_name {
         steps.push(PromptStep {
             label: "Marketplace name:",
             kind: PromptKind::Text {
@@ -144,7 +145,7 @@ pub fn resolve_workspace_answers(
 
     // Resolve marketplace name
     let marketplace_possible = flag_marketplace || needs_setup_prompt;
-    let marketplace_name = flag_name.map_or_else(
+    let marketplace_name = flag_name.filter(|s| !s.is_empty()).map_or_else(
         || {
             if marketplace_possible {
                 let resolved = match answers.get(idx) {
@@ -194,7 +195,8 @@ pub fn resolve_defaults(
     name: Option<&str>,
 ) -> (bool, bool, bool, String) {
     let (w, m) = if !workspace && !marketplace { (false, true) } else { (workspace, marketplace) };
-    let marketplace_name = name.unwrap_or("local-repo-plugins").to_string();
+    let marketplace_name =
+        name.filter(|s| !s.is_empty()).unwrap_or("local-repo-plugins").to_string();
     (w, m, no_starter, marketplace_name)
 }
 
@@ -349,7 +351,8 @@ mod tests {
 
     #[test]
     fn resolve_workspace_manifest_only_snapshot() {
-        // Selecting "Workspace only" — no confirm prompt follows because marketplace=false
+        // Selecting "Workspace only" — confirm prompt is shown but ignored (no_starter
+        // stays false because do_marketplace resolved to false)
         let answers = vec![
             PromptAnswer::Selected(1),
             PromptAnswer::Text(String::new()),
