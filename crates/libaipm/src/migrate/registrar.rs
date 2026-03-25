@@ -33,12 +33,13 @@ pub fn register_plugins(ai_dir: &Path, entries: &[PluginEntry], fs: &dyn Fs) -> 
             continue;
         }
 
+        let name = &entry.name;
         let description =
             entry.description.as_deref().unwrap_or("Migrated from .claude/ configuration");
 
         plugins.push(serde_json::json!({
-            "name": entry.name,
-            "source": format!("./{}", entry.name),
+            "name": name,
+            "source": format!("./{name}"),
             "description": description
         }));
     }
@@ -203,6 +204,13 @@ mod tests {
         assert!(written.as_ref().is_some_and(|c| c.contains("version")));
     }
 
+    /// Parse the written marketplace.json from MockFs, asserting it was written and is valid.
+    fn parse_written_marketplace(fs: &MockFs) -> serde_json::Value {
+        let content =
+            fs.get_written(&marketplace_path()).expect("marketplace.json should have been written");
+        serde_json::from_str(&content).expect("marketplace.json should be valid JSON")
+    }
+
     #[test]
     fn register_uses_entry_description() {
         let fs = MockFs::new();
@@ -212,9 +220,7 @@ mod tests {
         let result = register_plugins(Path::new("/ai"), &entries, &fs);
         assert!(result.is_ok());
 
-        let written = fs.get_written(&marketplace_path());
-        let parsed: serde_json::Value =
-            written.as_deref().and_then(|c| serde_json::from_str(c).ok()).unwrap_or_default();
+        let parsed = parse_written_marketplace(&fs);
         let plugin = parsed.get("plugins").and_then(|v| v.as_array()).and_then(|a| a.first());
         assert_eq!(
             plugin.and_then(|p| p.get("description")).and_then(serde_json::Value::as_str),
@@ -231,9 +237,7 @@ mod tests {
         let result = register_plugins(Path::new("/ai"), &entries, &fs);
         assert!(result.is_ok());
 
-        let written = fs.get_written(&marketplace_path());
-        let parsed: serde_json::Value =
-            written.as_deref().and_then(|c| serde_json::from_str(c).ok()).unwrap_or_default();
+        let parsed = parse_written_marketplace(&fs);
         let plugin = parsed.get("plugins").and_then(|v| v.as_array()).and_then(|a| a.first());
         assert_eq!(
             plugin.and_then(|p| p.get("description")).and_then(serde_json::Value::as_str),
@@ -250,9 +254,7 @@ mod tests {
         let result = register_plugins(Path::new("/ai"), &entries, &fs);
         assert!(result.is_ok());
 
-        let written = fs.get_written(&marketplace_path());
-        let parsed: serde_json::Value =
-            written.as_deref().and_then(|c| serde_json::from_str(c).ok()).unwrap_or_default();
+        let parsed = parse_written_marketplace(&fs);
         let plugins = parsed.get("plugins").and_then(|v| v.as_array());
 
         let deploy = plugins.and_then(|a| {

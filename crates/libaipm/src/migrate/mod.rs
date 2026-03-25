@@ -672,36 +672,38 @@ mod tests {
         }
 
         // Verify marketplace.json descriptions match plugin.json descriptions
-        let marketplace_content = fs
+        let marketplace_bytes = fs
             .written
             .lock()
             .expect("mutex poisoned")
             .get(Path::new("/project/.ai/.claude-plugin/marketplace.json"))
-            .and_then(|b| String::from_utf8(b.clone()).ok());
-        if let Some(content) = marketplace_content {
-            let parsed: serde_json::Value = serde_json::from_str(&content).unwrap_or_default();
-            let plugins = parsed.get("plugins").and_then(|v| v.as_array());
+            .expect("marketplace.json should have been written")
+            .clone();
+        let content =
+            String::from_utf8(marketplace_bytes).expect("marketplace.json must be valid UTF-8");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&content).expect("marketplace.json must contain valid JSON");
+        let plugins = parsed.get("plugins").and_then(|v| v.as_array());
 
-            // "deploy" skill has description "Deploy app" in its SKILL.md frontmatter
-            let deploy = plugins.and_then(|a| {
-                a.iter().find(|p| p.get("name").and_then(|n| n.as_str()) == Some("deploy"))
-            });
-            assert_eq!(
-                deploy.and_then(|p| p.get("description")).and_then(serde_json::Value::as_str),
-                Some("Deploy app"),
-                "deploy marketplace description should match SKILL.md frontmatter"
-            );
+        // "deploy" skill has description "Deploy app" in its SKILL.md frontmatter
+        let deploy = plugins.and_then(|a| {
+            a.iter().find(|p| p.get("name").and_then(|n| n.as_str()) == Some("deploy"))
+        });
+        assert_eq!(
+            deploy.and_then(|p| p.get("description")).and_then(serde_json::Value::as_str),
+            Some("Deploy app"),
+            "deploy marketplace description should match SKILL.md frontmatter"
+        );
 
-            // "review" command has no frontmatter description — should get fallback
-            let review = plugins.and_then(|a| {
-                a.iter().find(|p| p.get("name").and_then(|n| n.as_str()) == Some("review"))
-            });
-            assert_eq!(
-                review.and_then(|p| p.get("description")).and_then(serde_json::Value::as_str),
-                Some("Migrated from .claude/ configuration"),
-                "review marketplace description should use fallback when no frontmatter"
-            );
-        }
+        // "review" command has no frontmatter description — should get fallback
+        let review = plugins.and_then(|a| {
+            a.iter().find(|p| p.get("name").and_then(|n| n.as_str()) == Some("review"))
+        });
+        assert_eq!(
+            review.and_then(|p| p.get("description")).and_then(serde_json::Value::as_str),
+            Some("Migrated from .claude/ configuration"),
+            "review marketplace description should use fallback when no frontmatter"
+        );
     }
 
     #[test]
