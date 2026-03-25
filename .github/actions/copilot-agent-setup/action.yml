@@ -63,10 +63,9 @@ runs:
         VERSION=$(gh release view --repo github/copilot-cli --json tagName -q .tagName)
         gh release download "${VERSION}" \
           --repo github/copilot-cli \
-          --pattern "copilot-linux-x64.tar.gz" \
-          --dir /tmp
-        tar -xzf /tmp/copilot-linux-x64.tar.gz -C /tmp
-        install -m 0755 /tmp/copilot /usr/local/bin/copilot
+          --pattern "*linux-x64*" \
+          --output /usr/local/bin/copilot
+        chmod +x /usr/local/bin/copilot
 
         # AWF binary
         curl -fsSL \
