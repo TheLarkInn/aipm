@@ -90,7 +90,8 @@ jobs:
               gh issue close "$n" --comment "Superseded by new daily status report"
             done
 
-          BODY=$(tail -c 60000 /tmp/gh-aw/agent-stdio.log)
+          # Strip AWF/container bootstrap noise, keep only the agent's output
+          BODY=$(grep -v -E '^\[(WARN|INFO|SUCCESS|ERROR|entrypoint|health-check)\]|^ Container awf-|^Process exiting|^Total usage|^API time|^Total session|^Total code|^Breakdown by' /tmp/gh-aw/agent-stdio.log | tail -c 60000)
           DATE=$(date +%Y-%m-%d)
           gh issue create \
             --title "[repo-status] Daily Status ${DATE}" \

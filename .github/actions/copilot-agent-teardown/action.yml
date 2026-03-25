@@ -34,7 +34,7 @@ runs:
       run: |
         sudo chmod -R a+r /tmp/gh-aw/firewall-logs 2>/dev/null || true
         if command -v awf &>/dev/null; then
-          awf logs summary | tee -a "$GITHUB_STEP_SUMMARY"
+          awf logs summary | tee -a "$GITHUB_STEP_SUMMARY" || true
         fi
 
     - name: Upload debug artifacts
