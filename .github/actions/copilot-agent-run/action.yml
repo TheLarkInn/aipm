@@ -40,7 +40,6 @@ runs:
   steps:
     - name: Execute Copilot agent in AWF sandbox
       shell: bash
-      timeout-minutes: ${{ fromJSON(inputs.timeout_minutes) }}
       env:
         COPILOT_GITHUB_TOKEN: ${{ inputs.copilot_token }}
         GH_AW_MCP_CONFIG: ${{ inputs.mcp_config }}
