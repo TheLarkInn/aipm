@@ -186,12 +186,29 @@ impl Fs for Real {
         }
         #[cfg(windows)]
         {
+            use std::fs;
+
             // On Windows, std::fs::rename does not atomically replace an existing
-            // destination. Best-effort remove first, then rename.
+            // destination. Use a backup-then-swap strategy so that a failed rename
+            // does not permanently delete the original file.
             if path.exists() {
-                let _ = std::fs::remove_file(path);
+                let backup_path = parent.join(format!(".aipm-backup-{}-{seq}", std::process::id()));
+
+                fs::rename(path, &backup_path)?;
+
+                match fs::rename(&tmp_path, path) {
+                    Ok(()) => {
+                        let _ = fs::remove_file(&backup_path);
+                        Ok(())
+                    },
+                    Err(e) => {
+                        let _ = fs::rename(&backup_path, path);
+                        Err(e)
+                    },
+                }
+            } else {
+                fs::rename(&tmp_path, path)
             }
-            std::fs::rename(&tmp_path, path)
         }
     }
 }
