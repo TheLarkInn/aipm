@@ -74,7 +74,7 @@ pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<Instal
     // Step 1: Load manifest
     tracing::info!(manifest = %config.manifest_path.display(), "loading manifest");
     let manifest_content = std::fs::read_to_string(&config.manifest_path)?;
-    let manifest = manifest::parse(&manifest_content)
+    let manifest = manifest::parse_and_validate(&manifest_content, config.manifest_path.parent())
         .map_err(|e| Error::Manifest { reason: e.to_string() })?;
 
     // Step 3: If adding a new package, update the manifest file
@@ -91,7 +91,8 @@ pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<Instal
     // Re-read manifest if we just modified it, otherwise use existing
     let manifest = if config.add_package.is_some() {
         let content = std::fs::read_to_string(&config.manifest_path)?;
-        manifest::parse(&content).map_err(|e| Error::Manifest { reason: e.to_string() })?
+        manifest::parse_and_validate(&content, config.manifest_path.parent())
+            .map_err(|e| Error::Manifest { reason: e.to_string() })?
     } else {
         manifest
     };
@@ -259,8 +260,13 @@ fn resolve_dependencies(
     let root_deps = manifest_to_resolver_deps(manifest);
 
     // Parse overrides from manifest
-    let override_rules =
-        manifest.overrides.as_ref().map(resolver::overrides::parse).unwrap_or_default();
+    let override_rules = manifest
+        .overrides
+        .as_ref()
+        .map(resolver::overrides::parse)
+        .transpose()
+        .map_err(Error::Resolution)?
+        .unwrap_or_default();
 
     // Determine lockfile pins
     let lockfile_pins = match existing_lockfile {
@@ -488,7 +494,7 @@ pub fn update(config: &UpdateConfig, registry: &dyn Registry) -> Result<InstallR
     // Load manifest
     tracing::info!(manifest = %config.manifest_path.display(), "loading manifest for update");
     let manifest_content = std::fs::read_to_string(&config.manifest_path)?;
-    let manifest = manifest::parse(&manifest_content)
+    let manifest = manifest::parse_and_validate(&manifest_content, config.manifest_path.parent())
         .map_err(|e| Error::Manifest { reason: e.to_string() })?;
 
     // Load existing lockfile
@@ -520,8 +526,13 @@ pub fn update(config: &UpdateConfig, registry: &dyn Registry) -> Result<InstallR
 
     // Resolve dependencies with the adjusted pins
     let root_deps = manifest_to_resolver_deps(&manifest);
-    let override_rules =
-        manifest.overrides.as_ref().map(resolver::overrides::parse).unwrap_or_default();
+    let override_rules = manifest
+        .overrides
+        .as_ref()
+        .map(resolver::overrides::parse)
+        .transpose()
+        .map_err(Error::Resolution)?
+        .unwrap_or_default();
 
     let resolution =
         resolver::resolve_with_overrides(&root_deps, &lockfile_pins, registry, &override_rules)

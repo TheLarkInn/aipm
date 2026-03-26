@@ -94,8 +94,23 @@ pub fn validate_matches_manifest(
         }
     }
 
-    // Direct deps in lockfile but not in manifest (could be transitive, so this
-    // is a simpler check — we just verify manifest deps are present)
+    // Collect all names that appear as transitive dependencies of other packages.
+    // The dependency strings have the format "name ^version" or "name >=version",
+    // so we split on whitespace and take the first token as the dep name.
+    let transitive: std::collections::BTreeSet<String> = lockfile
+        .packages
+        .iter()
+        .flat_map(|p| {
+            p.dependencies.iter().filter_map(|d| d.split_whitespace().next().map(String::from))
+        })
+        .collect();
+
+    // Any lockfile package that is NOT a transitive dep AND NOT in manifest deps is drift.
+    for pkg in &lockfile.packages {
+        if !transitive.contains(&pkg.name) && !manifest_deps.contains(&pkg.name) {
+            issues.push(format!("dependency '{}' is in lockfile but not in manifest", pkg.name));
+        }
+    }
 
     if issues.is_empty() {
         Ok(())
@@ -261,5 +276,48 @@ generated_by = "future-aipm"
         let err_msg = format!("{}", result.err().unwrap());
         assert!(err_msg.contains("dep-a"));
         assert!(err_msg.contains("dep-b"));
+    }
+
+    #[test]
+    fn validate_matches_manifest_detects_removed_dep() {
+        // Create a lockfile with a root-level package ("stale-pkg") that is not
+        // a transitive dependency of any other package AND not in manifest deps.
+        let lf = Lockfile {
+            metadata: Metadata { lockfile_version: 1, generated_by: "aipm 0.10.0".to_string() },
+            packages: vec![
+                Package {
+                    name: "code-review".to_string(),
+                    version: "1.2.0".to_string(),
+                    source: "git+https://github.com/org/aipm-registry.git".to_string(),
+                    checksum: "sha512-abc123".to_string(),
+                    dependencies: vec!["lint-skill ^1.0".to_string()],
+                },
+                Package {
+                    name: "lint-skill".to_string(),
+                    version: "1.5.0".to_string(),
+                    source: "git+https://github.com/org/aipm-registry.git".to_string(),
+                    checksum: "sha512-789ghi".to_string(),
+                    dependencies: vec![],
+                },
+                Package {
+                    name: "stale-pkg".to_string(),
+                    version: "0.1.0".to_string(),
+                    source: "git+https://github.com/org/aipm-registry.git".to_string(),
+                    checksum: "sha512-stale".to_string(),
+                    dependencies: vec![],
+                },
+            ],
+        };
+
+        // Manifest only lists "code-review" — "stale-pkg" is a root-level
+        // lockfile entry that should be flagged as drift.
+        let deps: std::collections::BTreeSet<String> =
+            ["code-review"].iter().map(|s| (*s).to_string()).collect();
+
+        let result = validate_matches_manifest(&lf, &deps);
+        assert!(result.is_err());
+        let err_msg = format!("{}", result.err().unwrap());
+        assert!(err_msg.contains("stale-pkg"));
+        assert!(err_msg.contains("in lockfile but not in manifest"));
     }
 }

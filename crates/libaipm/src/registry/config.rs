@@ -43,7 +43,7 @@ pub struct IndexMeta {
 impl Config {
     /// Look up which registry name a package should use.
     ///
-    /// Scoped packages (`@scope/name`) are routed via `[registries.scopes]`.
+    /// Scoped packages (`@scope/name`) are routed via `[scopes]`.
     /// All other packages use the `"default"` registry.
     pub fn registry_for_package(&self, package_name: &str) -> &str {
         if let Some(scope) = extract_scope(package_name) {

@@ -3,6 +3,12 @@
 //! Files are stored by their SHA-512 hash in a 2-character prefix
 //! sharded directory layout: `~/.aipm/store/{prefix}/{rest}`.
 //!
+//! # Concurrency
+//!
+//! The store itself does not acquire locks internally. Callers performing
+//! concurrent writes should hold a [`Lock`] from [`Store::lock()`] for the
+//! duration of the operation to ensure mutual exclusion.
+//!
 //! This module provides:
 //! - [`hash`] — SHA-512 hashing utilities
 //! - [`layout`] — directory path calculation from hashes
@@ -91,6 +97,9 @@ impl Store {
     ///
     /// If a file with the same hash already exists, this is a no-op
     /// (content-addressable writes are idempotent).
+    ///
+    /// Callers performing concurrent writes should hold a [`Lock`] from
+    /// [`Store::lock()`] for the duration of the operation.
     ///
     /// # Errors
     ///
@@ -183,6 +192,9 @@ impl Store {
     ///
     /// Returns a map of relative paths (from `extracted_dir`) to their
     /// content hashes.
+    ///
+    /// Callers performing concurrent writes should hold a [`Lock`] from
+    /// [`Store::lock()`] for the duration of the operation.
     ///
     /// # Errors
     ///

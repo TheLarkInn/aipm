@@ -50,7 +50,17 @@ pub fn remove(target: &Path) -> Result<(), Error> {
 /// Check whether a path is a symbolic link (Unix) or directory junction (Windows).
 #[must_use]
 pub fn is_link(path: &Path) -> bool {
-    path.symlink_metadata().is_ok_and(|m| m.file_type().is_symlink())
+    #[cfg(unix)]
+    {
+        path.symlink_metadata().is_ok_and(|m| m.file_type().is_symlink())
+    }
+    #[cfg(windows)]
+    {
+        if path.symlink_metadata().is_ok_and(|m| m.file_type().is_symlink()) {
+            return true;
+        }
+        junction::exists(path).unwrap_or(false)
+    }
 }
 
 /// Read the target of a directory link.
@@ -88,7 +98,7 @@ fn remove_link(target: &Path) -> Result<(), Error> {
     }
     #[cfg(windows)]
     {
-        std::fs::remove_dir(target).map_err(|e| Error::Io { path: target.to_path_buf(), source: e })
+        junction::delete(target).map_err(|e| Error::Io { path: target.to_path_buf(), source: e })
     }
 }
 

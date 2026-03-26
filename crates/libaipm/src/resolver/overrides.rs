@@ -43,45 +43,47 @@ pub enum Override {
 /// Parse override entries from the manifest `[overrides]` table.
 ///
 /// Returns a list of parsed override rules.
-pub fn parse(overrides: &BTreeMap<String, String>) -> Vec<Override> {
+///
+/// # Errors
+///
+/// Returns an error if a scoped key (`parent>child`) is combined with a
+/// replacement value (`aipm:...@...`), which is not supported.
+pub fn parse(overrides: &BTreeMap<String, String>) -> Result<Vec<Override>, String> {
     let mut result = Vec::new();
     for (key, value) in overrides {
-        result.push(parse_single_override(key, value));
+        result.push(parse_single_override(key, value)?);
     }
-    result
+    Ok(result)
 }
 
 /// Parse a single override entry.
-fn parse_single_override(key: &str, value: &str) -> Override {
+fn parse_single_override(key: &str, value: &str) -> Result<Override, String> {
     // Check for scoped override: "parent>child"
     if let Some((parent, child)) = key.split_once('>') {
-        return if let Some(replacement_info) = parse_replacement_value(value) {
-            // Scoped replacement (unusual but technically valid)
-            Override::Replacement {
-                original: child.trim().to_string(),
-                replacement: replacement_info.0,
-                req: replacement_info.1,
-            }
+        return if parse_replacement_value(value).is_some() {
+            Err(format!(
+                "scoped replacements are not supported: '{key} = {value}'; use an unscoped key instead"
+            ))
         } else {
-            Override::Scoped {
+            Ok(Override::Scoped {
                 parent: parent.trim().to_string(),
                 child: child.trim().to_string(),
                 req: value.to_string(),
-            }
+            })
         };
     }
 
     // Check for replacement: value starts with "aipm:"
     if let Some(replacement_info) = parse_replacement_value(value) {
-        return Override::Replacement {
+        return Ok(Override::Replacement {
             original: key.to_string(),
             replacement: replacement_info.0,
             req: replacement_info.1,
-        };
+        });
     }
 
     // Global override
-    Override::Global { name: key.to_string(), req: value.to_string() }
+    Ok(Override::Global { name: key.to_string(), req: value.to_string() })
 }
 
 /// Parse a replacement value like `"aipm:fixed-lib@^1.0"`.
@@ -141,7 +143,7 @@ mod tests {
         let mut overrides = BTreeMap::new();
         overrides.insert("vulnerable-lib".to_string(), "^2.0.0".to_string());
 
-        let parsed = parse(&overrides);
+        let parsed = parse(&overrides).unwrap();
         assert_eq!(parsed.len(), 1);
         assert!(matches!(&parsed[0], Override::Global { name, req }
             if name == "vulnerable-lib" && req == "^2.0.0"));
@@ -152,7 +154,7 @@ mod tests {
         let mut overrides = BTreeMap::new();
         overrides.insert("skill-a>common-util".to_string(), "=2.1.0".to_string());
 
-        let parsed = parse(&overrides);
+        let parsed = parse(&overrides).unwrap();
         assert_eq!(parsed.len(), 1);
         assert!(matches!(&parsed[0], Override::Scoped { parent, child, req }
             if parent == "skill-a" && child == "common-util" && req == "=2.1.0"));
@@ -163,7 +165,7 @@ mod tests {
         let mut overrides = BTreeMap::new();
         overrides.insert("broken-lib".to_string(), "aipm:fixed-lib@^1.0".to_string());
 
-        let parsed = parse(&overrides);
+        let parsed = parse(&overrides).unwrap();
         assert_eq!(parsed.len(), 1);
         assert!(matches!(&parsed[0], Override::Replacement { original, replacement, req }
             if original == "broken-lib" && replacement == "fixed-lib" && req == "^1.0"));
@@ -226,7 +228,7 @@ mod tests {
         overrides.insert("parent>child".to_string(), "=1.0.0".to_string());
         overrides.insert("old-pkg".to_string(), "aipm:new-pkg@^3.0".to_string());
 
-        let parsed = parse(&overrides);
+        let parsed = parse(&overrides).unwrap();
         assert_eq!(parsed.len(), 3);
     }
 
@@ -236,7 +238,7 @@ mod tests {
         let mut overrides = BTreeMap::new();
         overrides.insert("pkg".to_string(), "aipm:nope".to_string());
 
-        let parsed = parse(&overrides);
+        let parsed = parse(&overrides).unwrap();
         assert_eq!(parsed.len(), 1);
         assert!(matches!(&parsed[0], Override::Global { .. }));
     }
@@ -289,21 +291,20 @@ mod tests {
 
     #[test]
     fn parse_scoped_with_replacement_value() {
-        // Unusual case: scoped key with aipm:replacement@version value
+        // Scoped key with aipm:replacement@version value is not supported
         let mut overrides = BTreeMap::new();
         overrides.insert("parent>old-child".to_string(), "aipm:new-child@^2.0".to_string());
 
-        let parsed = parse(&overrides);
-        assert_eq!(parsed.len(), 1);
-        // Should parse as Replacement (with child as original)
-        assert!(matches!(&parsed[0], Override::Replacement { original, replacement, req }
-            if original == "old-child" && replacement == "new-child" && req == "^2.0"));
+        let result = parse(&overrides);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.contains("scoped replacements are not supported"));
     }
 
     #[test]
     fn parse_empty_overrides() {
         let overrides = BTreeMap::new();
-        let parsed = parse(&overrides);
+        let parsed = parse(&overrides).unwrap();
         assert!(parsed.is_empty());
     }
 
