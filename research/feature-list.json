@@ -70,7 +70,7 @@
       "Implement Serialize/Deserialize for all types",
       "Add unit tests for round-trip serialization of lockfile TOML"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -82,7 +82,7 @@
       "Validate lockfile_version on read",
       "Add unit tests for read/write round-trip with tempdir"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -93,7 +93,7 @@
       "Return error with details on any mismatch (added, removed, changed deps)",
       "Add unit tests for matching and mismatching cases"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -106,7 +106,7 @@
       "Carry forward existing pinned deps untouched",
       "Add unit tests for each reconciliation scenario"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
