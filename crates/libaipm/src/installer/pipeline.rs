@@ -348,25 +348,24 @@ fn store_tarball_contents(
     tarball: &[u8],
     pkg_name: &str,
 ) -> Result<BTreeMap<PathBuf, String>, Error> {
-    // Create a temporary directory for extraction (include PID for uniqueness)
-    let tmp_dir =
-        std::env::temp_dir().join(format!("aipm-extract-{pkg_name}-{}", std::process::id()));
-    std::fs::create_dir_all(&tmp_dir)?;
+    // Create a unique temporary directory for extraction
+    let tmp_dir = tempfile::tempdir().map_err(|e| {
+        Error::Io(std::io::Error::other(format!("failed to create temp dir for {pkg_name}: {e}")))
+    })?;
 
     // Extract tarball (gzip-compressed tar)
     let decoder = flate2::read::GzDecoder::new(tarball);
     let mut archive = tar::Archive::new(decoder);
-    archive.unpack(&tmp_dir).map_err(|e| {
+    archive.unpack(tmp_dir.path()).map_err(|e| {
         Error::Io(std::io::Error::other(format!("failed to extract tarball for {pkg_name}: {e}")))
     })?;
 
     // Store all extracted files in the content store
-    let file_hashes = content_store.store_package(&tmp_dir).map_err(|e| {
+    let file_hashes = content_store.store_package(tmp_dir.path()).map_err(|e| {
         Error::Io(std::io::Error::other(format!("failed to store package {pkg_name}: {e}")))
     })?;
 
-    // Clean up temp directory (best effort)
-    let _ = std::fs::remove_dir_all(&tmp_dir);
+    // tmp_dir is cleaned up automatically on drop
 
     Ok(file_hashes)
 }

@@ -23,6 +23,9 @@ tar = { workspace = true }
 tracing = { workspace = true }
 ignore = { workspace = true }
 rayon = { workspace = true }
+git2 = { workspace = true }
+reqwest = { workspace = true }
+tempfile = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 junction = { workspace = true }
@@ -31,7 +34,6 @@ junction = { workspace = true }
 cucumber = { workspace = true }
 futures = { workspace = true }
 assert_cmd = { workspace = true }
-tempfile = { workspace = true }
 insta = { workspace = true }
 
 [[test]]

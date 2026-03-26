@@ -145,7 +145,7 @@
       "Parse config.json for dl URL template",
       "Add integration tests with a test git repo"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -158,7 +158,7 @@
       "Return error on checksum mismatch",
       "Add unit tests with mock HTTP responses"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

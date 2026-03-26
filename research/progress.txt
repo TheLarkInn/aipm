@@ -111,3 +111,22 @@ Features still pending: 12-13 (git2/reqwest needed), 26, 28-32, 36
 
 **Running total: 570 tests passing, 0 failures. 34 of 36 features complete.**
 Features still pending: 12-13 (git2/reqwest needed — blocked on workspace deps)
+
+## 2026-03-26 — Iteration 4
+
+### Features 12-13: Registry — GitRegistry with git2 + reqwest download ✅
+- registry/git.rs: Git struct (renamed from GitRegistry for module_name_repetitions lint)
+- Clone index via git2::Repository::clone(), fetch via fetch_and_reset() with hard reset
+- from_local_index() constructor for testing without real git repos
+- load_config() parsing config.json IndexMeta for dl URL template
+- find_version() helper to locate VersionEntry by version string
+- get_metadata() via index::read_package() from local cache
+- download() via reqwest::blocking::get() with SHA-512 checksum verification
+- verify_checksum() comparing sha512_hex(data) against index cksum field
+- http_get() with status code validation and proper error mapping
+- AtomicBool synced flag to skip redundant clone/fetch within a session
+- 13 unit tests (checksum match/mismatch/empty, metadata from local index, scoped packages, find_version, config loading, new() cache dir, download URL)
+- Fixed flaky installer test: replaced PID-based temp dir with tempfile::tempdir()
+- Moved tempfile from dev-dependencies to regular dependencies for production use
+
+**Running total: 583 tests passing, 0 failures. 36 of 36 features complete. ✅ ALL FEATURES DONE.**
