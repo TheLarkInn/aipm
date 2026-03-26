@@ -120,7 +120,7 @@
       "Define RegistryError enum with appropriate variants",
       "Add unit tests for type serialization/deserialization"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -132,7 +132,7 @@
       "Parse JSON-lines format from index files into Vec<VersionEntry>",
       "Add unit tests for path calculation and JSON parsing"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
