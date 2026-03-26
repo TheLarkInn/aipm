@@ -198,8 +198,7 @@ fn generate_manifest(name: &str, plugin_type: PluginType) -> String {
         "[package]\n\
          name = \"{name}\"\n\
          version = \"0.1.0\"\n\
-         type = \"{type_str}\"\n\
-         edition = \"2024\"\n"
+         type = \"{type_str}\"\n"
     )
 }
 
@@ -370,24 +369,6 @@ mod tests {
 
             let _ = std::fs::remove_dir_all(&tmp);
         }
-    }
-
-    #[test]
-    fn manifest_contains_edition() {
-        let tmp = std::env::temp_dir().join("aipm-test-init-edition");
-        if tmp.exists() {
-            let _ = std::fs::remove_dir_all(&tmp);
-        }
-        std::fs::create_dir_all(&tmp).ok();
-
-        let opts = Options { dir: &tmp, name: Some("test"), plugin_type: None };
-        let result = init(&opts, &Real);
-        assert!(result.is_ok());
-
-        let content = std::fs::read_to_string(tmp.join("aipm.toml"));
-        assert!(content.is_ok_and(|c| c.contains("edition")));
-
-        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]

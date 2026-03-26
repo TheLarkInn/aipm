@@ -75,7 +75,6 @@ name = "@company/ci-tools"
 version = "1.2.3"
 description = "CI automation skills"
 type = "composite"
-edition = "2024"
 files = ["skills/", "hooks/", "README.md"]
 
 [dependencies]
@@ -465,5 +464,17 @@ type = "lsp"
         assert!(err_msg.contains("name"), "expected name error in: {err_msg}");
         assert!(err_msg.contains("version"), "expected version error in: {err_msg}");
         assert!(err_msg.contains("; "), "expected '; ' separator in: {err_msg}");
+    }
+
+    #[test]
+    fn edition_field_rejected() {
+        let toml = r#"
+[package]
+name = "my-plugin"
+version = "0.1.0"
+edition = "2024"
+"#;
+        let result = parse_and_validate(toml, None);
+        assert!(result.is_err());
     }
 }

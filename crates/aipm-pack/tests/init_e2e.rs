@@ -39,7 +39,6 @@ fn init_in_empty_directory_creates_manifest() {
 
     assert!(content.contains("name = \"my-plugin\""), "should use directory name");
     assert!(content.contains("version = \"0.1.0\""), "should have version 0.1.0");
-    assert!(content.contains("edition"), "should have edition field");
 }
 
 // =========================================================================
@@ -245,7 +244,6 @@ fn generated_manifest_is_valid_toml() {
     assert!(content.contains("name = \"roundtrip-test\""));
     assert!(content.contains("version = \"0.1.0\""));
     assert!(content.contains("type = \"composite\""));
-    assert!(content.contains("edition"));
 }
 
 // =========================================================================
