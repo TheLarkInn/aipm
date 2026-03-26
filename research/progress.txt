@@ -78,3 +78,36 @@
 
 **Running total: 549 tests passing, 0 failures. 27 of 36 features complete.**
 Features still pending: 12-13 (git2/reqwest needed), 26, 28-32, 36
+
+## 2026-03-26 — Iteration 3
+
+### Feature 36: Observability — structured logging with tracing ✅
+- Added tracing instrumentation to linker/pipeline.rs (info-level for assemble, link, success, unlink)
+- Added tracing instrumentation to linker/security.rs (warn for blocked, debug for allowed)
+
+### Feature 26: Installer pipeline orchestration ✅
+- pipeline.rs: install() orchestrating 10-step pipeline (manifest → lockfile → resolve → fetch → store → link → lockfile write)
+- InstallConfig/InstallResult types for configuration and output
+- Reconciliation-based resolution: carries forward unchanged lockfile pins
+- Lockfile-first mode for --locked CI installs
+- Package removal handling for deps dropped from manifest
+- MockRegistry test infrastructure with gzip tar archive generation
+- 18 unit tests
+
+### Feature 28: Installer update command ✅
+- update() function with targeted (single pkg) and full (all deps) modes
+- Removes specific lockfile pin for targeted updates, discards all pins for full
+- Reuses install pipeline for fetch/store/link steps
+- 3 unit tests
+
+### Features 29-32: CLI commands ✅
+- aipm install [pkg[@ver]] [--locked] — install/add packages via installer pipeline
+- aipm update [pkg] — re-resolve to latest compatible versions
+- aipm link <path> — validate aipm.toml, create directory symlink, update links.toml
+- aipm unlink <pkg> — remove symlink, update links.toml and gitignore
+- aipm list [--linked] — show installed packages from lockfile or active dev links
+- StubRegistry placeholder until GitRegistry (Features 12-13) is implemented
+- Refactored main.rs into per-command handler functions for clippy compliance
+
+**Running total: 570 tests passing, 0 failures. 34 of 36 features complete.**
+Features still pending: 12-13 (git2/reqwest needed — blocked on workspace deps)
