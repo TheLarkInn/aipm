@@ -1,6 +1,12 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.11.2] - 2026-03-26
+
+### Bug Fixes
+- Address PR #104 review comments ([#107](https://github.com/TheLarkInn/aipm/pull/107)) (fa0f2f7)
+- Address PR #107 review comments ([#108](https://github.com/TheLarkInn/aipm/pull/108)) (ddb34b1)
+
 ## [0.11.1] - 2026-03-26
 
 ### Documentation
