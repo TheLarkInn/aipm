@@ -22,11 +22,5 @@ safe-outputs:
     allowed: [spec review]
     max: 1
 ---
-
-# Research Codebase
-
 /aipm-atomic-plugin:research-codebase ${{ github.event.issue.title }}
 
-Read issue **#${{ github.event.issue.number }}** for the full research question.
-Update the issue description with your findings using the `update-issue` safe output,
-then add the `spec review` label using the `add-labels` safe output.
