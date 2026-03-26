@@ -233,7 +233,7 @@
       "Include the path from root to each conflicting requirement",
       "Add unit tests verifying error output format"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -244,7 +244,7 @@
       "Implement create_directory_link() using junction::create on Windows via cfg",
       "Add unit tests for link creation and verification"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -256,7 +256,7 @@
       "Fall back to copy on cross-volume error",
       "Add unit tests with tempdir"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -268,7 +268,7 @@
       "Create parent directories as needed with create_dir_all",
       "Add unit tests verifying complete link chain"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -281,7 +281,7 @@
       "For scoped packages, add both @scope/name and @scope/ entries",
       "Add unit tests for add, remove, and preserve scenarios"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

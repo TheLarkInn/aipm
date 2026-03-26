@@ -325,7 +325,7 @@ impl<'a> Solver<'a> {
             });
 
             if has_same_major_conflict {
-                return Err(Error::Conflict {
+                return Err(Error::Conflict(Box::new(error::ConflictDetail {
                     name: trans_dep.name.clone(),
                     existing_req: self
                         .activated
@@ -339,7 +339,9 @@ impl<'a> Solver<'a> {
                         .map_or_else(String::new, |(_, pkg)| pkg.source.clone()),
                     new_req: trans_dep.req.clone(),
                     new_source: parent_dep.name.clone(),
-                });
+                    existing_chain: vec![],
+                    new_chain: vec![],
+                })));
             }
 
             return Ok(());
@@ -416,7 +418,7 @@ impl<'a> Solver<'a> {
         }
 
         // No more choices to backtrack to — report conflict
-        Err(Error::Conflict {
+        Err(Error::Conflict(Box::new(error::ConflictDetail {
             name: failing_dep.name.clone(),
             existing_req: self
                 .activated
@@ -430,7 +432,9 @@ impl<'a> Solver<'a> {
                 .map_or_else(String::new, |(_, pkg)| pkg.source.clone()),
             new_req: failing_dep.req.clone(),
             new_source: failing_dep.source.clone(),
-        })
+            existing_chain: vec![],
+            new_chain: vec![],
+        })))
     }
 
     /// Build the final resolution from activated packages.
@@ -915,8 +919,8 @@ mod tests {
         let result = resolve(&deps, &BTreeMap::new(), &reg);
 
         assert!(result.is_err());
-        if let Err(Error::Conflict { name, .. }) = &result {
-            assert_eq!(name, "common-util");
+        if let Err(Error::Conflict(detail)) = &result {
+            assert_eq!(detail.name, "common-util");
         }
     }
 
