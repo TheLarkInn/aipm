@@ -222,4 +222,25 @@ mod tests {
         let content = std::fs::read_to_string(&path).expect("read");
         assert!(content.starts_with("# Managed by aipm"));
     }
+
+    #[test]
+    fn read_invalid_toml_returns_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("links.toml");
+
+        // Write invalid TOML content
+        std::fs::write(&path, "[[link]\nNOT VALID TOML :::").expect("write");
+
+        let result = read(&path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn read_other_io_error_propagates() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        // Use a directory path as a file path — read_to_string will fail with EISDIR
+        let dir_as_file = tmp.path().to_path_buf();
+        let result = read(&dir_as_file);
+        assert!(result.is_err());
+    }
 }

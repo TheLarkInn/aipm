@@ -314,4 +314,145 @@ mod tests {
         assert!(content.contains("new-pkg"));
         assert!(content.contains("old-pkg"));
     }
+
+    #[test]
+    fn split_sections_reversed_markers_treated_as_no_markers() {
+        // If end marker comes before start marker, treat all as "before"
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let gitignore = tmp.path().join(".gitignore");
+
+        let content = format!("line1\n{MARKER_END}\nline2\n{MARKER_START}\nline3\n");
+        std::fs::write(&gitignore, &content).expect("write");
+
+        let entries = read_entries(&gitignore).expect("read");
+        // No managed entries since markers are reversed
+        assert!(entries.is_empty());
+    }
+
+    #[test]
+    fn split_sections_only_start_marker_no_end() {
+        // Only start marker present — treated as no valid marker pair, all content is "before"
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let gitignore = tmp.path().join(".gitignore");
+
+        let content = format!("line1\n{MARKER_START}\nsome-pkg\n");
+        std::fs::write(&gitignore, &content).expect("write");
+
+        let entries = read_entries(&gitignore).expect("read");
+        assert!(entries.is_empty());
+    }
+
+    #[test]
+    fn add_scoped_entry_scope_dir_already_present_is_idempotent() {
+        // Adding a second package under the same scope shouldn't duplicate the scope entry
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let gitignore = tmp.path().join(".gitignore");
+
+        assert!(add_entry(&gitignore, "@company/plugin-a").is_ok());
+        assert!(add_entry(&gitignore, "@company/plugin-b").is_ok());
+
+        let entries = read_entries(&gitignore).expect("read");
+        let scope_count = entries.iter().filter(|e| *e == "@company/").count();
+        assert_eq!(scope_count, 1, "scope directory should appear exactly once");
+    }
+
+    #[test]
+    fn remove_scoped_entry_with_another_scoped_package_keeps_scope() {
+        // When removing @company/plugin-a while @company/plugin-b still exists,
+        // the @company/ scope dir must remain because plugin-b still uses it.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let gitignore = tmp.path().join(".gitignore");
+
+        assert!(add_entry(&gitignore, "@company/plugin-a").is_ok());
+        assert!(add_entry(&gitignore, "@company/plugin-b").is_ok());
+        assert!(remove_entry(&gitignore, "@company/plugin-a").is_ok());
+
+        let entries = read_entries(&gitignore).expect("read");
+        assert!(entries.contains(&"@company/".to_string()));
+        assert!(!entries.contains(&"@company/plugin-a".to_string()));
+        assert!(entries.contains(&"@company/plugin-b".to_string()));
+    }
+
+    #[test]
+    fn managed_section_ignores_comment_lines_within_markers() {
+        // Lines starting with # inside the managed section are filtered out
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let gitignore = tmp.path().join(".gitignore");
+
+        let content = format!("{HEADER}\n{MARKER_START}\n# a comment\nreal-pkg\n{MARKER_END}\n");
+        std::fs::write(&gitignore, &content).expect("write");
+
+        let entries = read_entries(&gitignore).expect("read");
+        assert_eq!(entries.len(), 1);
+        assert!(entries.contains(&"real-pkg".to_string()));
+    }
+
+    #[test]
+    fn read_or_default_returns_error_on_permission_denied() {
+        // read_or_default only returns Ok(empty) for NotFound; other errors propagate
+        // We test this by trying to read a path that is a directory, not a file,
+        // so read_to_string will fail with a non-NotFound error.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        // A directory path passed as a file should yield an error (IsADirectory)
+        let dir_as_file = tmp.path().to_path_buf();
+        let result = read_entries(&dir_as_file);
+        // On Linux reading a directory with read_to_string fails with EISDIR
+        // which is not NotFound, so it should propagate as Err
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn add_entry_at_sign_without_slash_is_not_scoped() {
+        // extract_scope returns None when name starts with '@' but has no '/'.
+        // This covers the Option::map() on None branch inside extract_scope.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let gitignore = tmp.path().join(".gitignore");
+
+        // "@company" has no '/', so extract_scope returns None — no scope dir added.
+        assert!(add_entry(&gitignore, "@company").is_ok());
+
+        let entries = read_entries(&gitignore).expect("read");
+        assert!(entries.contains(&"@company".to_string()));
+        // No scope directory should be added since there is no '/'.
+        assert!(!entries.iter().any(|e| e.ends_with('/')));
+    }
+
+    #[test]
+    fn split_sections_empty_line_in_managed_section_is_skipped() {
+        // Covers the short-circuit `!trimmed.is_empty()` false branch in split_sections.
+        // An empty line between the markers is not added to managed entries.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let gitignore = tmp.path().join(".gitignore");
+
+        // Insert a blank line inside the managed section.
+        let content = format!("{HEADER}\n{MARKER_START}\n\nreal-pkg\n{MARKER_END}\n");
+        std::fs::write(&gitignore, &content).expect("write");
+
+        let entries = read_entries(&gitignore).expect("read");
+        // Only real-pkg should appear; the blank line is filtered out.
+        assert_eq!(entries.len(), 1);
+        assert!(entries.contains(&"real-pkg".to_string()));
+    }
+
+    #[test]
+    fn build_content_trailing_newline_not_doubled_when_after_empty_line() {
+        // Covers the `!result.ends_with('\n')` false branch in build_content.
+        // When the content after MARKER_END ends with a blank line, join("\n") already
+        // produces a trailing '\n', so the explicit push must be skipped.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let gitignore = tmp.path().join(".gitignore");
+
+        // The double '\n' at the end causes `lines()` to produce a trailing "" element
+        // so that after build_content's join the string already ends with '\n'.
+        let content = format!("{HEADER}\n{MARKER_START}\npkg\n{MARKER_END}\n\n");
+        std::fs::write(&gitignore, &content).expect("write");
+
+        // Adding an entry round-trips through build_content.
+        assert!(add_entry(&gitignore, "new-pkg").is_ok());
+
+        let written = std::fs::read_to_string(&gitignore).expect("read");
+        // Must end with exactly one newline (not two).
+        assert!(written.ends_with('\n'));
+        assert!(!written.ends_with("\n\n"));
+    }
 }

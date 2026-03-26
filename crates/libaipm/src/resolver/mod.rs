@@ -1287,4 +1287,209 @@ mod tests {
         assert!(dep_names.contains("extra-lib"));
         assert_eq!(dep_names.len(), 2);
     }
+
+    // =========================================================================
+    // Additional branch coverage tests
+    // =========================================================================
+
+    #[test]
+    fn activate_feature_recursive_already_active_no_infinite_loop() {
+        // Feature that includes itself transitively (cycle) — should not loop infinitely
+        let mut feature_defs = BTreeMap::new();
+        feature_defs.insert("a".to_string(), vec!["b".to_string()]);
+        feature_defs.insert("b".to_string(), vec!["a".to_string()]); // cycle
+
+        let mut active = BTreeSet::new();
+        activate_feature_recursive("a", &feature_defs, &mut active);
+
+        assert!(active.contains("a"));
+        assert!(active.contains("b"));
+        // No infinite loop means the test completes
+    }
+
+    #[test]
+    fn activate_feature_recursive_with_dep_prefix_skipped() {
+        // Sub-features starting with "dep:" should not be recursed into as feature names
+        let mut feature_defs = BTreeMap::new();
+        feature_defs.insert("my-feat".to_string(), vec!["dep:optional-lib".to_string()]);
+
+        let mut active = BTreeSet::new();
+        activate_feature_recursive("my-feat", &feature_defs, &mut active);
+
+        assert!(active.contains("my-feat"));
+        // "dep:optional-lib" should not appear as a feature name
+        assert!(!active.contains("dep:optional-lib"));
+    }
+
+    #[test]
+    fn collect_feature_deps_active_feature_not_in_defs() {
+        // Active feature that has no entry in feature_defs — should be skipped gracefully
+        let feature_defs: BTreeMap<String, Vec<String>> = BTreeMap::new();
+
+        let mut active = BTreeSet::new();
+        active.insert("unknown-feature".to_string());
+
+        let dep_names = collect_feature_deps(&active, &feature_defs);
+        assert!(dep_names.is_empty());
+    }
+
+    #[test]
+    fn select_sorted_candidates_excludes_yanked() {
+        let mut reg = MockRegistry::new();
+        let entries = vec![
+            VersionEntry {
+                name: "pkg".to_string(),
+                vers: "1.0.0".to_string(),
+                deps: vec![],
+                cksum: "sha512-1".to_string(),
+                features: BTreeMap::new(),
+                yanked: true, // yanked — should be excluded
+            },
+            VersionEntry {
+                name: "pkg".to_string(),
+                vers: "1.1.0".to_string(),
+                deps: vec![],
+                cksum: "sha512-2".to_string(),
+                features: BTreeMap::new(),
+                yanked: false,
+            },
+        ];
+        reg.packages.insert("pkg".to_string(), entries);
+
+        let deps = vec![root_dep("pkg", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg).unwrap();
+        assert_eq!(result.packages[0].version.to_string(), "1.1.0");
+    }
+
+    #[test]
+    fn transitive_conflict_same_major_reported() {
+        // Two packages that both depend on the same package with incompatible same-major reqs
+        // This tests the queue_transitive_dep same-major conflict branch
+        let mut reg = MockRegistry::new();
+        reg.add_package("a", vec![("1.0.0", vec![dep("shared", "=1.0.0")])]);
+        reg.add_package("b", vec![("1.0.0", vec![dep("shared", "=1.1.0")])]);
+        reg.add_package("shared", vec![("1.0.0", vec![]), ("1.1.0", vec![])]);
+
+        // Both a and b need shared at incompatible same-major versions
+        let deps = vec![root_dep("a", "^1.0"), root_dep("b", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn resolve_with_lockfile_pins_unified() {
+        // When a lockfile pin already satisfies the requirement, find_unified returns true
+        let mut reg = MockRegistry::new();
+        reg.add_package("foo", vec![("1.0.0", vec![]), ("1.1.0", vec![])]);
+
+        let mut pins = BTreeMap::new();
+        pins.insert("foo".to_string(), Version::parse("1.0.0").unwrap());
+
+        // ^1.0 matches pinned 1.0.0 — should unify without querying registry for new version
+        let deps = vec![root_dep("foo", "^1.0")];
+        let result = resolve(&deps, &pins, &reg).unwrap();
+
+        let foo = result.packages.iter().find(|p| p.name == "foo").unwrap();
+        assert_eq!(foo.version.to_string(), "1.0.0");
+    }
+
+    #[test]
+    fn compute_active_features_no_default_feature_defined() {
+        // dep.default_features=true but "default" key missing from feature_defs — should not crash
+        let feature_defs: BTreeMap<String, Vec<String>> = BTreeMap::new(); // no "default" key
+
+        let dep = root_dep("pkg", "^1.0");
+        let active = compute_active_features(&dep, &feature_defs);
+        // No "default" in defs, so nothing should be activated
+        assert!(active.is_empty());
+    }
+
+    #[test]
+    fn resolve_with_unknown_feature() {
+        // A dependency requests feature "extra" that does not exist in the package's
+        // feature definitions. This exercises the `None` branch at line 518 where
+        // `feature_defs.get(feature)` returns `None`.
+        let mut reg = MockRegistry::new();
+
+        // Package has a "json" feature defined but NOT "extra"
+        let mut features = BTreeMap::new();
+        features.insert("json".to_string(), vec![]);
+
+        reg.packages.insert(
+            "my-plugin".to_string(),
+            vec![VersionEntry {
+                name: "my-plugin".to_string(),
+                vers: "1.0.0".to_string(),
+                deps: vec![],
+                cksum: "sha512-test".to_string(),
+                features,
+                yanked: false,
+            }],
+        );
+
+        // Request "extra" which is not in the feature defs
+        let deps = vec![root_dep_with_features("my-plugin", "^1.0", vec!["extra"])];
+        let result = resolve(&deps, &BTreeMap::new(), &reg).unwrap();
+
+        let pkg = result.packages.iter().find(|p| p.name == "my-plugin").unwrap();
+        // "extra" is inserted into active set even though it has no sub-features
+        assert!(pkg.features.contains("extra"));
+    }
+
+    #[test]
+    fn resolve_unifies_same_major_from_two_parents() {
+        // Two root deps both depend on the same transitive dep at the same major.
+        // The second encounter should hit the "already activated" unification path
+        // inside `try_activate_with_backtrack` (line 248-254).
+        //
+        // We set up: root -> x ^1.0, root -> y ^1.0
+        //   x@1.0.0 -> shared ^2.0
+        //   y@1.0.0 -> shared ^2.1
+        //   shared has 2.0.0, 2.1.0, 2.2.0
+        //
+        // Resolution order: x is resolved first, activates shared@2.2.0 (highest ^2.0).
+        // Then y is resolved, its transitive dep shared ^2.1 goes to find_unified →
+        // finds 2.2.0 matches ^2.1 → unified. This tests the queue_transitive_dep path.
+        let mut reg = MockRegistry::new();
+        reg.add_package("x", vec![("1.0.0", vec![dep("shared", "^2.0")])]);
+        reg.add_package("y", vec![("1.0.0", vec![dep("shared", "^2.1")])]);
+        reg.add_package("shared", vec![("2.0.0", vec![]), ("2.1.0", vec![]), ("2.2.0", vec![])]);
+
+        let deps = vec![root_dep("x", "^1.0"), root_dep("y", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg).unwrap();
+
+        // shared should appear exactly once, at the highest compatible version
+        let shared: Vec<_> = result.packages.iter().filter(|p| p.name == "shared").collect();
+        assert_eq!(shared.len(), 1);
+        assert_eq!(shared[0].version.to_string(), "2.2.0");
+    }
+
+    #[test]
+    fn backtrack_exhausts_all_candidates() {
+        // All candidates for a package fail due to same-major conflict, exercising the
+        // `false` branch at line 371 where `choice.current_idx >= choice.candidates.len()`.
+        //
+        // Setup: root -> a ^1.0, root -> b ^1.0
+        //   a@1.0.0 -> shared =1.0.0
+        //   b has two versions: b@1.1.0 -> shared =1.2.0, b@1.0.0 -> shared =1.3.0
+        //   shared has 1.0.0, 1.2.0, 1.3.0
+        //
+        // a activates shared@1.0.0. Then b@1.1.0 wants shared =1.2.0 → conflict → backtrack
+        // to b@1.0.0 which wants shared =1.3.0 → still conflicts → exhausted → error.
+        let mut reg = MockRegistry::new();
+        reg.add_package("a", vec![("1.0.0", vec![dep("shared", "=1.0.0")])]);
+        reg.add_package(
+            "b",
+            vec![
+                ("1.0.0", vec![dep("shared", "=1.3.0")]),
+                ("1.1.0", vec![dep("shared", "=1.2.0")]),
+            ],
+        );
+        reg.add_package("shared", vec![("1.0.0", vec![]), ("1.2.0", vec![]), ("1.3.0", vec![])]);
+
+        let deps = vec![root_dep("a", "^1.0"), root_dep("b", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg);
+
+        assert!(result.is_err());
+    }
 }

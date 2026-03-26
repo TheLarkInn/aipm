@@ -160,8 +160,12 @@ impl Fs for Real {
         let parent = path.parent().unwrap_or_else(|| Path::new("."));
         std::fs::create_dir_all(parent)?;
 
-        // Write to a sibling temp file, then rename for atomicity.
-        let tmp_path = parent.join(format!(".aipm-tmp-{}", std::process::id()));
+        // Write to a per-call unique sibling temp file, then rename for atomicity.
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(0);
+        let tmp_path = parent.join(format!(".aipm-tmp-{}-{nanos}", std::process::id()));
         let mut file = std::fs::File::create(&tmp_path)?;
         file.write_all(content)?;
         file.sync_all()?;

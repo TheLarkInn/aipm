@@ -167,14 +167,22 @@ fn http_get(url: &str) -> Result<Vec<u8>, Error> {
         .map(|b| b.to_vec())
 }
 
+/// Normalize a checksum string by stripping an optional `sha512-` prefix.
+fn normalize_checksum(cksum: &str) -> &str {
+    cksum.strip_prefix("sha512-").unwrap_or(cksum)
+}
+
 /// Verify that the SHA-512 checksum of `data` matches `expected`.
+///
+/// `expected` may be a raw 128-char hex string or carry a `sha512-` prefix.
 fn verify_checksum(data: &[u8], expected: &str, name: &str, version: &str) -> Result<(), Error> {
     let actual = sha512_hex(data);
-    if actual != expected {
+    let normalized = normalize_checksum(expected);
+    if actual != normalized {
         return Err(Error::ChecksumMismatch {
             name: name.to_string(),
             version: version.to_string(),
-            expected: expected.to_string(),
+            expected: normalized.to_string(),
             actual,
         });
     }
@@ -384,6 +392,25 @@ mod tests {
         assert!(registry.cache_dir.exists());
         // cache_dir should be under cache_root with a hash-based name
         assert!(registry.cache_dir.starts_with(&cache_root));
+    }
+
+    // --- normalize_checksum + verify_checksum with sha512- prefix ---
+
+    #[test]
+    fn checksum_with_sha512_prefix_matches() {
+        let data = b"hello world";
+        let hex = sha512_hex(data);
+        let prefixed = format!("sha512-{hex}");
+        assert!(verify_checksum(data, &prefixed, "pkg", "1.0.0").is_ok());
+    }
+
+    #[test]
+    fn checksum_with_sha512_prefix_mismatch() {
+        let data = b"hello world";
+        let wrong = sha512_hex(b"other data");
+        let prefixed = format!("sha512-{wrong}");
+        let err = verify_checksum(data, &prefixed, "pkg", "1.0.0").unwrap_err();
+        assert!(err.to_string().contains("checksum mismatch"));
     }
 
     // --- download URL integration ---

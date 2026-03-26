@@ -247,4 +247,103 @@ mod tests {
         apply(&mut deps, &[]);
         assert_eq!(deps[0].req, "^1.0"); // unchanged
     }
+
+    #[test]
+    fn apply_global_no_match() {
+        // Global override for a name that doesn't match any dep — deps unchanged
+        let overrides =
+            vec![Override::Global { name: "other-lib".to_string(), req: "^2.0.0".to_string() }];
+
+        let mut deps = vec![make_dep("foo", "^1.0", "root")];
+        apply(&mut deps, &overrides);
+        assert_eq!(deps[0].req, "^1.0");
+    }
+
+    #[test]
+    fn apply_scoped_no_match_wrong_parent() {
+        // Scoped override: child matches but parent doesn't — dep unchanged
+        let overrides = vec![Override::Scoped {
+            parent: "skill-a".to_string(),
+            child: "common-util".to_string(),
+            req: "=2.1.0".to_string(),
+        }];
+
+        let mut deps = vec![make_dep("common-util", "^2.0", "skill-z")];
+        apply(&mut deps, &overrides);
+        assert_eq!(deps[0].req, "^2.0");
+    }
+
+    #[test]
+    fn apply_replacement_no_match() {
+        // Replacement override for a name that doesn't match — dep unchanged
+        let overrides = vec![Override::Replacement {
+            original: "broken-lib".to_string(),
+            replacement: "fixed-lib".to_string(),
+            req: "^1.0".to_string(),
+        }];
+
+        let mut deps = vec![make_dep("other-lib", "^1.0", "root")];
+        apply(&mut deps, &overrides);
+        assert_eq!(deps[0].name, "other-lib");
+    }
+
+    #[test]
+    fn parse_scoped_with_replacement_value() {
+        // Unusual case: scoped key with aipm:replacement@version value
+        let mut overrides = BTreeMap::new();
+        overrides.insert("parent>old-child".to_string(), "aipm:new-child@^2.0".to_string());
+
+        let parsed = parse(&overrides);
+        assert_eq!(parsed.len(), 1);
+        // Should parse as Replacement (with child as original)
+        assert!(matches!(&parsed[0], Override::Replacement { original, replacement, req }
+            if original == "old-child" && replacement == "new-child" && req == "^2.0"));
+    }
+
+    #[test]
+    fn parse_empty_overrides() {
+        let overrides = BTreeMap::new();
+        let parsed = parse(&overrides);
+        assert!(parsed.is_empty());
+    }
+
+    #[test]
+    fn apply_scoped_no_match_wrong_child() {
+        // Scoped override where the dep's name doesn't match the child at all (short-circuit)
+        let overrides = vec![Override::Scoped {
+            parent: "skill-a".to_string(),
+            child: "common-util".to_string(),
+            req: "=2.1.0".to_string(),
+        }];
+
+        let mut deps = vec![make_dep("different-lib", "^1.0", "skill-a")];
+        apply(&mut deps, &overrides);
+        assert_eq!(deps[0].req, "^1.0"); // not overridden — wrong child name
+    }
+
+    #[test]
+    fn apply_with_empty_deps() {
+        // Empty deps slice — loop body never executes
+        let overrides = vec![Override::Global { name: "lib".to_string(), req: "^2.0".to_string() }];
+        let mut deps: Vec<Dependency> = vec![];
+        apply(&mut deps, &overrides);
+        assert!(deps.is_empty());
+    }
+
+    #[test]
+    fn apply_global_updates_multiple_matching_deps() {
+        // Global override matches multiple deps with the same name
+        let overrides = vec![Override::Global { name: "lib".to_string(), req: "^3.0".to_string() }];
+
+        let mut deps = vec![
+            make_dep("lib", "^1.0", "pkg-a"),
+            make_dep("lib", "^2.0", "pkg-b"),
+            make_dep("other", "^1.0", "root"),
+        ];
+
+        apply(&mut deps, &overrides);
+        assert_eq!(deps[0].req, "^3.0");
+        assert_eq!(deps[1].req, "^3.0");
+        assert_eq!(deps[2].req, "^1.0"); // unchanged
+    }
 }

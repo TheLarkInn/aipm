@@ -452,4 +452,95 @@ mod tests {
         let _guard = store.lock().unwrap();
         assert!(store_path.exists());
     }
+
+    #[test]
+    fn get_path_returns_some_for_existing() {
+        let (_tmp, store) = make_store();
+        let hash = store.store_file(b"get path test").unwrap();
+
+        let result = store.get_path(&hash).unwrap();
+        assert!(result.is_some());
+        assert!(result.unwrap().exists());
+    }
+
+    #[test]
+    fn link_to_target_with_no_parent_still_works() {
+        // When target path has no parent (e.g. just a filename in current dir),
+        // create_dir_all(parent) is skipped via the if let Some branch
+        let (_tmp, store) = make_store();
+        let content = b"no-parent test";
+        let hash = store.store_file(content).unwrap();
+
+        // Use a target in the store's own directory (which already exists)
+        let target = store.path().join("output_file");
+        assert!(store.link_to(&hash, &target).is_ok());
+        assert!(target.exists());
+    }
+
+    #[test]
+    fn store_package_with_nested_dirs() {
+        let (_tmp, store) = make_store();
+        let pkg_dir = tempfile::tempdir().unwrap();
+
+        // Create nested directory structure
+        std::fs::create_dir_all(pkg_dir.path().join("a/b")).unwrap();
+        std::fs::write(pkg_dir.path().join("a/b/file.txt"), b"deep file").unwrap();
+        std::fs::write(pkg_dir.path().join("top.txt"), b"top file").unwrap();
+
+        let result = store.store_package(pkg_dir.path()).unwrap();
+        assert_eq!(result.len(), 2);
+
+        for hash in result.values() {
+            assert!(store.has_content(hash));
+        }
+    }
+
+    #[test]
+    fn is_cross_device_false_for_regular_error() {
+        // A regular permission denied error is not a cross-device error
+        let err = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+        assert!(!is_cross_device(&err));
+    }
+
+    #[test]
+    fn link_to_errors_on_existing_target_same_dir() {
+        let (_tmp, store) = make_store();
+        let content = b"link target";
+        let hash = store.store_file(content).unwrap();
+
+        let target_dir = tempfile::tempdir().unwrap();
+        let target = target_dir.path().join("file");
+
+        // Create the target once
+        store.link_to(&hash, &target).unwrap();
+        // Hard-linking to an already existing path should fail (AlreadyExists)
+        let result = store.link_to(&hash, &target);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn link_to_with_no_parent_target() {
+        let (_tmp, store) = make_store();
+        let content = b"no parent target test";
+        let hash = store.store_file(content).unwrap();
+
+        // Path::new("").parent() returns None, covering the None branch at line 158
+        let result = store.link_to(&hash, Path::new(""));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn store_package_skips_symlinks() {
+        let (_tmp, store) = make_store();
+        let pkg_dir = tempfile::tempdir().unwrap();
+
+        // Write a regular file
+        std::fs::write(pkg_dir.path().join("real.txt"), b"real file").unwrap();
+
+        // Create a symlink to a nonexistent target
+        std::os::unix::fs::symlink("/nonexistent", pkg_dir.path().join("link.txt")).unwrap();
+
+        let result = store.store_package(pkg_dir.path()).unwrap();
+        assert_eq!(result.len(), 1);
+    }
 }

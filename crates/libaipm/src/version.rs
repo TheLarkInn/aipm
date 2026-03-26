@@ -231,24 +231,16 @@ mod tests {
 
     /// Helper: assert requirement matches a version string.
     fn assert_matches(req_str: &str, ver_str: &str) {
-        let req = Requirement::parse(req_str);
-        let ver = Version::parse(ver_str);
-        assert!(req.is_ok(), "failed to parse requirement: {req_str}");
-        assert!(ver.is_ok(), "failed to parse version: {ver_str}");
-        if let (Ok(r), Ok(v)) = (&req, &ver) {
-            assert!(r.matches(v), "expected '{req_str}' to match '{ver_str}'");
-        }
+        let req = Requirement::parse(req_str).unwrap();
+        let ver = Version::parse(ver_str).unwrap();
+        assert!(req.matches(&ver), "expected '{req_str}' to match '{ver_str}'");
     }
 
     /// Helper: assert requirement does NOT match a version string.
     fn assert_no_match(req_str: &str, ver_str: &str) {
-        let req = Requirement::parse(req_str);
-        let ver = Version::parse(ver_str);
-        assert!(req.is_ok(), "failed to parse requirement: {req_str}");
-        assert!(ver.is_ok(), "failed to parse version: {ver_str}");
-        if let (Ok(r), Ok(v)) = (&req, &ver) {
-            assert!(!r.matches(v), "expected '{req_str}' to NOT match '{ver_str}'");
-        }
+        let req = Requirement::parse(req_str).unwrap();
+        let ver = Version::parse(ver_str).unwrap();
+        assert!(!req.matches(&ver), "expected '{req_str}' to NOT match '{ver_str}'");
     }
 
     #[test]

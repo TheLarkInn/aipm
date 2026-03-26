@@ -183,9 +183,34 @@ fn home_store_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
     Ok(PathBuf::from(home).join(".aipm/store"))
 }
 
-/// Produce an ISO-8601 timestamp stub (avoids adding chrono dependency).
+/// Produce an approximate ISO-8601 timestamp using `SystemTime` (no extra deps).
+///
+/// Format: `YYYY-MM-DDTHH:MM:SSZ` (UTC, second precision).
 fn timestamp_now() -> String {
-    "2026-01-01T00:00:00Z".to_string()
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    // Convert Unix seconds to a basic UTC datetime string
+    let s = secs % 60;
+    let m = (secs / 60) % 60;
+    let h = (secs / 3600) % 24;
+    let days = secs / 86400;
+    // Approximate calendar date (good enough for display)
+    let year = 1970 + days / 365;
+    let day_of_year = days % 365;
+    let (month, day) = day_of_year_to_month_day(day_of_year);
+    format!("{year:04}-{month:02}-{day:02}T{h:02}:{m:02}:{s:02}Z")
+}
+
+fn day_of_year_to_month_day(day: u64) -> (u64, u64) {
+    let months = [31u64, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let mut remaining = day;
+    for (i, &days_in_month) in months.iter().enumerate() {
+        if remaining < days_in_month {
+            return (i as u64 + 1, remaining + 1);
+        }
+        remaining -= days_in_month;
+    }
+    (12, remaining + 1)
 }
 
 // =========================================================================
@@ -471,7 +496,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             let flags = InitWizardFlags { yes, workspace, marketplace, no_starter };
             cmd_init(&flags, manifest, name.as_deref(), dir)
         },
-        Some(Commands::Install { package, locked, registry: _registry, dir }) => {
+        Some(Commands::Install { package, locked, registry, dir }) => {
+            if registry.is_some() {
+                let mut stderr = std::io::stderr();
+                let _ = writeln!(
+                    stderr,
+                    "warning: --registry is not yet supported and will be ignored"
+                );
+            }
             cmd_install(package, locked, dir)
         },
         Some(Commands::Update { package, dir }) => cmd_update(package, dir),

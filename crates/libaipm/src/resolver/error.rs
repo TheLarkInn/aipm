@@ -180,4 +180,86 @@ mod tests {
         let err = Error::NoMatch { name: "foo".to_string(), requirement: "^5.0".to_string() };
         assert_eq!(err.to_string(), "no compatible version found for 'foo' matching ^5.0");
     }
+
+    #[test]
+    fn registry_error_format() {
+        let err = Error::Registry { reason: "timeout".to_string() };
+        assert_eq!(err.to_string(), "registry error: timeout");
+    }
+
+    #[test]
+    fn version_error_format() {
+        let err = Error::Version { reason: "bad semver".to_string() };
+        assert_eq!(err.to_string(), "version error: bad semver");
+    }
+
+    #[test]
+    fn build_chain_lockfile_source_breaks_early() {
+        let mut source_map = std::collections::BTreeMap::new();
+        source_map.insert("pkg-a".to_string(), "lockfile".to_string());
+
+        let chain = build_chain("pkg-a", &source_map);
+        assert_eq!(chain, vec!["lockfile"]);
+    }
+
+    #[test]
+    fn build_chain_missing_source_breaks() {
+        // When source_map doesn't have the package, chain is empty
+        let source_map = std::collections::BTreeMap::new();
+        let chain = build_chain("nonexistent", &source_map);
+        assert!(chain.is_empty());
+    }
+
+    #[test]
+    fn conflict_error_only_existing_chain() {
+        // existing_chain has entries, new_chain is empty — tests the inner if branches
+        let err = Error::Conflict(Box::new(ConflictDetail {
+            name: "pkg".to_string(),
+            existing_req: "1.0.0".to_string(),
+            existing_source: "src-a".to_string(),
+            new_req: "=2.0.0".to_string(),
+            new_source: "src-b".to_string(),
+            existing_chain: vec!["root".to_string(), "src-a".to_string()],
+            new_chain: vec![],
+        }));
+
+        let msg = err.to_string();
+        assert!(msg.contains("dependency chains:"));
+        assert!(msg.contains("root -> src-a -> pkg"));
+    }
+
+    #[test]
+    fn conflict_error_only_new_chain() {
+        // new_chain has entries, existing_chain is empty
+        let err = Error::Conflict(Box::new(ConflictDetail {
+            name: "pkg".to_string(),
+            existing_req: "1.0.0".to_string(),
+            existing_source: "src-a".to_string(),
+            new_req: "=2.0.0".to_string(),
+            new_source: "src-b".to_string(),
+            existing_chain: vec![],
+            new_chain: vec!["root".to_string(), "src-b".to_string()],
+        }));
+
+        let msg = err.to_string();
+        assert!(msg.contains("dependency chains:"));
+        assert!(msg.contains("root -> src-b -> pkg"));
+    }
+
+    #[test]
+    fn format_chain_single_element() {
+        // Single-element chain should not include " -> " separators
+        let err = Error::Conflict(Box::new(ConflictDetail {
+            name: "pkg".to_string(),
+            existing_req: "1.0.0".to_string(),
+            existing_source: "root".to_string(),
+            new_req: "2.0.0".to_string(),
+            new_source: "root".to_string(),
+            existing_chain: vec!["root".to_string()],
+            new_chain: vec![],
+        }));
+
+        let msg = err.to_string();
+        assert!(msg.contains("root -> pkg"));
+    }
 }

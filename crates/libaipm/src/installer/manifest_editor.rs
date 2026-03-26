@@ -185,4 +185,37 @@ existing-pkg = "^1.0"
         assert_eq!(name, "my-pkg");
         assert_eq!(version, "=1.2.3");
     }
+
+    #[test]
+    fn add_dependency_fails_when_dependencies_is_scalar() {
+        // When `dependencies` key exists but is a scalar value (not a table),
+        // `as_table_mut()` returns None → ok_or_else error path (lines 37-38) is triggered.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let manifest = tmp.path().join("aipm.toml");
+        // Put `dependencies` at the DOCUMENT ROOT (not inside [package]) so that
+        // `doc.get("dependencies")` finds it as a scalar and `as_table_mut()` returns None.
+        std::fs::write(&manifest, "dependencies = \"not-a-table\"\n").expect("write");
+
+        let result = add_dependency(&manifest, "new-pkg", "^1.0");
+        assert!(result.is_err());
+        let err = format!("{result:?}");
+        assert!(err.contains("dependencies"));
+    }
+
+    #[test]
+    fn remove_dependency_no_deps_table_is_noop() {
+        // Covers the None branch of `if let Some(deps) = doc.get_mut("dependencies")…`
+        // in remove_dependency — when the manifest has no [dependencies] table at all.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let manifest = tmp.path().join("aipm.toml");
+        std::fs::write(&manifest, "[package]\nname = \"test\"\nversion = \"0.1.0\"\n")
+            .expect("write");
+
+        let result = remove_dependency(&manifest, "nonexistent-pkg");
+        assert!(result.is_ok());
+
+        // File should be unchanged (still no [dependencies])
+        let content = std::fs::read_to_string(&manifest).expect("read");
+        assert!(!content.contains("[dependencies]"));
+    }
 }
