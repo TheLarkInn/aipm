@@ -1,6 +1,6 @@
 //! `aipm` — consumer CLI for AI plugin management.
 //!
-//! Commands: init, install, validate, doctor, link, update, uninstall.
+//! Commands: init, install, update, link, unlink, list, migrate.
 
 mod wizard;
 mod wizard_tty;
@@ -50,6 +50,65 @@ enum Commands {
         dir: PathBuf,
     },
 
+    /// Install packages from the registry.
+    Install {
+        /// Package to install (e.g., "code-review", "@org/tool@^1.0").
+        package: Option<String>,
+
+        /// CI mode: fail if lockfile doesn't match manifest.
+        #[arg(long)]
+        locked: bool,
+
+        /// Use a specific registry.
+        #[arg(long)]
+        registry: Option<String>,
+
+        /// Project directory.
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+    },
+
+    /// Update packages to their latest compatible versions.
+    Update {
+        /// Package to update (omit to update all).
+        package: Option<String>,
+
+        /// Project directory.
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+    },
+
+    /// Link a local package directory for development.
+    Link {
+        /// Path to local package directory.
+        path: PathBuf,
+
+        /// Project directory.
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+    },
+
+    /// Unlink a previously linked package, restoring the registry version.
+    Unlink {
+        /// Package name to unlink.
+        package: String,
+
+        /// Project directory.
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+    },
+
+    /// List installed packages or active link overrides.
+    List {
+        /// Show only active dev link overrides.
+        #[arg(long)]
+        linked: bool,
+
+        /// Project directory.
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+    },
+
     /// Migrate AI tool configurations into marketplace plugins.
     Migrate {
         /// Preview migration without writing files (generates report).
@@ -76,101 +135,351 @@ enum Commands {
     },
 }
 
+// =========================================================================
+// Stub registry — placeholder until GitRegistry (git2/reqwest) is implemented
+// =========================================================================
+
+struct StubRegistry;
+
+impl libaipm::registry::Registry for StubRegistry {
+    fn get_metadata(
+        &self,
+        name: &str,
+    ) -> Result<libaipm::registry::PackageMetadata, libaipm::registry::error::Error> {
+        Err(libaipm::registry::error::Error::Io {
+            reason: format!("no registry configured — cannot look up '{name}'"),
+        })
+    }
+
+    fn download(
+        &self,
+        name: &str,
+        version: &libaipm::version::Version,
+    ) -> Result<Vec<u8>, libaipm::registry::error::Error> {
+        Err(libaipm::registry::error::Error::Io {
+            reason: format!("no registry configured — cannot download '{name}@{version}'"),
+        })
+    }
+}
+
+// =========================================================================
+// Helpers
+// =========================================================================
+
+/// Resolve a directory argument: if ".", use `current_dir()`.
+fn resolve_dir(dir: PathBuf) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    if dir.as_os_str() == "." {
+        Ok(std::env::current_dir()?)
+    } else {
+        Ok(dir)
+    }
+}
+
+/// Get the global content-addressable store path (`~/.aipm/store/`).
+fn home_store_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .map_err(|_| "could not determine home directory")?;
+    Ok(PathBuf::from(home).join(".aipm/store"))
+}
+
+/// Produce an ISO-8601 timestamp stub (avoids adding chrono dependency).
+fn timestamp_now() -> String {
+    "2026-01-01T00:00:00Z".to_string()
+}
+
+// =========================================================================
+// Command handlers
+// =========================================================================
+
+/// Grouped wizard flags for the init command.
+struct InitWizardFlags {
+    yes: bool,
+    workspace: bool,
+    marketplace: bool,
+    no_starter: bool,
+}
+
+fn cmd_init(
+    flags: &InitWizardFlags,
+    manifest: bool,
+    name: Option<&str>,
+    dir: PathBuf,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let dir = resolve_dir(dir)?;
+    let interactive = !flags.yes && std::io::stdin().is_terminal();
+
+    let (do_workspace, do_marketplace, do_no_starter, marketplace_name) = wizard_tty::resolve(
+        interactive,
+        (flags.workspace, flags.marketplace, flags.no_starter),
+        name,
+    )?;
+
+    let adaptors = libaipm::workspace_init::adaptors::defaults();
+    let opts = libaipm::workspace_init::Options {
+        dir: &dir,
+        workspace: do_workspace,
+        marketplace: do_marketplace,
+        no_starter: do_no_starter,
+        manifest,
+        marketplace_name: &marketplace_name,
+    };
+
+    let result = libaipm::workspace_init::init(&opts, &adaptors, &libaipm::fs::Real)?;
+
+    let mut stdout = std::io::stdout();
+    for action in &result.actions {
+        let msg = match action {
+            libaipm::workspace_init::InitAction::WorkspaceCreated => {
+                format!("Initialized workspace in {}", dir.display())
+            },
+            libaipm::workspace_init::InitAction::MarketplaceCreated => {
+                if do_no_starter {
+                    format!("Created .ai/ marketplace '{marketplace_name}' (no starter plugin)")
+                } else {
+                    format!("Created .ai/ marketplace '{marketplace_name}' with starter plugin")
+                }
+            },
+            libaipm::workspace_init::InitAction::ToolConfigured(name) => {
+                format!("Configured {name} settings")
+            },
+        };
+        let _ = writeln!(stdout, "{msg}");
+    }
+    Ok(())
+}
+
+fn cmd_install(
+    package: Option<String>,
+    locked: bool,
+    dir: PathBuf,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let dir = resolve_dir(dir)?;
+
+    let config = libaipm::installer::pipeline::InstallConfig {
+        manifest_path: dir.join("aipm.toml"),
+        lockfile_path: dir.join("aipm.lock"),
+        store_path: home_store_path()?,
+        links_dir: dir.join(".aipm/links"),
+        plugins_dir: dir.join(".ai"),
+        gitignore_path: dir.join(".ai/.gitignore"),
+        link_state_path: dir.join(".aipm/links.toml"),
+        locked,
+        add_package: package,
+        generated_by: format!("aipm {}", libaipm::version()),
+    };
+
+    let registry = StubRegistry;
+    let result = libaipm::installer::pipeline::install(&config, &registry)?;
+
+    let mut stdout = std::io::stdout();
+    let _ = writeln!(
+        stdout,
+        "Installed {} package(s), {} up-to-date, {} removed",
+        result.installed, result.up_to_date, result.removed
+    );
+    Ok(())
+}
+
+fn cmd_update(package: Option<String>, dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let dir = resolve_dir(dir)?;
+
+    let config = libaipm::installer::pipeline::UpdateConfig {
+        manifest_path: dir.join("aipm.toml"),
+        lockfile_path: dir.join("aipm.lock"),
+        store_path: home_store_path()?,
+        links_dir: dir.join(".aipm/links"),
+        plugins_dir: dir.join(".ai"),
+        gitignore_path: dir.join(".ai/.gitignore"),
+        link_state_path: dir.join(".aipm/links.toml"),
+        package,
+        generated_by: format!("aipm {}", libaipm::version()),
+    };
+
+    let registry = StubRegistry;
+    let result = libaipm::installer::pipeline::update(&config, &registry)?;
+
+    let mut stdout = std::io::stdout();
+    let _ = writeln!(
+        stdout,
+        "Updated {} package(s), {} up-to-date, {} removed",
+        result.installed, result.up_to_date, result.removed
+    );
+    Ok(())
+}
+
+fn cmd_link(path: PathBuf, dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let dir = resolve_dir(dir)?;
+    let path = if path.is_relative() { dir.join(&path) } else { path };
+
+    // Validate the target path has an aipm.toml
+    let target_manifest = path.join("aipm.toml");
+    if !target_manifest.exists() {
+        return Err(format!(
+            "no aipm.toml found at '{}' — not a valid package directory",
+            path.display()
+        )
+        .into());
+    }
+
+    // Read package name from the manifest
+    let manifest = libaipm::manifest::load(&target_manifest)?;
+    let pkg_name = manifest
+        .package
+        .as_ref()
+        .map(|p| p.name.clone())
+        .ok_or("manifest at linked path has no [package] section")?;
+
+    let plugins_dir = dir.join(".ai");
+    let link_target = plugins_dir.join(&pkg_name);
+
+    // Create the directory link
+    std::fs::create_dir_all(&plugins_dir)?;
+    libaipm::linker::directory_link::create(&path, &link_target)
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
+
+    // Update link state
+    let link_state_path = dir.join(".aipm/links.toml");
+    let entry = libaipm::linker::link_state::LinkEntry {
+        name: pkg_name.clone(),
+        path: path.clone(),
+        linked_at: timestamp_now(),
+    };
+    libaipm::linker::link_state::add(&link_state_path, entry)
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
+
+    let mut stdout = std::io::stdout();
+    let _ = writeln!(stdout, "Linked '{pkg_name}' → {}", path.display());
+    Ok(())
+}
+
+fn cmd_unlink(package: &str, dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let dir = resolve_dir(dir)?;
+    let plugins_dir = dir.join(".ai");
+    let links_dir = dir.join(".aipm/links");
+
+    libaipm::linker::pipeline::unlink_package(package, &links_dir, &plugins_dir)
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
+
+    let link_state_path = dir.join(".aipm/links.toml");
+    libaipm::linker::link_state::remove(&link_state_path, package)
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
+
+    let gitignore_path = plugins_dir.join(".gitignore");
+    if gitignore_path.exists() {
+        libaipm::linker::gitignore::remove_entry(&gitignore_path, package)
+            .map_err(|e| std::io::Error::other(e.to_string()))?;
+    }
+
+    let mut stdout = std::io::stdout();
+    let _ = writeln!(stdout, "Unlinked '{package}'");
+    Ok(())
+}
+
+fn cmd_list(linked: bool, dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    let dir = resolve_dir(dir)?;
+    let mut stdout = std::io::stdout();
+
+    if linked {
+        let link_state_path = dir.join(".aipm/links.toml");
+        let entries = libaipm::linker::link_state::list(&link_state_path)
+            .map_err(|e| std::io::Error::other(e.to_string()))?;
+
+        if entries.is_empty() {
+            let _ = writeln!(stdout, "No active dev link overrides.");
+        } else {
+            let _ = writeln!(stdout, "Active dev link overrides:");
+            for entry in &entries {
+                let _ = writeln!(
+                    stdout,
+                    "  {} → {} (linked at {})",
+                    entry.name,
+                    entry.path.display(),
+                    entry.linked_at
+                );
+            }
+        }
+    } else {
+        let lockfile_path = dir.join("aipm.lock");
+        if lockfile_path.exists() {
+            let lf = libaipm::lockfile::read(&lockfile_path)
+                .map_err(|e| std::io::Error::other(e.to_string()))?;
+
+            if lf.packages.is_empty() {
+                let _ = writeln!(stdout, "No packages installed.");
+            } else {
+                let _ = writeln!(stdout, "Installed packages:");
+                for pkg in &lf.packages {
+                    let _ = writeln!(stdout, "  {}@{}", pkg.name, pkg.version);
+                }
+            }
+        } else {
+            let _ = writeln!(stdout, "No lockfile found. Run 'aipm install' first.");
+        }
+    }
+    Ok(())
+}
+
+fn cmd_migrate(
+    dry_run: bool,
+    source: Option<&str>,
+    max_depth: Option<usize>,
+    manifest: bool,
+    dir: PathBuf,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let dir = resolve_dir(dir)?;
+    let opts = libaipm::migrate::Options { dir: &dir, source, dry_run, max_depth, manifest };
+
+    let result = libaipm::migrate::migrate(&opts, &libaipm::fs::Real)?;
+
+    let mut stdout = std::io::stdout();
+    for action in &result.actions {
+        match action {
+            libaipm::migrate::Action::PluginCreated { name, source, plugin_type } => {
+                let _ =
+                    writeln!(stdout, "Migrated {plugin_type} '{name}' from {}", source.display());
+            },
+            libaipm::migrate::Action::MarketplaceRegistered { name } => {
+                let _ = writeln!(stdout, "Registered '{name}' in marketplace.json");
+            },
+            libaipm::migrate::Action::Renamed { original_name, new_name, reason } => {
+                let _ = writeln!(
+                    stdout,
+                    "Warning: renamed '{original_name}' → '{new_name}' ({reason})"
+                );
+            },
+            libaipm::migrate::Action::Skipped { name, reason } => {
+                let _ = writeln!(stdout, "Skipped '{name}': {reason}");
+            },
+            libaipm::migrate::Action::DryRunReport { path } => {
+                let _ = writeln!(stdout, "Dry run report written to {}", path.display());
+            },
+        }
+    }
+    Ok(())
+}
+
+// =========================================================================
+// Entry point
+// =========================================================================
+
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
         Some(Commands::Init { yes, workspace, marketplace, no_starter, manifest, name, dir }) => {
-            let dir = if dir.as_os_str() == "." { std::env::current_dir()? } else { dir };
-
-            let interactive = !yes && std::io::stdin().is_terminal();
-
-            let (do_workspace, do_marketplace, do_no_starter, marketplace_name) =
-                wizard_tty::resolve(
-                    interactive,
-                    (workspace, marketplace, no_starter),
-                    name.as_deref(),
-                )?;
-
-            let adaptors = libaipm::workspace_init::adaptors::defaults();
-
-            let opts = libaipm::workspace_init::Options {
-                dir: &dir,
-                workspace: do_workspace,
-                marketplace: do_marketplace,
-                no_starter: do_no_starter,
-                manifest,
-                marketplace_name: &marketplace_name,
-            };
-
-            let result = libaipm::workspace_init::init(&opts, &adaptors, &libaipm::fs::Real)?;
-
-            let mut stdout = std::io::stdout();
-            for action in &result.actions {
-                let msg = match action {
-                    libaipm::workspace_init::InitAction::WorkspaceCreated => {
-                        format!("Initialized workspace in {}", dir.display())
-                    },
-                    libaipm::workspace_init::InitAction::MarketplaceCreated => {
-                        if do_no_starter {
-                            format!(
-                                "Created .ai/ marketplace '{marketplace_name}' (no starter plugin)"
-                            )
-                        } else {
-                            format!(
-                                "Created .ai/ marketplace '{marketplace_name}' with starter plugin"
-                            )
-                        }
-                    },
-                    libaipm::workspace_init::InitAction::ToolConfigured(name) => {
-                        format!("Configured {name} settings")
-                    },
-                };
-                let _ = writeln!(stdout, "{msg}");
-            }
-            Ok(())
+            let flags = InitWizardFlags { yes, workspace, marketplace, no_starter };
+            cmd_init(&flags, manifest, name.as_deref(), dir)
         },
+        Some(Commands::Install { package, locked, registry: _registry, dir }) => {
+            cmd_install(package, locked, dir)
+        },
+        Some(Commands::Update { package, dir }) => cmd_update(package, dir),
+        Some(Commands::Link { path, dir }) => cmd_link(path, dir),
+        Some(Commands::Unlink { package, dir }) => cmd_unlink(&package, dir),
+        Some(Commands::List { linked, dir }) => cmd_list(linked, dir),
         Some(Commands::Migrate { dry_run, source, max_depth, manifest, dir }) => {
-            let dir = if dir.as_os_str() == "." { std::env::current_dir()? } else { dir };
-
-            let opts = libaipm::migrate::Options {
-                dir: &dir,
-                source: source.as_deref(),
-                dry_run,
-                max_depth,
-                manifest,
-            };
-
-            let result = libaipm::migrate::migrate(&opts, &libaipm::fs::Real)?;
-
-            let mut stdout = std::io::stdout();
-            for action in &result.actions {
-                match action {
-                    libaipm::migrate::Action::PluginCreated { name, source, plugin_type } => {
-                        let _ = writeln!(
-                            stdout,
-                            "Migrated {plugin_type} '{name}' from {}",
-                            source.display()
-                        );
-                    },
-                    libaipm::migrate::Action::MarketplaceRegistered { name } => {
-                        let _ = writeln!(stdout, "Registered '{name}' in marketplace.json");
-                    },
-                    libaipm::migrate::Action::Renamed { original_name, new_name, reason } => {
-                        let _ = writeln!(
-                            stdout,
-                            "Warning: renamed '{original_name}' → '{new_name}' ({reason})"
-                        );
-                    },
-                    libaipm::migrate::Action::Skipped { name, reason } => {
-                        let _ = writeln!(stdout, "Skipped '{name}': {reason}");
-                    },
-                    libaipm::migrate::Action::DryRunReport { path } => {
-                        let _ = writeln!(stdout, "Dry run report written to {}", path.display());
-                    },
-                }
-            }
-            Ok(())
+            cmd_migrate(dry_run, source.as_deref(), max_depth, manifest, dir)
         },
         None => {
             let mut stdout = std::io::stdout();

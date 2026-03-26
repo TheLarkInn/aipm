@@ -366,7 +366,7 @@
       "Handle and display errors from installer pipeline",
       "Add integration tests using assert_cmd + tempfile"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -378,7 +378,7 @@
       "Handle and display errors",
       "Add integration tests"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -391,7 +391,7 @@
       "aipm unlink: remove symlink, restore registry link, update links.toml",
       "Add integration tests covering BDD scenarios from link.feature"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -402,7 +402,7 @@
       "Show package name, linked path, and linked_at timestamp",
       "Add integration tests"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
