@@ -89,8 +89,6 @@ fn create_platform_link(source: &Path, target: &Path) -> Result<(), Error> {
 }
 
 fn remove_link(target: &Path) -> Result<(), Error> {
-    // On Unix, symlinks are removed with remove_file.
-    // On Windows, junctions are removed with remove_dir.
     #[cfg(unix)]
     {
         std::fs::remove_file(target)
@@ -98,7 +96,14 @@ fn remove_link(target: &Path) -> Result<(), Error> {
     }
     #[cfg(windows)]
     {
-        junction::delete(target).map_err(|e| Error::Io { path: target.to_path_buf(), source: e })
+        // Directory symlinks are removed with remove_dir; junctions use junction::delete.
+        if target.symlink_metadata().is_ok_and(|m| m.file_type().is_symlink()) {
+            std::fs::remove_dir(target)
+                .map_err(|e| Error::Io { path: target.to_path_buf(), source: e })
+        } else {
+            junction::delete(target)
+                .map_err(|e| Error::Io { path: target.to_path_buf(), source: e })
+        }
     }
 }
 
