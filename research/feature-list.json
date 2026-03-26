@@ -294,7 +294,7 @@
       "Implement list function for aipm list --linked",
       "Add unit tests for state management"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -306,7 +306,7 @@
       "Implement for RealFs (production) and MockFs (testing)",
       "Add unit tests for each new method"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

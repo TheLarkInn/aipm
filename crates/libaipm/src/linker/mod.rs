@@ -10,4 +10,5 @@ pub mod directory_link;
 pub mod error;
 pub mod gitignore;
 pub mod hard_link;
+pub mod link_state;
 pub mod pipeline;
