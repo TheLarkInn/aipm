@@ -339,7 +339,7 @@
       "Write modified manifest back preserving existing formatting",
       "Add unit tests verifying comment preservation"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -412,7 +412,7 @@
       "Ensure all public APIs are accessible from the library root",
       "Verify workspace builds cleanly with cargo build --workspace"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -424,7 +424,7 @@
       "Add fs2 0.4 to libaipm dependencies",
       "Verify cargo build --workspace succeeds with new deps"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

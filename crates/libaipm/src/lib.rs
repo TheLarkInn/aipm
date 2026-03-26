@@ -6,6 +6,7 @@
 
 pub mod fs;
 pub mod init;
+pub mod installer;
 pub mod linker;
 pub mod lockfile;
 pub mod manifest;
