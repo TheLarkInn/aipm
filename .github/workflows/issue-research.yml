@@ -1,0 +1,107 @@
+# Issue Research — hand-spun GitHub Actions workflow
+#
+# When a "research" label is added to an issue, a sandboxed Copilot CLI agent
+# runs the aipm-atomic-plugin's /research-codebase command against the
+# codebase and posts the findings back to the issue as a comment.
+#
+# Reusable actions:
+#   .github/actions/copilot-agent-setup   — pre-pull, install, start MCP gateway
+#   .github/actions/copilot-agent-teardown — stop gateway, upload artifacts
+
+name: "Issue Research"
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: "issue-research-${{ github.event.issue.number }}"
+  cancel-in-progress: true
+
+jobs:
+  research:
+    if: github.event.label.name == 'research'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # ── Reusable setup: pre-pull images, install CLI+AWF, start MCP gateway ─
+      - name: Setup Copilot agent
+        uses: ./.github/actions/copilot-agent-setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          copilot_token: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          mcp_toolsets: "context,repos,issues,pull_requests"
+
+      # ── Agent execution (sandboxed inside AWF network firewall) ─────────────
+      - name: Run Copilot agent for research
+        id: agent
+        timeout-minutes: 20
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          GH_AW_MCP_CONFIG:     /home/runner/.copilot/mcp-config.json
+          GITHUB_STEP_SUMMARY:  /tmp/gh-aw/agent-step-summary.md
+        run: |
+          set -o pipefail
+          touch /tmp/gh-aw/agent-step-summary.md
+
+          sudo -E awf \
+            --env-all \
+            --container-workdir "$GITHUB_WORKSPACE" \
+            --allow-domains "api.github.com,api.githubcopilot.com,api.business.githubcopilot.com,api.enterprise.githubcopilot.com,api.individual.githubcopilot.com,github.com,host.docker.internal,raw.githubusercontent.com,registry.npmjs.org,telemetry.enterprise.githubcopilot.com" \
+            --log-level info \
+            --proxy-logs-dir /tmp/gh-aw/firewall-logs \
+            --enable-host-access \
+            --image-tag 0.25.0 \
+            --skip-pull \
+            --enable-api-proxy \
+            -- /bin/bash -c \
+              '/usr/local/bin/copilot \
+                --add-dir "$GITHUB_WORKSPACE" \
+                --disable-builtin-mcps \
+                --allow-all-tools \
+                --allow-all-paths \
+                --log-level all \
+                --log-dir /tmp/gh-aw/agent-logs \
+                --prompt "Conduct codebase research for issue #${{ github.event.issue.number }} in the ${{ github.repository }} repository. Read the issue content using available GitHub tools to understand the research question. Then follow the research-codebase workflow defined in .ai/aipm-atomic-plugin/commands/research-codebase.md from the local marketplace. Derive the research question from the issue title and body. Write the research document to the research/docs/ directory and output a comprehensive markdown summary of your findings. This is an automated non-interactive workflow — proceed directly without asking for user confirmation."' \
+            2>&1 | tee /tmp/gh-aw/agent-stdio.log
+
+      # ── Post the agent's findings as a comment on the issue ─────────────────
+      - name: Update issue with research results
+        if: success()
+        run: |
+          # Keep under GitHub's ~65 535-char comment limit
+          BODY=$(tail -c 60000 /tmp/gh-aw/agent-stdio.log)
+          gh issue comment "${{ github.event.issue.number }}" \
+            --body "## 🔬 Codebase Research Results
+
+          ${BODY}
+
+          ---
+          *Research conducted by [Copilot Agent Workflow](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})*"
+
+      # ── Reusable teardown: stop gateway, upload artifacts, firewall summary ──
+      - name: Teardown Copilot agent
+        if: always()
+        uses: ./.github/actions/copilot-agent-teardown
+        with:
+          run_id: ${{ github.run_id }}
+          artifact_name: "issue-research"
+
+      # ── Failure notice ──────────────────────────────────────────────────────
+      - name: Comment on failure
+        if: failure()
+        run: |
+          gh issue comment "${{ github.event.issue.number }}" \
+            --body "⚠️ Research workflow failed. [View run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
