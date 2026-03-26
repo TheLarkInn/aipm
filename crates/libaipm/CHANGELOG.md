@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.10.1] - 2026-03-26
+
+### Features
+- Add .tool-usage.log to .ai/.gitignore when starter plugin is installed ([#98](https://github.com/TheLarkInn/aipm/pull/98)) (23796b5)
+
 ## [0.10.0] - 2026-03-25
 
 ### Features
