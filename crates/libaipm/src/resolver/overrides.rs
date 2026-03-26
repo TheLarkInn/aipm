@@ -127,7 +127,13 @@ mod tests {
     use super::*;
 
     fn make_dep(name: &str, req: &str, source: &str) -> Dependency {
-        Dependency { name: name.to_string(), req: req.to_string(), source: source.to_string() }
+        Dependency {
+            name: name.to_string(),
+            req: req.to_string(),
+            source: source.to_string(),
+            features: vec![],
+            default_features: true,
+        }
     }
 
     #[test]

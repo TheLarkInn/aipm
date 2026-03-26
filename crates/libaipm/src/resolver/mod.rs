@@ -29,6 +29,10 @@ pub struct Dependency {
     pub req: String,
     /// Which package requested this dependency (`"root"` for direct deps).
     pub source: String,
+    /// Features requested by the consumer.
+    pub features: Vec<String>,
+    /// Whether default features are enabled (default: `true`).
+    pub default_features: bool,
 }
 
 /// A resolved package with an exact version.
@@ -122,6 +126,8 @@ struct ActivatedPackage {
     checksum: String,
     dependencies: Vec<String>,
     source: String,
+    /// Active features for this package.
+    features: BTreeSet<String>,
 }
 
 /// A choice point for backtracking.
@@ -164,6 +170,7 @@ impl<'a> Solver<'a> {
                     checksum: String::new(),
                     dependencies: Vec::new(),
                     source: "lockfile".to_string(),
+                    features: BTreeSet::new(),
                 },
             );
         }
@@ -262,7 +269,21 @@ impl<'a> Solver<'a> {
         let version = Version::parse(&candidate.vers)
             .map_err(|e| Error::Version { reason: e.to_string() })?;
         let major = version.major();
-        let dep_names: Vec<String> = candidate.deps.iter().map(|d| d.name.clone()).collect();
+
+        // Compute active features
+        let active_features = compute_active_features(dep, &candidate.features);
+
+        // Determine which optional deps are activated by features
+        let activated_optional_deps = collect_feature_deps(&active_features, &candidate.features);
+
+        // Non-optional deps + feature-activated optional deps
+        let effective_deps: Vec<&registry::DepEntry> = candidate
+            .deps
+            .iter()
+            .filter(|d| !d.optional || activated_optional_deps.contains(&d.name))
+            .collect();
+
+        let dep_names: Vec<String> = effective_deps.iter().map(|d| d.name.clone()).collect();
 
         self.activated.insert(
             (dep.name.clone(), major),
@@ -271,64 +292,68 @@ impl<'a> Solver<'a> {
                 checksum: candidate.cksum.clone(),
                 dependencies: dep_names,
                 source: dep.source.clone(),
+                features: active_features,
             },
         );
 
-        // Queue transitive dependencies
-        for trans_dep in &candidate.deps {
-            let trans_req = Requirement::parse(&trans_dep.req)
-                .map_err(|e| Error::Version { reason: e.to_string() })?;
-
-            // Check if already unified
-            if self.find_unified(&trans_dep.name, &trans_req) {
-                // Verify compatibility with all existing activations for this name
-                let compatible = self
-                    .activated
-                    .iter()
-                    .filter(|((n, _), _)| *n == trans_dep.name)
-                    .all(|(_, pkg)| trans_req.matches(&pkg.version));
-
-                if !compatible {
-                    // Check if this is a cross-major situation (which is OK)
-                    // or a same-major conflict (which needs backtracking)
-                    let has_same_major_conflict = self.activated.iter().any(|((n, _), pkg)| {
-                        if *n != trans_dep.name {
-                            return false;
-                        }
-                        !trans_req.matches(&pkg.version)
-                    });
-
-                    if has_same_major_conflict {
-                        return Err(Error::Conflict {
-                            name: trans_dep.name.clone(),
-                            existing_req: self
-                                .activated
-                                .iter()
-                                .find(|((n, _), _)| *n == trans_dep.name)
-                                .map_or_else(String::new, |(_, pkg)| pkg.version.to_string()),
-                            existing_source: self
-                                .activated
-                                .iter()
-                                .find(|((n, _), _)| *n == trans_dep.name)
-                                .map_or_else(String::new, |(_, pkg)| pkg.source.clone()),
-                            new_req: trans_dep.req.clone(),
-                            new_source: dep.name.clone(),
-                        });
-                    }
-                }
-                continue;
-            }
-
-            let mut trans = Dependency {
-                name: trans_dep.name.clone(),
-                req: trans_dep.req.clone(),
-                source: dep.name.clone(),
-            };
-            // Apply overrides to transitive dep before queueing
-            overrides::apply(std::slice::from_mut(&mut trans), &self.override_rules);
-            queue.push(trans);
+        // Queue transitive dependencies (only effective ones)
+        for trans_dep in &effective_deps {
+            self.queue_transitive_dep(dep, trans_dep, queue)?;
         }
 
+        Ok(())
+    }
+
+    /// Queue a single transitive dependency, checking for unification and conflicts.
+    fn queue_transitive_dep(
+        &self,
+        parent_dep: &Dependency,
+        trans_dep: &registry::DepEntry,
+        queue: &mut Vec<Dependency>,
+    ) -> Result<(), Error> {
+        let trans_req = Requirement::parse(&trans_dep.req)
+            .map_err(|e| Error::Version { reason: e.to_string() })?;
+
+        // Check if already unified
+        if self.find_unified(&trans_dep.name, &trans_req) {
+            // Verify compatibility with all existing activations for this name
+            let has_same_major_conflict = self.activated.iter().any(|((n, _), pkg)| {
+                if *n != trans_dep.name {
+                    return false;
+                }
+                !trans_req.matches(&pkg.version)
+            });
+
+            if has_same_major_conflict {
+                return Err(Error::Conflict {
+                    name: trans_dep.name.clone(),
+                    existing_req: self
+                        .activated
+                        .iter()
+                        .find(|((n, _), _)| *n == trans_dep.name)
+                        .map_or_else(String::new, |(_, pkg)| pkg.version.to_string()),
+                    existing_source: self
+                        .activated
+                        .iter()
+                        .find(|((n, _), _)| *n == trans_dep.name)
+                        .map_or_else(String::new, |(_, pkg)| pkg.source.clone()),
+                    new_req: trans_dep.req.clone(),
+                    new_source: parent_dep.name.clone(),
+                });
+            }
+
+            return Ok(());
+        }
+
+        let mut trans = Dependency {
+            name: trans_dep.name.clone(),
+            req: trans_dep.req.clone(),
+            source: parent_dep.name.clone(),
+            features: trans_dep.features.clone(),
+            default_features: trans_dep.default_features,
+        };
+        overrides::apply(std::slice::from_mut(&mut trans), &self.override_rules);
+        queue.push(trans);
         Ok(())
     }
 
@@ -419,7 +444,7 @@ impl<'a> Solver<'a> {
                 source: Source::Registry { index_url: String::new() },
                 checksum: pkg.checksum.clone(),
                 dependencies: pkg.dependencies.clone(),
-                features: BTreeSet::new(),
+                features: pkg.features.clone(),
             })
             .collect();
 
@@ -451,6 +476,71 @@ fn select_sorted_candidates(
     });
 
     candidates
+}
+
+/// Compute the active features for a package based on the dependency request.
+///
+/// If `default_features` is true, the `default` feature (and its transitive features)
+/// are included. Requested features are always included.
+fn compute_active_features(
+    dep: &Dependency,
+    feature_defs: &BTreeMap<String, Vec<String>>,
+) -> BTreeSet<String> {
+    let mut active = BTreeSet::new();
+
+    // Add default features if requested
+    if dep.default_features && feature_defs.contains_key("default") {
+        activate_feature_recursive("default", feature_defs, &mut active);
+    }
+
+    // Add explicitly requested features
+    for f in &dep.features {
+        activate_feature_recursive(f, feature_defs, &mut active);
+    }
+
+    active
+}
+
+/// Recursively activate a feature and all its transitive feature dependencies.
+fn activate_feature_recursive(
+    feature: &str,
+    feature_defs: &BTreeMap<String, Vec<String>>,
+    active: &mut BTreeSet<String>,
+) {
+    if !active.insert(feature.to_string()) {
+        return; // Already active, avoid infinite recursion
+    }
+
+    if let Some(sub_features) = feature_defs.get(feature) {
+        for sub in sub_features {
+            // `dep:xxx` references are not feature names — they activate optional deps
+            if !sub.starts_with("dep:") {
+                activate_feature_recursive(sub, feature_defs, active);
+            }
+        }
+    }
+}
+
+/// Collect optional dependency names that are activated by the active feature set.
+///
+/// Scans feature definitions for `dep:xxx` entries where the feature is active.
+fn collect_feature_deps(
+    active_features: &BTreeSet<String>,
+    feature_defs: &BTreeMap<String, Vec<String>>,
+) -> BTreeSet<String> {
+    let mut activated_deps = BTreeSet::new();
+
+    for feature in active_features {
+        if let Some(deps) = feature_defs.get(feature.as_str()) {
+            for dep_ref in deps {
+                if let Some(dep_name) = dep_ref.strip_prefix("dep:") {
+                    activated_deps.insert(dep_name.to_string());
+                }
+            }
+        }
+    }
+
+    activated_deps
 }
 
 #[cfg(test)]
@@ -515,7 +605,13 @@ mod tests {
     }
 
     fn root_dep(name: &str, req: &str) -> Dependency {
-        Dependency { name: name.to_string(), req: req.to_string(), source: "root".to_string() }
+        Dependency {
+            name: name.to_string(),
+            req: req.to_string(),
+            source: "root".to_string(),
+            features: vec![],
+            default_features: true,
+        }
     }
 
     // =========================================================================
@@ -963,5 +1059,228 @@ mod tests {
         let names: BTreeSet<String> = result.packages.iter().map(|p| p.name.clone()).collect();
         assert!(names.contains("fixed-lib"), "replacement should be used");
         assert!(!names.contains("broken-lib"), "original should not appear");
+    }
+
+    // =========================================================================
+    // Feature system tests
+    // =========================================================================
+
+    fn root_dep_with_features(name: &str, req: &str, features: Vec<&str>) -> Dependency {
+        Dependency {
+            name: name.to_string(),
+            req: req.to_string(),
+            source: "root".to_string(),
+            features: features.into_iter().map(String::from).collect(),
+            default_features: true,
+        }
+    }
+
+    fn root_dep_no_defaults(name: &str, req: &str) -> Dependency {
+        Dependency {
+            name: name.to_string(),
+            req: req.to_string(),
+            source: "root".to_string(),
+            features: vec![],
+            default_features: false,
+        }
+    }
+
+    #[test]
+    fn default_features_enabled() {
+        // BDD: "Declare default features"
+        let mut reg = MockRegistry::new();
+        let mut features = BTreeMap::new();
+        features.insert("default".to_string(), vec!["json-output".to_string()]);
+        features.insert("json-output".to_string(), vec![]);
+        features.insert("xml-output".to_string(), vec![]);
+
+        reg.packages.insert(
+            "my-plugin".to_string(),
+            vec![VersionEntry {
+                name: "my-plugin".to_string(),
+                vers: "1.0.0".to_string(),
+                deps: vec![],
+                cksum: "sha512-test".to_string(),
+                features,
+                yanked: false,
+            }],
+        );
+
+        let deps = vec![root_dep("my-plugin", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg).unwrap();
+
+        let pkg = result.packages.iter().find(|p| p.name == "my-plugin").unwrap();
+        assert!(pkg.features.contains("json-output"), "default feature should be enabled");
+        assert!(!pkg.features.contains("xml-output"), "non-default feature should not be enabled");
+    }
+
+    #[test]
+    fn opt_out_of_default_features() {
+        // BDD: "Opt out of default features"
+        let mut reg = MockRegistry::new();
+        let mut features = BTreeMap::new();
+        features.insert("default".to_string(), vec!["json-output".to_string()]);
+        features.insert("json-output".to_string(), vec![]);
+
+        reg.packages.insert(
+            "my-plugin".to_string(),
+            vec![VersionEntry {
+                name: "my-plugin".to_string(),
+                vers: "1.0.0".to_string(),
+                deps: vec![],
+                cksum: "sha512-test".to_string(),
+                features,
+                yanked: false,
+            }],
+        );
+
+        let deps = vec![root_dep_no_defaults("my-plugin", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg).unwrap();
+
+        let pkg = result.packages.iter().find(|p| p.name == "my-plugin").unwrap();
+        assert!(
+            !pkg.features.contains("json-output"),
+            "default feature should not be enabled when opted out"
+        );
+    }
+
+    #[test]
+    fn enable_specific_feature() {
+        // BDD: "Enable a specific optional feature"
+        let mut reg = MockRegistry::new();
+        let mut features = BTreeMap::new();
+        features.insert("default".to_string(), vec!["json-output".to_string()]);
+        features.insert("json-output".to_string(), vec![]);
+        features.insert("xml-output".to_string(), vec![]);
+
+        reg.packages.insert(
+            "my-plugin".to_string(),
+            vec![VersionEntry {
+                name: "my-plugin".to_string(),
+                vers: "1.0.0".to_string(),
+                deps: vec![],
+                cksum: "sha512-test".to_string(),
+                features,
+                yanked: false,
+            }],
+        );
+
+        let deps = vec![root_dep_with_features("my-plugin", "^1.0", vec!["xml-output"])];
+        let result = resolve(&deps, &BTreeMap::new(), &reg).unwrap();
+
+        let pkg = result.packages.iter().find(|p| p.name == "my-plugin").unwrap();
+        assert!(pkg.features.contains("xml-output"), "requested feature should be enabled");
+        assert!(pkg.features.contains("json-output"), "default feature should also be enabled");
+    }
+
+    #[test]
+    fn optional_dep_not_included_without_feature() {
+        // BDD: "Optional dependency activated by feature"
+        let mut reg = MockRegistry::new();
+        let mut features = BTreeMap::new();
+        features.insert("deep-analysis".to_string(), vec!["dep:heavy-analyzer".to_string()]);
+
+        reg.packages.insert(
+            "my-plugin".to_string(),
+            vec![VersionEntry {
+                name: "my-plugin".to_string(),
+                vers: "1.0.0".to_string(),
+                deps: vec![DepEntry {
+                    name: "heavy-analyzer".to_string(),
+                    req: "^1.0".to_string(),
+                    features: vec![],
+                    optional: true,
+                    default_features: true,
+                }],
+                cksum: "sha512-test".to_string(),
+                features,
+                yanked: false,
+            }],
+        );
+        reg.add_package("heavy-analyzer", vec![("1.0.0", vec![])]);
+
+        // Install without deep-analysis feature
+        let deps = vec![root_dep("my-plugin", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg).unwrap();
+
+        let names: BTreeSet<String> = result.packages.iter().map(|p| p.name.clone()).collect();
+        assert!(!names.contains("heavy-analyzer"), "optional dep should not be included");
+    }
+
+    #[test]
+    fn optional_dep_included_with_feature() {
+        // Feature-activated optional dep
+        let mut reg = MockRegistry::new();
+        let mut features = BTreeMap::new();
+        features.insert("deep-analysis".to_string(), vec!["dep:heavy-analyzer".to_string()]);
+
+        reg.packages.insert(
+            "my-plugin".to_string(),
+            vec![VersionEntry {
+                name: "my-plugin".to_string(),
+                vers: "1.0.0".to_string(),
+                deps: vec![DepEntry {
+                    name: "heavy-analyzer".to_string(),
+                    req: "^1.0".to_string(),
+                    features: vec![],
+                    optional: true,
+                    default_features: true,
+                }],
+                cksum: "sha512-test".to_string(),
+                features,
+                yanked: false,
+            }],
+        );
+        reg.add_package("heavy-analyzer", vec![("1.0.0", vec![])]);
+
+        // Install WITH deep-analysis feature
+        let deps = vec![root_dep_with_features("my-plugin", "^1.0", vec!["deep-analysis"])];
+        let result = resolve(&deps, &BTreeMap::new(), &reg).unwrap();
+
+        let names: BTreeSet<String> = result.packages.iter().map(|p| p.name.clone()).collect();
+        assert!(names.contains("heavy-analyzer"), "optional dep should be included with feature");
+    }
+
+    #[test]
+    fn feature_computation_basics() {
+        // Test the compute_active_features function directly
+        let mut feature_defs = BTreeMap::new();
+        feature_defs.insert("default".to_string(), vec!["json".to_string()]);
+        feature_defs.insert("json".to_string(), vec![]);
+        feature_defs.insert("xml".to_string(), vec![]);
+        feature_defs.insert("all".to_string(), vec!["json".to_string(), "xml".to_string()]);
+
+        // Default features
+        let dep = root_dep("pkg", "^1.0");
+        let active = compute_active_features(&dep, &feature_defs);
+        assert!(active.contains("default"));
+        assert!(active.contains("json"));
+        assert!(!active.contains("xml"));
+
+        // Explicit features
+        let dep = root_dep_with_features("pkg", "^1.0", vec!["all"]);
+        let active = compute_active_features(&dep, &feature_defs);
+        assert!(active.contains("all"));
+        assert!(active.contains("json"));
+        assert!(active.contains("xml"));
+    }
+
+    #[test]
+    fn collect_dep_features() {
+        let mut feature_defs = BTreeMap::new();
+        feature_defs.insert(
+            "deep-analysis".to_string(),
+            vec!["dep:heavy-analyzer".to_string(), "dep:extra-lib".to_string()],
+        );
+        feature_defs.insert("json".to_string(), vec![]);
+
+        let mut active = BTreeSet::new();
+        active.insert("deep-analysis".to_string());
+        active.insert("json".to_string());
+
+        let dep_names = collect_feature_deps(&active, &feature_defs);
+        assert!(dep_names.contains("heavy-analyzer"));
+        assert!(dep_names.contains("extra-lib"));
+        assert_eq!(dep_names.len(), 2);
     }
 }

@@ -222,7 +222,7 @@
       "Re-evaluate when new features activate optional deps requiring additional resolution",
       "Add unit tests covering BDD scenarios from features.feature (6 P1 scenarios)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
