@@ -353,7 +353,7 @@
       "Re-link updated packages",
       "Add unit tests for targeted and full update scenarios"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

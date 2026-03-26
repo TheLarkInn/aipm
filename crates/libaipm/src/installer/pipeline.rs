@@ -348,8 +348,9 @@ fn store_tarball_contents(
     tarball: &[u8],
     pkg_name: &str,
 ) -> Result<BTreeMap<PathBuf, String>, Error> {
-    // Create a temporary directory for extraction
-    let tmp_dir = std::env::temp_dir().join(format!("aipm-extract-{pkg_name}"));
+    // Create a temporary directory for extraction (include PID for uniqueness)
+    let tmp_dir =
+        std::env::temp_dir().join(format!("aipm-extract-{pkg_name}-{}", std::process::id()));
     std::fs::create_dir_all(&tmp_dir)?;
 
     // Extract tarball (gzip-compressed tar)
@@ -451,6 +452,146 @@ fn build_lockfile(
         },
         packages,
     }
+}
+
+/// Configuration for an update operation.
+#[derive(Debug)]
+pub struct UpdateConfig {
+    /// Path to `aipm.toml`.
+    pub manifest_path: PathBuf,
+    /// Path to `aipm.lock`.
+    pub lockfile_path: PathBuf,
+    /// Path to the global content-addressable store.
+    pub store_path: PathBuf,
+    /// Path to `.aipm/links/` for assembled packages.
+    pub links_dir: PathBuf,
+    /// Path to `claude-plugins/` (or `.ai/`) for discovery.
+    pub plugins_dir: PathBuf,
+    /// Path to `.gitignore` in the plugins directory.
+    pub gitignore_path: PathBuf,
+    /// Path to `.aipm/links.toml` for link state tracking.
+    pub link_state_path: PathBuf,
+    /// Optional specific package to update (None = update all).
+    pub package: Option<String>,
+    /// Generator string for lockfile metadata.
+    pub generated_by: String,
+}
+
+/// Run the update pipeline.
+///
+/// If `package` is specified, only re-resolve that dependency.
+/// If `package` is `None`, re-resolve all dependencies (discard all pins).
+///
+/// # Errors
+///
+/// Returns [`Error`] if any step fails.
+pub fn update(config: &UpdateConfig, registry: &dyn Registry) -> Result<InstallResult, Error> {
+    // Load manifest
+    tracing::info!(manifest = %config.manifest_path.display(), "loading manifest for update");
+    let manifest_content = std::fs::read_to_string(&config.manifest_path)?;
+    let manifest = manifest::parse(&manifest_content)
+        .map_err(|e| Error::Manifest { reason: e.to_string() })?;
+
+    // Load existing lockfile
+    let existing_lockfile = if config.lockfile_path.exists() {
+        Some(
+            lockfile::read(&config.lockfile_path)
+                .map_err(|e| Error::Manifest { reason: format!("lockfile read error: {e}") })?,
+        )
+    } else {
+        None
+    };
+
+    // Build lockfile pins, excluding packages being updated
+    let lockfile_pins = match (&existing_lockfile, &config.package) {
+        (Some(lf), Some(pkg_name)) => {
+            // Targeted update: remove the specific package pin so it gets re-resolved
+            tracing::info!(package = pkg_name.as_str(), "re-resolving targeted package");
+            let mut pins = build_pins(&lf.packages);
+            pins.remove(pkg_name);
+            pins
+        },
+        (Some(_), None) => {
+            // Full update: discard all pins
+            tracing::info!("re-resolving all dependencies");
+            BTreeMap::new()
+        },
+        _ => BTreeMap::new(),
+    };
+
+    // Resolve dependencies with the adjusted pins
+    let root_deps = manifest_to_resolver_deps(&manifest);
+    let override_rules =
+        manifest.overrides.as_ref().map(resolver::overrides::parse).unwrap_or_default();
+
+    let resolution =
+        resolver::resolve_with_overrides(&root_deps, &lockfile_pins, registry, &override_rules)
+            .map_err(|e| Error::Resolution(e.to_string()))?;
+
+    // Use the same install steps for fetch → store → link
+    let content_store = store::Store::new(config.store_path.clone());
+    let mut installed = 0_usize;
+    let mut up_to_date = 0_usize;
+
+    for resolved in &resolution.packages {
+        let pkg_name = &resolved.name;
+        let assembled_dir = config.links_dir.join(pkg_name);
+
+        if assembled_dir.exists() && !needs_update(resolved, existing_lockfile.as_ref()) {
+            tracing::debug!(package = pkg_name.as_str(), "package is up-to-date");
+            up_to_date += 1;
+            continue;
+        }
+
+        tracing::info!(
+            package = pkg_name.as_str(),
+            version = %resolved.version,
+            "updating package"
+        );
+
+        let tarball = registry
+            .download(pkg_name, &resolved.version)
+            .map_err(|e| Error::Resolution(format!("failed to download {pkg_name}: {e}")))?;
+
+        let file_hashes = store_tarball_contents(&content_store, &tarball, pkg_name)?;
+
+        linker::pipeline::link_package(
+            &content_store,
+            &file_hashes,
+            pkg_name,
+            &config.links_dir,
+            &config.plugins_dir,
+        )
+        .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+
+        linker::gitignore::add_entry(&config.gitignore_path, pkg_name)
+            .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+
+        installed += 1;
+    }
+
+    // Handle removals
+    let removed = handle_removals(
+        existing_lockfile.as_ref(),
+        &resolution,
+        &config.links_dir,
+        &config.plugins_dir,
+        &config.gitignore_path,
+    )?;
+
+    // Write updated lockfile
+    let new_lockfile = build_lockfile(&resolution, &config.generated_by);
+    lockfile::write(&config.lockfile_path, &new_lockfile)
+        .map_err(|e| Error::Manifest { reason: format!("lockfile write error: {e}") })?;
+
+    tracing::info!(
+        installed = installed,
+        up_to_date = up_to_date,
+        removed = removed,
+        "update complete"
+    );
+
+    Ok(InstallResult { installed, up_to_date, removed })
 }
 
 #[cfg(test)]
@@ -909,5 +1050,77 @@ features = ["json"]
         );
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), 0);
+    }
+
+    fn make_update_config(tmp: &Path) -> UpdateConfig {
+        let manifest_path = tmp.join("aipm.toml");
+        let manifest_content = r#"[package]
+name = "test-project"
+version = "0.1.0"
+
+[dependencies]
+pkg-a = "^1.0"
+"#;
+        std::fs::write(&manifest_path, manifest_content).expect("write manifest");
+
+        UpdateConfig {
+            manifest_path,
+            lockfile_path: tmp.join("aipm.lock"),
+            store_path: tmp.join(".aipm/store"),
+            links_dir: tmp.join(".aipm/links"),
+            plugins_dir: tmp.join("claude-plugins"),
+            gitignore_path: tmp.join("claude-plugins/.gitignore"),
+            link_state_path: tmp.join(".aipm/links.toml"),
+            package: None,
+            generated_by: "aipm-test 0.1.0".to_string(),
+        }
+    }
+
+    #[test]
+    fn update_all_without_lockfile() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let config = make_update_config(tmp.path());
+        let registry = make_registry();
+
+        let result = update(&config, &registry);
+        assert!(result.is_ok(), "update failed: {result:?}");
+
+        // Should create lockfile
+        assert!(config.lockfile_path.exists());
+    }
+
+    #[test]
+    fn update_targeted_package() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let mut config = make_update_config(tmp.path());
+        config.package = Some("pkg-a".to_string());
+        let registry = make_registry();
+
+        // First install
+        let install_config = setup_project(tmp.path());
+        let _ = install(&install_config, &registry);
+
+        // Now update pkg-a
+        let result = update(&config, &registry);
+        assert!(result.is_ok(), "update failed: {result:?}");
+    }
+
+    #[test]
+    fn update_full_re_resolves_all() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let config = make_update_config(tmp.path());
+        let registry = make_registry();
+
+        // First install
+        let install_config = setup_project(tmp.path());
+        let _ = install(&install_config, &registry);
+
+        // Full update (no specific package)
+        let result = update(&config, &registry);
+        assert!(result.is_ok(), "update failed: {result:?}");
+
+        // Lockfile should be updated
+        let lf = lockfile::read(&config.lockfile_path).unwrap();
+        assert!(!lf.packages.is_empty());
     }
 }
