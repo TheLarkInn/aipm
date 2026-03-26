@@ -10,6 +10,7 @@ pub mod lockfile;
 pub mod manifest;
 pub mod migrate;
 pub mod registry;
+pub mod resolver;
 pub mod store;
 pub mod version;
 pub mod workspace_init;
