@@ -202,14 +202,19 @@ fn scaffold_marketplace(
 
     // Always create .ai/ and .gitignore
     fs.create_dir_all(&ai_dir)?;
-    fs.write_file(
-        &ai_dir.join(".gitignore"),
+    let gitignore_content = if no_starter {
         "# Managed by aipm — registry-installed plugins are symlinked here.\n\
          # Do not edit the section between the markers.\n\
          # === aipm managed start ===\n\
          # === aipm managed end ===\n"
-            .as_bytes(),
-    )?;
+    } else {
+        "# Managed by aipm — registry-installed plugins are symlinked here.\n\
+         # Do not edit the section between the markers.\n\
+         # === aipm managed start ===\n\
+         .tool-usage.log\n\
+         # === aipm managed end ===\n"
+    };
+    fs.write_file(&ai_dir.join(".gitignore"), gitignore_content.as_bytes())?;
 
     // Create marketplace.json in .ai/.claude-plugin/
     fs.create_dir_all(&ai_dir.join(".claude-plugin"))?;
@@ -723,7 +728,31 @@ mod tests {
 
         let content = std::fs::read_to_string(tmp.join(".ai/.gitignore"));
         assert!(content.as_ref().is_ok_and(|c| c.contains("aipm managed start")));
-        assert!(content.is_ok_and(|c| c.contains("aipm managed end")));
+        assert!(content.as_ref().is_ok_and(|c| c.contains("aipm managed end")));
+        assert!(content.is_ok_and(|c| c.contains(".tool-usage.log")));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn gitignore_no_starter_omits_tool_usage_log() {
+        let (tmp, _guard) = make_temp_dir("gitignore_no_starter");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+
+        let content = std::fs::read_to_string(tmp.join(".ai/.gitignore"));
+        assert!(content.as_ref().is_ok_and(|c| c.contains("aipm managed start")));
+        assert!(content.as_ref().is_ok_and(|c| c.contains("aipm managed end")));
+        assert!(content.is_ok_and(|c| !c.contains(".tool-usage.log")));
 
         cleanup(&tmp);
     }
