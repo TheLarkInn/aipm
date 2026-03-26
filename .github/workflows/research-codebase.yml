@@ -104,8 +104,7 @@ jobs:
             --add-dir "${GITHUB_WORKSPACE}" \
             --allow-all-tools \
             --allow-all-paths \
-            --prompt "$(cat << /aipm-atomic-plugin:research-codebase ${ISSUE_TITLE})"
-          )"
+            --prompt "/aipm-atomic-plugin:research-codebase ${ISSUE_TITLE}"
 
       - name: Post research file to issue
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
