@@ -197,7 +197,7 @@
       "Add unit tests for unification, coexistence, and conflict scenarios",
       "Cover BDD scenarios from resolution.feature (13 P0 scenarios)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

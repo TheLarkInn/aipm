@@ -2,6 +2,14 @@
 //!
 //! Implements a backtracking constraint solver inspired by Cargo.
 //! Resolves dependency graphs to exact versions using a registry.
+//!
+//! Key behaviors:
+//! - **Version unification**: Within the same semver-major, if an already-activated
+//!   version satisfies a new requirement, it is reused.
+//! - **Cross-major coexistence**: Different major versions of the same package can
+//!   coexist in the resolution graph (Cargo model, no peer deps).
+//! - **Backtracking**: On same-major conflict, the solver backtracks to the most
+//!   recent choice point with remaining candidates.
 
 pub mod error;
 
@@ -78,108 +86,19 @@ pub fn resolve(
     lockfile_pins: &BTreeMap<String, Version>,
     registry: &dyn Registry,
 ) -> Result<Resolution, Error> {
-    let mut activated: BTreeMap<String, ActivatedPackage> = BTreeMap::new();
-
-    // Seed with lockfile pins
-    for (name, version) in lockfile_pins {
-        activated.insert(
-            name.clone(),
-            ActivatedPackage {
-                version: version.clone(),
-                checksum: String::new(),
-                dependencies: Vec::new(),
-                source: "lockfile".to_string(),
-            },
-        );
-    }
-
-    // Resolve each root dependency
-    let mut queue: Vec<Dependency> = root_deps.to_vec();
-
-    while let Some(dep) = queue.pop() {
-        // If already activated, check compatibility
-        if let Some(existing) = activated.get(&dep.name) {
-            let req = Requirement::parse(&dep.req)
-                .map_err(|e| Error::Version { reason: e.to_string() })?;
-            if req.matches(&existing.version) {
-                continue; // Compatible, unified
-            }
-            // Conflict
-            return Err(Error::Conflict {
-                name: dep.name.clone(),
-                existing_req: existing.version.to_string(),
-                existing_source: existing.source.clone(),
-                new_req: dep.req.clone(),
-                new_source: dep.source.clone(),
-            });
-        }
-
-        // Fetch candidates from registry
-        let metadata = registry
-            .get_metadata(&dep.name)
-            .map_err(|e| Error::Registry { reason: e.to_string() })?;
-
-        let req =
-            Requirement::parse(&dep.req).map_err(|e| Error::Version { reason: e.to_string() })?;
-
-        // Try candidates from highest to lowest
-        let best = select_best_candidate(&metadata, &req)?;
-
-        // Activate this version
-        let dep_names: Vec<String> = best.deps.iter().map(|d| d.name.clone()).collect();
-        activated.insert(
-            dep.name.clone(),
-            ActivatedPackage {
-                version: Version::parse(&best.vers)
-                    .map_err(|e| Error::Version { reason: e.to_string() })?,
-                checksum: best.cksum.clone(),
-                dependencies: dep_names.clone(),
-                source: dep.source.clone(),
-            },
-        );
-
-        // Queue transitive dependencies (or check compatibility if already activated)
-        for trans_dep in &best.deps {
-            if let Some(existing) = activated.get(&trans_dep.name) {
-                // Already activated — verify compatibility
-                let trans_req = Requirement::parse(&trans_dep.req)
-                    .map_err(|e| Error::Version { reason: e.to_string() })?;
-                if !trans_req.matches(&existing.version) {
-                    return Err(Error::Conflict {
-                        name: trans_dep.name.clone(),
-                        existing_req: existing.version.to_string(),
-                        existing_source: existing.source.clone(),
-                        new_req: trans_dep.req.clone(),
-                        new_source: dep.name,
-                    });
-                }
-            } else {
-                queue.push(Dependency {
-                    name: trans_dep.name.clone(),
-                    req: trans_dep.req.clone(),
-                    source: dep.name.clone(),
-                });
-            }
-        }
-    }
-
-    // Build the resolution
-    let packages = activated
-        .into_iter()
-        .map(|(name, pkg)| Resolved {
-            name,
-            version: pkg.version,
-            source: Source::Registry { index_url: String::new() },
-            checksum: pkg.checksum,
-            dependencies: pkg.dependencies,
-            features: BTreeSet::new(),
-        })
-        .collect();
-
-    Ok(Resolution { packages })
+    let mut solver = Solver::new(registry, lockfile_pins);
+    solver.resolve(root_deps)
 }
 
+// =========================================================================
+// Internal solver
+// =========================================================================
+
+/// Key for the activated map: (name, major).
+type ActivatedKey = (String, u64);
+
 /// Internal representation of an activated package during resolution.
+#[derive(Clone)]
 struct ActivatedPackage {
     version: Version,
     checksum: String,
@@ -187,13 +106,311 @@ struct ActivatedPackage {
     source: String,
 }
 
-/// Select the best (highest) non-yanked version matching a requirement.
-fn select_best_candidate(
+/// A choice point for backtracking.
+#[derive(Clone)]
+struct ChoicePoint {
+    /// The dependency being resolved at this choice point.
+    dep: Dependency,
+    /// All sorted candidates (highest first).
+    candidates: Vec<registry::VersionEntry>,
+    /// Index of the candidate currently chosen.
+    current_idx: usize,
+    /// Snapshot of activated state before this choice.
+    activated_snapshot: BTreeMap<ActivatedKey, ActivatedPackage>,
+    /// Snapshot of the queue before this choice.
+    queue_snapshot: Vec<Dependency>,
+}
+
+/// The solver state.
+struct Solver<'a> {
+    registry: &'a dyn Registry,
+    activated: BTreeMap<ActivatedKey, ActivatedPackage>,
+    choices: Vec<ChoicePoint>,
+}
+
+impl<'a> Solver<'a> {
+    fn new(registry: &'a dyn Registry, lockfile_pins: &BTreeMap<String, Version>) -> Self {
+        let mut activated: BTreeMap<ActivatedKey, ActivatedPackage> = BTreeMap::new();
+
+        for (name, version) in lockfile_pins {
+            let major = version.major();
+            activated.insert(
+                (name.clone(), major),
+                ActivatedPackage {
+                    version: version.clone(),
+                    checksum: String::new(),
+                    dependencies: Vec::new(),
+                    source: "lockfile".to_string(),
+                },
+            );
+        }
+
+        Self { registry, activated, choices: Vec::new() }
+    }
+
+    fn resolve(&mut self, root_deps: &[Dependency]) -> Result<Resolution, Error> {
+        let mut queue: Vec<Dependency> = root_deps.to_vec();
+
+        while let Some(dep) = queue.pop() {
+            let req = Requirement::parse(&dep.req)
+                .map_err(|e| Error::Version { reason: e.to_string() })?;
+
+            // Check if any activated version for this name satisfies the requirement
+            if self.find_unified(&dep.name, &req) {
+                continue;
+            }
+
+            // Fetch candidates from registry
+            let metadata = self
+                .registry
+                .get_metadata(&dep.name)
+                .map_err(|e| Error::Registry { reason: e.to_string() })?;
+
+            let candidates = select_sorted_candidates(&metadata, &req);
+
+            // Try to activate a candidate (with backtracking on conflict)
+            self.try_activate_with_backtrack(&dep, &req, &candidates, &mut queue)?;
+        }
+
+        Ok(self.build_resolution())
+    }
+
+    /// Check if any activated version for `name` satisfies `req`.
+    fn find_unified(&self, name: &str, req: &Requirement) -> bool {
+        self.activated.iter().any(|((n, _), pkg)| n == name && req.matches(&pkg.version))
+    }
+
+    /// Try to activate a candidate, backtracking on same-major conflict.
+    fn try_activate_with_backtrack(
+        &mut self,
+        dep: &Dependency,
+        req: &Requirement,
+        candidates: &[registry::VersionEntry],
+        queue: &mut Vec<Dependency>,
+    ) -> Result<(), Error> {
+        if candidates.is_empty() {
+            return Err(Error::NoMatch { name: dep.name.clone(), requirement: req.to_string() });
+        }
+
+        // Save choice point if there are alternatives
+        if candidates.len() > 1 {
+            self.choices.push(ChoicePoint {
+                dep: dep.clone(),
+                candidates: candidates.to_owned(),
+                current_idx: 0,
+                activated_snapshot: self.activated.clone(),
+                queue_snapshot: queue.clone(),
+            });
+        }
+
+        let candidate = candidates.first().ok_or_else(|| Error::NoMatch {
+            name: dep.name.clone(),
+            requirement: req.to_string(),
+        })?;
+
+        let version = Version::parse(&candidate.vers)
+            .map_err(|e| Error::Version { reason: e.to_string() })?;
+        let major = version.major();
+
+        // Check for same-major conflict
+        if let Some(existing) = self.activated.get(&(dep.name.clone(), major)) {
+            if !req.matches(&existing.version) {
+                // Same-major conflict — try backtracking
+                return self.backtrack_and_retry(dep, queue);
+            }
+            // Same major, compatible — unified
+            return Ok(());
+        }
+
+        // Activate this version
+        self.activate(dep, candidate, queue)?;
+        Ok(())
+    }
+
+    /// Activate a candidate version and queue its transitive dependencies.
+    fn activate(
+        &mut self,
+        dep: &Dependency,
+        candidate: &registry::VersionEntry,
+        queue: &mut Vec<Dependency>,
+    ) -> Result<(), Error> {
+        let version = Version::parse(&candidate.vers)
+            .map_err(|e| Error::Version { reason: e.to_string() })?;
+        let major = version.major();
+        let dep_names: Vec<String> = candidate.deps.iter().map(|d| d.name.clone()).collect();
+
+        self.activated.insert(
+            (dep.name.clone(), major),
+            ActivatedPackage {
+                version,
+                checksum: candidate.cksum.clone(),
+                dependencies: dep_names,
+                source: dep.source.clone(),
+            },
+        );
+
+        // Queue transitive dependencies
+        for trans_dep in &candidate.deps {
+            let trans_req = Requirement::parse(&trans_dep.req)
+                .map_err(|e| Error::Version { reason: e.to_string() })?;
+
+            // Check if already unified
+            if self.find_unified(&trans_dep.name, &trans_req) {
+                // Verify compatibility with all existing activations for this name
+                let compatible = self
+                    .activated
+                    .iter()
+                    .filter(|((n, _), _)| *n == trans_dep.name)
+                    .all(|(_, pkg)| trans_req.matches(&pkg.version));
+
+                if !compatible {
+                    // Check if this is a cross-major situation (which is OK)
+                    // or a same-major conflict (which needs backtracking)
+                    let has_same_major_conflict = self.activated.iter().any(|((n, _), pkg)| {
+                        if *n != trans_dep.name {
+                            return false;
+                        }
+                        !trans_req.matches(&pkg.version)
+                    });
+
+                    if has_same_major_conflict {
+                        return Err(Error::Conflict {
+                            name: trans_dep.name.clone(),
+                            existing_req: self
+                                .activated
+                                .iter()
+                                .find(|((n, _), _)| *n == trans_dep.name)
+                                .map_or_else(String::new, |(_, pkg)| pkg.version.to_string()),
+                            existing_source: self
+                                .activated
+                                .iter()
+                                .find(|((n, _), _)| *n == trans_dep.name)
+                                .map_or_else(String::new, |(_, pkg)| pkg.source.clone()),
+                            new_req: trans_dep.req.clone(),
+                            new_source: dep.name.clone(),
+                        });
+                    }
+                }
+                continue;
+            }
+
+            queue.push(Dependency {
+                name: trans_dep.name.clone(),
+                req: trans_dep.req.clone(),
+                source: dep.name.clone(),
+            });
+        }
+
+        Ok(())
+    }
+
+    /// Backtrack to the most recent choice point with remaining candidates.
+    fn backtrack_and_retry(
+        &mut self,
+        failing_dep: &Dependency,
+        queue: &mut Vec<Dependency>,
+    ) -> Result<(), Error> {
+        while let Some(mut choice) = self.choices.pop() {
+            choice.current_idx += 1;
+
+            if choice.current_idx < choice.candidates.len() {
+                // Restore state
+                self.activated = choice.activated_snapshot.clone();
+                queue.clone_from(&choice.queue_snapshot);
+
+                // Try the next candidate
+                let candidate = choice
+                    .candidates
+                    .get(choice.current_idx)
+                    .ok_or_else(|| Error::NoMatch {
+                        name: choice.dep.name.clone(),
+                        requirement: choice.dep.req.clone(),
+                    })?
+                    .clone();
+
+                let version = Version::parse(&candidate.vers)
+                    .map_err(|e| Error::Version { reason: e.to_string() })?;
+                let major = version.major();
+
+                // Check for same-major conflict with restored state
+                if let Some(existing) = self.activated.get(&(choice.dep.name.clone(), major)) {
+                    let req = Requirement::parse(&choice.dep.req)
+                        .map_err(|e| Error::Version { reason: e.to_string() })?;
+                    if !req.matches(&existing.version) {
+                        // Still conflicts — continue backtracking
+                        continue;
+                    }
+                }
+
+                // Save updated choice point (for further backtracking if needed)
+                if choice.current_idx + 1 < choice.candidates.len() {
+                    self.choices.push(ChoicePoint {
+                        dep: choice.dep.clone(),
+                        candidates: choice.candidates.clone(),
+                        current_idx: choice.current_idx,
+                        activated_snapshot: self.activated.clone(),
+                        queue_snapshot: queue.clone(),
+                    });
+                }
+
+                // Activate the new candidate
+                self.activate(&choice.dep, &candidate, queue)?;
+
+                // The old failing dep was from the previous (failed) branch.
+                // The new candidate's transitive deps have been handled by activate().
+                return Ok(());
+            }
+        }
+
+        // No more choices to backtrack to — report conflict
+        Err(Error::Conflict {
+            name: failing_dep.name.clone(),
+            existing_req: self
+                .activated
+                .iter()
+                .find(|((n, _), _)| *n == failing_dep.name)
+                .map_or_else(String::new, |(_, pkg)| pkg.version.to_string()),
+            existing_source: self
+                .activated
+                .iter()
+                .find(|((n, _), _)| *n == failing_dep.name)
+                .map_or_else(String::new, |(_, pkg)| pkg.source.clone()),
+            new_req: failing_dep.req.clone(),
+            new_source: failing_dep.source.clone(),
+        })
+    }
+
+    /// Build the final resolution from activated packages.
+    fn build_resolution(&self) -> Resolution {
+        let packages = self
+            .activated
+            .iter()
+            .map(|((name, _), pkg)| Resolved {
+                name: name.clone(),
+                version: pkg.version.clone(),
+                source: Source::Registry { index_url: String::new() },
+                checksum: pkg.checksum.clone(),
+                dependencies: pkg.dependencies.clone(),
+                features: BTreeSet::new(),
+            })
+            .collect();
+
+        Resolution { packages }
+    }
+}
+
+/// Select all non-yanked candidates matching a requirement, sorted highest-first.
+fn select_sorted_candidates(
     metadata: &PackageMetadata,
     req: &Requirement,
-) -> Result<registry::VersionEntry, Error> {
-    let mut candidates: Vec<&registry::VersionEntry> =
-        metadata.versions.iter().filter(|v| !v.yanked).collect();
+) -> Vec<registry::VersionEntry> {
+    let mut candidates: Vec<registry::VersionEntry> = metadata
+        .versions
+        .iter()
+        .filter(|v| !v.yanked)
+        .filter(|v| Version::parse(&v.vers).ok().is_some_and(|ver| req.matches(&ver)))
+        .cloned()
+        .collect();
 
     // Sort descending by version
     candidates.sort_by(|a, b| {
@@ -205,15 +422,7 @@ fn select_best_candidate(
         }
     });
 
-    for candidate in candidates {
-        if let Ok(ver) = Version::parse(&candidate.vers) {
-            if req.matches(&ver) {
-                return Ok(candidate.clone());
-            }
-        }
-    }
-
-    Err(Error::NoMatch { name: metadata.name.clone(), requirement: req.to_string() })
+    candidates
 }
 
 #[cfg(test)]
@@ -280,6 +489,10 @@ mod tests {
     fn root_dep(name: &str, req: &str) -> Dependency {
         Dependency { name: name.to_string(), req: req.to_string(), source: "root".to_string() }
     }
+
+    // =========================================================================
+    // Basic resolution tests (existing)
+    // =========================================================================
 
     #[test]
     fn resolve_single_dep() {
@@ -360,11 +573,19 @@ mod tests {
         reg.add_package("b", vec![("1.0.0", vec![dep("c", "^2.0")])]);
         reg.add_package("c", vec![("1.0.0", vec![]), ("2.0.0", vec![])]);
 
-        // a requires c ^1.0, b requires c ^2.0 — conflict
+        // a requires c ^1.0, b requires c ^2.0 — cross-major coexistence!
         let deps = vec![root_dep("a", "^1.0"), root_dep("b", "^1.0")];
         let result = resolve(&deps, &BTreeMap::new(), &reg);
 
-        assert!(result.is_err());
+        // With cross-major coexistence, this now SUCCEEDS
+        assert!(result.is_ok());
+        let res = result.unwrap();
+        // Both c@1.x and c@2.x should be in the resolution
+        let c_versions: Vec<String> =
+            res.packages.iter().filter(|p| p.name == "c").map(|p| p.version.to_string()).collect();
+        assert_eq!(c_versions.len(), 2);
+        assert!(c_versions.contains(&"1.0.0".to_string()));
+        assert!(c_versions.contains(&"2.0.0".to_string()));
     }
 
     #[test]
@@ -422,5 +643,215 @@ mod tests {
 
         // Should pick 1.0.0 since 1.1.0 is yanked
         assert_eq!(result.packages[0].version.to_string(), "1.0.0");
+    }
+
+    // =========================================================================
+    // Version unification tests
+    // =========================================================================
+
+    #[test]
+    fn unify_shared_deps_to_single_version() {
+        // BDD: "Unify shared dependencies to a single version"
+        let mut reg = MockRegistry::new();
+        reg.add_package("skill-a", vec![("1.0.0", vec![dep("common-util", "^2.0")])]);
+        reg.add_package("skill-b", vec![("1.0.0", vec![dep("common-util", "^2.1")])]);
+        reg.add_package(
+            "common-util",
+            vec![("2.0.0", vec![]), ("2.1.0", vec![]), ("2.2.0", vec![])],
+        );
+
+        let deps = vec![root_dep("skill-a", "^1.0"), root_dep("skill-b", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg).unwrap();
+
+        let common = result.packages.iter().filter(|p| p.name == "common-util").collect::<Vec<_>>();
+        assert_eq!(common.len(), 1, "common-util should appear exactly once");
+        assert_eq!(common[0].version.to_string(), "2.2.0");
+    }
+
+    #[test]
+    fn same_major_deps_unified_to_one_version() {
+        // BDD: "Same-major dependencies are unified to one version"
+        let mut reg = MockRegistry::new();
+        reg.add_package("plugin-a", vec![("1.0.0", vec![dep("common-util", "^2.0")])]);
+        reg.add_package("plugin-b", vec![("1.0.0", vec![dep("common-util", "^2.5")])]);
+        reg.add_package(
+            "common-util",
+            vec![("2.0.0", vec![]), ("2.5.0", vec![]), ("2.8.0", vec![])],
+        );
+
+        let deps = vec![root_dep("plugin-a", "^1.0"), root_dep("plugin-b", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg).unwrap();
+
+        let common = result.packages.iter().filter(|p| p.name == "common-util").collect::<Vec<_>>();
+        assert_eq!(common.len(), 1, "common-util should appear exactly once");
+        assert_eq!(common[0].version.to_string(), "2.8.0");
+    }
+
+    // =========================================================================
+    // Cross-major coexistence tests
+    // =========================================================================
+
+    #[test]
+    fn cross_major_deps_coexist() {
+        // BDD: "Allow multiple incompatible major versions"
+        let mut reg = MockRegistry::new();
+        reg.add_package("skill-a", vec![("1.0.0", vec![dep("common-util", "^1.0")])]);
+        reg.add_package("skill-b", vec![("1.0.0", vec![dep("common-util", "^2.0")])]);
+        reg.add_package(
+            "common-util",
+            vec![("1.0.0", vec![]), ("1.5.0", vec![]), ("2.0.0", vec![]), ("2.1.0", vec![])],
+        );
+
+        let deps = vec![root_dep("skill-a", "^1.0"), root_dep("skill-b", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg).unwrap();
+
+        let common_versions: BTreeSet<String> = result
+            .packages
+            .iter()
+            .filter(|p| p.name == "common-util")
+            .map(|p| p.version.to_string())
+            .collect();
+
+        assert_eq!(common_versions.len(), 2, "both major versions should coexist");
+        // Should have highest of each major
+        assert!(common_versions.contains("1.5.0"));
+        assert!(common_versions.contains("2.1.0"));
+    }
+
+    #[test]
+    fn cross_major_framework_coexistence() {
+        // BDD: "Cross-major dependencies coexist in the graph"
+        let mut reg = MockRegistry::new();
+        reg.add_package("plugin-a", vec![("1.0.0", vec![dep("framework", "^1.0")])]);
+        reg.add_package("plugin-b", vec![("1.0.0", vec![dep("framework", "^2.0")])]);
+        reg.add_package(
+            "framework",
+            vec![("1.0.0", vec![]), ("1.5.0", vec![]), ("2.0.0", vec![]), ("2.1.0", vec![])],
+        );
+
+        let deps = vec![root_dep("plugin-a", "^1.0"), root_dep("plugin-b", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg).unwrap();
+
+        let framework_versions: BTreeSet<String> = result
+            .packages
+            .iter()
+            .filter(|p| p.name == "framework")
+            .map(|p| p.version.to_string())
+            .collect();
+
+        assert_eq!(framework_versions.len(), 2);
+        assert!(framework_versions.iter().any(|v| v.starts_with("1.")));
+        assert!(framework_versions.iter().any(|v| v.starts_with("2.")));
+    }
+
+    // =========================================================================
+    // Backtracking tests
+    // =========================================================================
+
+    #[test]
+    fn backtrack_on_conflict() {
+        // BDD: "Backtrack on conflict"
+        // skill-a@1.2.0 depends on common-util =2.0.0
+        // skill-a@1.1.0 depends on common-util ^2.0.0
+        // skill-b depends on common-util =2.1.0
+        // Expected: skill-a resolves to 1.1.0, common-util to 2.1.0
+        let mut reg = MockRegistry::new();
+        reg.add_package(
+            "skill-a",
+            vec![
+                ("1.1.0", vec![dep("common-util", "^2.0.0")]),
+                ("1.2.0", vec![dep("common-util", "=2.0.0")]),
+            ],
+        );
+        reg.add_package("skill-b", vec![("1.0.0", vec![dep("common-util", "=2.1.0")])]);
+        reg.add_package("common-util", vec![("2.0.0", vec![]), ("2.1.0", vec![])]);
+
+        let deps = vec![root_dep("skill-a", "^1.0"), root_dep("skill-b", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg).unwrap();
+
+        let skill_a = result.packages.iter().find(|p| p.name == "skill-a").unwrap();
+        assert_eq!(skill_a.version.to_string(), "1.1.0");
+
+        let common = result.packages.iter().find(|p| p.name == "common-util").unwrap();
+        assert_eq!(common.version.to_string(), "2.1.0");
+    }
+
+    #[test]
+    fn report_unsolvable_conflicts() {
+        // BDD: "Report unsolvable conflicts clearly"
+        // skill-a depends on common-util =1.0.0
+        // skill-b depends on common-util =1.1.0
+        // Both are same major, can't be unified → error
+        let mut reg = MockRegistry::new();
+        reg.add_package("skill-a", vec![("1.0.0", vec![dep("common-util", "=1.0.0")])]);
+        reg.add_package("skill-b", vec![("1.0.0", vec![dep("common-util", "=1.1.0")])]);
+        reg.add_package("common-util", vec![("1.0.0", vec![]), ("1.1.0", vec![])]);
+
+        let deps = vec![root_dep("skill-a", "^1.0"), root_dep("skill-b", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg);
+
+        assert!(result.is_err());
+        if let Err(Error::Conflict { name, .. }) = &result {
+            assert_eq!(name, "common-util");
+        }
+    }
+
+    #[test]
+    fn prefer_highest_compatible_version() {
+        // BDD: "Prefer the highest compatible version"
+        let mut reg = MockRegistry::new();
+        reg.add_package(
+            "skill-a",
+            vec![("1.0.0", vec![]), ("1.1.0", vec![]), ("1.2.0", vec![]), ("2.0.0", vec![])],
+        );
+
+        let deps = vec![root_dep("skill-a", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg).unwrap();
+
+        let skill = result.packages.iter().find(|p| p.name == "skill-a").unwrap();
+        assert_eq!(skill.version.to_string(), "1.2.0");
+    }
+
+    #[test]
+    fn resolve_simple_dependency_tree() {
+        // BDD: "Resolve a simple dependency tree"
+        let mut reg = MockRegistry::new();
+        reg.add_package("skill-a", vec![("1.2.0", vec![dep("common-util", "^2.0")])]);
+        reg.add_package("common-util", vec![("2.1.0", vec![])]);
+
+        let deps = vec![root_dep("skill-a", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg).unwrap();
+
+        let skill = result.packages.iter().find(|p| p.name == "skill-a").unwrap();
+        assert_eq!(skill.version.to_string(), "1.2.0");
+
+        let common = result.packages.iter().find(|p| p.name == "common-util").unwrap();
+        assert_eq!(common.version.to_string(), "2.1.0");
+    }
+
+    #[test]
+    fn three_level_cross_major() {
+        // a -> b ^1.0, c ^1.0
+        // b -> lib ^1.0
+        // c -> lib ^2.0
+        // lib has 1.x and 2.x — should coexist
+        let mut reg = MockRegistry::new();
+        reg.add_package("a", vec![("1.0.0", vec![dep("b", "^1.0"), dep("c", "^1.0")])]);
+        reg.add_package("b", vec![("1.0.0", vec![dep("lib", "^1.0")])]);
+        reg.add_package("c", vec![("1.0.0", vec![dep("lib", "^2.0")])]);
+        reg.add_package("lib", vec![("1.0.0", vec![]), ("2.0.0", vec![])]);
+
+        let deps = vec![root_dep("a", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg).unwrap();
+
+        let lib_versions: BTreeSet<String> = result
+            .packages
+            .iter()
+            .filter(|p| p.name == "lib")
+            .map(|p| p.version.to_string())
+            .collect();
+        assert_eq!(lib_versions.len(), 2);
+        assert!(lib_versions.contains("1.0.0"));
+        assert!(lib_versions.contains("2.0.0"));
     }
 }

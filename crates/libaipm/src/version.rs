@@ -52,6 +52,12 @@ impl Version {
         !self.0.pre.is_empty()
     }
 
+    /// Returns the major version number.
+    #[must_use]
+    pub const fn major(&self) -> u64 {
+        self.0.major
+    }
+
     /// Returns the inner `semver::Version` reference.
     #[must_use]
     pub const fn inner(&self) -> &semver::Version {
