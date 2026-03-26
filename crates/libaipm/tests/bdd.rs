@@ -681,7 +681,7 @@ async fn then_manifest_plugins_dir(world: &mut AipmWorld, plugins_dir: String) {
 async fn then_gitignore_contains(world: &mut AipmWorld, expected: String) {
     let dir = world.active_dir_path();
     let content = std::fs::read_to_string(dir.join(".ai/.gitignore")).expect("read .ai/.gitignore");
-    assert!(content.contains(&expected), "expected '{expected}' in .gitignore\ngot: {content}");
+    assert!(content.contains(&expected), "expected '{expected}' in .ai/.gitignore\ngot: {content}");
 }
 
 #[then(expr = "the gitignore does not contain {string}")]
@@ -690,7 +690,7 @@ async fn then_gitignore_does_not_contain(world: &mut AipmWorld, expected: String
     let content = std::fs::read_to_string(dir.join(".ai/.gitignore")).expect("read .ai/.gitignore");
     assert!(
         !content.contains(&expected),
-        "expected '{expected}' to be absent from .gitignore\ngot: {content}"
+        "expected '{expected}' to be absent from .ai/.gitignore\ngot: {content}"
     );
 }
 

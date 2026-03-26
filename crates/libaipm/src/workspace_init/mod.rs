@@ -202,9 +202,11 @@ fn scaffold_marketplace(
 
     // Always create .ai/ and .gitignore
     fs.create_dir_all(&ai_dir)?;
-    let gitignore_header = "# Managed by aipm — registry-installed plugins are symlinked here.\n\
-                            # Do not edit the section between the markers.\n\
-                            # === aipm managed start ===\n";
+    let gitignore_header = concat!(
+        "# Managed by aipm — registry-installed plugins are symlinked here.\n",
+        "# Do not edit the section between the markers.\n",
+        "# === aipm managed start ===\n",
+    );
     let gitignore_footer = "# === aipm managed end ===\n";
     let gitignore_content = if no_starter {
         format!("{gitignore_header}{gitignore_footer}")
