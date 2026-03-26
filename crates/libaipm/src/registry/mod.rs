@@ -4,6 +4,7 @@
 //! implementation is `GitRegistry` (git-based index + tarball downloads).
 //! A future `HttpRegistry` can implement the same trait.
 
+pub mod config;
 pub mod error;
 pub mod index;
 

@@ -170,7 +170,7 @@
       "Default all unscoped packages to 'default' registry",
       "Add unit tests for config parsing and scope routing"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
