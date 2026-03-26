@@ -98,6 +98,18 @@ Feature: Workspace initialization
     And the gitignore contains "aipm managed start"
     And the gitignore contains "aipm managed end"
 
+  Scenario: Generated gitignore includes tool-usage.log when starter plugin is included
+    Given an empty directory "my-project"
+    When the user runs "aipm init --marketplace" in "my-project"
+    Then a file ".ai/.gitignore" exists in "my-project"
+    And the gitignore contains ".tool-usage.log"
+
+  Scenario: Generated gitignore omits tool-usage.log when no-starter flag is passed
+    Given an empty directory "my-project"
+    When the user runs "aipm init --no-starter" in "my-project"
+    Then a file ".ai/.gitignore" exists in "my-project"
+    And the gitignore does not contain ".tool-usage.log"
+
   Scenario: Reject workspace initialization if aipm.toml already exists
     Given a directory "existing" containing an "aipm.toml"
     When the user runs "aipm init --workspace" in "existing"
