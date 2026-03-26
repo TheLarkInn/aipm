@@ -435,7 +435,7 @@
       "Log warning when scripts are found but not in allowlist",
       "Add unit tests verifying scripts are blocked without allowlist"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
