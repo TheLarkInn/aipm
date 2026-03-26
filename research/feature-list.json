@@ -326,7 +326,7 @@
       "Step 10: Write aipm.lock with exact versions + checksums",
       "Add integration tests covering BDD scenarios from install.feature and lockfile.feature"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

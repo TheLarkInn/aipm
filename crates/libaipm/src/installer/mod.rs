@@ -5,3 +5,4 @@
 
 pub mod error;
 pub mod manifest_editor;
+pub mod pipeline;
