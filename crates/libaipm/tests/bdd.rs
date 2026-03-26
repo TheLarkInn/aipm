@@ -688,7 +688,10 @@ async fn then_gitignore_contains(world: &mut AipmWorld, expected: String) {
 async fn then_gitignore_does_not_contain(world: &mut AipmWorld, expected: String) {
     let dir = world.active_dir_path();
     let content = std::fs::read_to_string(dir.join(".ai/.gitignore")).expect("read .ai/.gitignore");
-    assert!(!content.contains(&expected), "expected '{expected}' to be absent from .gitignore\ngot: {content}");
+    assert!(
+        !content.contains(&expected),
+        "expected '{expected}' to be absent from .gitignore\ngot: {content}"
+    );
 }
 
 // =========================================================================
