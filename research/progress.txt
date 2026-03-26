@@ -1,0 +1,34 @@
+## 2026-03-26 — Iteration 1
+
+### Feature 1: Content Store — SHA-512 hashing utilities ✅
+- Created `crates/libaipm/src/store/` module with `mod.rs`, `hash.rs`, `layout.rs`, `error.rs`
+- `hash.rs`: `sha512_hex()` computes SHA-512 of byte content, returns 128-char hex string; `validate()` verifies hash format
+- `layout.rs`: `hash_to_path()` splits hash into 2-char prefix dir + rest; `hash_prefix_dir()` returns prefix dir
+- `error.rs`: `Error` enum with `Io`, `InvalidHash`, `NotFound` variants
+- Registered `pub mod store` in `lib.rs`
+- Naming: used `error::Error` (not `StoreError`) and `hash::validate` (not `validate_hash`) to avoid `module_name_repetitions` lint
+
+### Feature 2: Content Store — store directory layout with 2-char prefix sharding ✅
+- Added `Store` struct (not `ContentStore` — lint) with `store_path: PathBuf`
+- `store_file()` hashes content, writes to `{prefix}/{rest}`, idempotent for existing hashes
+- `get_path()` returns `Option<PathBuf>` for stored content, `has_content()` bool check
+- 8 unit tests covering store, retrieve, idempotency, missing content, prefix dirs
+
+### Feature 3: Content Store — hard-link with cross-volume copy fallback ✅
+- Added `link_to()` method: hard-links stored file to target, creates parent dirs
+- Cross-device fallback: detects EXDEV (errno 18 on Unix, 17 on Windows), falls back to `fs::copy` with `tracing::warn!`
+- `is_cross_device()` helper with `#[cfg(unix)]`/`#[cfg(windows)]` branches
+- 4 tests covering hard-link, nested dirs, missing hash, invalid hash
+
+### Feature 4: Content Store — store_package ✅
+- Added `store_package()`: walks extracted dir, hashes each file, stores in CAS, returns `BTreeMap<PathBuf, String>`
+- `collect_files()` helper recursively gathers `(relative_path, content)` pairs
+- 3 tests: walks dir structure, empty dir, identical file deduplication
+
+### Feature 5: Content Store — fs2 file locking ✅
+- Added `fs2 = "0.4"` to workspace and libaipm dependencies
+- `store::Lock` struct holds exclusive advisory lock via `fs2::FileExt::lock_exclusive()`
+- `Store::lock()` creates `.lock` file in store root, returns `Lock` guard (released on drop)
+- 3 tests: lock file creation, release on drop, store dir creation
+
+**Total: 390 tests passing, 0 failures. All 5 content store features complete.**

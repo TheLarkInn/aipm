@@ -8,6 +8,7 @@ pub mod fs;
 pub mod init;
 pub mod manifest;
 pub mod migrate;
+pub mod store;
 pub mod version;
 pub mod workspace_init;
 

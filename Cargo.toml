@@ -45,6 +45,9 @@ sha2 = "0.10"
 # Error handling
 thiserror = "2"
 
+# File locking
+fs2 = "0.4"
+
 # Compression
 flate2 = "1"
 tar = "0.4"
