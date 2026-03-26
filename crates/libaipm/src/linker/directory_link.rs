@@ -89,8 +89,6 @@ fn create_platform_link(source: &Path, target: &Path) -> Result<(), Error> {
 }
 
 fn remove_link(target: &Path) -> Result<(), Error> {
-    // On Unix, symlinks are removed with remove_file.
-    // On Windows, junctions are removed with remove_dir.
     #[cfg(unix)]
     {
         std::fs::remove_file(target)

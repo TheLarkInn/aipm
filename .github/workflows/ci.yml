@@ -38,6 +38,21 @@ jobs:
       - name: Format
         run: cargo fmt --check
 
+  windows-check:
+    name: Windows cross-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check (Windows target)
+        run: cargo check --workspace --target x86_64-pc-windows-msvc
+
   coverage:
     name: Coverage (89% branch gate)
     runs-on: ubuntu-latest
