@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.11.0] - 2026-03-26
+
+### Refactoring
+- Remove edition field from aipm.toml manifests ([#102](https://github.com/TheLarkInn/aipm/pull/102)) (a6c2374)
+
 ## [0.10.1] - 2026-03-26
 
 ### Features
