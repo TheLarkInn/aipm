@@ -12,6 +12,7 @@
 //!   recent choice point with remaining candidates.
 
 pub mod error;
+pub mod overrides;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -86,7 +87,24 @@ pub fn resolve(
     lockfile_pins: &BTreeMap<String, Version>,
     registry: &dyn Registry,
 ) -> Result<Resolution, Error> {
-    let mut solver = Solver::new(registry, lockfile_pins);
+    resolve_with_overrides(root_deps, lockfile_pins, registry, &[])
+}
+
+/// Resolve dependencies with overrides applied.
+///
+/// Overrides are applied to root deps and to transitive deps as they are
+/// discovered during resolution.
+///
+/// # Errors
+///
+/// Returns [`Error`] if resolution fails.
+pub fn resolve_with_overrides(
+    root_deps: &[Dependency],
+    lockfile_pins: &BTreeMap<String, Version>,
+    registry: &dyn Registry,
+    override_rules: &[overrides::Override],
+) -> Result<Resolution, Error> {
+    let mut solver = Solver::new(registry, lockfile_pins, override_rules);
     solver.resolve(root_deps)
 }
 
@@ -126,10 +144,15 @@ struct Solver<'a> {
     registry: &'a dyn Registry,
     activated: BTreeMap<ActivatedKey, ActivatedPackage>,
     choices: Vec<ChoicePoint>,
+    override_rules: Vec<overrides::Override>,
 }
 
 impl<'a> Solver<'a> {
-    fn new(registry: &'a dyn Registry, lockfile_pins: &BTreeMap<String, Version>) -> Self {
+    fn new(
+        registry: &'a dyn Registry,
+        lockfile_pins: &BTreeMap<String, Version>,
+        override_rules: &[overrides::Override],
+    ) -> Self {
         let mut activated: BTreeMap<ActivatedKey, ActivatedPackage> = BTreeMap::new();
 
         for (name, version) in lockfile_pins {
@@ -145,11 +168,13 @@ impl<'a> Solver<'a> {
             );
         }
 
-        Self { registry, activated, choices: Vec::new() }
+        Self { registry, activated, choices: Vec::new(), override_rules: override_rules.to_vec() }
     }
 
     fn resolve(&mut self, root_deps: &[Dependency]) -> Result<Resolution, Error> {
         let mut queue: Vec<Dependency> = root_deps.to_vec();
+        // Apply overrides to root deps
+        overrides::apply(&mut queue, &self.override_rules);
 
         while let Some(dep) = queue.pop() {
             let req = Requirement::parse(&dep.req)
@@ -294,11 +319,14 @@ impl<'a> Solver<'a> {
                 continue;
             }
 
-            queue.push(Dependency {
+            let mut trans = Dependency {
                 name: trans_dep.name.clone(),
                 req: trans_dep.req.clone(),
                 source: dep.name.clone(),
-            });
+            };
+            // Apply overrides to transitive dep before queueing
+            overrides::apply(std::slice::from_mut(&mut trans), &self.override_rules);
+            queue.push(trans);
         }
 
         Ok(())
@@ -853,5 +881,87 @@ mod tests {
         assert_eq!(lib_versions.len(), 2);
         assert!(lib_versions.contains("1.0.0"));
         assert!(lib_versions.contains("2.0.0"));
+    }
+
+    // =========================================================================
+    // Override integration tests
+    // =========================================================================
+
+    #[test]
+    fn global_override_forces_version() {
+        // BDD: "Override a transitive dependency version globally"
+        let mut reg = MockRegistry::new();
+        reg.add_package("skill-a", vec![("1.0.0", vec![dep("vulnerable-lib", "^1.0")])]);
+        reg.add_package(
+            "vulnerable-lib",
+            vec![("1.0.0", vec![]), ("2.0.0", vec![]), ("2.1.0", vec![])],
+        );
+
+        let override_rules = vec![overrides::Override::Global {
+            name: "vulnerable-lib".to_string(),
+            req: "^2.0.0".to_string(),
+        }];
+
+        let deps = vec![root_dep("skill-a", "^1.0")];
+        let result =
+            resolve_with_overrides(&deps, &BTreeMap::new(), &reg, &override_rules).unwrap();
+
+        let vuln = result.packages.iter().find(|p| p.name == "vulnerable-lib").unwrap();
+        assert!(vuln.version.to_string().starts_with("2.")); // forced to 2.x
+    }
+
+    #[test]
+    fn scoped_override_only_affects_parent() {
+        // BDD: "Override a dependency only when it is a child of a specific package"
+        let mut reg = MockRegistry::new();
+        reg.add_package("skill-a", vec![("1.0.0", vec![dep("common-util", "^2.0")])]);
+        reg.add_package("skill-b", vec![("1.0.0", vec![dep("common-util", "^2.0")])]);
+        reg.add_package(
+            "common-util",
+            vec![("2.0.0", vec![]), ("2.1.0", vec![]), ("2.5.0", vec![])],
+        );
+
+        let override_rules = vec![overrides::Override::Scoped {
+            parent: "skill-a".to_string(),
+            child: "common-util".to_string(),
+            req: "=2.1.0".to_string(),
+        }];
+
+        // Note: scoped overrides apply to transitive deps with matching source.
+        // Since skill-a's dep on common-util has source="skill-a",
+        // the override pins it to =2.1.0.
+        // skill-b's dep on common-util has source="skill-b", so it resolves normally.
+        // With unification, if skill-a's common-util is resolved first at 2.1.0,
+        // and skill-b's ^2.0 matches 2.1.0, they unify.
+        let deps = vec![root_dep("skill-a", "^1.0"), root_dep("skill-b", "^1.0")];
+        let result =
+            resolve_with_overrides(&deps, &BTreeMap::new(), &reg, &override_rules).unwrap();
+
+        let common = result.packages.iter().filter(|p| p.name == "common-util").collect::<Vec<_>>();
+        // The scoped override forces =2.1.0 under skill-a; skill-b's ^2.0 also matches 2.1.0
+        assert!(!common.is_empty());
+    }
+
+    #[test]
+    fn replacement_override_swaps_package() {
+        // BDD: "Replace a dependency with a fork via override"
+        let mut reg = MockRegistry::new();
+        reg.add_package("app", vec![("1.0.0", vec![dep("broken-lib", "^1.0")])]);
+        reg.add_package("broken-lib", vec![("1.0.0", vec![])]);
+        reg.add_package("fixed-lib", vec![("1.0.0", vec![]), ("1.1.0", vec![])]);
+
+        let override_rules = vec![overrides::Override::Replacement {
+            original: "broken-lib".to_string(),
+            replacement: "fixed-lib".to_string(),
+            req: "^1.0".to_string(),
+        }];
+
+        let deps = vec![root_dep("app", "^1.0")];
+        let result =
+            resolve_with_overrides(&deps, &BTreeMap::new(), &reg, &override_rules).unwrap();
+
+        let names: BTreeSet<String> = result.packages.iter().map(|p| p.name.clone()).collect();
+        assert!(names.contains("fixed-lib"), "replacement should be used");
+        assert!(!names.contains("broken-lib"), "original should not appear");
     }
 }

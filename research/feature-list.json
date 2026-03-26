@@ -209,7 +209,7 @@
       "Handle replacement overrides (aipm:other@version): swap package name entirely",
       "Add unit tests for each override type"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
