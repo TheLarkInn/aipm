@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.11.1] - 2026-03-26
+
+### Documentation
+- Rewrite README with full API docs, roadmap, and apm comparison ([#105](https://github.com/TheLarkInn/aipm/pull/105)) (1aa3cac)
+
+### Features
+- Implement install, update, link, lockfile, registry, and resolver pipeline ([#104](https://github.com/TheLarkInn/aipm/pull/104)) (a75d54e)
+
 ## [0.11.0] - 2026-03-26
 
 ## [0.10.1] - 2026-03-26
