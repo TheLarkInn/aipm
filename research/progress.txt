@@ -20,3 +20,61 @@
 - 23 unit tests
 
 **Running total: 440 tests passing, 0 failures. 11 of 36 features complete.**
+
+## 2026-03-26 — Iteration 2
+
+### Features 14-18: Resolver module ✅ (completed in previous session)
+- Backtracking constraint solver with choice points and state snapshots
+- Version unification and cross-major coexistence (keyed by (name, major_version))
+- Override system: global, scoped (parent>child), replacement (aipm:other@version)
+- Features system with additive unification and dep: syntax for optional deps
+- 29 unit tests
+
+### Feature 19: Resolver — detailed conflict error reporting ✅
+- Error::Conflict(Box<ConflictDetail>) with dependency chain tracking
+- build_chain() helper traces source maps back to root
+- ConflictDetail Display with chain formatting
+- 6 unit tests in error.rs
+
+### Features 20-22: Linker module — directory links + hard-link assembly + pipeline ✅
+- directory_link.rs: create/remove/is_link/read_target with Unix symlink, Windows junction
+- hard_link.rs: assemble packages from content store via hard-links
+- pipeline.rs: three-tier linking (store → .aipm/links → plugins dir)
+- 21 unit tests across 3 modules
+
+### Feature 23: Linker — gitignore managed section ✅
+- add_entry/remove_entry/read_entries with markers
+- Scoped package support (@scope/name + @scope/ entries)
+- 10 unit tests
+
+### Feature 24: Linker — link state tracking ✅
+- .aipm/links.toml read/write/add/remove/clear/list
+- LinkEntry with name, path, linked_at
+- 8 unit tests
+
+### Feature 25: Filesystem trait extensions ✅
+- Extended Fs trait with 8 new methods: remove_file, remove_dir_all, hard_link,
+  copy_file, symlink_dir, read_link, is_symlink, atomic_write
+- Default implementations return unsupported (preserves existing mocks)
+- Full Real implementation
+- 7 unit tests
+
+### Feature 27: Installer — manifest editing ✅
+- add_dependency/remove_dependency using toml_edit for comment preservation
+- parse_package_spec for name@version parsing
+- 8 unit tests
+
+### Feature 33: Register modules in lib.rs ✅
+- All modules registered: fs, init, installer, linker, lockfile, manifest, migrate,
+  registry, resolver, store, version, workspace_init
+
+### Feature 34: Add workspace dependencies ✅
+- Added toml_edit 0.22 to workspace and libaipm
+
+### Feature 35: Security — lifecycle script blocking ✅
+- evaluate_scripts against allowlist
+- has_blocked_scripts/blocked_scripts helpers
+- 5 unit tests
+
+**Running total: 549 tests passing, 0 failures. 27 of 36 features complete.**
+Features still pending: 12-13 (git2/reqwest needed), 26, 28-32, 36
