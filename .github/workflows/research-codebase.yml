@@ -1,0 +1,158 @@
+# Research Codebase — lean single-job workflow
+#
+# Triggers when the "research" label is applied to an issue.
+# Runs Copilot CLI to research the codebase, writes findings to research/docs/,
+# then posts the generated file as the issue body and relabels with "spec review".
+
+name: Research Codebase
+
+on:
+  issues:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Issue number to research
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: research-${{ github.event.issue.number || inputs.issue_number }}
+  cancel-in-progress: true
+
+run-name: "Research: ${{ github.event.issue.title || inputs.issue_number }}"
+
+jobs:
+  research:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issues' && github.event.label.name == 'research')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Verify actor permissions
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              username: context.actor,
+            });
+            const allowed = ['admin', 'maintain', 'write'];
+            if (!allowed.includes(data.permission)) {
+              core.setFailed(`${context.actor} does not have write access`);
+            }
+
+      - name: Resolve issue metadata
+        id: issue
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const num = context.issue?.number || '${{ inputs.issue_number }}';
+            const { data } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: Number(num),
+            });
+            core.setOutput('number', data.number);
+            core.setOutput('title', data.title);
+
+      - name: Remove research label
+        continue-on-error: true
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            await github.rest.issues.removeLabel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ steps.issue.outputs.number }},
+              name: 'research',
+            }).catch(() => {});
+
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Snapshot existing research files
+        run: |
+          mkdir -p research/docs
+          ls research/docs/*.md 2>/dev/null | sort > /tmp/research-before.txt || true
+
+      - name: Setup gh-aw scripts
+        uses: github/gh-aw-actions/setup@53e09ec0be6271e81a69f51ef93f37212c8834b0 # v0.63.1
+        with:
+          destination: ${{ runner.temp }}/gh-aw/actions
+
+      - name: Install Copilot CLI
+        run: ${RUNNER_TEMP}/gh-aw/actions/install_copilot_cli.sh latest
+        env:
+          GH_HOST: github.com
+
+      - name: Run research agent
+        timeout-minutes: 20
+        env:
+          COPILOT_GITHUB_TOKEN: ${{ secrets.COPILOT_GITHUB_TOKEN }}
+          COPILOT_AGENT_RUNNER_TYPE: STANDALONE
+          COPILOT_MODEL: ${{ vars.GH_AW_MODEL_AGENT_COPILOT || '' }}
+          ISSUE_TITLE: ${{ steps.issue.outputs.title }}
+        run: |
+          /usr/local/bin/copilot \
+            --add-dir "${GITHUB_WORKSPACE}" \
+            --allow-all-tools \
+            --allow-all-paths \
+            --prompt "$(cat << /aipm-atomic-plugin:research-codebase ${ISSUE_TITLE})"
+          )"
+
+      - name: Post research file to issue
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const dir = 'research/docs';
+
+            // Diff before/after to find the new file
+            const before = new Set(
+              fs.readFileSync('/tmp/research-before.txt', 'utf8')
+                .split('\n').filter(Boolean)
+            );
+            const after = fs.readdirSync(dir)
+              .filter(f => f.endsWith('.md'))
+              .map(f => path.join(dir, f));
+            let newFiles = after.filter(f => !before.has(f)).sort().reverse();
+
+            // Fallback: pick the most recent file by date-prefix name
+            if (newFiles.length === 0) {
+              core.warning('No new file detected — falling back to most recent');
+              newFiles = after.sort().reverse();
+            }
+            if (newFiles.length === 0) {
+              core.setFailed('No research file was generated');
+              return;
+            }
+
+            const researchFile = newFiles[0];
+            const content = fs.readFileSync(researchFile, 'utf8');
+            core.info(`Posting ${researchFile} (${content.length} chars) to issue #${{ steps.issue.outputs.number }}`);
+
+            // Update issue body with the research document
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ steps.issue.outputs.number }},
+              body: content,
+            });
+
+            // Add spec review label
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ steps.issue.outputs.number }},
+              labels: ['spec review'],
+            });
+
+            core.info('Issue updated and labeled "spec review"');
