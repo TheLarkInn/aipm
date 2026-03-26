@@ -37,8 +37,19 @@ pub fn evaluate_scripts(
         .iter()
         .map(|script| {
             let verdict = if allowed_packages.contains(&script.package_name) {
+                tracing::debug!(
+                    package = script.package_name.as_str(),
+                    phase = script.phase.as_str(),
+                    "lifecycle script allowed by allowlist"
+                );
                 ScriptVerdict::Allowed
             } else {
+                tracing::warn!(
+                    package = script.package_name.as_str(),
+                    phase = script.phase.as_str(),
+                    command = script.command.as_str(),
+                    "lifecycle script blocked — not in allowlist"
+                );
                 ScriptVerdict::Blocked
             };
             (script.clone(), verdict)

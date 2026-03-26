@@ -31,11 +31,22 @@ pub fn link_package(
     let assembled_dir = links_dir.join(pkg_name);
     let plugin_link = plugins_dir.join(pkg_name);
 
+    tracing::info!(package = pkg_name, files = file_hashes.len(), "assembling package from store");
+
     // Step 1: Assemble package via hard-links from store.
     hard_link::assemble(store, file_hashes, &assembled_dir)?;
 
+    tracing::info!(
+        package = pkg_name,
+        source = %assembled_dir.display(),
+        target = %plugin_link.display(),
+        "creating directory link"
+    );
+
     // Step 2: Create directory link from plugins dir to assembled dir.
     directory_link::create(&assembled_dir, &plugin_link)?;
+
+    tracing::info!(package = pkg_name, "package linked successfully");
 
     Ok(())
 }
@@ -46,11 +57,14 @@ pub fn link_package(
 ///
 /// Returns [`Error`] if removal fails.
 pub fn unlink_package(pkg_name: &str, links_dir: &Path, plugins_dir: &Path) -> Result<(), Error> {
+    tracing::info!(package = pkg_name, "unlinking package");
+
     let plugin_link = plugins_dir.join(pkg_name);
     let assembled_dir = links_dir.join(pkg_name);
 
     // Remove the directory symlink/junction first.
     if directory_link::is_link(&plugin_link) {
+        tracing::debug!(path = %plugin_link.display(), "removing directory link");
         directory_link::remove(&plugin_link)?;
     }
 

@@ -446,6 +446,6 @@
       "Support --verbose flag for debug-level output",
       "Add resolver conflict detailed error reports naming conflicting package and incompatible requirements"
     ],
-    "passes": false
+    "passes": true
   }
 ]
