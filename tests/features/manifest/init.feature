@@ -10,7 +10,6 @@ Feature: Package initialization
     Then a file "aipm.toml" is created in "my-plugin"
     And the manifest contains the directory name "my-plugin" as the package name
     And the manifest contains a version of "0.1.0"
-    And the manifest contains an edition field
 
   Scenario: Initialize a new plugin with a custom name
     Given an empty directory "workspace"

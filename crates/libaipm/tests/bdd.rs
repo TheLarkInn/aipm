@@ -149,9 +149,8 @@ async fn given_plugin_dir_valid_manifest(world: &mut AipmWorld, name: String) {
     world.ensure_root();
     let path = world.root_path().join(&name);
     std::fs::create_dir_all(&path).expect("create dir");
-    let manifest = format!(
-        "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\ntype = \"composite\"\nedition = \"2024\"\n"
-    );
+    let manifest =
+        format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\ntype = \"composite\"\n");
     std::fs::write(path.join("aipm.toml"), &manifest).expect("write manifest");
     world.manifest_content = Some(manifest);
     world.dirs.insert(name.clone(), path);
@@ -400,12 +399,6 @@ async fn then_manifest_has_version(world: &mut AipmWorld, version: String) {
     let content = world.read_manifest();
     let expected = format!("version = \"{version}\"");
     assert!(content.contains(&expected), "expected '{expected}'\ngot: {content}");
-}
-
-#[then(expr = "the manifest contains an edition field")]
-async fn then_manifest_has_edition(world: &mut AipmWorld) {
-    let content = world.read_manifest();
-    assert!(content.contains("edition"), "expected 'edition' in manifest\ngot: {content}");
 }
 
 #[then(expr = "the manifest contains the package name {string}")]

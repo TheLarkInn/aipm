@@ -656,7 +656,6 @@ fn generate_package_manifest(
             name: plugin_name.to_string(),
             version: "0.1.0".to_string(),
             kind: type_str.to_string(),
-            edition: "2024".to_string(),
             description: description.to_string(),
         },
         components,
@@ -822,7 +821,6 @@ struct PluginPackage {
     version: String,
     #[serde(rename = "type")]
     kind: String,
-    edition: String,
     description: String,
 }
 
@@ -894,7 +892,6 @@ fn generate_plugin_manifest(artifact: &Artifact, plugin_name: &str) -> String {
             name: plugin_name.to_string(),
             version: "0.1.0".to_string(),
             kind: type_str.to_string(),
-            edition: "2024".to_string(),
             description: description.to_string(),
         },
         components,

@@ -22,7 +22,7 @@ mkdirSync(join(pluginDir, "hooks"), { recursive: true });
 
 writeFileSync(
   join(pluginDir, "aipm.toml"),
-  `[package]\nname = "${name}"\nversion = "0.1.0"\ntype = "composite"\nedition = "2024"\ndescription = "TODO: describe ${name}"\n\n[components]\nskills = ["skills/${name}/SKILL.md"]\n`
+  `[package]\nname = "${name}"\nversion = "0.1.0"\ntype = "composite"\ndescription = "TODO: describe ${name}"\n\n[components]\nskills = ["skills/${name}/SKILL.md"]\n`
 );
 
 writeFileSync(

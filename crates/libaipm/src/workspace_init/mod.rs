@@ -277,7 +277,6 @@ fn generate_starter_manifest() -> String {
      name = \"starter-aipm-plugin\"\n\
      version = \"0.1.0\"\n\
      type = \"composite\"\n\
-     edition = \"2024\"\n\
      description = \"Default starter plugin — scaffold new plugins, scan your marketplace, and log tool usage\"\n\
      \n\
      # [dependencies]\n\
@@ -361,7 +360,7 @@ fn generate_scaffold_script() -> String {
      \n\
      writeFileSync(\n\
      \x20 join(pluginDir, \"aipm.toml\"),\n\
-     \x20 `[package]\\nname = \"${name}\"\\nversion = \"0.1.0\"\\ntype = \"composite\"\\nedition = \"2024\"\\ndescription = \"TODO: describe ${name}\"\\n\\n[components]\\nskills = [\"skills/${name}/SKILL.md\"]\\n`\n\
+     \x20 `[package]\\nname = \"${name}\"\\nversion = \"0.1.0\"\\ntype = \"composite\"\\ndescription = \"TODO: describe ${name}\"\\n\\n[components]\\nskills = [\"skills/${name}/SKILL.md\"]\\n`\n\
      );\n\
      \n\
      writeFileSync(\n\

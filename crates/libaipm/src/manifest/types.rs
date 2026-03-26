@@ -43,6 +43,7 @@ pub struct Manifest {
 
 /// `[package]` section — core package metadata.
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Package {
     /// Package name — lowercase alphanumeric + hyphens, optional `@scope/`.
     pub name: String,
@@ -56,9 +57,6 @@ pub struct Package {
     /// Plugin type.
     #[serde(rename = "type")]
     pub plugin_type: Option<String>,
-
-    /// Edition identifier.
-    pub edition: Option<String>,
 
     /// File allowlist for transfer format.
     pub files: Option<Vec<String>>,
