@@ -6,8 +6,14 @@
 
 pub mod fs;
 pub mod init;
+pub mod installer;
+pub mod linker;
+pub mod lockfile;
 pub mod manifest;
 pub mod migrate;
+pub mod registry;
+pub mod resolver;
+pub mod store;
 pub mod version;
 pub mod workspace_init;
 

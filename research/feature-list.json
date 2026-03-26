@@ -1,0 +1,451 @@
+[
+  {
+    "category": "functional",
+    "description": "Content Store — SHA-512 hashing utilities",
+    "steps": [
+      "Create crates/libaipm/src/store/ directory with mod.rs, hash.rs, layout.rs, error.rs",
+      "Implement SHA-512 hashing of file content using the sha2 crate",
+      "Return hex-encoded hash strings",
+      "Add unit tests verifying correct hash output for known inputs",
+      "Ensure no use of unwrap/expect — use proper Result error handling"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Content Store — store directory layout with 2-char prefix sharding",
+    "steps": [
+      "Implement store_path layout: ~/.aipm/store/{first-2-chars}/{remaining-chars}",
+      "Implement ContentStore struct with store_path field",
+      "Implement store_file() that hashes content and writes to correct path",
+      "Implement get_path() to retrieve file path by hash",
+      "Implement has_content() to check existence by hash",
+      "Use create_dir_all for directory creation (never create_dir)",
+      "Add unit tests with tempdir verifying storage and retrieval"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Content Store — hard-link with cross-volume copy fallback",
+    "steps": [
+      "Implement link_to() method on ContentStore",
+      "Use std::fs::hard_link to create hard links from store to target",
+      "Detect io::ErrorKind::CrossesDevices (EXDEV) and fall back to std::fs::copy",
+      "Emit warning via tracing::warn on fallback",
+      "Add unit tests verifying hard-link creation and fallback behavior"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Content Store — store_package for extracting archive files into store",
+    "steps": [
+      "Implement store_package() that walks an extracted directory",
+      "Hash each file individually and store in content-addressable store",
+      "Return BTreeMap<PathBuf, String> mapping relative paths to content hashes",
+      "Add unit tests with tempdir containing multiple files"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Content Store — fs2 file locking for concurrent access",
+    "steps": [
+      "Add fs2 advisory file locking on ~/.aipm/store/.lock",
+      "Acquire exclusive lock for store-wide write operations",
+      "Release lock on drop",
+      "Add unit tests verifying lock acquisition"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Lockfile — types and TOML serialization/deserialization",
+    "steps": [
+      "Create crates/libaipm/src/lockfile/ directory with mod.rs, types.rs, reconcile.rs, error.rs",
+      "Define Lockfile struct with metadata and packages fields",
+      "Define LockfileMetadata with lockfile_version (u32) and generated_by (String)",
+      "Define LockedPackage with name, version, source, checksum, dependencies",
+      "Implement Serialize/Deserialize for all types",
+      "Add unit tests for round-trip serialization of lockfile TOML"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Lockfile — read and write aipm.lock files",
+    "steps": [
+      "Implement read_lockfile() to parse aipm.lock TOML from disk",
+      "Implement write_lockfile() to serialize and write aipm.lock to disk",
+      "Include header comment in written lockfile",
+      "Validate lockfile_version on read",
+      "Add unit tests for read/write round-trip with tempdir"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Lockfile — drift detection for --locked mode",
+    "steps": [
+      "Implement validate_lockfile_matches_manifest() function",
+      "Compare manifest dependency set against lockfile package set",
+      "Return error with details on any mismatch (added, removed, changed deps)",
+      "Add unit tests for matching and mismatching cases"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Lockfile — minimal reconciliation algorithm",
+    "steps": [
+      "Implement reconcile() in reconcile.rs",
+      "Diff manifest deps against lockfile: identify added, removed, changed deps",
+      "Prune removed deps and their exclusive transitive dependencies from lockfile",
+      "Return list of deps that need re-resolution (added/changed)",
+      "Carry forward existing pinned deps untouched",
+      "Add unit tests for each reconciliation scenario"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Registry — trait definition and types",
+    "steps": [
+      "Create crates/libaipm/src/registry/ directory with mod.rs, git.rs, config.rs, error.rs",
+      "Define VersionEntry struct (name, vers, deps, cksum, features, yanked)",
+      "Define DepEntry struct (name, req, features, optional, default_features)",
+      "Define PackageMetadata struct (name, versions)",
+      "Define trait Registry with get_metadata() and download() methods",
+      "Define RegistryError enum with appropriate variants",
+      "Add unit tests for type serialization/deserialization"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Registry — Git index repository layout and parsing",
+    "steps": [
+      "Implement index file path calculation using 2-char prefix sharding scheme",
+      "Handle 1-char, 2-char, 3-char, and 4+ char package names",
+      "Handle scoped packages (@scope/name) with @sc/op/ prefix",
+      "Parse JSON-lines format from index files into Vec<VersionEntry>",
+      "Add unit tests for path calculation and JSON parsing"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Registry — GitRegistry implementation with git2 cloning/fetching",
+    "steps": [
+      "Implement GitRegistry struct with index cache at ~/.aipm/registry-cache/{hash}/",
+      "Clone index repo on first access using git2",
+      "Fetch updates on subsequent accesses using git2",
+      "Implement get_metadata() reading index file for the package",
+      "Parse config.json for dl URL template",
+      "Add integration tests with a test git repo"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Registry — tarball download via reqwest with checksum verification",
+    "steps": [
+      "Implement download() method on GitRegistry",
+      "Substitute {name} and {version} into dl URL template from config.json",
+      "Download tarball using reqwest::blocking::get",
+      "Verify SHA-512 checksum against index entry cksum field",
+      "Return error on checksum mismatch",
+      "Add unit tests with mock HTTP responses"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Registry — configuration parsing for multiple registries and scope routing",
+    "steps": [
+      "Parse [registries.default] and named registries from aipm.toml or ~/.aipm/config.toml",
+      "Parse [registries.scopes] for scope-to-registry mapping",
+      "Route scoped packages (@scope/name) to correct registry",
+      "Default all unscoped packages to 'default' registry",
+      "Add unit tests for config parsing and scope routing"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Resolver — backtracking constraint solver core loop",
+    "steps": [
+      "Create crates/libaipm/src/resolver/ directory with mod.rs, graph.rs, solver.rs, features.rs, overrides.rs, error.rs",
+      "Implement resolve() function taking root deps, registry, and lockfile pins",
+      "Seed activated set with lockfile pins for carried-forward deps",
+      "Try candidates from highest to lowest version",
+      "Filter out yanked versions (unless pinned in lockfile)",
+      "Implement backtracking on conflict",
+      "Return Resolution with all resolved packages",
+      "Add unit tests with mock Registry for simple dependency chains"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Resolver — version unification and cross-major coexistence",
+    "steps": [
+      "Implement version unification: if existing activated version satisfies new requirement, reuse it",
+      "Implement cross-major coexistence: different major versions can coexist",
+      "Implement same-major conflict detection triggering backtrack",
+      "Add unit tests for unification, coexistence, and conflict scenarios",
+      "Cover BDD scenarios from resolution.feature (13 P0 scenarios)"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Resolver — override application (global, scoped, replacement)",
+    "steps": [
+      "Implement apply_overrides() before resolution begins",
+      "Handle global overrides: replace version requirement everywhere",
+      "Handle scoped overrides (parent>child): replace only under named parent",
+      "Handle replacement overrides (aipm:other@version): swap package name entirely",
+      "Add unit tests for each override type"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Resolver — features system with additive unification",
+    "steps": [
+      "Track feature sets per activated package in resolver",
+      "Enable default feature unless consumer sets default-features = false",
+      "Union features from all consumers of a package",
+      "Handle dep: syntax for feature-conditional optional dependencies",
+      "Re-evaluate when new features activate optional deps requiring additional resolution",
+      "Add unit tests covering BDD scenarios from features.feature (6 P1 scenarios)"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Resolver — detailed conflict error reporting",
+    "steps": [
+      "Define ConflictError with fields for conflicting package, both incompatible requirements, and dependency chain",
+      "Produce human-readable error message naming the conflict",
+      "Include the path from root to each conflicting requirement",
+      "Add unit tests verifying error output format"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Linker — symlink (Unix) and directory junction (Windows) creation",
+    "steps": [
+      "Create crates/libaipm/src/linker/ directory with mod.rs, directory_link.rs, hard_link.rs, gitignore.rs, link_state.rs, error.rs",
+      "Implement create_directory_link() using std::os::unix::fs::symlink on Unix",
+      "Implement create_directory_link() using junction::create on Windows via cfg",
+      "Add unit tests for link creation and verification"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Linker — hard-link assembly from store to .aipm/links/",
+    "steps": [
+      "Implement assemble_package() to create .aipm/links/{pkg}/ directory",
+      "Hard-link each file from content store to assembled directory",
+      "Preserve directory structure from original package",
+      "Fall back to copy on cross-volume error",
+      "Add unit tests with tempdir"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Linker — three-tier linking pipeline (store → .aipm/links → claude-plugins)",
+    "steps": [
+      "Implement link_package() orchestrating the full three-tier link",
+      "Hard-link from store to .aipm/links/{pkg}/",
+      "Create directory symlink/junction from claude-plugins/{pkg}/ to .aipm/links/{pkg}/",
+      "Create parent directories as needed with create_dir_all",
+      "Add unit tests verifying complete link chain"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Linker — gitignore managed section read/write",
+    "steps": [
+      "Implement add_gitignore_entry() to insert package name between aipm markers",
+      "Implement remove_gitignore_entry() to remove from managed section",
+      "Create .gitignore file with markers if it doesn't exist",
+      "Preserve manual entries outside the managed markers",
+      "For scoped packages, add both @scope/name and @scope/ entries",
+      "Add unit tests for add, remove, and preserve scenarios"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Linker — link state tracking via .aipm/links.toml",
+    "steps": [
+      "Implement read/write for .aipm/links.toml tracking active dev link overrides",
+      "Store name, path, linked_at for each link entry",
+      "Add entry on aipm link, remove on aipm unlink",
+      "Clear all entries on aipm install --locked",
+      "Implement list function for aipm list --linked",
+      "Add unit tests for state management"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Filesystem trait extensions for install/link operations",
+    "steps": [
+      "Extend existing Fs trait in crates/libaipm/src/fs.rs with new methods",
+      "Add remove_file(), remove_dir_all(), hard_link(), copy_file()",
+      "Add symlink_dir(), read_link(), is_symlink(), atomic_write()",
+      "Implement for RealFs (production) and MockFs (testing)",
+      "Add unit tests for each new method"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Installer — orchestrate resolve → fetch → store → link → lockfile pipeline",
+    "steps": [
+      "Create crates/libaipm/src/installer/ directory with mod.rs, pipeline.rs, manifest_editor.rs, error.rs",
+      "Implement install() function orchestrating the full pipeline",
+      "Step 1: Load manifest and lockfile",
+      "Step 2: If --locked, validate lockfile matches manifest",
+      "Step 3: If adding a new package, add to manifest via toml_edit",
+      "Step 4: Resolve dependencies (lockfile-first, reconciliation, or full)",
+      "Step 5: Fetch .aipm tarballs not in global store, verify checksums",
+      "Step 6: Extract files into global store by content hash",
+      "Step 7: Assemble .aipm/links/{pkg}/ with hard-links",
+      "Step 8: Create directory links into plugins dir + update .gitignore",
+      "Step 9: If --locked, remove all dev link overrides with warnings",
+      "Step 10: Write aipm.lock with exact versions + checksums",
+      "Add integration tests covering BDD scenarios from install.feature and lockfile.feature"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Installer — manifest editing with toml_edit for comment preservation",
+    "steps": [
+      "Implement add_dependency_to_manifest() using toml_edit crate",
+      "Parse aipm.toml preserving comments and formatting",
+      "Add new dependency entry under [dependencies] table",
+      "Handle version spec parsing (e.g., @^1.0 syntax)",
+      "Write modified manifest back preserving existing formatting",
+      "Add unit tests verifying comment preservation"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Installer — update command for re-resolving to latest compatible versions",
+    "steps": [
+      "Implement update() function in installer module",
+      "If package specified, only re-resolve that dependency",
+      "If no package specified, re-resolve all dependencies",
+      "Fetch new versions from registry",
+      "Update lockfile with new resolution",
+      "Re-link updated packages",
+      "Add unit tests for targeted and full update scenarios"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "CLI — aipm install command with --locked flag",
+    "steps": [
+      "Add InstallArgs struct with package (Option<String>), locked (bool), registry (Option<String>)",
+      "Wire install subcommand into aipm CLI via clap",
+      "Parse package@version syntax from positional argument",
+      "Call installer::install() with appropriate parameters",
+      "Handle and display errors from installer pipeline",
+      "Add integration tests using assert_cmd + tempfile"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "CLI — aipm update command",
+    "steps": [
+      "Add UpdateArgs struct with optional package name",
+      "Wire update subcommand into aipm CLI via clap",
+      "Call installer::update() with appropriate parameters",
+      "Handle and display errors",
+      "Add integration tests"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "CLI — aipm link and aipm unlink commands",
+    "steps": [
+      "Add LinkArgs struct with path (PathBuf)",
+      "Add UnlinkArgs struct with package (String)",
+      "Wire link and unlink subcommands into aipm CLI",
+      "aipm link: validate path contains aipm.toml, read package name, create symlink, update links.toml",
+      "aipm unlink: remove symlink, restore registry link, update links.toml",
+      "Add integration tests covering BDD scenarios from link.feature"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "CLI — aipm list --linked command",
+    "steps": [
+      "Add list subcommand with --linked flag",
+      "Read .aipm/links.toml and display active link overrides",
+      "Show package name, linked path, and linked_at timestamp",
+      "Add integration tests"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Register new modules in libaipm lib.rs",
+    "steps": [
+      "Add pub mod store, lockfile, registry, resolver, linker, installer to lib.rs",
+      "Ensure all public APIs are accessible from the library root",
+      "Verify workspace builds cleanly with cargo build --workspace"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add new workspace dependencies to Cargo.toml",
+    "steps": [
+      "Add git2 0.19 to workspace dependencies",
+      "Move reqwest 0.12 (blocking, json, rustls-tls) to libaipm dependencies",
+      "Add toml_edit 0.22 to libaipm dependencies",
+      "Add fs2 0.4 to libaipm dependencies",
+      "Verify cargo build --workspace succeeds with new deps"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Security — lifecycle script blocking by default",
+    "steps": [
+      "Block lifecycle script execution during install by default",
+      "Require [install].allowed_build_scripts allowlist for any script execution",
+      "Log warning when scripts are found but not in allowlist",
+      "Add unit tests verifying scripts are blocked without allowlist"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Observability — structured logging with tracing for install pipeline",
+    "steps": [
+      "Add tracing instrumentation to all install pipeline operations",
+      "Log fetch, extraction, linking, and lockfile operations",
+      "Support --verbose flag for debug-level output",
+      "Add resolver conflict detailed error reports naming conflicting package and incompatible requirements"
+    ],
+    "passes": true
+  }
+]

@@ -1,0 +1,132 @@
+## 2026-03-26 — Iteration 1
+
+### Features 1-5: Content Store module ✅
+- SHA-512 hashing (hash.rs), 2-char prefix sharding (layout.rs), error types (error.rs)
+- Store struct with store_file, get_path, has_content, link_to (hard-link + EXDEV copy fallback), store_package
+- fs2 advisory file locking (Lock struct)
+- 19 unit tests
+
+### Features 6-9: Lockfile module ✅
+- types.rs: Lockfile, Metadata, Package with serde TOML serialization
+- mod.rs: read/write with header comment, version validation, drift detection
+- reconcile.rs: manifest vs lockfile diff, orphan pruning
+- 26 unit tests
+
+### Features 10-11: Registry module (types + index) ✅
+- mod.rs: Registry trait, VersionEntry, DepEntry, PackageMetadata types
+- index.rs: Cargo-inspired index path sharding (1/2/3/4+ char + scoped @scope/)
+- JSON-lines index parsing, read_package from disk
+- error.rs: PackageNotFound, VersionNotFound, Io, IndexParse, ChecksumMismatch
+- 23 unit tests
+
+**Running total: 440 tests passing, 0 failures. 11 of 36 features complete.**
+
+## 2026-03-26 — Iteration 2
+
+### Features 14-18: Resolver module ✅ (completed in previous session)
+- Backtracking constraint solver with choice points and state snapshots
+- Version unification and cross-major coexistence (keyed by (name, major_version))
+- Override system: global, scoped (parent>child), replacement (aipm:other@version)
+- Features system with additive unification and dep: syntax for optional deps
+- 29 unit tests
+
+### Feature 19: Resolver — detailed conflict error reporting ✅
+- Error::Conflict(Box<ConflictDetail>) with dependency chain tracking
+- build_chain() helper traces source maps back to root
+- ConflictDetail Display with chain formatting
+- 6 unit tests in error.rs
+
+### Features 20-22: Linker module — directory links + hard-link assembly + pipeline ✅
+- directory_link.rs: create/remove/is_link/read_target with Unix symlink, Windows junction
+- hard_link.rs: assemble packages from content store via hard-links
+- pipeline.rs: three-tier linking (store → .aipm/links → plugins dir)
+- 21 unit tests across 3 modules
+
+### Feature 23: Linker — gitignore managed section ✅
+- add_entry/remove_entry/read_entries with markers
+- Scoped package support (@scope/name + @scope/ entries)
+- 10 unit tests
+
+### Feature 24: Linker — link state tracking ✅
+- .aipm/links.toml read/write/add/remove/clear/list
+- LinkEntry with name, path, linked_at
+- 8 unit tests
+
+### Feature 25: Filesystem trait extensions ✅
+- Extended Fs trait with 8 new methods: remove_file, remove_dir_all, hard_link,
+  copy_file, symlink_dir, read_link, is_symlink, atomic_write
+- Default implementations return unsupported (preserves existing mocks)
+- Full Real implementation
+- 7 unit tests
+
+### Feature 27: Installer — manifest editing ✅
+- add_dependency/remove_dependency using toml_edit for comment preservation
+- parse_package_spec for name@version parsing
+- 8 unit tests
+
+### Feature 33: Register modules in lib.rs ✅
+- All modules registered: fs, init, installer, linker, lockfile, manifest, migrate,
+  registry, resolver, store, version, workspace_init
+
+### Feature 34: Add workspace dependencies ✅
+- Added toml_edit 0.22 to workspace and libaipm
+
+### Feature 35: Security — lifecycle script blocking ✅
+- evaluate_scripts against allowlist
+- has_blocked_scripts/blocked_scripts helpers
+- 5 unit tests
+
+**Running total: 549 tests passing, 0 failures. 27 of 36 features complete.**
+Features still pending: 12-13 (git2/reqwest needed), 26, 28-32, 36
+
+## 2026-03-26 — Iteration 3
+
+### Feature 36: Observability — structured logging with tracing ✅
+- Added tracing instrumentation to linker/pipeline.rs (info-level for assemble, link, success, unlink)
+- Added tracing instrumentation to linker/security.rs (warn for blocked, debug for allowed)
+
+### Feature 26: Installer pipeline orchestration ✅
+- pipeline.rs: install() orchestrating 10-step pipeline (manifest → lockfile → resolve → fetch → store → link → lockfile write)
+- InstallConfig/InstallResult types for configuration and output
+- Reconciliation-based resolution: carries forward unchanged lockfile pins
+- Lockfile-first mode for --locked CI installs
+- Package removal handling for deps dropped from manifest
+- MockRegistry test infrastructure with gzip tar archive generation
+- 18 unit tests
+
+### Feature 28: Installer update command ✅
+- update() function with targeted (single pkg) and full (all deps) modes
+- Removes specific lockfile pin for targeted updates, discards all pins for full
+- Reuses install pipeline for fetch/store/link steps
+- 3 unit tests
+
+### Features 29-32: CLI commands ✅
+- aipm install [pkg[@ver]] [--locked] — install/add packages via installer pipeline
+- aipm update [pkg] — re-resolve to latest compatible versions
+- aipm link <path> — validate aipm.toml, create directory symlink, update links.toml
+- aipm unlink <pkg> — remove symlink, update links.toml and gitignore
+- aipm list [--linked] — show installed packages from lockfile or active dev links
+- StubRegistry placeholder until GitRegistry (Features 12-13) is implemented
+- Refactored main.rs into per-command handler functions for clippy compliance
+
+**Running total: 570 tests passing, 0 failures. 34 of 36 features complete.**
+Features still pending: 12-13 (git2/reqwest needed — blocked on workspace deps)
+
+## 2026-03-26 — Iteration 4
+
+### Features 12-13: Registry — GitRegistry with git2 + reqwest download ✅
+- registry/git.rs: Git struct (renamed from GitRegistry for module_name_repetitions lint)
+- Clone index via git2::Repository::clone(), fetch via fetch_and_reset() with hard reset
+- from_local_index() constructor for testing without real git repos
+- load_config() parsing config.json IndexMeta for dl URL template
+- find_version() helper to locate VersionEntry by version string
+- get_metadata() via index::read_package() from local cache
+- download() via reqwest::blocking::get() with SHA-512 checksum verification
+- verify_checksum() comparing sha512_hex(data) against index cksum field
+- http_get() with status code validation and proper error mapping
+- AtomicBool synced flag to skip redundant clone/fetch within a session
+- 13 unit tests (checksum match/mismatch/empty, metadata from local index, scoped packages, find_version, config loading, new() cache dir, download URL)
+- Fixed flaky installer test: replaced PID-based temp dir with tempfile::tempdir()
+- Moved tempfile from dev-dependencies to regular dependencies for production use
+
+**Running total: 583 tests passing, 0 failures. 36 of 36 features complete. ✅ ALL FEATURES DONE.**

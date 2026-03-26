@@ -324,4 +324,48 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    #[test]
+    fn claude_settings_no_starter_already_configured() {
+        // no_starter=true + marketplace already present → return Ok(false) early (lines 86-88)
+        let tmp = make_temp_dir("no-starter-skip");
+        std::fs::create_dir_all(tmp.join(".claude")).ok();
+        std::fs::write(
+            tmp.join(".claude/settings.json"),
+            r#"{"extraKnownMarketplaces": {"local-repo-plugins": {"source": {"source": "directory", "path": "./.ai"}}}}"#,
+        )
+        .ok();
+
+        let adaptor = Adaptor;
+        let result = adaptor.apply(&tmp, true, "local-repo-plugins", &Real);
+        // Already has marketplace and no_starter=true → nothing to add, return false
+        assert!(result.is_ok_and(|v| !v));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn claude_settings_no_starter_merge_adds_marketplace_only() {
+        // no_starter=true + no marketplace yet → add marketplace but skip enabledPlugins (line 123)
+        let tmp = make_temp_dir("no-starter-add");
+        std::fs::create_dir_all(tmp.join(".claude")).ok();
+        std::fs::write(
+            tmp.join(".claude/settings.json"),
+            r#"{"permissions": {"allow": ["Read"]}}"#,
+        )
+        .ok();
+
+        let adaptor = Adaptor;
+        let result = adaptor.apply(&tmp, true, "local-repo-plugins", &Real);
+        assert!(result.is_ok_and(|v| v));
+
+        let content = std::fs::read_to_string(tmp.join(".claude/settings.json")).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&content).unwrap();
+        // Marketplace added
+        assert!(v["extraKnownMarketplaces"]["local-repo-plugins"].is_object());
+        // enabledPlugins NOT added (no_starter=true)
+        assert!(v.get("enabledPlugins").is_none());
+
+        cleanup(&tmp);
+    }
 }
