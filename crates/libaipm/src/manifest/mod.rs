@@ -476,5 +476,10 @@ edition = "2024"
 "#;
         let result = parse_and_validate(toml, None);
         assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| {
+            let msg = e.to_string();
+            msg.contains("unknown field") && msg.contains("edition")
+        }));
     }
 }
