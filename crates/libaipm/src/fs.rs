@@ -151,27 +151,48 @@ impl Fs for Real {
     }
 
     fn is_symlink(&self, path: &Path) -> bool {
-        path.symlink_metadata().is_ok_and(|m| m.file_type().is_symlink())
+        #[cfg(unix)]
+        {
+            path.symlink_metadata().is_ok_and(|m| m.file_type().is_symlink())
+        }
+        #[cfg(windows)]
+        {
+            if path.symlink_metadata().is_ok_and(|m| m.file_type().is_symlink()) {
+                return true;
+            }
+            junction::exists(path).unwrap_or(false)
+        }
     }
 
     fn atomic_write(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
         use std::io::Write;
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
 
         let parent = path.parent().unwrap_or_else(|| Path::new("."));
         std::fs::create_dir_all(parent)?;
 
-        // Write to a per-call unique sibling temp file, then rename for atomicity.
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.subsec_nanos())
-            .unwrap_or(0);
-        let tmp_path = parent.join(format!(".aipm-tmp-{}-{nanos}", std::process::id()));
+        let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let tmp_path = parent.join(format!(".aipm-tmp-{}-{seq}", std::process::id()));
         let mut file = std::fs::File::create(&tmp_path)?;
         file.write_all(content)?;
         file.sync_all()?;
         drop(file);
 
-        std::fs::rename(&tmp_path, path)
+        #[cfg(unix)]
+        {
+            std::fs::rename(&tmp_path, path)
+        }
+        #[cfg(windows)]
+        {
+            // On Windows, std::fs::rename does not atomically replace an existing
+            // destination. Best-effort remove first, then rename.
+            if path.exists() {
+                let _ = std::fs::remove_file(path);
+            }
+            std::fs::rename(&tmp_path, path)
+        }
     }
 }
 
