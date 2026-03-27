@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.11.4] - 2026-03-27
+
+### Testing
+- Cover starts_with false branch when non-scoped packages present (e0645da)
+
 ## [0.11.3] - 2026-03-27
 
 ### Testing
