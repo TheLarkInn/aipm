@@ -455,4 +455,30 @@ mod tests {
         assert!(written.ends_with('\n'));
         assert!(!written.ends_with("\n\n"));
     }
+
+    #[test]
+    fn remove_scoped_entry_scope_removed_when_non_scoped_packages_also_present() {
+        // Covers the `e.starts_with(scope/)` false branch inside the `.any()` closure
+        // at the top of `remove_entry`. When the managed list contains non-scoped entries
+        // alongside scoped ones, iterating them causes `starts_with` to return false for
+        // non-scoped entries, exercising the short-circuit (False) arm of the `&&`.
+        //
+        // Scenario: "plain-pkg" (non-scoped) and "@company/plugin-a" (scoped) coexist.
+        // Removing "@company/plugin-a" should clean up the "@company/" scope dir because
+        // "plain-pkg" does not count as another package in the @company scope.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let gitignore = tmp.path().join(".gitignore");
+
+        assert!(add_entry(&gitignore, "plain-pkg").is_ok());
+        assert!(add_entry(&gitignore, "@company/plugin-a").is_ok());
+        assert!(remove_entry(&gitignore, "@company/plugin-a").is_ok());
+
+        let entries = read_entries(&gitignore).expect("read entries");
+        // Non-scoped package must survive.
+        assert!(entries.contains(&"plain-pkg".to_string()));
+        // Removed package must be gone.
+        assert!(!entries.contains(&"@company/plugin-a".to_string()));
+        // Scope directory must also be removed — no other @company packages remain.
+        assert!(!entries.contains(&"@company/".to_string()));
+    }
 }
