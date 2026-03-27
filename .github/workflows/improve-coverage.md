@@ -1,13 +1,15 @@
 ---
 description: >
-  Hourly coverage improver — runs Rust branch coverage analysis, identifies one
-  uncovered branch, writes a test to cover it, and opens a PR explaining the
-  scenario that the new test covers.
+  Coverage improver — runs every 15 minutes. Checks open coverage-improver PRs
+  for Copilot review comments and applies any requested updates. If the PR needs
+  no further changes, queues the build and enables auto-merge. If no open PR
+  exists, runs Rust branch coverage analysis, identifies one uncovered branch,
+  writes a test to cover it, and opens a PR explaining the scenario that the
+  new test covers.
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch:
-  skip-if-match: 'is:pr is:open in:title "[coverage-improver]"'
 permissions:
   contents: read
   issues: read
@@ -26,9 +28,21 @@ steps:
       components: clippy, rustfmt
   - uses: taiki-e/install-action@cargo-llvm-cov
   - uses: Swatinem/rust-cache@v2
+checkout:
+  fetch: ["*"]
+  fetch-depth: 0
 safe-outputs:
   create-pull-request:
     max: 1
+    auto-merge: true
+  push-to-pull-request-branch:
+    target: "*"
+    title-prefix: "[coverage-improver]"
+    if-no-changes: ignore
+  mark-pull-request-as-ready-for-review:
+    max: 1
+    target: "*"
+    required-title-prefix: "[coverage-improver]"
   noop:
 ---
 
@@ -39,8 +53,10 @@ The project enforces a strict **89% branch-coverage gate** (see `CLAUDE.md`).
 
 ## Goal
 
-Find **one** uncovered branch, write the smallest possible test that covers it,
-and open a pull request that explains the scenario the new test exercises.
+On each run, first check whether an open `[coverage-improver]` PR already
+exists. If it does, inspect it for unresolved Copilot review comments and act
+accordingly. If no PR exists, find **one** uncovered branch, write the smallest
+possible test that covers it, and open a PR.
 
 ## Lint Rules (MUST follow — compiler will reject violations)
 
@@ -55,15 +71,81 @@ Key rules:
 
 ## Step-by-step Instructions
 
-### 1 — Collect branch-level coverage
+### 1 — Check for an existing open coverage-improver PR
+
+Search for an open pull request whose title contains `[coverage-improver]`.
+
+- If **an open PR is found**, go to **Step 2** (handle review comments).
+- If **no open PR is found**, go to **Step 5** (create a new PR).
+
+### 2 — Inspect for Copilot review comments
+
+Read all open (unresolved) review threads on the existing PR. Focus on comments
+left by Copilot or the `github-actions` bot that request code changes.
+
+- If **there are unresolved review comments requesting code changes**,
+  go to **Step 3** (apply the updates).
+- If **there are no actionable review comments** (comments are resolved,
+  informational only, or there are none at all),
+  go to **Step 4** (queue the build and enable auto-merge).
+
+### 3 — Apply review comment updates
+
+For each unresolved review comment that requests a code change:
+
+1. Read the affected source file and understand the requested change.
+2. Apply the change, following all lint rules.
+3. Verify the code still compiles, tests pass, and clippy is clean:
+
+   ```bash
+   cargo build --workspace
+   cargo test --workspace
+   cargo clippy --workspace -- -D warnings
+   cargo fmt --check
+   ```
+
+4. Re-run coverage to confirm the branch is still covered and the overall
+   percentage has not dropped below 89%:
+
+   ```bash
+   cargo +nightly llvm-cov clean --workspace
+   cargo +nightly llvm-cov --no-report --workspace --branch
+   cargo +nightly llvm-cov --no-report --doc
+   cargo +nightly llvm-cov report --doctests --branch \
+     --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs)'
+   ```
+
+5. Use the `push-to-pull-request-branch` safe output to push the updated code
+   to the existing PR branch.
+
+After pushing, **stop** — the CI pipeline will re-run and Copilot will
+re-review if needed. The next scheduled run will pick up any new comments.
+
+### 4 — Queue the build and enable auto-merge
+
+If there are no actionable review comments on the existing PR:
+
+1. Use the `mark-pull-request-as-ready-for-review` safe output to move the PR
+   out of draft status. This queues the CI build and allows auto-merge to
+   trigger once all checks pass (auto-merge was enabled when the PR was
+   originally created).
+2. Call the `noop` safe output with a message such as:
+   > "No outstanding review comments found on PR #N. Marked as ready for
+   > review — auto-merge will trigger once all checks pass."
+
+**Stop** — do not run coverage analysis or create a new PR.
+
+### 5 — Collect branch-level coverage
+
+No open PR exists. Run a fresh coverage analysis:
 
 ```bash
 cargo +nightly llvm-cov clean --workspace
 cargo +nightly llvm-cov --no-report --workspace --branch
-cargo +nightly llvm-cov --no-report --doc --branch
+cargo +nightly llvm-cov --no-report --doc
 ```
 
-### 2 — Generate a detailed per-file report
+### 6 — Generate a detailed per-file report
 
 ```bash
 cargo +nightly llvm-cov report --doctests --branch \
@@ -72,7 +154,7 @@ cargo +nightly llvm-cov report --doctests --branch \
 
 Save the full output. Note the overall branch percentage.
 
-### 3 — Find uncovered branches
+### 7 — Find uncovered branches
 
 Run the HTML or text report to locate files with uncovered branches:
 
@@ -82,22 +164,16 @@ cargo +nightly llvm-cov report --doctests --branch \
   --html --output-dir /tmp/cov-html
 ```
 
-Alternatively, inspect individual source files for uncovered lines:
-
-```bash
-cargo +nightly llvm-cov --no-report --workspace --branch --show-missing-lines
-```
-
 Pick **one** file and **one** uncovered branch. Prefer branches that are
 straightforward to test (e.g., error-handling paths, edge cases, boundary
 conditions). Avoid branches inside `wizard_tty.rs` or test helpers.
 
-### 4 — Understand the uncovered branch
+### 8 — Understand the uncovered branch
 
 Read the source file and understand what scenario triggers the uncovered branch.
 Identify the function, the condition, and what input would reach that branch.
 
-### 5 — Write a test
+### 9 — Write a test
 
 Add a test in the appropriate test module (unit test in the same file, or
 integration test under `tests/`). Follow the existing test style in the codebase.
@@ -108,21 +184,21 @@ Requirements:
 - Clippy must be clean: `cargo clippy --workspace -- -D warnings`
 - Formatting must pass: `cargo fmt --check`
 
-### 6 — Verify coverage improved
+### 10 — Verify coverage improved
 
 Re-run coverage and confirm the branch you targeted is now covered:
 
 ```bash
 cargo +nightly llvm-cov clean --workspace
 cargo +nightly llvm-cov --no-report --workspace --branch
-cargo +nightly llvm-cov --no-report --doc --branch
+cargo +nightly llvm-cov --no-report --doc
 cargo +nightly llvm-cov report --doctests --branch \
   --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs)'
 ```
 
 Compare the before/after branch percentages.
 
-### 7 — Open a Pull Request
+### 11 — Open a Pull Request
 
 Use the `create-pull-request` safe output to open a PR with:
 
@@ -134,7 +210,10 @@ Use the `create-pull-request` safe output to open a PR with:
   3. **Before/after branch coverage** — overall percentages
   4. The test code added
 
-### 8 — Nothing to do?
+The PR is created with auto-merge enabled, so it will merge automatically once
+all CI checks pass and any required reviews are approved.
+
+### 12 — Nothing to do?
 
 If coverage is already at 100% or all remaining uncovered branches are in
 excluded files (`wizard_tty.rs`, `tests/`, etc.), call the `noop` safe output
