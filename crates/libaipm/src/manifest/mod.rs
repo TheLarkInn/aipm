@@ -475,6 +475,18 @@ type = "lsp"
     }
 
     #[test]
+    fn load_valid_manifest_file_succeeds() {
+        let tmp_dir = tempfile::tempdir().expect("failed to create temporary directory");
+        let manifest_path = tmp_dir.path().join("aipm.toml");
+        let toml_content = "[package]\nname = \"my-plugin\"\nversion = \"0.1.0\"\n";
+        std::fs::write(&manifest_path, toml_content).expect("failed to write manifest file");
+        let result = load(&manifest_path);
+        assert!(result.is_ok());
+        let manifest = result.ok();
+        assert!(manifest.is_some_and(|m| m.package.is_some_and(|p| p.name == "my-plugin")));
+    }
+
+    #[test]
     fn edition_field_rejected() {
         let toml = r#"
 [package]
@@ -487,7 +499,7 @@ edition = "2024"
         let err = result.err();
         assert!(err.is_some_and(|e| {
             let msg = e.to_string();
-            msg.contains("unknown field") && msg.contains("edition")
+            msg.contains("unknown field") & msg.contains("edition")
         }));
     }
 }
