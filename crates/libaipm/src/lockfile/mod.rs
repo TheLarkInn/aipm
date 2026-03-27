@@ -227,6 +227,16 @@ generated_by = "future-aipm"
     }
 
     #[test]
+    fn write_to_path_without_parent_returns_io_error() {
+        // Path::new("/").parent() returns None, exercising the None branch
+        // of `if let Some(parent) = path.parent()` in the write function.
+        // Writing to "/" itself will fail with an I/O error (IsADirectory).
+        let lf = Lockfile::new("aipm 0.10.0".to_string());
+        let result = write(Path::new("/"), &lf);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn validate_matches_manifest_all_present() {
         let lf = sample_lockfile();
         let deps: std::collections::BTreeSet<String> =

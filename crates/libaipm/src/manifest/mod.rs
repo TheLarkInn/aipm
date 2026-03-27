@@ -467,6 +467,14 @@ type = "lsp"
     }
 
     #[test]
+    fn load_nonexistent_file_returns_io_error() {
+        let result = load(Path::new("/nonexistent/path/to/aipm.toml"));
+        assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| e.to_string().contains("failed to read manifest")));
+    }
+
+    #[test]
     fn edition_field_rejected() {
         let toml = r#"
 [package]
