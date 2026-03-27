@@ -227,6 +227,15 @@ generated_by = "future-aipm"
     }
 
     #[test]
+    fn write_to_path_without_parent_returns_io_error() {
+        let root = std::path::PathBuf::from(std::path::MAIN_SEPARATOR.to_string());
+        assert!(root.parent().is_none());
+        let lf = Lockfile::new("aipm 0.10.0".to_string());
+        let result = write(&root, &lf);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn validate_matches_manifest_all_present() {
         let lf = sample_lockfile();
         let deps: std::collections::BTreeSet<String> =

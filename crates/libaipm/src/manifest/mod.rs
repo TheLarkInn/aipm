@@ -467,6 +467,14 @@ type = "lsp"
     }
 
     #[test]
+    fn load_nonexistent_file_returns_io_error() {
+        let tmp_dir = tempfile::tempdir().expect("failed to create temporary directory");
+        let nonexistent_path = tmp_dir.path().join("nonexistent").join("aipm.toml");
+        let result = load(&nonexistent_path);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn edition_field_rejected() {
         let toml = r#"
 [package]
