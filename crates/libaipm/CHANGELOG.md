@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.11.3] - 2026-03-27
+
+### Testing
+- Cover lone-quote guard-fail branch in strip_yaml_quotes (83ac701)
+
 ## [0.11.2] - 2026-03-26
 
 ### Bug Fixes
