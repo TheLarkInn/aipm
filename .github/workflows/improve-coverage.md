@@ -35,7 +35,7 @@ safe-outputs:
 # Coverage Improver
 
 You are an expert Rust developer improving branch coverage for this project.
-The project enforces a strict **89 % branch-coverage gate** (see `CLAUDE.md`).
+The project enforces a strict **89% branch-coverage gate** (see `CLAUDE.md`).
 
 ## Goal
 
@@ -136,7 +136,7 @@ Use the `create-pull-request` safe output to open a PR with:
 
 ### 8 — Nothing to do?
 
-If coverage is already at 100 % or all remaining uncovered branches are in
+If coverage is already at 100% or all remaining uncovered branches are in
 excluded files (`wizard_tty.rs`, `tests/`, etc.), call the `noop` safe output
 with a message like:
 > "Coverage analysis complete — no actionable uncovered branches found.
