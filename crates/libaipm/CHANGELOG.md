@@ -1,6 +1,12 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.11.5] - 2026-03-27
+
+### Testing
+- Cover manifest load IO error and lockfile write no-parent branch (2c4c257)
+- Address review comments — use tempdir and matches! for coverage tests (cfa6b00)
+
 ## [0.11.4] - 2026-03-27
 
 ### Testing
