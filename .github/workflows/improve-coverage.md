@@ -110,7 +110,7 @@ For each unresolved review comment that requests a code change:
    ```bash
    cargo +nightly llvm-cov clean --workspace
    cargo +nightly llvm-cov --no-report --workspace --branch
-   cargo +nightly llvm-cov --no-report --doc --branch
+   cargo +nightly llvm-cov --no-report --doc
    cargo +nightly llvm-cov report --doctests --branch \
      --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs)'
    ```
@@ -142,7 +142,7 @@ No open PR exists. Run a fresh coverage analysis:
 ```bash
 cargo +nightly llvm-cov clean --workspace
 cargo +nightly llvm-cov --no-report --workspace --branch
-cargo +nightly llvm-cov --no-report --doc --branch
+cargo +nightly llvm-cov --no-report --doc
 ```
 
 ### 6 — Generate a detailed per-file report
@@ -191,7 +191,7 @@ Re-run coverage and confirm the branch you targeted is now covered:
 ```bash
 cargo +nightly llvm-cov clean --workspace
 cargo +nightly llvm-cov --no-report --workspace --branch
-cargo +nightly llvm-cov --no-report --doc --branch
+cargo +nightly llvm-cov --no-report --doc
 cargo +nightly llvm-cov report --doctests --branch \
   --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs)'
 ```
