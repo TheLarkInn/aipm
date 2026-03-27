@@ -468,10 +468,10 @@ type = "lsp"
 
     #[test]
     fn load_nonexistent_file_returns_io_error() {
-        let result = load(Path::new("/nonexistent/path/to/aipm.toml"));
-        assert!(result.is_err());
-        let err = result.err();
-        assert!(err.is_some_and(|e| e.to_string().contains("failed to read manifest")));
+        let tmp_dir = tempfile::tempdir().expect("failed to create temporary directory");
+        let nonexistent_path = tmp_dir.path().join("nonexistent").join("aipm.toml");
+        let result = load(&nonexistent_path);
+        assert!(matches!(result, Err(Error::Io { .. })));
     }
 
     #[test]
