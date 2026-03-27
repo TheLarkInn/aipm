@@ -743,8 +743,9 @@ mod tests {
 
     #[test]
     fn strip_yaml_quotes_lone_quote_char_unchanged() {
-        // A string containing only a single quote character: first == last == quote,
-        // but bytes.len() == 1 < 2, so the guard fails and the input is returned as-is.
+        // A string containing only a single quote character (either '"' or '\''):
+        // first == last == quote, but bytes.len() == 1 < 2, so the guard fails and
+        // the input is returned as-is.
         assert_eq!(strip_yaml_quotes("\""), "\"");
         assert_eq!(strip_yaml_quotes("'"), "'");
     }
