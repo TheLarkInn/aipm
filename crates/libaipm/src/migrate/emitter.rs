@@ -81,6 +81,12 @@ pub fn emit_plugin<S: BuildHasher>(
         ArtifactKind::OutputStyle => {
             emit_output_style(artifact, &plugin_dir, fs)?;
         },
+        ArtifactKind::LspServer => {
+            emit_lsp_config(artifact, &plugin_dir, fs)?;
+        },
+        ArtifactKind::Extension => {
+            emit_extension_files(artifact, &plugin_dir, fs)?;
+        },
     }
 
     // 4. Copy referenced scripts, preserving relative path structure
@@ -288,6 +294,12 @@ pub fn emit_plugin_with_name(
         ArtifactKind::OutputStyle => {
             emit_output_style(artifact, &plugin_dir, fs)?;
         },
+        ArtifactKind::LspServer => {
+            emit_lsp_config(artifact, &plugin_dir, fs)?;
+        },
+        ArtifactKind::Extension => {
+            emit_extension_files(artifact, &plugin_dir, fs)?;
+        },
     }
 
     if !artifact.referenced_scripts.is_empty() {
@@ -463,6 +475,14 @@ fn emit_package_artifacts(
                 emit_output_style(artifact, plugin_dir, fs)?;
                 all_component_paths.push(format!("{}.md", artifact.name));
             },
+            ArtifactKind::LspServer => {
+                emit_lsp_config(artifact, plugin_dir, fs)?;
+                all_component_paths.push("lsp.json".to_string());
+            },
+            ArtifactKind::Extension => {
+                emit_extension_files(artifact, plugin_dir, fs)?;
+                all_component_paths.push(format!("extensions/{}/", artifact.name));
+            },
         }
 
         if !artifact.referenced_scripts.is_empty() {
@@ -537,6 +557,74 @@ fn emit_output_style(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Res
     let content = fs.read_to_string(&artifact.source_path)?;
     let dest = plugin_dir.join(format!("{}.md", artifact.name));
     fs.write_file(&dest, content.as_bytes())?;
+    Ok(())
+}
+
+/// Write LSP config to `lsp.json` at the plugin root.
+///
+/// Uses `raw_content` if available, otherwise falls back to reading from `source_path`.
+fn emit_lsp_config(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
+    let content = match artifact.metadata.raw_content {
+        Some(ref c) => c.clone(),
+        None => fs.read_to_string(&artifact.source_path)?,
+    };
+    let dest = plugin_dir.join("lsp.json");
+    fs.write_file(&dest, content.as_bytes())?;
+    Ok(())
+}
+
+/// Copy extension files into the plugin directory under `extensions/<name>/`.
+///
+/// Uses `raw_content` for config content if available, and copies all referenced files.
+fn emit_extension_files(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
+    let ext_dir = plugin_dir.join("extensions").join(&artifact.name);
+    fs.create_dir_all(&ext_dir)?;
+
+    // Write raw_content as config.json if available; track the source file name
+    // so we skip it in the file-copy loop to avoid overwriting.
+    let config_candidates: &[&str] = &[
+        "config.json",
+        "extension.json",
+        "manifest.json",
+        "config.yaml",
+        "config.yml",
+        "extension.yaml",
+        "extension.yml",
+        "manifest.yaml",
+        "manifest.yml",
+    ];
+    let config_written_from: Option<&Path> =
+        if let Some(ref content) = artifact.metadata.raw_content {
+            let dest = ext_dir.join("config.json");
+            fs.write_file(&dest, content.as_bytes())?;
+            // Find which file in artifact.files corresponds to the raw_content source
+            artifact.files.iter().find_map(|f| {
+                let name = f.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                if config_candidates.contains(&name) {
+                    Some(f.as_path())
+                } else {
+                    None
+                }
+            })
+        } else {
+            None
+        };
+
+    // Copy all files from the source directory, skipping the config file already written
+    for file in &artifact.files {
+        if config_written_from.is_some_and(|cf| cf == file.as_path()) {
+            continue;
+        }
+        let source = artifact.source_path.join(file);
+        if let Ok(content) = fs.read_to_string(&source) {
+            let dest = ext_dir.join(file);
+            if let Some(parent) = dest.parent() {
+                fs.create_dir_all(parent)?;
+            }
+            fs.write_file(&dest, content.as_bytes())?;
+        }
+    }
+
     Ok(())
 }
 
@@ -621,6 +709,8 @@ fn generate_package_manifest(
                 && !p.starts_with("agents/")
                 && *p != ".mcp.json"
                 && !p.starts_with("hooks/")
+                && *p != "lsp.json"
+                && !p.starts_with("extensions/")
         })
         .cloned()
         .collect();
@@ -874,6 +964,9 @@ fn generate_plugin_manifest(artifact: &Artifact, plugin_name: &str) -> String {
         ArtifactKind::OutputStyle => {
             components.output_styles = Some(vec![format!("{}.md", artifact.name)]);
         },
+        ArtifactKind::LspServer | ArtifactKind::Extension => {
+            // LSP and Extension manifests are handled via plugin.json fields
+        },
     }
 
     // Scripts component (if any) — preserves relative path structure
@@ -948,6 +1041,15 @@ fn generate_plugin_json_multi(
     }
     if distinct.contains(&ArtifactKind::OutputStyle) {
         map.insert("outputStyles".to_string(), serde_json::Value::String("./".to_string()));
+    }
+    if distinct.contains(&ArtifactKind::LspServer) {
+        map.insert("lspServers".to_string(), serde_json::Value::String("./lsp.json".to_string()));
+    }
+    if distinct.contains(&ArtifactKind::Extension) {
+        map.insert(
+            "extensions".to_string(),
+            serde_json::Value::String("./extensions/".to_string()),
+        );
     }
 
     let obj = serde_json::Value::Object(map);
@@ -2446,6 +2548,192 @@ mod tests {
         let desc =
             parsed.get("package").and_then(|p| p.get("description")).and_then(toml::Value::as_str);
         assert_eq!(desc, Some("Deploy app"));
+    }
+
+    // =====================================================================
+    // Tests for LspServer and Extension artifact emission
+    // =====================================================================
+
+    fn make_lsp_artifact() -> Artifact {
+        Artifact {
+            kind: ArtifactKind::LspServer,
+            name: "project-lsp".to_string(),
+            source_path: PathBuf::from("/project/.github/lsp.json"),
+            files: Vec::new(),
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata {
+                name: Some("project-lsp".to_string()),
+                description: Some("LSP server config".to_string()),
+                raw_content: Some(r#"{"servers":{"rust-analyzer":{}}}"#.to_string()),
+                ..ArtifactMetadata::default()
+            },
+        }
+    }
+
+    fn make_extension_artifact() -> Artifact {
+        Artifact {
+            kind: ArtifactKind::Extension,
+            name: "my-ext".to_string(),
+            source_path: PathBuf::from("/project/.github/extensions/my-ext"),
+            files: vec![PathBuf::from("config.json"), PathBuf::from("index.js")],
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata {
+                name: Some("my-ext".to_string()),
+                description: Some("Extension: my-ext".to_string()),
+                raw_content: Some(r#"{"name":"my-ext"}"#.to_string()),
+                ..ArtifactMetadata::default()
+            },
+        }
+    }
+
+    #[test]
+    fn emit_plugin_lsp_server_writes_lsp_json() {
+        let fs = MockFs::new();
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let artifact = make_lsp_artifact();
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok());
+
+        let lsp_content = fs.get_written(Path::new("/ai/project-lsp/lsp.json"));
+        assert!(lsp_content.as_ref().is_some_and(|c| c.contains("rust-analyzer")));
+
+        let json = fs.get_written(Path::new("/ai/project-lsp/.claude-plugin/plugin.json"));
+        assert!(json.as_ref().is_some_and(|c| c.contains("\"lspServers\"")));
+    }
+
+    #[test]
+    fn emit_plugin_extension_writes_config_and_files() {
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/project/.github/extensions/my-ext/config.json"),
+            r#"{"name":"my-ext"}"#.to_string(),
+        );
+        fs.files.insert(
+            PathBuf::from("/project/.github/extensions/my-ext/index.js"),
+            "console.log('ext');".to_string(),
+        );
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let artifact = make_extension_artifact();
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok());
+
+        // config.json should be written from raw_content
+        let config = fs.get_written(Path::new("/ai/my-ext/extensions/my-ext/config.json"));
+        assert!(config.as_ref().is_some_and(|c| c.contains("my-ext")));
+
+        // index.js should be copied (config.json skipped in file loop to avoid double-write)
+        let index = fs.get_written(Path::new("/ai/my-ext/extensions/my-ext/index.js"));
+        assert!(index.as_ref().is_some_and(|c| c.contains("console.log")));
+
+        let json = fs.get_written(Path::new("/ai/my-ext/.claude-plugin/plugin.json"));
+        assert!(json.as_ref().is_some_and(|c| c.contains("\"extensions\"")));
+    }
+
+    #[test]
+    fn emit_lsp_config_no_raw_content_falls_back_to_source() {
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/project/.github/lsp.json"),
+            r#"{"servers":{"ts":{}}}"#.to_string(),
+        );
+        let mut artifact = make_lsp_artifact();
+        artifact.metadata.raw_content = None;
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok());
+        assert!(fs
+            .get_written(Path::new("/ai/project-lsp/lsp.json"))
+            .is_some_and(|c| c.contains("ts")));
+    }
+
+    #[test]
+    fn emit_extension_files_no_raw_content_copies_all_files() {
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/project/.github/extensions/my-ext/config.json"),
+            r#"{"name":"my-ext"}"#.to_string(),
+        );
+        fs.files.insert(
+            PathBuf::from("/project/.github/extensions/my-ext/index.js"),
+            "console.log('ext');".to_string(),
+        );
+
+        let mut artifact = make_extension_artifact();
+        artifact.metadata.raw_content = None;
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok());
+
+        // Without raw_content, config.json is not written as config; both files are just copied
+        let config = fs.get_written(Path::new("/ai/my-ext/extensions/my-ext/config.json"));
+        assert!(config.is_some());
+        let index = fs.get_written(Path::new("/ai/my-ext/extensions/my-ext/index.js"));
+        assert!(index.is_some());
+    }
+
+    #[test]
+    fn emit_plugin_with_name_lsp_server() {
+        let fs = MockFs::new();
+        let artifact = make_lsp_artifact();
+        let result = emit_plugin_with_name(&artifact, "project-lsp", Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+        assert!(fs.get_written(Path::new("/ai/project-lsp/lsp.json")).is_some());
+    }
+
+    #[test]
+    fn emit_plugin_with_name_extension() {
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/project/.github/extensions/my-ext/index.js"),
+            "console.log('ext');".to_string(),
+        );
+
+        let artifact = make_extension_artifact();
+        let result = emit_plugin_with_name(&artifact, "my-ext", Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+        assert!(fs.get_written(Path::new("/ai/my-ext/extensions/my-ext/config.json")).is_some());
+    }
+
+    #[test]
+    fn emit_package_plugin_lsp_and_extension() {
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/project/.github/extensions/my-ext/index.js"),
+            "console.log('ext');".to_string(),
+        );
+
+        let lsp = make_lsp_artifact();
+        let ext = make_extension_artifact();
+        let result = emit_package_plugin("copilot", &[lsp, ext], Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+
+        assert!(fs.get_written(Path::new("/ai/copilot/lsp.json")).is_some());
+        assert!(fs.get_written(Path::new("/ai/copilot/extensions/my-ext/config.json")).is_some());
+
+        // lsp.json and extensions/ should NOT end up in output_styles
+        let toml = fs.get_written(Path::new("/ai/copilot/aipm.toml"));
+        assert!(toml.as_ref().is_some_and(|c| !c.contains("output_styles")));
+    }
+
+    #[test]
+    fn generate_plugin_json_lsp_kind() {
+        let json =
+            generate_plugin_json("test", &ArtifactMetadata::default(), &ArtifactKind::LspServer);
+        assert!(json.contains("\"lspServers\": \"./lsp.json\""));
+    }
+
+    #[test]
+    fn generate_plugin_json_extension_kind() {
+        let json =
+            generate_plugin_json("test", &ArtifactMetadata::default(), &ArtifactKind::Extension);
+        assert!(json.contains("\"extensions\": \"./extensions/\""));
     }
 
     #[test]

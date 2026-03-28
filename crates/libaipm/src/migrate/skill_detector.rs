@@ -1,11 +1,12 @@
 //! Skill detector: scans `.claude/skills/` for directories containing `SKILL.md`.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::fs::Fs;
 
 use super::detector::Detector;
-use super::{strip_yaml_quotes, Artifact, ArtifactKind, ArtifactMetadata, Error};
+use super::skill_common;
+use super::{Artifact, ArtifactKind, Error};
 
 /// Scans `.claude/skills/` for directories containing `SKILL.md`.
 pub struct SkillDetector;
@@ -37,9 +38,10 @@ impl Detector for SkillDetector {
             }
 
             let content = fs.read_to_string(&skill_md)?;
-            let metadata = parse_skill_frontmatter(&content, &skill_md)?;
-            let files = collect_files_recursive(&entry_dir, &entry_dir, fs)?;
-            let referenced_scripts = extract_script_references(&content);
+            let metadata = skill_common::parse_skill_frontmatter(&content, &skill_md)?;
+            let files = skill_common::collect_files_recursive(&entry_dir, &entry_dir, fs)?;
+            let referenced_scripts =
+                skill_common::extract_script_references(&content, "${CLAUDE_SKILL_DIR}/");
 
             let name = metadata.name.clone().unwrap_or_else(|| entry.name.clone());
 
@@ -57,125 +59,20 @@ impl Detector for SkillDetector {
     }
 }
 
-/// Parse YAML frontmatter from a SKILL.md file.
+/// Extract script references from SKILL.md content using the Claude skill dir prefix.
 ///
-/// Frontmatter is delimited by `---` lines. Extracts `name`, `description`,
-/// and `hooks` fields using simple line-by-line parsing (no YAML parser).
-fn parse_skill_frontmatter(content: &str, path: &Path) -> Result<ArtifactMetadata, Error> {
-    let mut metadata = ArtifactMetadata::default();
-
-    // Find frontmatter between --- delimiters
-    let trimmed = content.trim_start();
-    if !trimmed.starts_with("---") {
-        return Ok(metadata);
-    }
-
-    // Find the closing ---
-    let after_first = &trimmed[3..];
-    let rest = after_first.trim_start_matches(['\r', '\n']);
-    let closing = rest.find("\n---");
-    let yaml_block = match closing {
-        Some(pos) => &rest[..pos],
-        None => {
-            return Err(Error::FrontmatterParse {
-                path: path.to_path_buf(),
-                reason: "no closing --- delimiter found".to_string(),
-            });
-        },
-    };
-
-    // Parse line by line
-    let mut hooks_lines: Vec<String> = Vec::new();
-    let mut in_hooks = false;
-
-    for line in yaml_block.lines() {
-        let trimmed_line = line.trim();
-
-        // Check if we're in a hooks block (indented continuation)
-        if in_hooks {
-            if line.starts_with(' ') || line.starts_with('\t') {
-                // Strip one level of indentation so the emitter can parse key: value lines
-                let stripped =
-                    line.strip_prefix("  ").or_else(|| line.strip_prefix('\t')).unwrap_or(line);
-                hooks_lines.push(stripped.to_string());
-                continue;
-            }
-            in_hooks = false;
-        }
-
-        if let Some(value) = trimmed_line.strip_prefix("name:") {
-            metadata.name = Some(strip_yaml_quotes(value.trim()).to_string());
-        } else if let Some(value) = trimmed_line.strip_prefix("description:") {
-            metadata.description = Some(strip_yaml_quotes(value.trim()).to_string());
-        } else if trimmed_line.starts_with("hooks:") {
-            in_hooks = true;
-            let value = trimmed_line.strip_prefix("hooks:").unwrap_or_default().trim();
-            if !value.is_empty() {
-                hooks_lines.push(value.to_string());
-            }
-        } else if let Some(value) = trimmed_line.strip_prefix("disable-model-invocation:") {
-            if value.trim() == "true" {
-                metadata.model_invocation_disabled = true;
-            }
-        }
-    }
-
-    if !hooks_lines.is_empty() {
-        metadata.hooks = Some(hooks_lines.join("\n"));
-    }
-
-    Ok(metadata)
-}
-
-/// Extract script references from SKILL.md content.
-///
-/// Looks for `${CLAUDE_SKILL_DIR}/scripts/<path>` and
-/// `${CLAUDE_SKILL_DIR}/<path>` patterns.
-pub fn extract_script_references(content: &str) -> Vec<PathBuf> {
-    let mut scripts = Vec::new();
-    let marker = "${CLAUDE_SKILL_DIR}/";
-
-    for line in content.lines() {
-        let mut search = line;
-        while let Some(pos) = search.find(marker) {
-            let after = &search[pos + marker.len()..];
-            // Extract the path until whitespace, quote, backtick, or end of line
-            let end = after
-                .find(|c: char| c.is_whitespace() || c == '"' || c == '\'' || c == '`' || c == ')')
-                .unwrap_or(after.len());
-            let path_str = &after[..end];
-            if path_str.starts_with("scripts/") {
-                scripts.push(PathBuf::from(path_str));
-            }
-            search = &search[pos + marker.len() + end..];
-        }
-    }
-
-    scripts
-}
-
-/// Recursively collect all files in a directory, returning paths relative to `base`.
-fn collect_files_recursive(dir: &Path, base: &Path, fs: &dyn Fs) -> Result<Vec<PathBuf>, Error> {
-    let mut files = Vec::new();
-    let entries = fs.read_dir(dir)?;
-
-    for entry in entries {
-        let full_path = dir.join(&entry.name);
-        if entry.is_dir {
-            let sub_files = collect_files_recursive(&full_path, base, fs)?;
-            files.extend(sub_files);
-        } else if let Ok(relative) = full_path.strip_prefix(base) {
-            files.push(relative.to_path_buf());
-        }
-    }
-
-    Ok(files)
+/// This is a convenience wrapper around `skill_common::extract_script_references`
+/// that uses the `${CLAUDE_SKILL_DIR}/` prefix. Kept public for `command_detector`.
+pub fn extract_script_references(content: &str) -> Vec<std::path::PathBuf> {
+    skill_common::extract_script_references(content, "${CLAUDE_SKILL_DIR}/")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use skill_common::parse_skill_frontmatter;
     use std::collections::{HashMap, HashSet};
+    use std::path::PathBuf;
     use std::sync::Mutex;
 
     struct MockFs {

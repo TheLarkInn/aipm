@@ -31,6 +31,10 @@ pub fn generate_report<S: BuildHasher>(
     let hooks: Vec<_> = artifacts.iter().filter(|a| a.kind == ArtifactKind::Hook).collect();
     let output_styles: Vec<_> =
         artifacts.iter().filter(|a| a.kind == ArtifactKind::OutputStyle).collect();
+    let lsp_servers: Vec<_> =
+        artifacts.iter().filter(|a| a.kind == ArtifactKind::LspServer).collect();
+    let extensions: Vec<_> =
+        artifacts.iter().filter(|a| a.kind == ArtifactKind::Extension).collect();
 
     let mut rename_counter = 0u32;
     let mut used_names: HashSet<String> = existing_plugins.iter().cloned().collect();
@@ -44,6 +48,8 @@ pub fn generate_report<S: BuildHasher>(
         ("MCP Servers", &mcp),
         ("Hooks", &hooks),
         ("Output Styles", &output_styles),
+        ("LSP Servers", &lsp_servers),
+        ("Extensions", &extensions),
     ];
 
     for (title, items) in sections {
@@ -90,47 +96,9 @@ pub fn generate_recursive_report<S: BuildHasher>(
 
     let _ = writeln!(report, "# aipm migrate — Dry Run Report\n");
     let _ = writeln!(report, "**Mode:** Recursive discovery");
-    let _ = writeln!(report, "**Discovered {} `.claude/` directories:**\n", discovered.len());
+    let _ = writeln!(report, "**Discovered {} source directories:**\n", discovered.len());
 
-    // Discovery table
-    let _ = writeln!(
-        report,
-        "| Location | Package Name | Skills | Commands | Agents | MCP | Hooks | Styles |"
-    );
-    let _ = writeln!(
-        report,
-        "|----------|-------------|--------|----------|--------|-----|-------|--------|"
-    );
-
-    for src in discovered {
-        let location = if src.relative_path.as_os_str().is_empty() {
-            "./.claude".to_string()
-        } else {
-            format!("./{}/{}", src.relative_path.display(), ".claude")
-        };
-        let pkg_name = src.package_name.as_deref().unwrap_or("(root)");
-
-        // Count artifacts by kind from plans matching this specific source dir
-        let (skills, commands, agents, mcp, hooks, styles) = plugin_plans
-            .iter()
-            .filter(|p| p.source_dir == src.claude_dir)
-            .flat_map(|p| &p.artifacts)
-            .fold((0u32, 0u32, 0u32, 0u32, 0u32, 0u32), |(s, c, ag, m, h, st), a| match a.kind {
-                ArtifactKind::Skill => (s + 1, c, ag, m, h, st),
-                ArtifactKind::Command => (s, c + 1, ag, m, h, st),
-                ArtifactKind::Agent => (s, c, ag + 1, m, h, st),
-                ArtifactKind::McpServer => (s, c, ag, m + 1, h, st),
-                ArtifactKind::Hook => (s, c, ag, m, h + 1, st),
-                ArtifactKind::OutputStyle => (s, c, ag, m, h, st + 1),
-            });
-
-        let _ = writeln!(
-            report,
-            "| {location} | {pkg_name} | {skills} | {commands} | {agents} | {mcp} | {hooks} | {styles} |"
-        );
-    }
-
-    let _ = writeln!(report);
+    write_discovery_table(&mut report, discovered, plugin_plans);
 
     // Planned plugins
     let _ = writeln!(report, "## Planned Plugins\n");
@@ -169,7 +137,7 @@ pub fn generate_recursive_report<S: BuildHasher>(
         let source_label = if plan.is_package_scoped {
             format!("from {}", plan.name)
         } else {
-            "from root .claude".to_string()
+            "from root source".to_string()
         };
 
         let _ = writeln!(report, "### Plugin: `{final_name}` ({source_label})");
@@ -248,6 +216,54 @@ fn write_cleanup_plan<A: std::borrow::Borrow<Artifact>>(report: &mut String, art
     }
 }
 
+/// Write the discovery table section of the recursive dry-run report.
+fn write_discovery_table(
+    report: &mut String,
+    discovered: &[DiscoveredSource],
+    plugin_plans: &[PluginPlan],
+) {
+    let _ = writeln!(
+        report,
+        "| Location | Package Name | Skills | Commands | Agents | MCP | Hooks | Other |"
+    );
+    let _ = writeln!(
+        report,
+        "|----------|-------------|--------|----------|--------|-----|-------|-------|"
+    );
+
+    for src in discovered {
+        let location = if src.relative_path.as_os_str().is_empty() {
+            format!("./{}", src.source_type)
+        } else {
+            format!("./{}/{}", src.relative_path.display(), src.source_type)
+        };
+        let pkg_name = src.package_name.as_deref().unwrap_or("(root)");
+
+        let (skills, commands, agents, mcp, hooks, other) = plugin_plans
+            .iter()
+            .filter(|p| p.source_dir == src.source_dir)
+            .flat_map(|p| &p.artifacts)
+            .fold((0u32, 0u32, 0u32, 0u32, 0u32, 0u32), |(s, c, ag, m, h, o), a| match a.kind {
+                ArtifactKind::Skill => (s + 1, c, ag, m, h, o),
+                ArtifactKind::Command => (s, c + 1, ag, m, h, o),
+                ArtifactKind::Agent => (s, c, ag + 1, m, h, o),
+                ArtifactKind::McpServer => (s, c, ag, m + 1, h, o),
+                ArtifactKind::Hook => (s, c, ag, m, h + 1, o),
+                // OutputStyle, LspServer, Extension all count as "Other"
+                ArtifactKind::OutputStyle | ArtifactKind::LspServer | ArtifactKind::Extension => {
+                    (s, c, ag, m, h, o + 1)
+                },
+            });
+
+        let _ = writeln!(
+            report,
+            "| {location} | {pkg_name} | {skills} | {commands} | {agents} | {mcp} | {hooks} | {other} |"
+        );
+    }
+
+    let _ = writeln!(report);
+}
+
 /// Returns the component path for display in the dry-run report.
 fn component_path(artifact: &Artifact) -> String {
     match artifact.kind {
@@ -258,6 +274,8 @@ fn component_path(artifact: &Artifact) -> String {
         ArtifactKind::McpServer => ".mcp.json".to_string(),
         ArtifactKind::Hook => "hooks/hooks.json".to_string(),
         ArtifactKind::OutputStyle => format!("{}.md", artifact.name),
+        ArtifactKind::LspServer => "lsp.json".to_string(),
+        ArtifactKind::Extension => format!("extensions/{}/", artifact.name),
     }
 }
 
@@ -450,12 +468,14 @@ mod tests {
     fn recursive_report_shows_discovery_table() {
         let discovered = vec![
             DiscoveredSource {
-                claude_dir: PathBuf::from("/project/.claude"),
+                source_dir: PathBuf::from("/project/.claude"),
+                source_type: ".claude".to_string(),
                 package_name: None,
                 relative_path: PathBuf::new(),
             },
             DiscoveredSource {
-                claude_dir: PathBuf::from("/project/packages/auth/.claude"),
+                source_dir: PathBuf::from("/project/packages/auth/.claude"),
+                source_type: ".claude".to_string(),
                 package_name: Some("auth".to_string()),
                 relative_path: PathBuf::from("packages/auth"),
             },
@@ -494,7 +514,8 @@ mod tests {
     #[test]
     fn recursive_report_shows_name_conflicts() {
         let discovered = vec![DiscoveredSource {
-            claude_dir: PathBuf::from("/project/packages/auth/.claude"),
+            source_dir: PathBuf::from("/project/packages/auth/.claude"),
+            source_type: ".claude".to_string(),
             package_name: Some("auth".to_string()),
             relative_path: PathBuf::from("packages/auth"),
         }];
@@ -527,7 +548,8 @@ mod tests {
     #[test]
     fn recursive_report_single_artifact_plan() {
         let discovered = vec![DiscoveredSource {
-            claude_dir: PathBuf::from("/project/packages/api/.claude"),
+            source_dir: PathBuf::from("/project/packages/api/.claude"),
+            source_type: ".claude".to_string(),
             package_name: Some("api".to_string()),
             relative_path: PathBuf::from("packages/api"),
         }];
@@ -626,7 +648,8 @@ mod tests {
     #[test]
     fn recursive_report_new_type_counts() {
         let discovered = vec![DiscoveredSource {
-            claude_dir: PathBuf::from("/project/.claude"),
+            source_dir: PathBuf::from("/project/.claude"),
+            source_type: ".claude".to_string(),
             package_name: None,
             relative_path: PathBuf::new(),
         }];
@@ -659,7 +682,8 @@ mod tests {
     #[test]
     fn recursive_report_composite_with_new_types() {
         let discovered = vec![DiscoveredSource {
-            claude_dir: PathBuf::from("/project/packages/auth/.claude"),
+            source_dir: PathBuf::from("/project/packages/auth/.claude"),
+            source_type: ".claude".to_string(),
             package_name: Some("auth".to_string()),
             relative_path: PathBuf::from("packages/auth"),
         }];
@@ -733,7 +757,8 @@ mod tests {
     #[test]
     fn recursive_report_with_destructive_has_cleanup_section() {
         let discovered = vec![DiscoveredSource {
-            claude_dir: PathBuf::from("/project/.claude"),
+            source_dir: PathBuf::from("/project/.claude"),
+            source_type: ".claude".to_string(),
             package_name: None,
             relative_path: PathBuf::new(),
         }];

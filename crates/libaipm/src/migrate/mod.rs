@@ -3,6 +3,12 @@
 pub mod agent_detector;
 pub mod cleanup;
 pub mod command_detector;
+pub mod copilot_agent_detector;
+pub mod copilot_extension_detector;
+pub mod copilot_hook_detector;
+pub mod copilot_lsp_detector;
+pub mod copilot_mcp_detector;
+pub mod copilot_skill_detector;
 pub mod detector;
 pub mod discovery;
 pub mod dry_run;
@@ -11,6 +17,7 @@ pub mod hook_detector;
 pub mod mcp_detector;
 pub mod output_style_detector;
 pub mod registrar;
+pub mod skill_common;
 pub mod skill_detector;
 
 use std::collections::HashSet;
@@ -33,6 +40,10 @@ pub enum ArtifactKind {
     Hook,
     /// An output style from `.claude/output-styles/<name>.md`.
     OutputStyle,
+    /// LSP server config from `lsp.json`.
+    LspServer,
+    /// An extension from `.github/extensions/<name>/`.
+    Extension,
 }
 
 impl ArtifactKind {
@@ -43,8 +54,10 @@ impl ArtifactKind {
             Self::Agent => "agent",
             Self::McpServer => "mcp",
             Self::Hook => "hook",
-            // OutputStyle has no standalone PluginType; always composite when mixed
-            Self::OutputStyle => "composite",
+            // OutputStyle has no standalone PluginType; always composite when mixed.
+            // Extensions bundle as composite plugins.
+            Self::OutputStyle | Self::Extension => "composite",
+            Self::LspServer => "lsp",
         }
     }
 }
@@ -211,7 +224,7 @@ pub enum Error {
     SourceNotFound(PathBuf),
 
     /// The source type is not supported.
-    #[error("unsupported source type '{0}' — supported sources: .claude")]
+    #[error("unsupported source type '{0}' — supported sources: .claude, .github")]
     UnsupportedSource(String),
 
     /// Failed to parse marketplace.json.
@@ -323,10 +336,12 @@ fn migrate_single_source(
         return Err(Error::SourceNotFound(source_dir));
     }
 
-    let detectors = match source {
-        ".claude" => detector::claude_detectors(),
-        other => return Err(Error::UnsupportedSource(other.to_string())),
-    };
+    let mut detectors = detector::detectors_for_source(source);
+    if detectors.is_empty() {
+        // Unknown source type — run all detectors as a fallback
+        detectors = detector::claude_detectors();
+        detectors.extend(detector::copilot_detectors());
+    }
 
     let mut all_artifacts = Vec::new();
     for det in &detectors {
@@ -391,7 +406,7 @@ fn migrate_recursive(
 ) -> Result<Outcome, Error> {
     use rayon::prelude::*;
 
-    let discovered = discovery::discover_claude_dirs(dir, max_depth)?;
+    let discovered = discovery::discover_source_dirs(dir, &[".claude", ".github"], max_depth)?;
     if discovered.is_empty() {
         return Ok(Outcome { actions: Vec::new() });
     }
@@ -400,10 +415,10 @@ fn migrate_recursive(
     let detection_results: Vec<Result<Vec<PluginPlan>, Error>> = discovered
         .par_iter()
         .map(|src| {
-            let detectors = detector::claude_detectors();
+            let detectors = detector::detectors_for_source(&src.source_type);
             let mut all_artifacts = Vec::new();
             for det in &detectors {
-                let artifacts = det.detect(&src.claude_dir, fs)?;
+                let artifacts = det.detect(&src.source_dir, fs)?;
                 all_artifacts.extend(artifacts);
             }
 
@@ -413,11 +428,11 @@ fn migrate_recursive(
                     name: pkg_name.clone(),
                     artifacts: all_artifacts,
                     is_package_scoped: true,
-                    source_dir: src.claude_dir.clone(),
+                    source_dir: src.source_dir.clone(),
                 }])
             } else {
                 // Root-level: each artifact becomes its own plugin
-                let source = src.claude_dir.clone();
+                let source = src.source_dir.clone();
                 Ok(all_artifacts
                     .into_iter()
                     .map(|a| PluginPlan {
@@ -902,5 +917,52 @@ mod tests {
         // the input is returned as-is.
         assert_eq!(strip_yaml_quotes("\""), "\"");
         assert_eq!(strip_yaml_quotes("'"), "'");
+    }
+
+    #[test]
+    fn migrate_unknown_source_runs_all_detectors() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.ai"));
+        fs.exists.insert(PathBuf::from("/project/.custom"));
+        fs.dirs.insert(PathBuf::from("/project/.ai"), Vec::new());
+        fs.files.insert(
+            PathBuf::from("/project/.ai/.claude-plugin/marketplace.json"),
+            r#"{"plugins":[]}"#.to_string(),
+        );
+
+        let opts = Options {
+            dir: Path::new("/project"),
+            source: Some(".custom"),
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let result = migrate(&opts, &fs);
+        // Should not error — unknown source falls back to all detectors
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn migrate_github_source_accepted() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.ai"));
+        fs.exists.insert(PathBuf::from("/project/.github"));
+        fs.dirs.insert(PathBuf::from("/project/.ai"), Vec::new());
+        fs.files.insert(
+            PathBuf::from("/project/.ai/.claude-plugin/marketplace.json"),
+            r#"{"plugins":[]}"#.to_string(),
+        );
+
+        let opts = Options {
+            dir: Path::new("/project"),
+            source: Some(".github"),
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let result = migrate(&opts, &fs);
+        assert!(result.is_ok());
     }
 }
