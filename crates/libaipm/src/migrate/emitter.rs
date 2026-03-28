@@ -1980,6 +1980,24 @@ mod tests {
     }
 
     #[test]
+    fn emit_hook_artifact_with_hooks_yaml_metadata_skips_redundant_extraction() {
+        // A Hook artifact that also carries `metadata.hooks` (YAML string) should NOT
+        // re-write hooks.json from the YAML — `emit_hooks_config` already wrote it from
+        // `raw_content`. This exercises the `false` branch of
+        // `if artifact.kind != ArtifactKind::Hook` in `emit_plugin`.
+        let fs = MockFs::new();
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let mut artifact = make_hook_artifact();
+        artifact.metadata.hooks = Some("PreToolUse: check_deploy".to_string());
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok());
+        // hooks.json must still exist (written via emit_hooks_config from raw_content).
+        let hooks_content = fs.get_written(Path::new("/ai/project-hooks/hooks/hooks.json"));
+        assert!(hooks_content.is_some());
+    }
+
+    #[test]
     fn emit_output_style_copies_to_plugin_root() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/output-styles/concise.md"), "Be concise.".to_string());
