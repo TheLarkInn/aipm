@@ -119,6 +119,51 @@ Feature: Migrate AI tool configurations into marketplace plugins
       And the file "aipm-migrate-dryrun-report.md" in "my-project" contains "Recursive discovery"
       And no plugin directory exists at ".ai/auth/" in "my-project"
 
+  Rule: Source files can be removed after migration
+
+    Scenario: --destructive removes migrated skill source files
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a skill "deploy" exists in "my-project"
+      When the user runs "aipm migrate --destructive" in "my-project"
+      Then the command succeeds
+      And a plugin directory exists at ".ai/deploy/" in "my-project"
+      And there is no file ".claude/skills/deploy/SKILL.md" in "my-project"
+
+    Scenario: --destructive preserves settings.json
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a skill "deploy" exists in "my-project"
+      And a hooks config exists in "my-project"
+      When the user runs "aipm migrate --destructive" in "my-project"
+      Then the command succeeds
+      And a file ".claude/settings.json" exists in "my-project"
+
+    Scenario: Without --destructive source files are preserved in non-TTY
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a skill "deploy" exists in "my-project"
+      When the user runs "aipm migrate" in "my-project"
+      Then a file ".claude/skills/deploy/SKILL.md" exists in "my-project"
+
+    Scenario: --destructive with --dry-run shows cleanup plan
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a skill "deploy" exists in "my-project"
+      When the user runs "aipm migrate --dry-run --destructive" in "my-project"
+      Then a file "aipm-migrate-dryrun-report.md" exists in "my-project"
+      And the file "aipm-migrate-dryrun-report.md" in "my-project" contains "Cleanup Plan"
+      And a file ".claude/skills/deploy/SKILL.md" exists in "my-project"
+
+    Scenario: --destructive in recursive mode cleans all discovered sources
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a skill "deploy" exists in sub-package "auth" of "my-project"
+      And a skill "lint" exists in "my-project"
+      When the user runs "aipm migrate --destructive" in "my-project"
+      Then the command succeeds
+      And there is no file ".claude/skills/lint/SKILL.md" in "my-project"
+
   Rule: Prerequisites are validated
 
     Scenario: Error when marketplace directory is missing

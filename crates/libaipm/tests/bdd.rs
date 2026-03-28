@@ -750,6 +750,18 @@ async fn given_command_in_subpackage(
         .expect("write command");
 }
 
+#[given(expr = "a hooks config exists in {string}")]
+async fn given_hooks_config(world: &mut AipmWorld, dir: String) {
+    let base = world.dir_path(&dir);
+    let settings_path = base.join(".claude").join("settings.json");
+    std::fs::create_dir_all(settings_path.parent().unwrap()).expect("create .claude dir");
+    std::fs::write(
+        settings_path,
+        r#"{"hooks":{"PreToolUse":[{"type":"command","command":"echo test"}]}}"#,
+    )
+    .expect("write settings.json");
+}
+
 // =========================================================================
 // Migrate — assertion steps
 // =========================================================================
