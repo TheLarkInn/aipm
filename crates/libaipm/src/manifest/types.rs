@@ -7,7 +7,7 @@ use serde::Deserialize;
 use std::collections::BTreeMap;
 
 /// Top-level manifest — may contain `[package]`, `[workspace]`, or both.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
     /// Package metadata (present in member manifests).
@@ -42,7 +42,7 @@ pub struct Manifest {
 }
 
 /// `[package]` section — core package metadata.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Package {
     /// Package name — lowercase alphanumeric + hyphens, optional `@scope/`.
@@ -63,7 +63,7 @@ pub struct Package {
 }
 
 /// `[workspace]` section — monorepo configuration.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Workspace {
     /// Glob patterns for member directories.
     pub members: Vec<String>,
@@ -76,7 +76,7 @@ pub struct Workspace {
 }
 
 /// A dependency specification — either a version string or a detailed object.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum DependencySpec {
     /// Simple version string, e.g. `"^1.0"`.
@@ -87,7 +87,7 @@ pub enum DependencySpec {
 }
 
 /// Detailed dependency with version, workspace ref, optional flag, features.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct DetailedDependency {
     /// Version requirement string.
     pub version: Option<String>,
@@ -110,7 +110,7 @@ pub struct DetailedDependency {
 ///
 /// Mirrors the Claude Code plugin component model: skills, commands (legacy),
 /// agents, hooks, MCP servers, LSP servers, scripts, output styles, and settings.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 pub struct Components {
     /// Skill definition paths (`skills/<name>/SKILL.md`).
     pub skills: Option<Vec<String>>,
@@ -141,7 +141,7 @@ pub struct Components {
 }
 
 /// `[environment]` section — system and runtime requirements.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 pub struct Environment {
     /// Required system tools on PATH.
     pub requires: Option<Vec<String>>,
@@ -163,7 +163,7 @@ pub struct Environment {
 }
 
 /// Environment variable declarations — supports simple list or detailed specs.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum EnvironmentVariables {
     /// Simple list of required variable names.
@@ -182,7 +182,7 @@ pub enum EnvironmentVariables {
 }
 
 /// Detailed specification for a single environment variable.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct VariableSpec {
     /// Variable name.
     pub name: String,
@@ -195,7 +195,7 @@ pub struct VariableSpec {
 }
 
 /// `[install]` section — installation behavior controls.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 pub struct Install {
     /// Allowlist of lifecycle scripts permitted to execute.
     pub allowed_build_scripts: Option<Vec<String>>,

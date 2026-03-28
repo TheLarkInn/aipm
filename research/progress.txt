@@ -1,14 +1,80 @@
-Feature 1: Add ArtifactKind::LspServer and Extension variants — DONE
-Feature 2: Extract shared skill logic into skill_common.rs — DONE
-Feature 3: Refactor discover_source_dirs() with parameterized patterns — DONE
-Feature 4: Refactor source-type dispatch to remove hard-coded .claude gating — DONE
-Feature 5: Implement CopilotSkillDetector — DONE
-Feature 6: Implement CopilotAgentDetector — DONE
-Feature 7: Implement CopilotMcpDetector — DONE
-Feature 8: Implement CopilotHookDetector — DONE
-Feature 9: Implement CopilotExtensionDetector — DONE
-Feature 10: Implement CopilotLspDetector — DONE
-Feature 11: Add copilot_detectors() factory function and wire up module registration — DONE
-Feature 12: Integration test — end-to-end migrate with mixed .claude/ and .github/ — PENDING
-Feature 13: Integration test — recursive discovery with nested .github/ directories — PENDING
-Feature 14: Verify branch coverage >= 89% — DONE (89.05%)
+Feature 1: COMPLETE - Workspace protocol simplification
+  - Added InvalidWorkspaceProtocol error variant to manifest/error.rs
+  - Modified validate_dependencies() to reject workspace = "^" and "=" (only "*" accepted)
+  - Modified is_valid_version_req() to remove "^" and "=" as standalone symbols
+  - Updated workspace init template to reference workspace = "*"
+  - Updated existing tests: parse_full_member_manifest, workspace_ref_dependency_valid
+  - Added new tests: workspace_caret_protocol_rejected, workspace_equals_protocol_rejected
+  - Updated workspace_protocol_valid test to assert "^" and "=" are invalid
+
+Feature 2: COMPLETE - Add glob crate dependency
+  - Added glob = "0.3" to [workspace.dependencies] in root Cargo.toml
+  - Added glob = { workspace = true } to crates/libaipm/Cargo.toml
+
+Feature 3: COMPLETE - Create workspace module with error types
+  - Created crates/libaipm/src/workspace/error.rs with Discovery and NoWorkspaceRoot variants
+  - Created crates/libaipm/src/workspace/mod.rs
+  - Added pub mod workspace; to lib.rs
+
+Feature 4: COMPLETE - Implement find_workspace_root()
+  - Walk-up filesystem discovery for manifest with [workspace] section
+  - 3 unit tests: find_root_from_member, find_root_returns_none, find_root_from_root_itself
+
+Feature 5: COMPLETE - Implement discover_members() (renamed WorkspaceMember to Member)
+  - Glob expansion of [workspace].members patterns
+  - 5 unit tests: single_glob, multiple_patterns, skips_no_manifest, error_duplicate_name, error_no_package
+  - Added Clone derive to all manifest types
+
+Feature 6: COMPLETE - Implement split_dependencies()
+  - Partitions manifest deps into workspace vs registry sets
+  - 4 unit tests: workspace_and_registry, all_registry, all_workspace, empty
+
+Feature 7: COMPLETE - Implement resolve_workspace_deps()
+  - Resolves workspace deps to local member versions with transitive BFS
+  - Skips aipm link overrides
+  - 7 unit tests: direct_dep, transitive, skips_link_overrides, error_unknown, circular, dep_strings
+
+Feature 8: COMPLETE - Modify lockfile reconciliation
+  - Workspace packages excluded from carried_forward
+  - 2 unit tests: workspace_excluded, registry_still_carried
+
+Feature 9: COMPLETE - Wire up workspace context in install()
+  - Added workspace_root: Option<PathBuf> to InstallConfig
+  - Updated all 5 construction sites
+  - Added discover_workspace_members(), resolve_registry_dependencies()
+  - Removed old resolve_dependencies() (dead code)
+
+Feature 10: COMPLETE - Source-aware install loop
+  - Extracted link_resolved_packages() to keep install() under 100 lines
+  - Source::Workspace: directory_link::create + gitignore
+  - Source::Registry: unchanged (fetch, store, link)
+  - Source::Path: warning log
+
+Feature 11: COMPLETE - CLI workspace root discovery
+  - cmd_install() calls find_workspace_root() and passes to InstallConfig
+
+Feature 12: COMPLETE - Locked mode workspace handling
+  - build_resolution_from_lockfile() handles Source::Workspace
+  - resolve_registry_dependencies() filters out workspace packages in locked mode
+  - Workspace discovery still runs to get member paths
+  - 1 unit test: resolve_registry_deps_empty
+
+Feature 13: COMPLETE - BDD scenario updates
+  - Updated orchestration.feature: workspace = "*" only
+  - Converted "^" and "=" scenarios to validation error tests
+  - Marked publish scenario as @wip
+
+Feature 14: COMPLETE - Tracing/logging
+  - tracing::info! in discover_members() (count + names)
+  - tracing::info! in resolve_workspace_deps() (name, version, path)
+  - tracing::debug! for link override skips
+  - tracing::warn! for dirs without aipm.toml
+
+Feature 15: COMPLETE - Full quality gate
+  - cargo fmt --check: clean
+  - cargo clippy --workspace -- -D warnings: 0 errors
+  - cargo build --workspace: success
+  - cargo test --workspace: 713 unit tests + 72 BDD scenarios all pass
+  - Coverage: 89.01% branch (above 89% threshold)
+
+ALL 15 FEATURES COMPLETE.

@@ -55,6 +55,15 @@ pub enum Error {
         value: String,
     },
 
+    /// An unsupported workspace protocol was used.
+    #[error("invalid workspace protocol '{protocol}' for dependency '{dependency}' — only workspace = \"*\" is supported")]
+    InvalidWorkspaceProtocol {
+        /// The dependency with the bad protocol.
+        dependency: String,
+        /// The invalid protocol value.
+        protocol: String,
+    },
+
     /// A declared component path does not exist on disk.
     #[error("component not found: {}", path.display())]
     ComponentNotFound {

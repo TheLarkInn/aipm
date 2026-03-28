@@ -15,6 +15,7 @@ pub mod registry;
 pub mod resolver;
 pub mod store;
 pub mod version;
+pub mod workspace;
 pub mod workspace_init;
 
 /// Returns the library version.

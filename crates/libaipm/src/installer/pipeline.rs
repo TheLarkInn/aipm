@@ -12,6 +12,7 @@ use crate::registry::Registry;
 use crate::resolver;
 use crate::store;
 use crate::version::Version;
+use crate::workspace;
 
 use super::error::Error;
 use super::manifest_editor;
@@ -33,6 +34,8 @@ pub struct InstallConfig {
     pub gitignore_path: PathBuf,
     /// Path to `.aipm/links.toml` for link state tracking.
     pub link_state_path: PathBuf,
+    /// Path to the workspace root directory (if in a workspace).
+    pub workspace_root: Option<PathBuf>,
     /// CI mode: fail on lockfile-manifest drift, skip resolution.
     pub locked: bool,
     /// Optional package to add before installing (e.g. `"pkg@^1.0"`).
@@ -120,8 +123,31 @@ pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<Instal
             .map_err(|e| Error::LockfileDrift { reason: e.to_string() })?;
     }
 
-    // Step 4: Resolve dependencies
-    let resolution = resolve_dependencies(
+    // Step 4a: Discover workspace context
+    let members = discover_workspace_members(config, &manifest)?;
+
+    // Step 4b: Load link overrides (aipm link takes priority over workspace deps)
+    let link_overrides: BTreeSet<String> = if config.link_state_path.exists() {
+        linker::link_state::list(&config.link_state_path)
+            .map(|entries| entries.iter().map(|e| e.name.clone()).collect())
+            .unwrap_or_default()
+    } else {
+        BTreeSet::new()
+    };
+
+    // Step 4c: Split deps into workspace vs registry
+    let (workspace_dep_names, registry_deps) = split_dependencies(&manifest);
+
+    // Step 4d: Resolve workspace deps (local version lookup + transitive)
+    let workspace_resolved = if workspace_dep_names.is_empty() {
+        Vec::new()
+    } else {
+        resolve_workspace_deps(&workspace_dep_names, &members, &link_overrides)?
+    };
+
+    // Step 4e: Resolve registry deps (existing solver, unchanged)
+    let registry_resolution = resolve_registry_dependencies(
+        &registry_deps,
         &manifest,
         &manifest_deps,
         existing_lockfile.as_ref(),
@@ -129,55 +155,19 @@ pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<Instal
         registry,
     )?;
 
-    // Create content store
-    let content_store = store::Store::new(config.store_path.clone());
+    // Step 4f: Merge workspace + registry resolutions
+    let mut all_packages = workspace_resolved;
+    all_packages.extend(registry_resolution.packages);
+    let resolution = resolver::Resolution { packages: all_packages };
 
-    // Track install stats
-    let mut installed = 0_usize;
-    let mut up_to_date = 0_usize;
-
-    // Steps 5-8: For each resolved package, fetch → store → link
-    for resolved in &resolution.packages {
-        let pkg_name = &resolved.name;
-        let assembled_dir = config.links_dir.join(pkg_name);
-
-        // Check if already assembled (up-to-date)
-        if assembled_dir.exists() && !needs_update(resolved, existing_lockfile.as_ref()) {
-            tracing::debug!(package = pkg_name.as_str(), "package is up-to-date");
-            up_to_date += 1;
-            continue;
-        }
-
-        tracing::info!(
-            package = pkg_name.as_str(),
-            version = %resolved.version,
-            "installing package"
-        );
-
-        // Step 5: Fetch tarball from registry
-        let tarball = registry
-            .download(pkg_name, &resolved.version)
-            .map_err(|e| Error::Resolution(format!("failed to download {pkg_name}: {e}")))?;
-
-        // Step 6: Store tarball contents
-        let file_hashes = store_tarball_contents(&content_store, &tarball, pkg_name)?;
-
-        // Steps 7-8: Link package through the three-tier pipeline
-        linker::pipeline::link_package(
-            &content_store,
-            &file_hashes,
-            pkg_name,
-            &config.links_dir,
-            &config.plugins_dir,
-        )
-        .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
-
-        // Update .gitignore
-        linker::gitignore::add_entry(&config.gitignore_path, pkg_name)
-            .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
-
-        installed += 1;
-    }
+    // Steps 5-8: Fetch, store, and link resolved packages
+    let (installed, up_to_date) = link_resolved_packages(
+        config,
+        &resolution,
+        &members,
+        existing_lockfile.as_ref(),
+        registry,
+    )?;
 
     // Handle removed packages
     let removed = handle_removals(
@@ -206,6 +196,71 @@ pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<Instal
     );
 
     Ok(InstallResult { installed, up_to_date, removed })
+}
+
+/// Fetch, store, and link all resolved packages.
+///
+/// Returns `(installed, up_to_date)` counts.
+fn link_resolved_packages(
+    config: &InstallConfig,
+    resolution: &resolver::Resolution,
+    members: &BTreeMap<String, workspace::Member>,
+    existing_lockfile: Option<&lockfile::types::Lockfile>,
+    registry: &dyn Registry,
+) -> Result<(usize, usize), Error> {
+    let content_store = store::Store::new(config.store_path.clone());
+    let mut installed = 0_usize;
+    let mut up_to_date = 0_usize;
+
+    for resolved in &resolution.packages {
+        let pkg_name = &resolved.name;
+
+        match &resolved.source {
+            resolver::Source::Workspace => {
+                if let Some(member) = members.get(pkg_name) {
+                    std::fs::create_dir_all(&config.plugins_dir)?;
+                    let link_target = config.plugins_dir.join(pkg_name);
+                    linker::directory_link::create(&member.path, &link_target)
+                        .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+                    linker::gitignore::add_entry(&config.gitignore_path, pkg_name)
+                        .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+                    installed += 1;
+                }
+            },
+            resolver::Source::Registry { .. } => {
+                let assembled_dir = config.links_dir.join(pkg_name);
+                if assembled_dir.exists() && !needs_update(resolved, existing_lockfile) {
+                    tracing::debug!(package = pkg_name.as_str(), "package is up-to-date");
+                    up_to_date += 1;
+                    continue;
+                }
+                tracing::info!(package = pkg_name.as_str(), version = %resolved.version, "installing package");
+                let tarball = registry.download(pkg_name, &resolved.version).map_err(|e| {
+                    Error::Resolution(format!("failed to download {pkg_name}: {e}"))
+                })?;
+                let file_hashes = store_tarball_contents(&content_store, &tarball, pkg_name)?;
+                linker::pipeline::link_package(
+                    &content_store,
+                    &file_hashes,
+                    pkg_name,
+                    &config.links_dir,
+                    &config.plugins_dir,
+                )
+                .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+                linker::gitignore::add_entry(&config.gitignore_path, pkg_name)
+                    .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+                installed += 1;
+            },
+            resolver::Source::Path { .. } => {
+                tracing::warn!(
+                    package = pkg_name.as_str(),
+                    "path dependencies are not yet implemented — skipping"
+                );
+            },
+        }
+    }
+
+    Ok((installed, up_to_date))
 }
 
 /// Extract direct dependency names from a manifest.
@@ -242,22 +297,212 @@ fn manifest_to_resolver_deps(manifest: &manifest::types::Manifest) -> Vec<resolv
         .collect()
 }
 
-/// Resolve dependencies using the appropriate strategy.
-fn resolve_dependencies(
+/// Partition manifest dependencies into workspace deps and registry deps.
+///
+/// Workspace deps have `workspace = "*"` set. Registry deps are everything else.
+fn split_dependencies(
+    manifest: &manifest::types::Manifest,
+) -> (Vec<String>, Vec<resolver::Dependency>) {
+    let Some(ref deps) = manifest.dependencies else {
+        return (Vec::new(), Vec::new());
+    };
+
+    let mut workspace_dep_names = Vec::new();
+    let mut registry_deps = Vec::new();
+
+    for (name, spec) in deps {
+        match spec {
+            manifest::types::DependencySpec::Detailed(d) if d.workspace.is_some() => {
+                workspace_dep_names.push(name.clone());
+            },
+            _ => {
+                let (req, features, default_features) = match spec {
+                    manifest::types::DependencySpec::Simple(v) => (v.clone(), Vec::new(), true),
+                    manifest::types::DependencySpec::Detailed(d) => {
+                        let version = d.version.clone().unwrap_or_else(|| "*".to_string());
+                        let feats = d.features.clone().unwrap_or_default();
+                        let df = d.default_features.unwrap_or(true);
+                        (version, feats, df)
+                    },
+                };
+                registry_deps.push(resolver::Dependency {
+                    name: name.clone(),
+                    req,
+                    source: "root".to_string(),
+                    features,
+                    default_features,
+                });
+            },
+        }
+    }
+
+    (workspace_dep_names, registry_deps)
+}
+
+/// Resolve workspace dependencies to local member versions.
+///
+/// For each workspace dep, looks up the member in the discovery map,
+/// reads its version, and produces a `Resolved` with `Source::Workspace`.
+///
+/// Transitive workspace deps are resolved recursively: if member A depends
+/// on member B (via `workspace = "*"`), B is also resolved as a workspace dep.
+fn resolve_workspace_deps(
+    workspace_dep_names: &[String],
+    members: &BTreeMap<String, workspace::Member>,
+    link_overrides: &BTreeSet<String>,
+) -> Result<Vec<resolver::Resolved>, Error> {
+    let mut resolved = Vec::new();
+    let mut visited = BTreeSet::new();
+    let mut queue: Vec<String> = workspace_dep_names.to_vec();
+
+    while let Some(name) = queue.pop() {
+        if visited.contains(&name) {
+            continue;
+        }
+        visited.insert(name.clone());
+
+        // aipm link overrides skip workspace resolution
+        if link_overrides.contains(&name) {
+            tracing::debug!(
+                package = name.as_str(),
+                "skipping workspace dep — aipm link override active"
+            );
+            continue;
+        }
+
+        let member = members.get(&name).ok_or_else(|| {
+            let available: Vec<&str> = members.keys().map(String::as_str).collect();
+            Error::Resolution(format!(
+                "workspace dependency '{name}' not found in workspace members — available members: {available:?}"
+            ))
+        })?;
+
+        // Collect transitive workspace deps from this member
+        if let Some(ref deps) = member.manifest.dependencies {
+            for (dep_name, dep_spec) in deps {
+                if let manifest::types::DependencySpec::Detailed(d) = dep_spec {
+                    if d.workspace.is_some() && !visited.contains(dep_name) {
+                        queue.push(dep_name.clone());
+                    }
+                }
+            }
+        }
+
+        // Collect dependency strings for lockfile
+        let transitive_deps: Vec<String> = member
+            .manifest
+            .dependencies
+            .as_ref()
+            .map(|deps| {
+                deps.iter()
+                    .map(|(dep_name, spec)| {
+                        let req = match spec {
+                            manifest::types::DependencySpec::Simple(v) => v.clone(),
+                            manifest::types::DependencySpec::Detailed(d) => {
+                                if d.workspace.is_some() {
+                                    return format!("{dep_name} *");
+                                }
+                                d.version.clone().unwrap_or_else(|| "*".to_string())
+                            },
+                        };
+                        format!("{dep_name} {req}")
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let version = Version::parse(&member.version).map_err(|e| {
+            Error::Resolution(format!(
+                "invalid version '{}' for workspace member '{}': {e}",
+                member.version, name
+            ))
+        })?;
+
+        tracing::info!(
+            package = name.as_str(),
+            version = %version,
+            path = %member.path.display(),
+            "resolved workspace dependency"
+        );
+
+        resolved.push(resolver::Resolved {
+            name: name.clone(),
+            version,
+            source: resolver::Source::Workspace,
+            checksum: String::new(),
+            dependencies: transitive_deps,
+            features: BTreeSet::new(),
+        });
+    }
+
+    Ok(resolved)
+}
+
+/// Discover workspace members if the manifest is in a workspace context.
+fn discover_workspace_members(
+    config: &InstallConfig,
+    manifest: &manifest::types::Manifest,
+) -> Result<BTreeMap<String, workspace::Member>, Error> {
+    // If the manifest has a workspace section, use it directly
+    if let Some(ref ws) = manifest.workspace {
+        let ws_root = config
+            .manifest_path
+            .parent()
+            .ok_or_else(|| Error::Manifest { reason: "manifest has no parent dir".to_string() })?;
+        return workspace::discover_members(ws_root, &ws.members)
+            .map_err(|e| Error::Manifest { reason: format!("workspace discovery error: {e}") });
+    }
+
+    // If workspace_root is provided, load workspace from there
+    if let Some(ref ws_root) = config.workspace_root {
+        let ws_manifest_path = ws_root.join("aipm.toml");
+        if ws_manifest_path.exists() {
+            let content = std::fs::read_to_string(&ws_manifest_path)?;
+            let ws_manifest =
+                manifest::parse_and_validate(&content, Some(ws_root)).map_err(|e| {
+                    Error::Manifest { reason: format!("workspace manifest error: {e}") }
+                })?;
+            if let Some(ref ws) = ws_manifest.workspace {
+                return workspace::discover_members(ws_root, &ws.members).map_err(|e| {
+                    Error::Manifest { reason: format!("workspace discovery error: {e}") }
+                });
+            }
+        }
+    }
+
+    Ok(BTreeMap::new())
+}
+
+/// Resolve only registry dependencies using the appropriate strategy.
+///
+/// This is the same as `resolve_dependencies` but only processes registry deps
+/// (workspace deps are resolved separately).
+fn resolve_registry_dependencies(
+    registry_deps: &[resolver::Dependency],
     manifest: &manifest::types::Manifest,
     manifest_deps: &BTreeSet<String>,
     existing_lockfile: Option<&lockfile::types::Lockfile>,
     locked: bool,
     registry: &dyn Registry,
 ) -> Result<resolver::Resolution, Error> {
-    // In locked mode, build resolution from lockfile directly
+    // In locked mode, build resolution from lockfile (only registry packages)
     if locked {
         if let Some(lf) = existing_lockfile {
-            return build_resolution_from_lockfile(lf);
+            let resolution = build_resolution_from_lockfile(lf)?;
+            // Filter to only registry packages (workspace packages are handled separately)
+            let registry_packages = resolution
+                .packages
+                .into_iter()
+                .filter(|p| !matches!(&p.source, resolver::Source::Workspace))
+                .collect();
+            return Ok(resolver::Resolution { packages: registry_packages });
         }
     }
 
-    let root_deps = manifest_to_resolver_deps(manifest);
+    // If no registry deps, return empty resolution
+    if registry_deps.is_empty() {
+        return Ok(resolver::Resolution { packages: Vec::new() });
+    }
 
     // Parse overrides from manifest
     let override_rules = manifest
@@ -271,19 +516,23 @@ fn resolve_dependencies(
     // Determine lockfile pins
     let lockfile_pins = match existing_lockfile {
         Some(lf) => {
-            // Reconcile: only re-resolve changed deps
             let recon = lockfile::reconcile::reconcile(lf, manifest_deps);
             if recon.needs_resolution.is_empty() && recon.removed.is_empty() {
-                // Nothing changed — use lockfile as-is
-                return build_resolution_from_lockfile(lf);
+                // Nothing changed — build resolution from lockfile (registry only)
+                let resolution = build_resolution_from_lockfile(lf)?;
+                let registry_packages = resolution
+                    .packages
+                    .into_iter()
+                    .filter(|p| !matches!(&p.source, resolver::Source::Workspace))
+                    .collect();
+                return Ok(resolver::Resolution { packages: registry_packages });
             }
-            // Build pins from carried-forward packages
             build_pins(&recon.carried_forward)
         },
         None => BTreeMap::new(),
     };
 
-    resolver::resolve_with_overrides(&root_deps, &lockfile_pins, registry, &override_rules)
+    resolver::resolve_with_overrides(registry_deps, &lockfile_pins, registry, &override_rules)
         .map_err(|e| Error::Resolution(e.to_string()))
 }
 
@@ -701,6 +950,7 @@ pkg-a = "^1.0"
             plugins_dir: tmp.join("claude-plugins"),
             gitignore_path: tmp.join("claude-plugins/.gitignore"),
             link_state_path: tmp.join(".aipm/links.toml"),
+            workspace_root: None,
             locked: false,
             add_package: None,
             generated_by: "aipm-test 0.1.0".to_string(),
@@ -993,6 +1243,7 @@ features = ["json"]
             plugins_dir: tmp.path().join("claude-plugins"),
             gitignore_path: tmp.path().join("claude-plugins/.gitignore"),
             link_state_path: tmp.path().join(".aipm/links.toml"),
+            workspace_root: None,
             locked: false,
             add_package: None,
             generated_by: "aipm-test 0.1.0".to_string(),
@@ -1362,6 +1613,7 @@ pkg-a = "^1.0"
             plugins_dir: tmp.path().join("claude-plugins"),
             gitignore_path: tmp.path().join("claude-plugins/.gitignore"),
             link_state_path: tmp.path().join(".aipm/links.toml"),
+            workspace_root: None,
             locked: false,
             add_package: None,
             generated_by: "aipm-test 0.1.0".to_string(),
@@ -1653,6 +1905,7 @@ pkg-b = "^2.0"
             plugins_dir: config.plugins_dir.clone(),
             gitignore_path: config.gitignore_path.clone(),
             link_state_path: config.link_state_path.clone(),
+            workspace_root: None,
             locked: false,
             add_package: None,
             generated_by: "aipm-test 0.1.0".to_string(),
@@ -1770,13 +2023,7 @@ pkg-b = "^2.0"
     // =========================================================================
 
     #[test]
-    fn resolve_dependencies_locked_with_no_lockfile_falls_through() {
-        // When locked=true and existing_lockfile is None, the `if locked` block
-        // doesn't return early (no lockfile to use), so execution continues past
-        // L254 False branch. This hits the `if locked { if let Some(lf) = ... }`
-        // path where `lf` is None — but wait, install() already guards this
-        // with ok_or_else before calling resolve_dependencies.
-        // We test resolve_dependencies directly instead.
+    fn resolve_registry_deps_locked_with_no_lockfile_falls_through() {
         let toml_str = r#"
 [package]
 name = "test"
@@ -1790,9 +2037,10 @@ pkg-a = "^1.0"
         manifest_deps.insert("pkg-a".to_string());
         let registry = make_registry();
 
-        // locked=true, existing_lockfile=None → if let Some(lf) is None
-        // → falls through to root_deps resolution path (L254 False branch)
-        let result = resolve_dependencies(&m, &manifest_deps, None, true, &registry);
+        let root_deps = manifest_to_resolver_deps(&m);
+        // locked=true, existing_lockfile=None → falls through to fresh resolution
+        let result =
+            resolve_registry_dependencies(&root_deps, &m, &manifest_deps, None, true, &registry);
         assert!(result.is_ok(), "resolve with locked=true and no lockfile should resolve fresh");
     }
 
@@ -1890,5 +2138,213 @@ pkg-a = "^1.0"
 
         let lf = lockfile::read(&config.lockfile_path).unwrap();
         assert!(!lf.packages.is_empty());
+    }
+
+    // =========================================================================
+    // split_dependencies tests
+    // =========================================================================
+
+    #[test]
+    fn split_deps_workspace_and_registry() {
+        let toml_str = r#"
+[package]
+name = "test"
+version = "0.1.0"
+
+[dependencies]
+registry-dep = "^1.0"
+ws-dep = { workspace = "*" }
+"#;
+        let m = manifest::parse(toml_str).unwrap();
+        let (ws_deps, reg_deps) = split_dependencies(&m);
+        assert_eq!(ws_deps.len(), 1);
+        assert_eq!(ws_deps[0], "ws-dep");
+        assert_eq!(reg_deps.len(), 1);
+        assert_eq!(reg_deps[0].name, "registry-dep");
+    }
+
+    #[test]
+    fn split_deps_all_registry() {
+        let toml_str = r#"
+[package]
+name = "test"
+version = "0.1.0"
+
+[dependencies]
+a = "^1.0"
+b = "^2.0"
+"#;
+        let m = manifest::parse(toml_str).unwrap();
+        let (ws_deps, reg_deps) = split_dependencies(&m);
+        assert!(ws_deps.is_empty());
+        assert_eq!(reg_deps.len(), 2);
+    }
+
+    #[test]
+    fn split_deps_empty() {
+        let toml_str = "[package]\nname = \"test\"\nversion = \"0.1.0\"\n";
+        let m = manifest::parse(toml_str).unwrap();
+        let (ws_deps, reg_deps) = split_dependencies(&m);
+        assert!(ws_deps.is_empty());
+        assert!(reg_deps.is_empty());
+    }
+
+    // =========================================================================
+    // resolve_workspace_deps tests
+    // =========================================================================
+
+    fn make_member(name: &str, version: &str, deps_toml: &str) -> workspace::Member {
+        let manifest_str =
+            format!("[package]\nname = \"{name}\"\nversion = \"{version}\"\n{deps_toml}");
+        let parsed = manifest::parse(&manifest_str).unwrap();
+        workspace::Member {
+            name: name.to_string(),
+            path: PathBuf::from(format!("/fake/{name}")),
+            version: version.to_string(),
+            manifest: parsed,
+        }
+    }
+
+    #[test]
+    fn resolve_direct_workspace_dep() {
+        let mut members = BTreeMap::new();
+        let m = make_member("plugin-b", "2.0.0", "");
+        members.insert("plugin-b".to_string(), m);
+
+        let ws_deps = vec!["plugin-b".to_string()];
+        let overrides = BTreeSet::new();
+
+        let result = resolve_workspace_deps(&ws_deps, &members, &overrides);
+        assert!(result.is_ok(), "resolve should succeed: {:?}", result.err());
+        let resolved = result.unwrap();
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved[0].name, "plugin-b");
+        assert_eq!(format!("{}", resolved[0].version), "2.0.0");
+        assert!(matches!(resolved[0].source, resolver::Source::Workspace));
+        assert!(resolved[0].checksum.is_empty());
+    }
+
+    #[test]
+    fn resolve_transitive_workspace_deps() {
+        let mut members = BTreeMap::new();
+        let a =
+            make_member("plugin-a", "1.0.0", "[dependencies]\nplugin-b = { workspace = \"*\" }\n");
+        let b =
+            make_member("plugin-b", "2.0.0", "[dependencies]\nplugin-c = { workspace = \"*\" }\n");
+        let c = make_member("plugin-c", "3.0.0", "");
+        members.insert("plugin-a".to_string(), a);
+        members.insert("plugin-b".to_string(), b);
+        members.insert("plugin-c".to_string(), c);
+
+        let ws_deps = vec!["plugin-a".to_string()];
+        let overrides = BTreeSet::new();
+
+        let result = resolve_workspace_deps(&ws_deps, &members, &overrides);
+        assert!(result.is_ok());
+        let resolved = result.unwrap();
+        assert_eq!(resolved.len(), 3);
+        let names: BTreeSet<String> = resolved.iter().map(|r| r.name.clone()).collect();
+        assert!(names.contains("plugin-a"));
+        assert!(names.contains("plugin-b"));
+        assert!(names.contains("plugin-c"));
+    }
+
+    #[test]
+    fn resolve_skips_link_overrides() {
+        let mut members = BTreeMap::new();
+        let m = make_member("plugin-b", "2.0.0", "");
+        members.insert("plugin-b".to_string(), m);
+
+        let ws_deps = vec!["plugin-b".to_string()];
+        let mut overrides = BTreeSet::new();
+        overrides.insert("plugin-b".to_string());
+
+        let result = resolve_workspace_deps(&ws_deps, &members, &overrides);
+        assert!(result.is_ok());
+        let resolved = result.unwrap();
+        assert!(resolved.is_empty(), "link-overridden dep should be skipped");
+    }
+
+    #[test]
+    fn resolve_error_unknown_member() {
+        let members = BTreeMap::new();
+        let ws_deps = vec!["nonexistent".to_string()];
+        let overrides = BTreeSet::new();
+
+        let result = resolve_workspace_deps(&ws_deps, &members, &overrides);
+        assert!(result.is_err());
+        let err = format!("{}", result.err().unwrap());
+        assert!(err.contains("not found in workspace members"));
+    }
+
+    #[test]
+    fn resolve_circular_deps() {
+        let mut members = BTreeMap::new();
+        let a =
+            make_member("plugin-a", "1.0.0", "[dependencies]\nplugin-b = { workspace = \"*\" }\n");
+        let b =
+            make_member("plugin-b", "2.0.0", "[dependencies]\nplugin-a = { workspace = \"*\" }\n");
+        members.insert("plugin-a".to_string(), a);
+        members.insert("plugin-b".to_string(), b);
+
+        let ws_deps = vec!["plugin-a".to_string()];
+        let overrides = BTreeSet::new();
+
+        let result = resolve_workspace_deps(&ws_deps, &members, &overrides);
+        assert!(result.is_ok(), "circular deps should not infinite loop");
+        let resolved = result.unwrap();
+        assert_eq!(resolved.len(), 2);
+    }
+
+    #[test]
+    fn split_deps_all_workspace() {
+        let toml_str = r#"
+[package]
+name = "test"
+version = "0.1.0"
+
+[dependencies]
+ws-a = { workspace = "*" }
+ws-b = { workspace = "*" }
+"#;
+        let m = manifest::parse(toml_str).unwrap();
+        let (ws_deps, reg_deps) = split_dependencies(&m);
+        assert_eq!(ws_deps.len(), 2);
+        assert!(reg_deps.is_empty());
+    }
+
+    #[test]
+    fn resolve_registry_deps_empty() {
+        let toml_str = "[package]\nname = \"test\"\nversion = \"0.1.0\"\n";
+        let m = manifest::parse(toml_str).unwrap();
+        let manifest_deps = BTreeSet::new();
+        let registry = make_registry();
+
+        let result = resolve_registry_dependencies(&[], &m, &manifest_deps, None, false, &registry);
+        assert!(result.is_ok());
+        assert!(result.unwrap().packages.is_empty());
+    }
+
+    #[test]
+    fn resolve_collects_transitive_dep_strings() {
+        let mut members = BTreeMap::new();
+        let a = make_member(
+            "plugin-a",
+            "1.0.0",
+            "[dependencies]\nregistry-dep = \"^2.0\"\nws-sibling = { workspace = \"*\" }\n",
+        );
+        let sibling = make_member("ws-sibling", "3.0.0", "");
+        members.insert("plugin-a".to_string(), a);
+        members.insert("ws-sibling".to_string(), sibling);
+
+        let ws_deps = vec!["plugin-a".to_string()];
+        let overrides = BTreeSet::new();
+
+        let result = resolve_workspace_deps(&ws_deps, &members, &overrides);
+        assert!(result.is_ok(), "should succeed: {:?}", result.err());
+        let resolved = result.unwrap();
+        let plugin_a = resolved.iter().find(|r| r.name == "plugin-a").unwrap();
+        assert!(plugin_a.dependencies.contains(&"registry-dep ^2.0".to_string()));
+        assert!(plugin_a.dependencies.contains(&"ws-sibling *".to_string()));
     }
 }
