@@ -169,6 +169,7 @@ pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<Instal
         config,
         &resolution,
         &members,
+        &link_overrides,
         existing_lockfile.as_ref(),
         registry,
     )?;
@@ -209,6 +210,7 @@ fn link_resolved_packages(
     config: &InstallConfig,
     resolution: &resolver::Resolution,
     members: &BTreeMap<String, workspace::Member>,
+    link_overrides: &BTreeSet<String>,
     existing_lockfile: Option<&lockfile::types::Lockfile>,
     registry: &dyn Registry,
 ) -> Result<(usize, usize), Error> {
@@ -218,6 +220,15 @@ fn link_resolved_packages(
 
     for resolved in &resolution.packages {
         let pkg_name = &resolved.name;
+
+        // Skip linking for packages with active aipm link overrides
+        if link_overrides.contains(pkg_name) {
+            tracing::debug!(
+                package = pkg_name.as_str(),
+                "skipping link — aipm link override active"
+            );
+            continue;
+        }
 
         match &resolved.source {
             resolver::Source::Workspace => {
@@ -369,8 +380,8 @@ fn resolve_workspace_deps(
         }
         visited.insert(name.clone());
 
-        // aipm link overrides: keep the dep in the resolution (so handle_removals
-        // doesn't unlink it) but use Source::Path so the linking step skips it.
+        // aipm link overrides: keep the dep in the resolution as Source::Workspace
+        // (preserving lockfile semantics) but the linking step will skip it.
         if link_overrides.contains(&name) {
             tracing::debug!(
                 package = name.as_str(),
@@ -392,7 +403,7 @@ fn resolve_workspace_deps(
             resolved.push(resolver::Resolved {
                 name: name.clone(),
                 version,
-                source: resolver::Source::Path { path: member.path.clone() },
+                source: resolver::Source::Workspace,
                 checksum: String::new(),
                 dependencies: Vec::new(),
                 features: BTreeSet::new(),
@@ -2320,7 +2331,7 @@ b = "^2.0"
     }
 
     #[test]
-    fn resolve_link_overrides_produce_path_source() {
+    fn resolve_link_overrides_keep_workspace_source() {
         let mut members = BTreeMap::new();
         let m = make_member("plugin-b", "2.0.0", "");
         members.insert("plugin-b".to_string(), m);
@@ -2332,11 +2343,11 @@ b = "^2.0"
         let result = resolve_workspace_deps(&ws_deps, &members, &overrides);
         assert!(result.is_ok());
         let resolved = result.unwrap();
-        // Link-overridden deps produce a Source::Path entry to prevent removal
+        // Link-overridden deps stay as Source::Workspace to preserve lockfile semantics
         assert_eq!(resolved.len(), 1);
         assert!(
-            matches!(resolved[0].source, resolver::Source::Path { .. }),
-            "link-overridden dep should use Source::Path"
+            matches!(resolved[0].source, resolver::Source::Workspace),
+            "link-overridden dep should stay Source::Workspace"
         );
     }
 
@@ -2893,7 +2904,8 @@ plugin-b = { workspace = "*" }
 
         let members = BTreeMap::new();
         let stub = StubRegistry;
-        let result = link_resolved_packages(&config, &resolution, &members, None, &stub);
+        let result =
+            link_resolved_packages(&config, &resolution, &members, &BTreeSet::new(), None, &stub);
         assert!(result.is_ok());
         let (installed, up_to_date) = result.unwrap();
         assert_eq!(installed, 0, "path deps should not be installed");
@@ -2957,7 +2969,8 @@ plugin-b = { workspace = "*" }
         );
 
         let stub = StubRegistry;
-        let result = link_resolved_packages(&config, &resolution, &members, None, &stub);
+        let result =
+            link_resolved_packages(&config, &resolution, &members, &BTreeSet::new(), None, &stub);
         assert!(result.is_ok(), "workspace linking should succeed: {:?}", result.err());
         let (installed, _) = result.unwrap();
         assert_eq!(installed, 1);

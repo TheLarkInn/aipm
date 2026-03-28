@@ -39,8 +39,9 @@ pub fn reconcile(lockfile: &Lockfile, manifest_deps: &BTreeSet<String>) -> Recon
     let removed: BTreeSet<String> = locked_names.difference(manifest_deps).cloned().collect();
 
     // Carried forward: lockfile packages that are still in the manifest.
-    // Workspace packages (source = "workspace") are never carried forward —
-    // they are always re-resolved to pick up local changes.
+    // Workspace packages (source = "workspace") are excluded from pins —
+    // they are resolved separately by the workspace resolver, not the
+    // registry solver, so they should not appear as lockfile pins.
     let carried_forward: Vec<Package> = lockfile
         .packages
         .iter()
