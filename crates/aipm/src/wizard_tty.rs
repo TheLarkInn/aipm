@@ -51,7 +51,7 @@ pub fn resolve_migrate_cleanup(
         return Ok(false);
     }
 
-    let migrated_count = outcome.migrated_source_paths().len();
+    let migrated_count = outcome.migrated_sources().len();
     let steps = migrate_cleanup_prompt_steps(migrated_count);
 
     if steps.is_empty() {

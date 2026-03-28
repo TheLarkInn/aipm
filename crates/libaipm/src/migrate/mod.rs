@@ -127,6 +127,8 @@ pub enum Action {
         source: PathBuf,
         /// Plugin type (e.g., "skill").
         plugin_type: String,
+        /// Whether the source is a directory (true for skills) or a file (commands, agents, etc.).
+        source_is_dir: bool,
     },
     /// A plugin was registered in marketplace.json.
     MarketplaceRegistered {
@@ -159,9 +161,14 @@ pub enum Action {
         /// Path to the removed file.
         path: PathBuf,
     },
-    /// An empty source directory was removed after cleanup.
+    /// A migrated source directory was removed during cleanup.
     SourceDirRemoved {
         /// Path to the removed directory.
+        path: PathBuf,
+    },
+    /// An empty parent directory was pruned after its children were removed.
+    EmptyDirPruned {
+        /// Path to the pruned directory.
         path: PathBuf,
     },
 }
@@ -178,12 +185,14 @@ impl Outcome {
         self.actions.iter().any(|a| matches!(a, Action::PluginCreated { .. }))
     }
 
-    /// Returns the source paths of all successfully migrated artifacts.
-    pub fn migrated_source_paths(&self) -> Vec<&Path> {
+    /// Returns the source paths and directory flags of all successfully migrated artifacts.
+    pub fn migrated_sources(&self) -> Vec<(&Path, bool)> {
         self.actions
             .iter()
             .filter_map(|a| match a {
-                Action::PluginCreated { source, .. } => Some(source.as_path()),
+                Action::PluginCreated { source, source_is_dir, .. } => {
+                    Some((source.as_path(), *source_is_dir))
+                },
                 _ => None,
             })
             .collect()
@@ -810,6 +819,7 @@ mod tests {
                     name: "deploy".to_string(),
                     source: PathBuf::from("/project/.claude/skills/deploy"),
                     plugin_type: "skill".to_string(),
+                    source_is_dir: true,
                 },
             ],
         };
@@ -817,33 +827,37 @@ mod tests {
     }
 
     #[test]
-    fn migrated_source_paths_empty() {
+    fn migrated_sources_empty() {
         let outcome = Outcome { actions: Vec::new() };
-        assert!(outcome.migrated_source_paths().is_empty());
+        assert!(outcome.migrated_sources().is_empty());
     }
 
     #[test]
-    fn migrated_source_paths_filters_correctly() {
+    fn migrated_sources_filters_correctly() {
         let outcome = Outcome {
             actions: vec![
                 Action::PluginCreated {
                     name: "deploy".to_string(),
                     source: PathBuf::from("/project/.claude/skills/deploy"),
                     plugin_type: "skill".to_string(),
+                    source_is_dir: true,
                 },
                 Action::Skipped { name: "x".to_string(), reason: "test".to_string() },
                 Action::PluginCreated {
                     name: "review".to_string(),
                     source: PathBuf::from("/project/.claude/commands/review.md"),
                     plugin_type: "skill".to_string(),
+                    source_is_dir: false,
                 },
                 Action::MarketplaceRegistered { name: "deploy".to_string() },
             ],
         };
-        let paths = outcome.migrated_source_paths();
-        assert_eq!(paths.len(), 2);
-        assert_eq!(paths[0], Path::new("/project/.claude/skills/deploy"));
-        assert_eq!(paths[1], Path::new("/project/.claude/commands/review.md"));
+        let sources = outcome.migrated_sources();
+        assert_eq!(sources.len(), 2);
+        assert_eq!(sources[0].0, Path::new("/project/.claude/skills/deploy"));
+        assert!(sources[0].1); // is_dir
+        assert_eq!(sources[1].0, Path::new("/project/.claude/commands/review.md"));
+        assert!(!sources[1].1); // not is_dir
     }
 
     #[test]

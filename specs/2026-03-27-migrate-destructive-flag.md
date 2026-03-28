@@ -214,9 +214,12 @@ fn cmd_migrate(
 
 ### 5.3 Data Model Changes
 
-#### 5.3.1 `Options` struct -- no changes
+#### 5.3.1 `Options` struct -- `destructive` field added
 
-The `destructive` flag is handled at the CLI layer (in `cmd_migrate()`), not in the library's `Options` struct. The library `migrate()` function remains pure: it copies artifacts and reports what it did. Cleanup is a separate post-migration step. This keeps the library layer free of I/O policy decisions.
+The `destructive: bool` field is added to the library's `Options` struct so that the
+dry-run report generator can include a "Cleanup Plan" section when `--destructive` is
+passed alongside `--dry-run`. The field does **not** trigger actual deletion — cleanup
+remains a CLI-layer concern handled in `cmd_migrate()` after `migrate()` returns.
 
 #### 5.3.2 `Action` enum additions
 
@@ -226,14 +229,23 @@ Add two new variants to `Action` in `crates/libaipm/src/migrate/mod.rs`:
 pub enum Action {
     // ... existing variants ...
 
+    // `PluginCreated` gains a new field:
+    //     source_is_dir: bool,
+    // so cleanup knows whether to call remove_dir_all or remove_file.
+
     /// A migrated source file was removed.
     SourceFileRemoved {
         /// Path to the removed file.
         path: PathBuf,
     },
-    /// An empty source directory was removed after file cleanup.
+    /// A migrated source directory was removed.
     SourceDirRemoved {
         /// Path to the removed directory.
+        path: PathBuf,
+    },
+    /// An empty parent directory was pruned after its children were removed.
+    EmptyDirPruned {
+        /// Path to the pruned directory.
         path: PathBuf,
     },
 }

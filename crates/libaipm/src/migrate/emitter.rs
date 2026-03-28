@@ -112,6 +112,7 @@ pub fn emit_plugin<S: BuildHasher>(
         name: plugin_name.clone(),
         source: artifact.source_path.clone(),
         plugin_type: artifact.kind.to_type_string().to_string(),
+        source_is_dir: artifact.kind == ArtifactKind::Skill,
     });
 
     Ok((plugin_name, actions))
@@ -314,6 +315,7 @@ pub fn emit_plugin_with_name(
         name: plugin_name.to_string(),
         source: artifact.source_path.clone(),
         plugin_type: artifact.kind.to_type_string().to_string(),
+        source_is_dir: artifact.kind == ArtifactKind::Skill,
     });
 
     Ok(actions)
@@ -402,6 +404,7 @@ pub fn emit_package_plugin(
             name: plugin_name.to_string(),
             source: first.source_path.clone(),
             plugin_type: plugin_type.to_string(),
+            source_is_dir: first.kind == ArtifactKind::Skill,
         });
     }
 

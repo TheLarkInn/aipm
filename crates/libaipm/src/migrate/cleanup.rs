@@ -39,18 +39,15 @@ pub fn remove_migrated_sources(
     let mut actions = Vec::new();
     let mut dirs_to_check: BTreeSet<PathBuf> = BTreeSet::new();
 
-    for source_path in outcome.migrated_source_paths() {
+    for (source_path, is_dir) in outcome.migrated_sources() {
         if should_skip(source_path) {
             continue;
         }
 
-        // Determine if source is a directory (skill dirs) or a file (commands, agents, etc.)
-        if fs.read_dir(source_path).is_ok() {
-            // It's a directory — remove recursively
+        if is_dir {
             fs.remove_dir_all(source_path)?;
             actions.push(Action::SourceDirRemoved { path: source_path.to_path_buf() });
         } else {
-            // Treat as a file
             fs.remove_file(source_path)?;
             actions.push(Action::SourceFileRemoved { path: source_path.to_path_buf() });
         }
@@ -68,7 +65,7 @@ pub fn remove_migrated_sources(
         if let Ok(entries) = fs.read_dir(&dir) {
             if entries.is_empty() {
                 fs.remove_dir_all(&dir)?;
-                actions.push(Action::SourceDirRemoved { path: dir });
+                actions.push(Action::EmptyDirPruned { path: dir });
             }
         }
     }
@@ -165,11 +162,12 @@ mod tests {
         Outcome { actions }
     }
 
-    fn plugin_created(name: &str, source: &str, plugin_type: &str) -> Action {
+    fn plugin_created(name: &str, source: &str, plugin_type: &str, source_is_dir: bool) -> Action {
         Action::PluginCreated {
             name: name.to_string(),
             source: PathBuf::from(source),
             plugin_type: plugin_type.to_string(),
+            source_is_dir,
         }
     }
 
@@ -197,7 +195,7 @@ mod tests {
         );
 
         let outcome =
-            make_outcome(vec![plugin_created("deploy", "/p/.claude/skills/deploy", "skill")]);
+            make_outcome(vec![plugin_created("deploy", "/p/.claude/skills/deploy", "skill", true)]);
 
         let result = remove_migrated_sources(&outcome, &fs);
         assert!(result.is_ok());
@@ -223,8 +221,12 @@ mod tests {
             vec![DirEntry { name: "other.md".to_string(), is_dir: false }],
         );
 
-        let outcome =
-            make_outcome(vec![plugin_created("review", "/p/.claude/commands/review.md", "skill")]);
+        let outcome = make_outcome(vec![plugin_created(
+            "review",
+            "/p/.claude/commands/review.md",
+            "skill",
+            false,
+        )]);
 
         let result = remove_migrated_sources(&outcome, &fs);
         assert!(result.is_ok());
@@ -240,8 +242,12 @@ mod tests {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/p/.claude/settings.json"));
 
-        let outcome =
-            make_outcome(vec![plugin_created("project-hooks", "/p/.claude/settings.json", "hook")]);
+        let outcome = make_outcome(vec![plugin_created(
+            "project-hooks",
+            "/p/.claude/settings.json",
+            "hook",
+            false,
+        )]);
 
         let result = remove_migrated_sources(&outcome, &fs);
         assert!(result.is_ok());
@@ -254,7 +260,7 @@ mod tests {
         fs.files.insert(PathBuf::from("/p/.mcp.json"));
 
         let outcome =
-            make_outcome(vec![plugin_created("project-mcp-servers", "/p/.mcp.json", "mcp")]);
+            make_outcome(vec![plugin_created("project-mcp-servers", "/p/.mcp.json", "mcp", false)]);
 
         let result = remove_migrated_sources(&outcome, &fs);
         assert!(result.is_ok());
@@ -273,18 +279,18 @@ mod tests {
         fs.dirs.insert(PathBuf::from("/p/.claude/skills"), Vec::new());
 
         let outcome =
-            make_outcome(vec![plugin_created("deploy", "/p/.claude/skills/deploy", "skill")]);
+            make_outcome(vec![plugin_created("deploy", "/p/.claude/skills/deploy", "skill", true)]);
 
         let result = remove_migrated_sources(&outcome, &fs);
         assert!(result.is_ok());
         let actions = result.ok().unwrap_or_default();
-        // Should have: SourceDirRemoved for deploy + SourceDirRemoved for empty skills/
+        // Should have: SourceDirRemoved for deploy + EmptyDirPruned for empty skills/
         assert_eq!(actions.len(), 2);
         assert!(
             matches!(&actions[0], Action::SourceDirRemoved { path } if path == Path::new("/p/.claude/skills/deploy"))
         );
         assert!(
-            matches!(&actions[1], Action::SourceDirRemoved { path } if path == Path::new("/p/.claude/skills"))
+            matches!(&actions[1], Action::EmptyDirPruned { path } if path == Path::new("/p/.claude/skills"))
         );
     }
 
@@ -302,7 +308,7 @@ mod tests {
         );
 
         let outcome =
-            make_outcome(vec![plugin_created("deploy", "/p/.claude/skills/deploy", "skill")]);
+            make_outcome(vec![plugin_created("deploy", "/p/.claude/skills/deploy", "skill", true)]);
 
         let result = remove_migrated_sources(&outcome, &fs);
         assert!(result.is_ok());
@@ -320,8 +326,12 @@ mod tests {
         *fs.fail_remove_file.lock().unwrap_or_else(|e| e.into_inner()) =
             Some(PathBuf::from("/p/.claude/commands/review.md"));
 
-        let outcome =
-            make_outcome(vec![plugin_created("review", "/p/.claude/commands/review.md", "skill")]);
+        let outcome = make_outcome(vec![plugin_created(
+            "review",
+            "/p/.claude/commands/review.md",
+            "skill",
+            false,
+        )]);
 
         let result = remove_migrated_sources(&outcome, &fs);
         assert!(result.is_err());
@@ -348,9 +358,9 @@ mod tests {
         fs.files.insert(PathBuf::from("/p/.claude/settings.json"));
 
         let outcome = make_outcome(vec![
-            plugin_created("deploy", "/p/.claude/skills/deploy", "skill"),
-            plugin_created("review", "/p/.claude/commands/review.md", "skill"),
-            plugin_created("project-hooks", "/p/.claude/settings.json", "hook"),
+            plugin_created("deploy", "/p/.claude/skills/deploy", "skill", true),
+            plugin_created("review", "/p/.claude/commands/review.md", "skill", false),
+            plugin_created("project-hooks", "/p/.claude/settings.json", "hook", false),
         ]);
 
         let result = remove_migrated_sources(&outcome, &fs);
@@ -392,7 +402,7 @@ mod tests {
         // Parent dir NOT in dirs map → read_dir returns Err → pruning skips it
 
         let outcome =
-            make_outcome(vec![plugin_created("deploy", "/p/.claude/skills/deploy", "skill")]);
+            make_outcome(vec![plugin_created("deploy", "/p/.claude/skills/deploy", "skill", true)]);
 
         let result = remove_migrated_sources(&outcome, &fs);
         assert!(result.is_ok());

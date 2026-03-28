@@ -467,7 +467,7 @@ fn cmd_migrate(
     let mut stdout = std::io::stdout();
     for action in &result.actions {
         match action {
-            libaipm::migrate::Action::PluginCreated { name, source, plugin_type } => {
+            libaipm::migrate::Action::PluginCreated { name, source, plugin_type, .. } => {
                 let _ =
                     writeln!(stdout, "Migrated {plugin_type} '{name}' from {}", source.display());
             },
@@ -487,7 +487,8 @@ fn cmd_migrate(
                 let _ = writeln!(stdout, "Dry run report written to {}", path.display());
             },
             libaipm::migrate::Action::SourceFileRemoved { .. }
-            | libaipm::migrate::Action::SourceDirRemoved { .. } => {
+            | libaipm::migrate::Action::SourceDirRemoved { .. }
+            | libaipm::migrate::Action::EmptyDirPruned { .. } => {
                 // Cleanup actions are printed separately below
             },
         }
@@ -515,10 +516,13 @@ fn cmd_migrate(
         for action in &cleanup_actions {
             match action {
                 libaipm::migrate::Action::SourceFileRemoved { path } => {
-                    let _ = writeln!(stdout, "Removed source: {}", path.display());
+                    let _ = writeln!(stdout, "Removed source file: {}", path.display());
                 },
                 libaipm::migrate::Action::SourceDirRemoved { path } => {
-                    let _ = writeln!(stdout, "Removed empty directory: {}", path.display());
+                    let _ = writeln!(stdout, "Removed source directory: {}", path.display());
+                },
+                libaipm::migrate::Action::EmptyDirPruned { path } => {
+                    let _ = writeln!(stdout, "Pruned empty directory: {}", path.display());
                 },
                 _ => {},
             }
