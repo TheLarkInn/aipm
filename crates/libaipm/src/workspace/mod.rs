@@ -349,4 +349,77 @@ mod tests {
         assert!(members.contains_key("plugin-a"));
         assert!(members.contains_key("tool-b"));
     }
+
+    #[test]
+    fn find_root_skips_invalid_toml() {
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = match root {
+            Some(p) => p,
+            None => return,
+        };
+
+        // Write invalid TOML at root
+        std::fs::write(root.join("aipm.toml"), "this is not valid { toml [[[").ok();
+
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(&subdir).ok();
+
+        // Should skip the invalid manifest and not find a workspace root here
+        let result = find_workspace_root(&subdir);
+        if let Some(ref found) = result {
+            assert_ne!(found.as_path(), root, "should skip invalid TOML");
+        }
+    }
+
+    #[test]
+    fn discover_members_skips_non_directory_match() {
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = match root {
+            Some(p) => p,
+            None => return,
+        };
+
+        // Create a file (not a directory) that matches the glob
+        std::fs::create_dir_all(root.join(".ai")).ok();
+        std::fs::write(root.join(".ai/some-file"), "not a directory").ok();
+
+        // Also create a valid member
+        let dir = root.join(".ai/valid");
+        std::fs::create_dir_all(&dir).ok();
+        std::fs::write(dir.join("aipm.toml"), "[package]\nname = \"valid\"\nversion = \"1.0.0\"\n")
+            .ok();
+
+        let result = discover_members(root, &[".ai/*".to_string()]);
+        assert!(result.is_ok());
+        let members = result.ok().unwrap_or_default();
+        assert_eq!(members.len(), 1);
+        assert!(members.contains_key("valid"));
+    }
+
+    #[test]
+    fn discover_members_error_invalid_manifest_content() {
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = match root {
+            Some(p) => p,
+            None => return,
+        };
+
+        let dir = root.join(".ai/bad-toml");
+        std::fs::create_dir_all(&dir).ok();
+        std::fs::write(dir.join("aipm.toml"), "this is [[[ not valid toml").ok();
+
+        let result = discover_members(root, &[".ai/*".to_string()]);
+        assert!(result.is_err());
+        let err = result.err().map(|e| format!("{e}")).unwrap_or_default();
+        assert!(err.contains("invalid manifest"), "expected parse error, got: {err}");
+    }
 }

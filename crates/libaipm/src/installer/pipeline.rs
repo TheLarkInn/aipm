@@ -2347,4 +2347,294 @@ ws-b = { workspace = "*" }
         assert!(plugin_a.dependencies.contains(&"registry-dep ^2.0".to_string()));
         assert!(plugin_a.dependencies.contains(&"ws-sibling *".to_string()));
     }
+
+    // =========================================================================
+    // split_dependencies: Detailed non-workspace registry dep
+    // =========================================================================
+
+    #[test]
+    fn split_deps_detailed_non_workspace() {
+        let toml_str = r#"
+[package]
+name = "test"
+version = "0.1.0"
+
+[dependencies]
+detailed-dep = { version = "^2.0", features = ["extra"], default-features = false }
+ws-dep = { workspace = "*" }
+"#;
+        let m = manifest::parse(toml_str).unwrap();
+        let (ws_deps, reg_deps) = split_dependencies(&m);
+        assert_eq!(ws_deps.len(), 1);
+        assert_eq!(reg_deps.len(), 1);
+        assert_eq!(reg_deps[0].name, "detailed-dep");
+        assert_eq!(reg_deps[0].req, "^2.0");
+        assert_eq!(reg_deps[0].features, vec!["extra".to_string()]);
+        assert!(!reg_deps[0].default_features);
+    }
+
+    #[test]
+    fn split_deps_detailed_no_version() {
+        let toml_str = r#"
+[package]
+name = "test"
+version = "0.1.0"
+
+[dependencies]
+no-ver = { features = ["x"] }
+"#;
+        let m = manifest::parse(toml_str).unwrap();
+        let (ws_deps, reg_deps) = split_dependencies(&m);
+        assert!(ws_deps.is_empty());
+        assert_eq!(reg_deps.len(), 1);
+        assert_eq!(reg_deps[0].req, "*");
+    }
+
+    // =========================================================================
+    // resolve_workspace_deps: invalid version error
+    // =========================================================================
+
+    #[test]
+    fn resolve_workspace_dep_invalid_version() {
+        let mut members = BTreeMap::new();
+        let manifest_str = "[package]\nname = \"bad-ver\"\nversion = \"not-semver\"\n";
+        let parsed = manifest::parse(manifest_str).unwrap();
+        members.insert(
+            "bad-ver".to_string(),
+            workspace::Member {
+                name: "bad-ver".to_string(),
+                path: PathBuf::from("/fake/bad-ver"),
+                version: "not-semver".to_string(),
+                manifest: parsed,
+            },
+        );
+
+        let ws_deps = vec!["bad-ver".to_string()];
+        let overrides = BTreeSet::new();
+
+        let result = resolve_workspace_deps(&ws_deps, &members, &overrides);
+        assert!(result.is_err());
+        let err = format!("{}", result.err().unwrap());
+        assert!(err.contains("invalid version"));
+    }
+
+    // =========================================================================
+    // resolve_workspace_deps: Detailed dep with version (not workspace)
+    // =========================================================================
+
+    #[test]
+    fn resolve_workspace_dep_with_detailed_non_ws_transitive() {
+        let mut members = BTreeMap::new();
+        let m = make_member(
+            "plugin-a",
+            "1.0.0",
+            "[dependencies]\nreg-dep = { version = \"^3.0\", features = [\"extra\"] }\n",
+        );
+        members.insert("plugin-a".to_string(), m);
+
+        let ws_deps = vec!["plugin-a".to_string()];
+        let overrides = BTreeSet::new();
+
+        let result = resolve_workspace_deps(&ws_deps, &members, &overrides);
+        assert!(result.is_ok());
+        let resolved = result.unwrap();
+        let plugin_a = resolved.iter().find(|r| r.name == "plugin-a").unwrap();
+        assert!(plugin_a.dependencies.contains(&"reg-dep ^3.0".to_string()));
+    }
+
+    // =========================================================================
+    // discover_workspace_members: manifest has [workspace] section
+    // =========================================================================
+
+    #[test]
+    fn discover_workspace_members_from_manifest() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Write workspace root manifest
+        let ws_manifest = r#"
+[workspace]
+members = [".ai/*"]
+"#;
+        std::fs::write(root.join("aipm.toml"), ws_manifest).unwrap();
+
+        // Create a member
+        let member_dir = root.join(".ai/plugin-a");
+        std::fs::create_dir_all(&member_dir).unwrap();
+        std::fs::write(
+            member_dir.join("aipm.toml"),
+            "[package]\nname = \"plugin-a\"\nversion = \"1.0.0\"\n",
+        )
+        .unwrap();
+
+        let manifest_content = std::fs::read_to_string(root.join("aipm.toml")).unwrap();
+        let parsed = manifest::parse_and_validate(&manifest_content, Some(root)).unwrap();
+
+        let config = InstallConfig {
+            manifest_path: root.join("aipm.toml"),
+            lockfile_path: root.join("aipm.lock"),
+            store_path: root.join(".aipm/store"),
+            links_dir: root.join(".aipm/links"),
+            plugins_dir: root.join(".ai"),
+            gitignore_path: root.join(".ai/.gitignore"),
+            link_state_path: root.join(".aipm/links.toml"),
+            workspace_root: None,
+            locked: false,
+            add_package: None,
+            generated_by: "test".to_string(),
+        };
+
+        let members = discover_workspace_members(&config, &parsed);
+        assert!(members.is_ok(), "should discover members: {:?}", members.err());
+        let members = members.unwrap();
+        assert_eq!(members.len(), 1);
+        assert!(members.contains_key("plugin-a"));
+    }
+
+    // =========================================================================
+    // discover_workspace_members: workspace_root provided
+    // =========================================================================
+
+    #[test]
+    fn discover_workspace_members_via_workspace_root() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ws_root = tmp.path().join("ws-root");
+        std::fs::create_dir_all(&ws_root).unwrap();
+
+        // Workspace root manifest
+        std::fs::write(ws_root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+
+        // Member
+        let member_dir = ws_root.join(".ai/plugin-x");
+        std::fs::create_dir_all(&member_dir).unwrap();
+        std::fs::write(
+            member_dir.join("aipm.toml"),
+            "[package]\nname = \"plugin-x\"\nversion = \"2.0.0\"\n",
+        )
+        .unwrap();
+
+        // Member manifest (no workspace section)
+        let member_project = tmp.path().join("member-project");
+        std::fs::create_dir_all(&member_project).unwrap();
+        std::fs::write(
+            member_project.join("aipm.toml"),
+            "[package]\nname = \"member-project\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+
+        let manifest_content = std::fs::read_to_string(member_project.join("aipm.toml")).unwrap();
+        let parsed =
+            manifest::parse_and_validate(&manifest_content, Some(member_project.as_path()))
+                .unwrap();
+
+        let config = InstallConfig {
+            manifest_path: member_project.join("aipm.toml"),
+            lockfile_path: member_project.join("aipm.lock"),
+            store_path: member_project.join(".aipm/store"),
+            links_dir: member_project.join(".aipm/links"),
+            plugins_dir: member_project.join(".ai"),
+            gitignore_path: member_project.join(".ai/.gitignore"),
+            link_state_path: member_project.join(".aipm/links.toml"),
+            workspace_root: Some(ws_root),
+            locked: false,
+            add_package: None,
+            generated_by: "test".to_string(),
+        };
+
+        let members = discover_workspace_members(&config, &parsed);
+        assert!(members.is_ok(), "should find members via workspace_root: {:?}", members.err());
+        let members = members.unwrap();
+        assert_eq!(members.len(), 1);
+        assert!(members.contains_key("plugin-x"));
+    }
+
+    // =========================================================================
+    // Full workspace install integration test
+    // =========================================================================
+
+    #[test]
+    fn install_workspace_deps_end_to_end() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Create workspace root manifest with a workspace dep
+        let ws_manifest = r#"
+[workspace]
+members = [".ai/*"]
+plugins_dir = ".ai"
+
+[dependencies]
+plugin-b = { workspace = "*" }
+"#;
+        std::fs::write(root.join("aipm.toml"), ws_manifest).unwrap();
+
+        // Create workspace member plugin-b
+        let member_dir = root.join(".ai/plugin-b");
+        std::fs::create_dir_all(&member_dir).unwrap();
+        std::fs::write(
+            member_dir.join("aipm.toml"),
+            "[package]\nname = \"plugin-b\"\nversion = \"0.1.0\"\ntype = \"composite\"\n",
+        )
+        .unwrap();
+        // Add a marker file so we can verify the link target
+        std::fs::write(member_dir.join("marker.txt"), "hello").unwrap();
+
+        let config = InstallConfig {
+            manifest_path: root.join("aipm.toml"),
+            lockfile_path: root.join("aipm.lock"),
+            store_path: root.join(".aipm/store"),
+            links_dir: root.join(".aipm/links"),
+            plugins_dir: root.join("plugins"),
+            gitignore_path: root.join("plugins/.gitignore"),
+            link_state_path: root.join(".aipm/links.toml"),
+            workspace_root: None,
+            locked: false,
+            add_package: None,
+            generated_by: "aipm-test 0.1.0".to_string(),
+        };
+
+        let registry = StubRegistry;
+        let result = install(&config, &registry);
+        assert!(result.is_ok(), "workspace install should succeed: {:?}", result.err());
+
+        let res = result.unwrap();
+        assert_eq!(res.installed, 1, "should install 1 workspace dep");
+
+        // Verify the directory link was created
+        let link_path = root.join("plugins/plugin-b");
+        assert!(link_path.exists(), "plugin-b should be linked in plugins dir");
+
+        // Verify we can read through the link
+        let marker = std::fs::read_to_string(link_path.join("marker.txt"));
+        assert!(marker.is_ok(), "should read marker through link");
+        assert_eq!(marker.unwrap(), "hello");
+
+        // Verify lockfile was written with workspace source
+        let lf = lockfile::read(&config.lockfile_path).unwrap();
+        assert_eq!(lf.packages.len(), 1);
+        assert_eq!(lf.packages[0].name, "plugin-b");
+        assert_eq!(lf.packages[0].source, "workspace");
+        assert!(lf.packages[0].checksum.is_empty());
+    }
+
+    struct StubRegistry;
+
+    impl crate::registry::Registry for StubRegistry {
+        fn get_metadata(
+            &self,
+            name: &str,
+        ) -> Result<crate::registry::PackageMetadata, crate::registry::error::Error> {
+            Err(crate::registry::error::Error::Io { reason: format!("stub: no package {name}") })
+        }
+
+        fn download(
+            &self,
+            name: &str,
+            _version: &crate::version::Version,
+        ) -> Result<Vec<u8>, crate::registry::error::Error> {
+            Err(crate::registry::error::Error::Io {
+                reason: format!("stub: cannot download {name}"),
+            })
+        }
+    }
 }
