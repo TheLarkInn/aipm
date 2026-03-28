@@ -2703,4 +2703,329 @@ plugin-b = { workspace = "*" }
             })
         }
     }
+
+    // =========================================================================
+    // discover_workspace_members: workspace_root with no [workspace] section
+    // =========================================================================
+
+    #[test]
+    fn discover_workspace_members_workspace_root_no_workspace_section() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ws_root = tmp.path().join("ws-root");
+        std::fs::create_dir_all(&ws_root).unwrap();
+
+        // Workspace root has manifest but NO [workspace] section
+        std::fs::write(
+            ws_root.join("aipm.toml"),
+            "[package]\nname = \"not-a-workspace\"\nversion = \"1.0.0\"\n",
+        )
+        .unwrap();
+
+        let member_project = tmp.path().join("member");
+        std::fs::create_dir_all(&member_project).unwrap();
+        std::fs::write(
+            member_project.join("aipm.toml"),
+            "[package]\nname = \"member\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+
+        let manifest_content = std::fs::read_to_string(member_project.join("aipm.toml")).unwrap();
+        let parsed =
+            manifest::parse_and_validate(&manifest_content, Some(member_project.as_path()))
+                .unwrap();
+
+        let config = InstallConfig {
+            manifest_path: member_project.join("aipm.toml"),
+            lockfile_path: member_project.join("aipm.lock"),
+            store_path: member_project.join(".aipm/store"),
+            links_dir: member_project.join(".aipm/links"),
+            plugins_dir: member_project.join(".ai"),
+            gitignore_path: member_project.join(".ai/.gitignore"),
+            link_state_path: member_project.join(".aipm/links.toml"),
+            workspace_root: Some(ws_root),
+            locked: false,
+            add_package: None,
+            generated_by: "test".to_string(),
+        };
+
+        let members = discover_workspace_members(&config, &parsed).unwrap();
+        assert!(members.is_empty(), "no workspace section → no members");
+    }
+
+    // =========================================================================
+    // discover_workspace_members: no workspace context at all
+    // =========================================================================
+
+    #[test]
+    fn discover_workspace_members_no_workspace_context() {
+        let tmp = tempfile::tempdir().unwrap();
+        let project = tmp.path();
+
+        std::fs::write(
+            project.join("aipm.toml"),
+            "[package]\nname = \"standalone\"\nversion = \"1.0.0\"\n",
+        )
+        .unwrap();
+
+        let manifest_content = std::fs::read_to_string(project.join("aipm.toml")).unwrap();
+        let parsed = manifest::parse_and_validate(&manifest_content, Some(project)).unwrap();
+
+        let config = InstallConfig {
+            manifest_path: project.join("aipm.toml"),
+            lockfile_path: project.join("aipm.lock"),
+            store_path: project.join(".aipm/store"),
+            links_dir: project.join(".aipm/links"),
+            plugins_dir: project.join(".ai"),
+            gitignore_path: project.join(".ai/.gitignore"),
+            link_state_path: project.join(".aipm/links.toml"),
+            workspace_root: None,
+            locked: false,
+            add_package: None,
+            generated_by: "test".to_string(),
+        };
+
+        let members = discover_workspace_members(&config, &parsed).unwrap();
+        assert!(members.is_empty());
+    }
+
+    // =========================================================================
+    // collect_transitive_registry_deps
+    // =========================================================================
+
+    #[test]
+    fn collect_transitive_registry_deps_from_workspace_members() {
+        let mut members = BTreeMap::new();
+        let m = make_member(
+            "plugin-a",
+            "1.0.0",
+            "[dependencies]\nreg-dep = \"^2.0\"\nws-dep = { workspace = \"*\" }\n",
+        );
+        members.insert("plugin-a".to_string(), m);
+
+        let ws_resolved = vec![resolver::Resolved {
+            name: "plugin-a".to_string(),
+            version: Version::parse("1.0.0").unwrap(),
+            source: resolver::Source::Workspace,
+            checksum: String::new(),
+            dependencies: vec!["reg-dep ^2.0".to_string()],
+            features: BTreeSet::new(),
+        }];
+
+        let base_deps = vec![];
+        let result = collect_transitive_registry_deps(base_deps, &ws_resolved, &members);
+        // Should have collected reg-dep but not ws-dep
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "reg-dep");
+        assert_eq!(result[0].req, "^2.0");
+        assert_eq!(result[0].source, "plugin-a");
+    }
+
+    #[test]
+    fn collect_transitive_registry_deps_with_detailed() {
+        let mut members = BTreeMap::new();
+        let m = make_member(
+            "plugin-a",
+            "1.0.0",
+            "[dependencies]\ndetailed = { version = \"^3.0\", features = [\"x\"], default-features = false }\n",
+        );
+        members.insert("plugin-a".to_string(), m);
+
+        let ws_resolved = vec![resolver::Resolved {
+            name: "plugin-a".to_string(),
+            version: Version::parse("1.0.0").unwrap(),
+            source: resolver::Source::Workspace,
+            checksum: String::new(),
+            dependencies: vec![],
+            features: BTreeSet::new(),
+        }];
+
+        let result = collect_transitive_registry_deps(vec![], &ws_resolved, &members);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "detailed");
+        assert_eq!(result[0].req, "^3.0");
+        assert_eq!(result[0].features, vec!["x".to_string()]);
+        assert!(!result[0].default_features);
+    }
+
+    // =========================================================================
+    // link_resolved_packages: Source::Path is a no-op (warning only)
+    // =========================================================================
+
+    #[test]
+    fn link_resolved_packages_skips_path_source() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join("plugins")).unwrap();
+
+        let config = InstallConfig {
+            manifest_path: root.join("aipm.toml"),
+            lockfile_path: root.join("aipm.lock"),
+            store_path: root.join(".aipm/store"),
+            links_dir: root.join(".aipm/links"),
+            plugins_dir: root.join("plugins"),
+            gitignore_path: root.join("plugins/.gitignore"),
+            link_state_path: root.join(".aipm/links.toml"),
+            workspace_root: None,
+            locked: false,
+            add_package: None,
+            generated_by: "test".to_string(),
+        };
+
+        let resolution = resolver::Resolution {
+            packages: vec![resolver::Resolved {
+                name: "path-pkg".to_string(),
+                version: Version::parse("1.0.0").unwrap(),
+                source: resolver::Source::Path { path: PathBuf::from("/some/path") },
+                checksum: String::new(),
+                dependencies: vec![],
+                features: BTreeSet::new(),
+            }],
+        };
+
+        let members = BTreeMap::new();
+        let stub = StubRegistry;
+        let result = link_resolved_packages(&config, &resolution, &members, None, &stub);
+        assert!(result.is_ok());
+        let (installed, up_to_date) = result.unwrap();
+        assert_eq!(installed, 0, "path deps should not be installed");
+        assert_eq!(up_to_date, 0);
+    }
+
+    // =========================================================================
+    // link_resolved_packages: Source::Workspace with member in map
+    // =========================================================================
+
+    #[test]
+    fn link_resolved_packages_workspace_source() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Create a member directory with content
+        let member_dir = root.join("members/plugin-a");
+        std::fs::create_dir_all(&member_dir).unwrap();
+        std::fs::write(
+            member_dir.join("aipm.toml"),
+            "[package]\nname = \"plugin-a\"\nversion = \"1.0.0\"\n",
+        )
+        .unwrap();
+
+        let config = InstallConfig {
+            manifest_path: root.join("aipm.toml"),
+            lockfile_path: root.join("aipm.lock"),
+            store_path: root.join(".aipm/store"),
+            links_dir: root.join(".aipm/links"),
+            plugins_dir: root.join("plugins"),
+            gitignore_path: root.join("plugins/.gitignore"),
+            link_state_path: root.join(".aipm/links.toml"),
+            workspace_root: None,
+            locked: false,
+            add_package: None,
+            generated_by: "test".to_string(),
+        };
+
+        let resolution = resolver::Resolution {
+            packages: vec![resolver::Resolved {
+                name: "plugin-a".to_string(),
+                version: Version::parse("1.0.0").unwrap(),
+                source: resolver::Source::Workspace,
+                checksum: String::new(),
+                dependencies: vec![],
+                features: BTreeSet::new(),
+            }],
+        };
+
+        let manifest_str = "[package]\nname = \"plugin-a\"\nversion = \"1.0.0\"\n";
+        let parsed = manifest::parse(manifest_str).unwrap();
+        let mut members = BTreeMap::new();
+        members.insert(
+            "plugin-a".to_string(),
+            workspace::Member {
+                name: "plugin-a".to_string(),
+                path: member_dir.clone(),
+                version: "1.0.0".to_string(),
+                manifest: parsed,
+            },
+        );
+
+        let stub = StubRegistry;
+        let result = link_resolved_packages(&config, &resolution, &members, None, &stub);
+        assert!(result.is_ok(), "workspace linking should succeed: {:?}", result.err());
+        let (installed, _) = result.unwrap();
+        assert_eq!(installed, 1);
+
+        // Verify the link was created
+        assert!(root.join("plugins/plugin-a").exists());
+    }
+
+    #[test]
+    fn collect_transitive_skips_missing_member() {
+        // Workspace-resolved package NOT in members map → should be skipped
+        let ws_resolved = vec![resolver::Resolved {
+            name: "ghost".to_string(),
+            version: Version::parse("1.0.0").unwrap(),
+            source: resolver::Source::Workspace,
+            checksum: String::new(),
+            dependencies: vec![],
+            features: BTreeSet::new(),
+        }];
+        let members = BTreeMap::new();
+        let result = collect_transitive_registry_deps(vec![], &ws_resolved, &members);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn discover_workspace_members_workspace_root_no_manifest_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ws_root = tmp.path().join("ws-root");
+        std::fs::create_dir_all(&ws_root).unwrap();
+        // No aipm.toml at all in workspace root
+
+        let project = tmp.path().join("project");
+        std::fs::create_dir_all(&project).unwrap();
+        std::fs::write(
+            project.join("aipm.toml"),
+            "[package]\nname = \"proj\"\nversion = \"1.0.0\"\n",
+        )
+        .unwrap();
+
+        let content = std::fs::read_to_string(project.join("aipm.toml")).unwrap();
+        let parsed = manifest::parse_and_validate(&content, Some(project.as_path())).unwrap();
+
+        let config = InstallConfig {
+            manifest_path: project.join("aipm.toml"),
+            lockfile_path: project.join("aipm.lock"),
+            store_path: project.join(".aipm/store"),
+            links_dir: project.join(".aipm/links"),
+            plugins_dir: project.join(".ai"),
+            gitignore_path: project.join(".ai/.gitignore"),
+            link_state_path: project.join(".aipm/links.toml"),
+            workspace_root: Some(ws_root),
+            locked: false,
+            add_package: None,
+            generated_by: "test".to_string(),
+        };
+
+        let members = discover_workspace_members(&config, &parsed).unwrap();
+        assert!(members.is_empty(), "no aipm.toml at workspace_root → no members");
+    }
+
+    #[test]
+    fn collect_transitive_skips_member_with_no_deps() {
+        // Member exists but has no [dependencies] section
+        let mut members = BTreeMap::new();
+        let m = make_member("plugin-a", "1.0.0", "");
+        members.insert("plugin-a".to_string(), m);
+
+        let ws_resolved = vec![resolver::Resolved {
+            name: "plugin-a".to_string(),
+            version: Version::parse("1.0.0").unwrap(),
+            source: resolver::Source::Workspace,
+            checksum: String::new(),
+            dependencies: vec![],
+            features: BTreeSet::new(),
+        }];
+
+        let result = collect_transitive_registry_deps(vec![], &ws_resolved, &members);
+        assert!(result.is_empty(), "member with no deps → no transitive deps");
+    }
 }

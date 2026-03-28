@@ -306,6 +306,16 @@ mod tests {
     }
 
     #[test]
+    fn discover_members_empty_when_no_matches() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // No .ai/ directory at all — glob finds nothing
+        let members = discover_members(root, &[".ai/*".to_string()]).unwrap();
+        assert!(members.is_empty());
+    }
+
+    #[test]
     fn discover_members_error_invalid_manifest_content() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
