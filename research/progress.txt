@@ -1,65 +1,14 @@
-## 2026-03-28 — Iteration 1: Issue #111 — `aipm migrate --destructive` flag
-
-### Feature 1: Action enum — SourceFileRemoved and SourceDirRemoved variants ✅
-- Added two new variants to Action enum in mod.rs
-- SourceFileRemoved { path: PathBuf } for individual files
-- SourceDirRemoved { path: PathBuf } for directories
-
-### Feature 2: Outcome helper methods ✅
-- has_migrated_artifacts() — checks if any PluginCreated actions exist
-- migrated_source_paths() — extracts source paths from PluginCreated actions
-- 5 unit tests
-
-### Feature 3: Cleanup module (cleanup.rs) ✅
-- remove_migrated_sources() — removes migrated source files via Fs trait
-- SKIP_FILENAMES: settings.json and .mcp.json never deleted
-- should_skip_for_report() — public helper for dry-run report
-- Empty parent directory pruning (deepest-first)
-- 9 unit tests covering: empty outcome, dir removal, file removal, settings.json skip,
-  .mcp.json skip, empty dir pruning, non-empty dir preserved, error propagation, mixed artifacts
-
-### Feature 4: CLI --destructive flag ✅
-- Added destructive: bool to Commands::Migrate variant
-- Updated cmd_migrate() with post-migration cleanup phase
-- --destructive → auto-delete; TTY without flag → wizard prompt; non-TTY → silently skip
-
-### Feature 5: Wizard pure logic layer ✅
-- migrate_cleanup_prompt_steps() — returns Confirm step (default: No)
-- resolve_migrate_cleanup_answer() — const fn returning bool
-- 2 insta snapshot tests + 3 unit tests
-
-### Feature 6: Wizard TTY bridge ✅
-- resolve_migrate_cleanup() in wizard_tty.rs
-- Delegates to pure logic layer, excluded from coverage
-
-### Feature 7: Dry-run report — cleanup plan section ✅
-- Added destructive parameter to generate_report() and generate_recursive_report()
-- write_cleanup_plan() appends "## Cleanup Plan (--destructive)" section
-- Lists files/dirs to be removed, with "Skipped (shared config)" subsection
-- Added destructive field to Options struct for dry-run path
-- 4 unit tests
-
-### Feature 8: BDD scenarios ✅
-- 5 new scenarios in migrate.feature under "Source files can be removed after migration" rule
-- New step definition: "a hooks config exists in {string}"
-- All 72 BDD scenarios pass (67 existing + 5 new)
-
-### Feature 9: E2E tests ✅
-- 7 new tests in migrate_e2e.rs:
-  - destructive_flag_removes_skill_source
-  - destructive_flag_preserves_settings_json
-  - without_destructive_preserves_sources_in_non_tty
-  - destructive_with_dry_run_shows_plan
-  - destructive_recursive_cleans_all
-  - destructive_prunes_empty_directories
-  - destructive_skips_mcp_json
-- All 32 E2E tests pass (25 existing + 7 new)
-
-### Feature 10: Coverage gate ✅
-- Branch coverage: 89.30% (threshold: 89%)
-- All 826 tests passing, 0 failures
-
-### Bug fix (pre-existing)
-- Added #[cfg(unix)] to store_package_skips_symlinks test in store/mod.rs (uses Unix-only symlink API)
-
-**Running total: 826 tests passing, 0 failures. 10 of 10 features complete. ✅ ALL FEATURES DONE.**
+Feature 1: Add ArtifactKind::LspServer and Extension variants — DONE
+Feature 2: Extract shared skill logic into skill_common.rs — DONE
+Feature 3: Refactor discover_source_dirs() with parameterized patterns — DONE
+Feature 4: Refactor source-type dispatch to remove hard-coded .claude gating — DONE
+Feature 5: Implement CopilotSkillDetector — DONE
+Feature 6: Implement CopilotAgentDetector — DONE
+Feature 7: Implement CopilotMcpDetector — DONE
+Feature 8: Implement CopilotHookDetector — DONE
+Feature 9: Implement CopilotExtensionDetector — DONE
+Feature 10: Implement CopilotLspDetector — DONE
+Feature 11: Add copilot_detectors() factory function and wire up module registration — DONE
+Feature 12: Integration test — end-to-end migrate with mixed .claude/ and .github/ — PENDING
+Feature 13: Integration test — recursive discovery with nested .github/ directories — PENDING
+Feature 14: Verify branch coverage >= 89% — DONE (89.05%)

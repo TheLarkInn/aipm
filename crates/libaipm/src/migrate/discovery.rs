@@ -6,36 +6,58 @@ use std::path::{Path, PathBuf};
 
 use super::Error;
 
-/// A discovered `.claude/` directory and its package context.
+/// A discovered source directory and its package context.
 #[derive(Debug, Clone)]
 pub struct DiscoveredSource {
-    /// Absolute path to the `.claude/` directory.
-    pub claude_dir: PathBuf,
+    /// Absolute path to the source directory (e.g., `.claude/` or `.github/`).
+    pub source_dir: PathBuf,
+    /// Which source type this is (e.g., ".claude", ".github").
+    pub source_type: String,
     /// The package name derived from the parent directory.
-    /// `None` if the `.claude/` dir is at the project root.
+    /// `None` if the source dir is at the project root.
     pub package_name: Option<String>,
-    /// Relative path from project root to the parent of `.claude/`.
-    /// Empty for root-level `.claude/`.
+    /// Relative path from project root to the parent of the source dir.
+    /// Empty for root-level source dirs.
     pub relative_path: PathBuf,
 }
 
+// Keep the old field name accessible for backwards compatibility in dry_run.rs
+impl DiscoveredSource {
+    /// Alias for `source_dir` — backwards compatibility.
+    pub fn claude_dir(&self) -> &Path {
+        &self.source_dir
+    }
+}
+
 /// Walk the project tree and find all `.claude/` directories.
+///
+/// Delegates to `discover_source_dirs` with `[".claude"]` patterns.
+pub fn discover_claude_dirs(
+    project_root: &Path,
+    max_depth: Option<usize>,
+) -> Result<Vec<DiscoveredSource>, Error> {
+    discover_source_dirs(project_root, &[".claude"], max_depth)
+}
+
+/// Walk the project tree and find all source directories matching the given patterns.
 ///
 /// Uses the `ignore` crate for gitignore-aware traversal.
 /// Skips the `.ai/` directory itself to avoid scanning marketplace plugins.
 ///
 /// # Arguments
 /// * `project_root` — The project root directory to scan from
+/// * `patterns` — Directory name patterns to match (e.g., `&[".claude", ".github"]`)
 /// * `max_depth` — Optional maximum traversal depth (`None` = unlimited)
 ///
 /// # Returns
 /// A sorted `Vec<DiscoveredSource>` (sorted by path for deterministic output).
-pub fn discover_claude_dirs(
+pub fn discover_source_dirs(
     project_root: &Path,
+    patterns: &[&str],
     max_depth: Option<usize>,
 ) -> Result<Vec<DiscoveredSource>, Error> {
     let mut builder = ignore::WalkBuilder::new(project_root);
-    builder.hidden(false); // Must find .claude/ which is a hidden dir
+    builder.hidden(false); // Must find hidden dirs like .claude/ and .github/
     builder.git_ignore(true);
     builder.git_global(true);
     builder.git_exclude(true);
@@ -47,7 +69,6 @@ pub fn discover_claude_dirs(
     // Filter out .ai/ directory to avoid scanning marketplace plugins
     builder.filter_entry(|entry| {
         let file_name = entry.file_name().to_string_lossy();
-        // Skip .ai/ and .git/ directories
         if entry.file_type().is_some_and(|ft| ft.is_dir()) && file_name == ".ai" {
             return false;
         }
@@ -59,38 +80,41 @@ pub fn discover_claude_dirs(
     for result in builder.build() {
         let entry = result.map_err(|e| Error::DiscoveryFailed(e.to_string()))?;
 
-        // Only interested in directories named ".claude"
         let is_dir = entry.file_type().is_some_and(|ft| ft.is_dir());
         if !is_dir {
             continue;
         }
         let file_name = entry.file_name().to_string_lossy();
-        if file_name != ".claude" {
+
+        // Check if this directory matches any of the patterns
+        let matched_pattern = patterns.iter().find(|&&p| file_name == p);
+        let Some(&source_type_str) = matched_pattern else {
             continue;
-        }
-
-        let claude_dir = entry.path().to_path_buf();
-
-        // Derive package name and relative path
-        let relative_to_root = claude_dir.strip_prefix(project_root).unwrap_or(&claude_dir);
-
-        // relative_to_root is like ".claude" (root) or "packages/auth/.claude" (nested)
-        let parent_of_claude = relative_to_root.parent().unwrap_or_else(|| Path::new(""));
-        let relative_path = parent_of_claude.to_path_buf();
-
-        let package_name = if parent_of_claude.as_os_str().is_empty() {
-            // Root-level .claude/
-            None
-        } else {
-            // Nested: use the immediate parent directory name as the package name
-            parent_of_claude.file_name().map(|n| n.to_string_lossy().into_owned())
         };
 
-        discovered.push(DiscoveredSource { claude_dir, package_name, relative_path });
+        let source_dir = entry.path().to_path_buf();
+
+        // Derive package name and relative path
+        let relative_to_root = source_dir.strip_prefix(project_root).unwrap_or(&source_dir);
+        let parent_of_source = relative_to_root.parent().unwrap_or_else(|| Path::new(""));
+        let relative_path = parent_of_source.to_path_buf();
+
+        let package_name = if parent_of_source.as_os_str().is_empty() {
+            None
+        } else {
+            parent_of_source.file_name().map(|n| n.to_string_lossy().into_owned())
+        };
+
+        discovered.push(DiscoveredSource {
+            source_dir,
+            source_type: source_type_str.to_string(),
+            package_name,
+            relative_path,
+        });
     }
 
     // Sort by path for deterministic ordering
-    discovered.sort_by(|a, b| a.claude_dir.cmp(&b.claude_dir));
+    discovered.sort_by(|a, b| a.source_dir.cmp(&b.source_dir));
 
     Ok(discovered)
 }
@@ -261,7 +285,7 @@ mod tests {
         // Verify sorted by path
         for i in 0..sources.len() - 1 {
             assert!(
-                sources.get(i).map(|s| &s.claude_dir) <= sources.get(i + 1).map(|s| &s.claude_dir)
+                sources.get(i).map(|s| &s.source_dir) <= sources.get(i + 1).map(|s| &s.source_dir)
             );
         }
     }
@@ -286,6 +310,62 @@ mod tests {
         assert!(std::fs::create_dir_all(root.join(".claude")).is_ok());
 
         let result = discover_claude_dirs(root, None);
+        assert!(result.is_ok());
+        let sources = result.ok().unwrap_or_default();
+        assert_eq!(sources.len(), 1);
+        assert!(sources.first().is_some_and(|s| s.package_name.is_none()));
+    }
+
+    #[test]
+    fn discover_source_dirs_finds_both_claude_and_github() {
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = root.as_ref().copied().unwrap_or(Path::new("."));
+
+        assert!(std::fs::create_dir_all(root.join(".claude")).is_ok());
+        assert!(std::fs::create_dir_all(root.join(".github")).is_ok());
+
+        let result = discover_source_dirs(root, &[".claude", ".github"], None);
+        assert!(result.is_ok());
+        let sources = result.ok().unwrap_or_default();
+        assert_eq!(sources.len(), 2);
+
+        let types: Vec<&str> = sources.iter().map(|s| s.source_type.as_str()).collect();
+        assert!(types.contains(&".claude"));
+        assert!(types.contains(&".github"));
+    }
+
+    #[test]
+    fn discover_source_dirs_sets_correct_source_type() {
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = root.as_ref().copied().unwrap_or(Path::new("."));
+
+        assert!(std::fs::create_dir_all(root.join("packages").join("auth").join(".github")).is_ok());
+
+        let result = discover_source_dirs(root, &[".github"], None);
+        assert!(result.is_ok());
+        let sources = result.ok().unwrap_or_default();
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources.first().map(|s| s.source_type.as_str()), Some(".github"));
+        assert_eq!(sources.first().and_then(|s| s.package_name.as_deref()), Some("auth"));
+    }
+
+    #[test]
+    fn discover_source_dirs_root_github_has_none_package_name() {
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = root.as_ref().copied().unwrap_or(Path::new("."));
+
+        assert!(std::fs::create_dir_all(root.join(".github")).is_ok());
+
+        let result = discover_source_dirs(root, &[".github"], None);
         assert!(result.is_ok());
         let sources = result.ok().unwrap_or_default();
         assert_eq!(sources.len(), 1);

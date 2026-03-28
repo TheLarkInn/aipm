@@ -81,6 +81,12 @@ pub fn emit_plugin<S: BuildHasher>(
         ArtifactKind::OutputStyle => {
             emit_output_style(artifact, &plugin_dir, fs)?;
         },
+        ArtifactKind::LspServer => {
+            emit_lsp_config(artifact, &plugin_dir, fs)?;
+        },
+        ArtifactKind::Extension => {
+            emit_extension_files(artifact, &plugin_dir, fs)?;
+        },
     }
 
     // 4. Copy referenced scripts, preserving relative path structure
@@ -288,6 +294,12 @@ pub fn emit_plugin_with_name(
         ArtifactKind::OutputStyle => {
             emit_output_style(artifact, &plugin_dir, fs)?;
         },
+        ArtifactKind::LspServer => {
+            emit_lsp_config(artifact, &plugin_dir, fs)?;
+        },
+        ArtifactKind::Extension => {
+            emit_extension_files(artifact, &plugin_dir, fs)?;
+        },
     }
 
     if !artifact.referenced_scripts.is_empty() {
@@ -463,6 +475,14 @@ fn emit_package_artifacts(
                 emit_output_style(artifact, plugin_dir, fs)?;
                 all_component_paths.push(format!("{}.md", artifact.name));
             },
+            ArtifactKind::LspServer => {
+                emit_lsp_config(artifact, plugin_dir, fs)?;
+                all_component_paths.push("lsp.json".to_string());
+            },
+            ArtifactKind::Extension => {
+                emit_extension_files(artifact, plugin_dir, fs)?;
+                all_component_paths.push(format!("extensions/{}/", artifact.name));
+            },
         }
 
         if !artifact.referenced_scripts.is_empty() {
@@ -537,6 +557,47 @@ fn emit_output_style(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Res
     let content = fs.read_to_string(&artifact.source_path)?;
     let dest = plugin_dir.join(format!("{}.md", artifact.name));
     fs.write_file(&dest, content.as_bytes())?;
+    Ok(())
+}
+
+/// Write LSP config to `lsp.json` at the plugin root.
+///
+/// Uses `raw_content` if available, otherwise falls back to reading from `source_path`.
+fn emit_lsp_config(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
+    let content = match artifact.metadata.raw_content {
+        Some(ref c) => c.clone(),
+        None => fs.read_to_string(&artifact.source_path)?,
+    };
+    let dest = plugin_dir.join("lsp.json");
+    fs.write_file(&dest, content.as_bytes())?;
+    Ok(())
+}
+
+/// Copy extension files into the plugin directory under `extensions/<name>/`.
+///
+/// Uses `raw_content` for config content if available, and copies all referenced files.
+fn emit_extension_files(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
+    let ext_dir = plugin_dir.join("extensions").join(&artifact.name);
+    fs.create_dir_all(&ext_dir)?;
+
+    // Write raw_content as config if available
+    if let Some(ref content) = artifact.metadata.raw_content {
+        let dest = ext_dir.join("config.json");
+        fs.write_file(&dest, content.as_bytes())?;
+    }
+
+    // Copy all files from the source directory
+    for file in &artifact.files {
+        let source = artifact.source_path.join(file);
+        if let Ok(content) = fs.read_to_string(&source) {
+            let dest = ext_dir.join(file);
+            if let Some(parent) = dest.parent() {
+                fs.create_dir_all(parent)?;
+            }
+            fs.write_file(&dest, content.as_bytes())?;
+        }
+    }
+
     Ok(())
 }
 
@@ -874,6 +935,9 @@ fn generate_plugin_manifest(artifact: &Artifact, plugin_name: &str) -> String {
         ArtifactKind::OutputStyle => {
             components.output_styles = Some(vec![format!("{}.md", artifact.name)]);
         },
+        ArtifactKind::LspServer | ArtifactKind::Extension => {
+            // LSP and Extension manifests are handled via plugin.json fields
+        },
     }
 
     // Scripts component (if any) — preserves relative path structure
@@ -948,6 +1012,15 @@ fn generate_plugin_json_multi(
     }
     if distinct.contains(&ArtifactKind::OutputStyle) {
         map.insert("outputStyles".to_string(), serde_json::Value::String("./".to_string()));
+    }
+    if distinct.contains(&ArtifactKind::LspServer) {
+        map.insert("lspServers".to_string(), serde_json::Value::String("./lsp.json".to_string()));
+    }
+    if distinct.contains(&ArtifactKind::Extension) {
+        map.insert(
+            "extensions".to_string(),
+            serde_json::Value::String("./extensions/".to_string()),
+        );
     }
 
     let obj = serde_json::Value::Object(map);

@@ -30,3 +30,78 @@ pub fn claude_detectors() -> Vec<Box<dyn Detector>> {
         Box::new(super::output_style_detector::OutputStyleDetector),
     ]
 }
+
+/// Returns the default set of detectors for `.github/` (Copilot CLI) source.
+pub fn copilot_detectors() -> Vec<Box<dyn Detector>> {
+    vec![
+        Box::new(super::copilot_skill_detector::CopilotSkillDetector),
+        Box::new(super::copilot_agent_detector::CopilotAgentDetector),
+        Box::new(super::copilot_mcp_detector::CopilotMcpDetector),
+        Box::new(super::copilot_hook_detector::CopilotHookDetector),
+        Box::new(super::copilot_extension_detector::CopilotExtensionDetector),
+        Box::new(super::copilot_lsp_detector::CopilotLspDetector),
+    ]
+}
+
+/// Returns all registered detectors for a given source type.
+pub fn detectors_for_source(source_type: &str) -> Vec<Box<dyn Detector>> {
+    match source_type {
+        ".claude" => claude_detectors(),
+        ".github" => copilot_detectors(),
+        _ => Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn copilot_detectors_returns_six() {
+        let detectors = copilot_detectors();
+        assert_eq!(detectors.len(), 6);
+    }
+
+    #[test]
+    fn copilot_detector_names() {
+        let detectors = copilot_detectors();
+        let names: Vec<&str> = detectors.iter().map(|d| d.name()).collect();
+        assert_eq!(
+            names,
+            vec![
+                "copilot-skill",
+                "copilot-agent",
+                "copilot-mcp",
+                "copilot-hook",
+                "copilot-extension",
+                "copilot-lsp"
+            ]
+        );
+    }
+
+    #[test]
+    fn claude_detectors_returns_six() {
+        let detectors = claude_detectors();
+        assert_eq!(detectors.len(), 6);
+    }
+
+    #[test]
+    fn detectors_for_claude_source() {
+        let detectors = detectors_for_source(".claude");
+        assert_eq!(detectors.len(), 6);
+        assert_eq!(detectors.first().map(|d| d.name()), Some("skill"));
+    }
+
+    #[test]
+    fn detectors_for_github_source() {
+        let detectors = detectors_for_source(".github");
+        assert_eq!(detectors.len(), 6);
+        assert_eq!(detectors.first().map(|d| d.name()), Some("copilot-skill"));
+    }
+
+    #[test]
+    fn detectors_for_unknown_source() {
+        let detectors = detectors_for_source(".unknown");
+        assert!(detectors.is_empty());
+    }
+}
