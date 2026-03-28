@@ -145,9 +145,13 @@ pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<Instal
         resolve_workspace_deps(&workspace_dep_names, &members, &link_overrides)?
     };
 
+    // Step 4d2: Collect transitive registry deps from workspace members
+    let all_registry_deps =
+        collect_transitive_registry_deps(registry_deps, &workspace_resolved, &members);
+
     // Step 4e: Resolve registry deps (existing solver, unchanged)
     let registry_resolution = resolve_registry_dependencies(
-        &registry_deps,
+        &all_registry_deps,
         &manifest,
         &manifest_deps,
         existing_lockfile.as_ref(),
@@ -361,12 +365,29 @@ fn resolve_workspace_deps(
         }
         visited.insert(name.clone());
 
-        // aipm link overrides skip workspace resolution
+        // aipm link overrides: keep the dep in the resolution (so handle_removals
+        // doesn't unlink it) but use Source::Path so the linking step skips it.
         if link_overrides.contains(&name) {
             tracing::debug!(
                 package = name.as_str(),
-                "skipping workspace dep — aipm link override active"
+                "workspace dep has aipm link override — preserving existing link"
             );
+            if let Some(member) = members.get(&name) {
+                let version = Version::parse(&member.version).map_err(|e| {
+                    Error::Resolution(format!(
+                        "invalid version '{}' for workspace member '{}': {e}",
+                        member.version, name
+                    ))
+                })?;
+                resolved.push(resolver::Resolved {
+                    name: name.clone(),
+                    version,
+                    source: resolver::Source::Path { path: member.path.clone() },
+                    checksum: String::new(),
+                    dependencies: Vec::new(),
+                    features: BTreeSet::new(),
+                });
+            }
             continue;
         }
 
@@ -436,6 +457,46 @@ fn resolve_workspace_deps(
     }
 
     Ok(resolved)
+}
+
+/// Collect transitive registry deps from resolved workspace members.
+///
+/// For each workspace member, any non-workspace dependency in its manifest
+/// is added to the registry dep list so the solver can resolve it.
+fn collect_transitive_registry_deps(
+    mut registry_deps: Vec<resolver::Dependency>,
+    workspace_resolved: &[resolver::Resolved],
+    members: &BTreeMap<String, workspace::Member>,
+) -> Vec<resolver::Dependency> {
+    for resolved_ws in workspace_resolved {
+        let Some(member) = members.get(&resolved_ws.name) else { continue };
+        let Some(ref deps) = member.manifest.dependencies else { continue };
+
+        for (dep_name, spec) in deps {
+            if let manifest::types::DependencySpec::Detailed(d) = spec {
+                if d.workspace.is_some() {
+                    continue;
+                }
+            }
+            let (req, features, default_features) = match spec {
+                manifest::types::DependencySpec::Simple(v) => (v.clone(), Vec::new(), true),
+                manifest::types::DependencySpec::Detailed(d) => {
+                    let version = d.version.clone().unwrap_or_else(|| "*".to_string());
+                    let feats = d.features.clone().unwrap_or_default();
+                    let df = d.default_features.unwrap_or(true);
+                    (version, feats, df)
+                },
+            };
+            registry_deps.push(resolver::Dependency {
+                name: dep_name.clone(),
+                req,
+                source: resolved_ws.name.clone(),
+                features,
+                default_features,
+            });
+        }
+    }
+    registry_deps
 }
 
 /// Discover workspace members if the manifest is in a workspace context.
@@ -2250,7 +2311,7 @@ b = "^2.0"
     }
 
     #[test]
-    fn resolve_skips_link_overrides() {
+    fn resolve_link_overrides_produce_path_source() {
         let mut members = BTreeMap::new();
         let m = make_member("plugin-b", "2.0.0", "");
         members.insert("plugin-b".to_string(), m);
@@ -2262,7 +2323,12 @@ b = "^2.0"
         let result = resolve_workspace_deps(&ws_deps, &members, &overrides);
         assert!(result.is_ok());
         let resolved = result.unwrap();
-        assert!(resolved.is_empty(), "link-overridden dep should be skipped");
+        // Link-overridden deps produce a Source::Path entry to prevent removal
+        assert_eq!(resolved.len(), 1);
+        assert!(
+            matches!(resolved[0].source, resolver::Source::Path { .. }),
+            "link-overridden dep should use Source::Path"
+        );
     }
 
     #[test]

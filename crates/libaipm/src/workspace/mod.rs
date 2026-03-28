@@ -131,50 +131,29 @@ mod tests {
 
     #[test]
     fn find_root_from_member() {
-        let tmp = tempfile::tempdir();
-        assert!(tmp.is_ok(), "tempdir creation must succeed");
-        let tmp = tmp.ok();
-        let root = tmp.as_ref().map(tempfile::TempDir::path);
-        let root = match root {
-            Some(p) => p,
-            None => return,
-        };
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
 
-        // Create workspace root manifest
-        let ws_manifest = "[workspace]\nmembers = [\".ai/*\"]\n";
-        std::fs::write(root.join("aipm.toml"), ws_manifest).ok();
-
-        // Create nested member directory
-        std::fs::create_dir_all(root.join(".ai/plugin-a")).ok();
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+        std::fs::create_dir_all(root.join(".ai/plugin-a")).unwrap();
 
         let result = find_workspace_root(&root.join(".ai/plugin-a"));
-        assert!(result.is_some(), "should find workspace root");
         assert_eq!(result.as_deref(), Some(root));
     }
 
     #[test]
     fn find_root_returns_none_for_non_workspace() {
-        let tmp = tempfile::tempdir();
-        assert!(tmp.is_ok(), "tempdir creation must succeed");
-        let tmp = tmp.ok();
-        let root = tmp.as_ref().map(tempfile::TempDir::path);
-        let root = match root {
-            Some(p) => p,
-            None => return,
-        };
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
 
-        // Create a manifest WITHOUT [workspace]
-        let manifest = "[package]\nname = \"foo\"\nversion = \"0.1.0\"\n";
-        std::fs::write(root.join("aipm.toml"), manifest).ok();
-
+        // Manifest WITHOUT [workspace]
+        std::fs::write(root.join("aipm.toml"), "[package]\nname = \"foo\"\nversion = \"0.1.0\"\n")
+            .unwrap();
         let subdir = root.join("sub");
-        std::fs::create_dir_all(&subdir).ok();
+        std::fs::create_dir_all(&subdir).unwrap();
 
-        // Walk up from subdir — should not find workspace root because the
-        // manifest at root has no [workspace] section. The walk continues
-        // past root to parent directories. We only assert that the returned
-        // path (if any) is not `root`.
         let result = find_workspace_root(&subdir);
+        // Should not match the non-workspace manifest at root
         if let Some(ref found) = result {
             assert_ne!(found.as_path(), root, "should not match non-workspace manifest");
         }
@@ -182,169 +161,112 @@ mod tests {
 
     #[test]
     fn find_root_from_root_itself() {
-        let tmp = tempfile::tempdir();
-        assert!(tmp.is_ok(), "tempdir creation must succeed");
-        let tmp = tmp.ok();
-        let root = tmp.as_ref().map(tempfile::TempDir::path);
-        let root = match root {
-            Some(p) => p,
-            None => return,
-        };
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
 
-        let ws_manifest = "[workspace]\nmembers = [\".ai/*\"]\n";
-        std::fs::write(root.join("aipm.toml"), ws_manifest).ok();
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
 
         let result = find_workspace_root(root);
-        assert!(result.is_some());
         assert_eq!(result.as_deref(), Some(root));
     }
 
     #[test]
     fn discover_members_single_glob() {
-        let tmp = tempfile::tempdir();
-        assert!(tmp.is_ok(), "tempdir creation must succeed");
-        let tmp = tmp.ok();
-        let root = tmp.as_ref().map(tempfile::TempDir::path);
-        let root = match root {
-            Some(p) => p,
-            None => return,
-        };
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
 
-        // Create two member directories
         for (name, ver) in &[("plugin-a", "1.0.0"), ("plugin-b", "2.0.0")] {
             let dir = root.join(".ai").join(name);
-            std::fs::create_dir_all(&dir).ok();
-            let manifest = format!(
-                "[package]\nname = \"{name}\"\nversion = \"{ver}\"\ntype = \"composite\"\n"
-            );
-            std::fs::write(dir.join("aipm.toml"), manifest).ok();
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::write(
+                dir.join("aipm.toml"),
+                format!(
+                    "[package]\nname = \"{name}\"\nversion = \"{ver}\"\ntype = \"composite\"\n"
+                ),
+            )
+            .unwrap();
         }
 
-        let result = discover_members(root, &[".ai/*".to_string()]);
-        assert!(result.is_ok(), "discover_members should succeed: {:?}", result.err());
-        let members = result.ok().unwrap_or_default();
+        let members = discover_members(root, &[".ai/*".to_string()]).unwrap();
         assert_eq!(members.len(), 2);
-        assert!(members.contains_key("plugin-a"));
-        assert!(members.contains_key("plugin-b"));
-        assert_eq!(members.get("plugin-a").map(|m| m.version.as_str()), Some("1.0.0"));
-        assert_eq!(members.get("plugin-b").map(|m| m.version.as_str()), Some("2.0.0"));
+        assert_eq!(members.get("plugin-a").unwrap().version, "1.0.0");
+        assert_eq!(members.get("plugin-b").unwrap().version, "2.0.0");
     }
 
     #[test]
     fn discover_members_skips_no_manifest() {
-        let tmp = tempfile::tempdir();
-        assert!(tmp.is_ok(), "tempdir creation must succeed");
-        let tmp = tmp.ok();
-        let root = tmp.as_ref().map(tempfile::TempDir::path);
-        let root = match root {
-            Some(p) => p,
-            None => return,
-        };
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
 
-        // Create a directory without aipm.toml
-        std::fs::create_dir_all(root.join(".ai/no-manifest")).ok();
-
-        // Create a valid member
+        std::fs::create_dir_all(root.join(".ai/no-manifest")).unwrap();
         let dir = root.join(".ai/valid-plugin");
-        std::fs::create_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(
             dir.join("aipm.toml"),
             "[package]\nname = \"valid-plugin\"\nversion = \"1.0.0\"\n",
         )
-        .ok();
+        .unwrap();
 
-        let result = discover_members(root, &[".ai/*".to_string()]);
-        assert!(result.is_ok());
-        let members = result.ok().unwrap_or_default();
+        let members = discover_members(root, &[".ai/*".to_string()]).unwrap();
         assert_eq!(members.len(), 1);
         assert!(members.contains_key("valid-plugin"));
     }
 
     #[test]
     fn discover_members_error_duplicate_name() {
-        let tmp = tempfile::tempdir();
-        assert!(tmp.is_ok(), "tempdir creation must succeed");
-        let tmp = tmp.ok();
-        let root = tmp.as_ref().map(tempfile::TempDir::path);
-        let root = match root {
-            Some(p) => p,
-            None => return,
-        };
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
 
-        // Two directories with the same package name
         for subdir in &["dir-a", "dir-b"] {
             let dir = root.join(".ai").join(subdir);
-            std::fs::create_dir_all(&dir).ok();
+            std::fs::create_dir_all(&dir).unwrap();
             std::fs::write(
                 dir.join("aipm.toml"),
                 "[package]\nname = \"same-name\"\nversion = \"1.0.0\"\n",
             )
-            .ok();
+            .unwrap();
         }
 
-        let result = discover_members(root, &[".ai/*".to_string()]);
-        assert!(result.is_err());
-        let err = result.err().map(|e| format!("{e}")).unwrap_or_default();
-        assert!(
-            err.contains("duplicate workspace member name"),
-            "expected duplicate error, got: {err}"
-        );
+        let err = discover_members(root, &[".ai/*".to_string()]).unwrap_err();
+        assert!(format!("{err}").contains("duplicate workspace member name"));
     }
 
     #[test]
     fn discover_members_error_no_package_section() {
-        let tmp = tempfile::tempdir();
-        assert!(tmp.is_ok(), "tempdir creation must succeed");
-        let tmp = tmp.ok();
-        let root = tmp.as_ref().map(tempfile::TempDir::path);
-        let root = match root {
-            Some(p) => p,
-            None => return,
-        };
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
 
-        // Member with [workspace] but no [package]
         let dir = root.join(".ai/ws-only");
-        std::fs::create_dir_all(&dir).ok();
-        std::fs::write(dir.join("aipm.toml"), "[workspace]\nmembers = [\"*\"]\n").ok();
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("aipm.toml"), "[workspace]\nmembers = [\"*\"]\n").unwrap();
 
-        let result = discover_members(root, &[".ai/*".to_string()]);
-        assert!(result.is_err());
-        let err = result.err().map(|e| format!("{e}")).unwrap_or_default();
-        assert!(err.contains("no [package] section"), "expected no-package error, got: {err}");
+        let err = discover_members(root, &[".ai/*".to_string()]).unwrap_err();
+        assert!(format!("{err}").contains("no [package] section"));
     }
 
     #[test]
     fn discover_members_multiple_patterns() {
-        let tmp = tempfile::tempdir();
-        assert!(tmp.is_ok(), "tempdir creation must succeed");
-        let tmp = tmp.ok();
-        let root = tmp.as_ref().map(tempfile::TempDir::path);
-        let root = match root {
-            Some(p) => p,
-            None => return,
-        };
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
 
-        // Members in two different directories
         let dir_a = root.join("plugins/plugin-a");
-        std::fs::create_dir_all(&dir_a).ok();
+        std::fs::create_dir_all(&dir_a).unwrap();
         std::fs::write(
             dir_a.join("aipm.toml"),
             "[package]\nname = \"plugin-a\"\nversion = \"1.0.0\"\n",
         )
-        .ok();
+        .unwrap();
 
         let dir_b = root.join("tools/tool-b");
-        std::fs::create_dir_all(&dir_b).ok();
+        std::fs::create_dir_all(&dir_b).unwrap();
         std::fs::write(
             dir_b.join("aipm.toml"),
             "[package]\nname = \"tool-b\"\nversion = \"2.0.0\"\n",
         )
-        .ok();
+        .unwrap();
 
-        let patterns = vec!["plugins/*".to_string(), "tools/*".to_string()];
-        let result = discover_members(root, &patterns);
-        assert!(result.is_ok(), "should succeed: {:?}", result.err());
-        let members = result.ok().unwrap_or_default();
+        let members =
+            discover_members(root, &["plugins/*".to_string(), "tools/*".to_string()]).unwrap();
         assert_eq!(members.len(), 2);
         assert!(members.contains_key("plugin-a"));
         assert!(members.contains_key("tool-b"));
@@ -352,22 +274,13 @@ mod tests {
 
     #[test]
     fn find_root_skips_invalid_toml() {
-        let tmp = tempfile::tempdir();
-        assert!(tmp.is_ok(), "tempdir creation must succeed");
-        let tmp = tmp.ok();
-        let root = tmp.as_ref().map(tempfile::TempDir::path);
-        let root = match root {
-            Some(p) => p,
-            None => return,
-        };
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
 
-        // Write invalid TOML at root
-        std::fs::write(root.join("aipm.toml"), "this is not valid { toml [[[").ok();
-
+        std::fs::write(root.join("aipm.toml"), "this is not valid { toml [[[").unwrap();
         let subdir = root.join("sub");
-        std::fs::create_dir_all(&subdir).ok();
+        std::fs::create_dir_all(&subdir).unwrap();
 
-        // Should skip the invalid manifest and not find a workspace root here
         let result = find_workspace_root(&subdir);
         if let Some(ref found) = result {
             assert_ne!(found.as_path(), root, "should skip invalid TOML");
@@ -376,50 +289,32 @@ mod tests {
 
     #[test]
     fn discover_members_skips_non_directory_match() {
-        let tmp = tempfile::tempdir();
-        assert!(tmp.is_ok(), "tempdir creation must succeed");
-        let tmp = tmp.ok();
-        let root = tmp.as_ref().map(tempfile::TempDir::path);
-        let root = match root {
-            Some(p) => p,
-            None => return,
-        };
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
 
-        // Create a file (not a directory) that matches the glob
-        std::fs::create_dir_all(root.join(".ai")).ok();
-        std::fs::write(root.join(".ai/some-file"), "not a directory").ok();
+        std::fs::create_dir_all(root.join(".ai")).unwrap();
+        std::fs::write(root.join(".ai/some-file"), "not a directory").unwrap();
 
-        // Also create a valid member
         let dir = root.join(".ai/valid");
-        std::fs::create_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("aipm.toml"), "[package]\nname = \"valid\"\nversion = \"1.0.0\"\n")
-            .ok();
+            .unwrap();
 
-        let result = discover_members(root, &[".ai/*".to_string()]);
-        assert!(result.is_ok());
-        let members = result.ok().unwrap_or_default();
+        let members = discover_members(root, &[".ai/*".to_string()]).unwrap();
         assert_eq!(members.len(), 1);
         assert!(members.contains_key("valid"));
     }
 
     #[test]
     fn discover_members_error_invalid_manifest_content() {
-        let tmp = tempfile::tempdir();
-        assert!(tmp.is_ok(), "tempdir creation must succeed");
-        let tmp = tmp.ok();
-        let root = tmp.as_ref().map(tempfile::TempDir::path);
-        let root = match root {
-            Some(p) => p,
-            None => return,
-        };
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
 
         let dir = root.join(".ai/bad-toml");
-        std::fs::create_dir_all(&dir).ok();
-        std::fs::write(dir.join("aipm.toml"), "this is [[[ not valid toml").ok();
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("aipm.toml"), "this is [[[ not valid toml").unwrap();
 
-        let result = discover_members(root, &[".ai/*".to_string()]);
-        assert!(result.is_err());
-        let err = result.err().map(|e| format!("{e}")).unwrap_or_default();
-        assert!(err.contains("invalid manifest"), "expected parse error, got: {err}");
+        let err = discover_members(root, &[".ai/*".to_string()]).unwrap_err();
+        assert!(format!("{err}").contains("invalid manifest"));
     }
 }
