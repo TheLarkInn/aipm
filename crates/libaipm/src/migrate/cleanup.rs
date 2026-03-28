@@ -380,4 +380,47 @@ mod tests {
         });
         assert!(!has_settings);
     }
+
+    #[test]
+    fn parent_dir_read_error_is_silently_skipped() {
+        let mut fs = MockFs::new();
+        // Skill dir exists
+        fs.dirs.insert(
+            PathBuf::from("/p/.claude/skills/deploy"),
+            vec![DirEntry { name: "SKILL.md".to_string(), is_dir: false }],
+        );
+        // Parent dir NOT in dirs map → read_dir returns Err → pruning skips it
+
+        let outcome =
+            make_outcome(vec![plugin_created("deploy", "/p/.claude/skills/deploy", "skill")]);
+
+        let result = remove_migrated_sources(&outcome, &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        // Only the skill dir itself is removed; parent is not pruned (read_dir fails)
+        assert_eq!(actions.len(), 1);
+        assert!(
+            matches!(&actions[0], Action::SourceDirRemoved { path } if path == Path::new("/p/.claude/skills/deploy"))
+        );
+    }
+
+    #[test]
+    fn should_skip_for_report_matches_settings_json() {
+        assert!(super::should_skip_for_report(Path::new("/p/.claude/settings.json")));
+    }
+
+    #[test]
+    fn should_skip_for_report_matches_mcp_json() {
+        assert!(super::should_skip_for_report(Path::new("/p/.mcp.json")));
+    }
+
+    #[test]
+    fn should_skip_for_report_does_not_match_regular_file() {
+        assert!(!super::should_skip_for_report(Path::new("/p/.claude/skills/deploy/SKILL.md")));
+    }
+
+    #[test]
+    fn should_skip_for_report_does_not_match_root_path() {
+        assert!(!super::should_skip_for_report(Path::new("/")));
+    }
 }
