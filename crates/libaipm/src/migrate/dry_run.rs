@@ -749,4 +749,45 @@ mod tests {
         let report = generate_recursive_report(&discovered, &plugin_plans, &existing, true);
         assert!(report.contains("## Cleanup Plan (--destructive)"));
     }
+
+    #[test]
+    fn dry_run_report_destructive_skips_mcp_json() {
+        let mut mcp_artifact = make_artifact("project-mcp-servers", ArtifactKind::McpServer);
+        mcp_artifact.source_path = PathBuf::from(".mcp.json");
+        let artifacts = vec![mcp_artifact];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", true, true);
+        assert!(report.contains("Skipped (shared config)"));
+        assert!(report.contains("may be used by other tools"));
+    }
+
+    #[test]
+    fn dry_run_report_destructive_only_skipped_shows_no_files_to_remove() {
+        // Only hooks (settings.json) — all skipped, no removals
+        let mut hook_artifact = make_artifact("project-hooks", ArtifactKind::Hook);
+        hook_artifact.source_path = PathBuf::from(".claude/settings.json");
+        let artifacts = vec![hook_artifact];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", true, true);
+        assert!(report.contains("(no files to remove)"));
+        assert!(report.contains("Skipped (shared config)"));
+    }
+
+    #[test]
+    fn dry_run_report_destructive_skill_listed_as_directory() {
+        let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", true, true);
+        assert!(report.contains("(directory)"));
+    }
+
+    #[test]
+    fn dry_run_report_destructive_command_listed_as_file() {
+        let mut cmd = make_artifact("review", ArtifactKind::Command);
+        cmd.source_path = PathBuf::from(".claude/commands/review.md");
+        let artifacts = vec![cmd];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", true, true);
+        assert!(report.contains("(file)"));
+    }
 }
