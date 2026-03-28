@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.12.0] - 2026-03-28
+
+### Features
+- Add --destructive flag and cleanup wizard ([#130](https://github.com/TheLarkInn/aipm/pull/130)) (225dbd0)
+
 ## [0.11.6] - 2026-03-28
 
 ### Testing
