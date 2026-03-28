@@ -534,10 +534,8 @@ edition = "2024"
 "#;
         let result = parse_and_validate(toml, None);
         assert!(result.is_err());
-        if let Err(e) = result {
-            let msg = e.to_string();
-            assert!(msg.contains("unknown field"));
-            assert!(msg.contains("edition"));
-        }
+        let err_msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+        assert!(err_msg.contains("unknown field"), "expected 'unknown field' in: {err_msg}");
+        assert!(err_msg.contains("edition"), "expected 'edition' in: {err_msg}");
     }
 }
