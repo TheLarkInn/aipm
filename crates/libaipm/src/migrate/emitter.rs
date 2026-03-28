@@ -1992,9 +1992,14 @@ mod tests {
         artifact.metadata.hooks = Some("PreToolUse: check_deploy".to_string());
         let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
         assert!(result.is_ok());
-        // hooks.json must still exist (written via emit_hooks_config from raw_content).
+        // hooks.json must still exist (written via emit_hooks_config from raw_content) and
+        // must NOT reflect the YAML metadata (`PreToolUse: check_deploy`), since redundant
+        // extraction from `metadata.hooks` should be skipped for Hook artifacts.
+        // "check_deploy" only appears if the YAML was converted; raw_content uses "echo check".
         let hooks_content = fs.get_written(Path::new("/ai/project-hooks/hooks/hooks.json"));
-        assert!(hooks_content.is_some());
+        assert!(hooks_content
+            .as_ref()
+            .is_some_and(|c| { c.contains("echo check") && !c.contains("check_deploy") }));
     }
 
     #[test]
