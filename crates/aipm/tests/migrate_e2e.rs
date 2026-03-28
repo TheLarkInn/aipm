@@ -641,3 +641,129 @@ fn migrate_marketplace_description_matches_plugin_json() {
         "marketplace.json description should match plugin.json description"
     );
 }
+
+// =========================================================================
+// --destructive flag tests
+// =========================================================================
+
+#[test]
+fn destructive_flag_removes_skill_source() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    init_workspace(dir);
+    create_skill(dir, "deploy", "---\nname: deploy\n---\nDeploy instructions");
+
+    aipm()
+        .args(["migrate", "--destructive", &dir.display().to_string()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Removed"));
+
+    // Plugin should exist
+    assert!(dir.join(".ai/deploy/skills/deploy/SKILL.md").exists());
+    // Source should be gone
+    assert!(!dir.join(".claude/skills/deploy/SKILL.md").exists());
+}
+
+#[test]
+fn destructive_flag_preserves_settings_json() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    init_workspace(dir);
+    create_hooks_settings(
+        dir,
+        r#"{"hooks":{"PreToolUse":[{"type":"command","command":"echo test"}]}}"#,
+    );
+
+    aipm().args(["migrate", "--destructive", &dir.display().to_string()]).assert().success();
+
+    // settings.json should still exist (shared config, not removed)
+    assert!(dir.join(".claude/settings.json").exists());
+}
+
+#[test]
+fn without_destructive_preserves_sources_in_non_tty() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    init_workspace(dir);
+    create_skill(dir, "deploy", "---\nname: deploy\n---\nDeploy instructions");
+
+    aipm().args(["migrate", &dir.display().to_string()]).assert().success();
+
+    // Source should still exist (no --destructive and non-TTY -> skip cleanup)
+    assert!(dir.join(".claude/skills/deploy/SKILL.md").exists());
+    // Plugin should also exist
+    assert!(dir.join(".ai/deploy/skills/deploy/SKILL.md").exists());
+}
+
+#[test]
+fn destructive_with_dry_run_shows_plan() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    init_workspace(dir);
+    create_skill(dir, "deploy", "---\nname: deploy\n---\nDeploy instructions");
+
+    aipm()
+        .args(["migrate", "--dry-run", "--destructive", &dir.display().to_string()])
+        .assert()
+        .success();
+
+    // Report should contain cleanup plan
+    let report = std::fs::read_to_string(dir.join("aipm-migrate-dryrun-report.md")).unwrap();
+    assert!(report.contains("Cleanup Plan"), "dry-run report should contain cleanup plan");
+    // Source path is absolute in the report, so check for the suffix
+    assert!(
+        report.contains(".claude") && report.contains("skills") && report.contains("deploy"),
+        "report should list skill source path"
+    );
+
+    // Source should still exist (dry-run doesn't delete)
+    assert!(dir.join(".claude/skills/deploy/SKILL.md").exists());
+}
+
+#[test]
+fn destructive_recursive_cleans_all() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    init_workspace(dir);
+    create_skill(dir, "lint", "---\nname: lint\n---\nLint instructions");
+
+    // Create sub-package skill
+    let sub_skill_dir = dir.join("packages/auth/.claude/skills/deploy");
+    std::fs::create_dir_all(&sub_skill_dir).unwrap();
+    std::fs::write(sub_skill_dir.join("SKILL.md"), "---\nname: deploy\n---\nDeploy instructions")
+        .unwrap();
+
+    aipm().args(["migrate", "--destructive", &dir.display().to_string()]).assert().success();
+
+    // Root skill source should be gone
+    assert!(!dir.join(".claude/skills/lint/SKILL.md").exists());
+    // Sub-package skill source should be gone
+    assert!(!dir.join("packages/auth/.claude/skills/deploy/SKILL.md").exists());
+}
+
+#[test]
+fn destructive_prunes_empty_directories() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    init_workspace(dir);
+    create_skill(dir, "deploy", "---\nname: deploy\n---\nDeploy instructions");
+
+    aipm().args(["migrate", "--destructive", &dir.display().to_string()]).assert().success();
+
+    // The skills/ parent directory should be gone (was empty after deploy removed)
+    assert!(!dir.join(".claude/skills").exists());
+}
+
+#[test]
+fn destructive_skips_mcp_json() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    init_workspace(dir);
+    create_mcp_json(dir, r#"{"mcpServers":{"test":{"command":"echo","args":["hello"]}}}"#);
+
+    aipm().args(["migrate", "--destructive", &dir.display().to_string()]).assert().success();
+
+    // .mcp.json should still exist (shared config)
+    assert!(dir.join(".mcp.json").exists());
+}

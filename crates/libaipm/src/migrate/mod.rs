@@ -1,6 +1,7 @@
 //! Migration pipeline: scan AI tool configurations and convert to marketplace plugins.
 
 pub mod agent_detector;
+pub mod cleanup;
 pub mod command_detector;
 pub mod detector;
 pub mod discovery;
@@ -105,6 +106,9 @@ pub struct Options<'a> {
     pub source: Option<&'a str>,
     /// Whether to run in dry-run mode (report only, no writes).
     pub dry_run: bool,
+    /// Whether `--destructive` was passed. Affects the dry-run report only;
+    /// actual cleanup is handled at the CLI layer.
+    pub destructive: bool,
     /// Maximum directory traversal depth for recursive discovery.
     /// `None` means unlimited. Ignored when `source` is `Some`.
     pub max_depth: Option<usize>,
@@ -150,12 +154,40 @@ pub enum Action {
         /// Path to the generated report file.
         path: PathBuf,
     },
+    /// A migrated source file was removed during cleanup.
+    SourceFileRemoved {
+        /// Path to the removed file.
+        path: PathBuf,
+    },
+    /// An empty source directory was removed after cleanup.
+    SourceDirRemoved {
+        /// Path to the removed directory.
+        path: PathBuf,
+    },
 }
 
 /// Result of migration.
 pub struct Outcome {
     /// Actions taken during migration.
     pub actions: Vec<Action>,
+}
+
+impl Outcome {
+    /// Returns `true` if at least one `PluginCreated` action exists.
+    pub fn has_migrated_artifacts(&self) -> bool {
+        self.actions.iter().any(|a| matches!(a, Action::PluginCreated { .. }))
+    }
+
+    /// Returns the source paths of all successfully migrated artifacts.
+    pub fn migrated_source_paths(&self) -> Vec<&Path> {
+        self.actions
+            .iter()
+            .filter_map(|a| match a {
+                Action::PluginCreated { source, .. } => Some(source.as_path()),
+                _ => None,
+            })
+            .collect()
+    }
 }
 
 /// Errors specific to migration.
@@ -241,8 +273,28 @@ pub fn migrate(opts: &Options<'_>, fs: &dyn Fs) -> Result<Outcome, Error> {
     }
 
     opts.source.map_or_else(
-        || migrate_recursive(opts.dir, opts.max_depth, opts.dry_run, opts.manifest, &ai_dir, fs),
-        |source| migrate_single_source(opts.dir, source, opts.dry_run, opts.manifest, &ai_dir, fs),
+        || {
+            migrate_recursive(
+                opts.dir,
+                opts.max_depth,
+                opts.dry_run,
+                opts.destructive,
+                opts.manifest,
+                &ai_dir,
+                fs,
+            )
+        },
+        |source| {
+            migrate_single_source(
+                opts.dir,
+                source,
+                opts.dry_run,
+                opts.destructive,
+                opts.manifest,
+                &ai_dir,
+                fs,
+            )
+        },
     )
 }
 
@@ -251,6 +303,7 @@ fn migrate_single_source(
     dir: &Path,
     source: &str,
     dry_run: bool,
+    destructive: bool,
     manifest: bool,
     ai_dir: &Path,
     fs: &dyn Fs,
@@ -275,7 +328,13 @@ fn migrate_single_source(
     let existing_plugins = collect_existing_plugin_names(ai_dir, fs)?;
 
     if dry_run {
-        let report = dry_run::generate_report(&all_artifacts, &existing_plugins, source, manifest);
+        let report = dry_run::generate_report(
+            &all_artifacts,
+            &existing_plugins,
+            source,
+            manifest,
+            destructive,
+        );
         let report_path = dir.join("aipm-migrate-dryrun-report.md");
         fs.write_file(&report_path, report.as_bytes())?;
         return Ok(Outcome { actions: vec![Action::DryRunReport { path: report_path }] });
@@ -316,6 +375,7 @@ fn migrate_recursive(
     dir: &Path,
     max_depth: Option<usize>,
     dry_run: bool,
+    destructive: bool,
     manifest: bool,
     ai_dir: &Path,
     fs: &dyn Fs,
@@ -374,8 +434,12 @@ fn migrate_recursive(
     let existing_plugins = collect_existing_plugin_names(ai_dir, fs)?;
 
     if dry_run {
-        let report =
-            dry_run::generate_recursive_report(&discovered, &plugin_plans, &existing_plugins);
+        let report = dry_run::generate_recursive_report(
+            &discovered,
+            &plugin_plans,
+            &existing_plugins,
+            destructive,
+        );
         let report_path = dir.join("aipm-migrate-dryrun-report.md");
         fs.write_file(&report_path, report.as_bytes())?;
         return Ok(Outcome { actions: vec![Action::DryRunReport { path: report_path }] });
@@ -514,6 +578,7 @@ mod tests {
             dir: Path::new("/project"),
             source: Some(".claude"),
             dry_run: false,
+            destructive: false,
             max_depth: None,
             manifest: true,
         };
@@ -531,6 +596,7 @@ mod tests {
             dir: Path::new("/project"),
             source: Some(".claude"),
             dry_run: false,
+            destructive: false,
             max_depth: None,
             manifest: true,
         };
@@ -554,6 +620,7 @@ mod tests {
             dir: Path::new("/project"),
             source: Some(".claude"),
             dry_run: true,
+            destructive: false,
             max_depth: None,
             manifest: true,
         };
@@ -589,6 +656,7 @@ mod tests {
             dir: Path::new("/project"),
             source: Some(".claude"),
             dry_run: false,
+            destructive: false,
             max_depth: None,
             manifest: true,
         };
@@ -653,6 +721,7 @@ mod tests {
             dir: Path::new("/project"),
             source: Some(".claude"),
             dry_run: false,
+            destructive: false,
             max_depth: None,
             manifest: true,
         };
@@ -704,6 +773,77 @@ mod tests {
             Some("Migrated from .claude/ configuration"),
             "review marketplace description should use fallback when no frontmatter"
         );
+    }
+
+    // =========================================================================
+    // Outcome helper method tests
+    // =========================================================================
+
+    #[test]
+    fn has_migrated_artifacts_empty() {
+        let outcome = Outcome { actions: Vec::new() };
+        assert!(!outcome.has_migrated_artifacts());
+    }
+
+    #[test]
+    fn has_migrated_artifacts_only_skipped() {
+        let outcome = Outcome {
+            actions: vec![
+                Action::Skipped { name: "x".to_string(), reason: "test".to_string() },
+                Action::Renamed {
+                    original_name: "a".to_string(),
+                    new_name: "b".to_string(),
+                    reason: "conflict".to_string(),
+                },
+                Action::MarketplaceRegistered { name: "y".to_string() },
+            ],
+        };
+        assert!(!outcome.has_migrated_artifacts());
+    }
+
+    #[test]
+    fn has_migrated_artifacts_with_plugin_created() {
+        let outcome = Outcome {
+            actions: vec![
+                Action::Skipped { name: "x".to_string(), reason: "test".to_string() },
+                Action::PluginCreated {
+                    name: "deploy".to_string(),
+                    source: PathBuf::from("/project/.claude/skills/deploy"),
+                    plugin_type: "skill".to_string(),
+                },
+            ],
+        };
+        assert!(outcome.has_migrated_artifacts());
+    }
+
+    #[test]
+    fn migrated_source_paths_empty() {
+        let outcome = Outcome { actions: Vec::new() };
+        assert!(outcome.migrated_source_paths().is_empty());
+    }
+
+    #[test]
+    fn migrated_source_paths_filters_correctly() {
+        let outcome = Outcome {
+            actions: vec![
+                Action::PluginCreated {
+                    name: "deploy".to_string(),
+                    source: PathBuf::from("/project/.claude/skills/deploy"),
+                    plugin_type: "skill".to_string(),
+                },
+                Action::Skipped { name: "x".to_string(), reason: "test".to_string() },
+                Action::PluginCreated {
+                    name: "review".to_string(),
+                    source: PathBuf::from("/project/.claude/commands/review.md"),
+                    plugin_type: "skill".to_string(),
+                },
+                Action::MarketplaceRegistered { name: "deploy".to_string() },
+            ],
+        };
+        let paths = outcome.migrated_source_paths();
+        assert_eq!(paths.len(), 2);
+        assert_eq!(paths[0], Path::new("/project/.claude/skills/deploy"));
+        assert_eq!(paths[1], Path::new("/project/.claude/commands/review.md"));
     }
 
     #[test]

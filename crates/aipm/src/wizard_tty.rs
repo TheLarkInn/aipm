@@ -8,7 +8,8 @@
 //! [`super::wizard`] and is fully tested (snapshot + unit tests).
 
 use super::wizard::{
-    resolve_defaults, resolve_workspace_answers, styled_render_config, validate_marketplace_name,
+    migrate_cleanup_prompt_steps, resolve_defaults, resolve_migrate_cleanup_answer,
+    resolve_workspace_answers, styled_render_config, validate_marketplace_name,
     workspace_prompt_steps, PromptAnswer, PromptKind, PromptStep,
 };
 
@@ -36,6 +37,30 @@ pub fn resolve(
     } else {
         Ok(resolve_defaults(workspace, marketplace, no_starter, flag_name))
     }
+}
+
+/// Prompt the user about removing migrated source files.
+///
+/// Returns `true` if the user confirmed cleanup, `false` otherwise.
+/// When `interactive` is `false`, returns `Ok(false)` immediately.
+pub fn resolve_migrate_cleanup(
+    interactive: bool,
+    outcome: &libaipm::migrate::Outcome,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    if !interactive {
+        return Ok(false);
+    }
+
+    let migrated_count = outcome.migrated_source_paths().len();
+    let steps = migrate_cleanup_prompt_steps(migrated_count);
+
+    if steps.is_empty() {
+        return Ok(false);
+    }
+
+    inquire::set_global_render_config(styled_render_config());
+    let answers = execute_prompts(&steps)?;
+    Ok(resolve_migrate_cleanup_answer(&answers))
 }
 
 /// Execute prompt steps against the real terminal via `inquire`.

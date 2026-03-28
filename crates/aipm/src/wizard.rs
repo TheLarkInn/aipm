@@ -223,6 +223,36 @@ pub fn validate_marketplace_name(input: &str) -> Result<(), String> {
 }
 
 // =============================================================================
+// Migrate cleanup prompts
+// =============================================================================
+
+/// Generates the post-migration cleanup prompt step.
+///
+/// Returns an empty vec if there is nothing to clean up (`migrated_count == 0`).
+pub fn migrate_cleanup_prompt_steps(migrated_count: usize) -> Vec<PromptStep> {
+    if migrated_count == 0 {
+        return Vec::new();
+    }
+
+    vec![PromptStep {
+        label: "Remove original source files that were migrated?",
+        kind: PromptKind::Confirm { default: false },
+        help: Some(
+            "The migrated files have been copied to .ai/ plugins. \
+             Answering 'yes' removes the originals from .claude/. \
+             Use --destructive to skip this prompt.",
+        ),
+    }]
+}
+
+/// Resolves the migrate cleanup wizard answer.
+///
+/// Returns `true` if the user chose to remove source files.
+pub const fn resolve_migrate_cleanup_answer(answers: &[PromptAnswer]) -> bool {
+    matches!(answers.first(), Some(PromptAnswer::Bool(true)))
+}
+
+// =============================================================================
 // Theming
 // =============================================================================
 
@@ -525,5 +555,36 @@ mod tests {
     #[test]
     fn validate_marketplace_name_rejects_underscores() {
         assert!(validate_marketplace_name("my_plugins").is_err());
+    }
+
+    // =========================================================================
+    // Migrate cleanup prompt steps
+    // =========================================================================
+
+    #[test]
+    fn migrate_cleanup_zero_migrated_snapshot() {
+        let steps = migrate_cleanup_prompt_steps(0);
+        insta::assert_snapshot!(format_steps(&steps));
+    }
+
+    #[test]
+    fn migrate_cleanup_with_migrated_snapshot() {
+        let steps = migrate_cleanup_prompt_steps(3);
+        insta::assert_snapshot!(format_steps(&steps));
+    }
+
+    #[test]
+    fn resolve_migrate_cleanup_answer_true() {
+        assert!(resolve_migrate_cleanup_answer(&[PromptAnswer::Bool(true)]));
+    }
+
+    #[test]
+    fn resolve_migrate_cleanup_answer_false() {
+        assert!(!resolve_migrate_cleanup_answer(&[PromptAnswer::Bool(false)]));
+    }
+
+    #[test]
+    fn resolve_migrate_cleanup_answer_empty() {
+        assert!(!resolve_migrate_cleanup_answer(&[]));
     }
 }

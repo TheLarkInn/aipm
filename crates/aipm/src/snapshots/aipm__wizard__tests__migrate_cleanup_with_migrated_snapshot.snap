@@ -1,0 +1,8 @@
+---
+source: crates/aipm/src/wizard.rs
+expression: format_steps(&steps)
+---
+Step 1:
+  Label: Remove original source files that were migrated?
+  Kind: Confirm (default: false)
+  Help: The migrated files have been copied to .ai/ plugins. Answering 'yes' removes the originals from .claude/. Use --destructive to skip this prompt.

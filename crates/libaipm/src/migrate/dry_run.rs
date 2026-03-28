@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::fmt::Write;
 use std::hash::BuildHasher;
 
+use super::cleanup;
 use super::discovery::DiscoveredSource;
 use super::{Artifact, ArtifactKind, PluginPlan};
 
@@ -13,6 +14,7 @@ pub fn generate_report<S: BuildHasher>(
     existing_plugins: &HashSet<String, S>,
     source_name: &str,
     manifest: bool,
+    destructive: bool,
 ) -> String {
     let mut report = String::new();
 
@@ -70,6 +72,10 @@ pub fn generate_report<S: BuildHasher>(
     let _ = writeln!(report, "| Name conflicts (auto-renamed) | {total_conflicts} |");
     let _ = writeln!(report, "| Hooks to extract | {total_hooks} |");
 
+    if destructive {
+        write_cleanup_plan(&mut report, artifacts);
+    }
+
     report
 }
 
@@ -78,6 +84,7 @@ pub fn generate_recursive_report<S: BuildHasher>(
     discovered: &[DiscoveredSource],
     plugin_plans: &[PluginPlan],
     existing_plugins: &HashSet<String, S>,
+    destructive: bool,
 ) -> String {
     let mut report = String::new();
 
@@ -192,7 +199,53 @@ pub fn generate_recursive_report<S: BuildHasher>(
         }
     }
 
+    if destructive {
+        let all_artifacts: Vec<&Artifact> =
+            plugin_plans.iter().flat_map(|p| &p.artifacts).collect();
+        write_cleanup_plan(&mut report, &all_artifacts);
+    }
+
     report
+}
+
+/// Write the cleanup plan section listing files that would be deleted.
+fn write_cleanup_plan<A: std::borrow::Borrow<Artifact>>(report: &mut String, artifacts: &[A]) {
+    let _ = writeln!(report, "\n## Cleanup Plan (--destructive)\n");
+    let _ = writeln!(report, "The following source files would be removed after migration:\n");
+
+    let mut has_skipped = false;
+    let mut has_removals = false;
+
+    for artifact in artifacts {
+        let a = artifact.borrow();
+        let source = &a.source_path;
+        if cleanup::should_skip_for_report(source) {
+            has_skipped = true;
+            continue;
+        }
+        has_removals = true;
+        let kind_label = if a.kind == ArtifactKind::Skill { "directory" } else { "file" };
+        let _ = writeln!(report, "- `{}` ({kind_label})", source.display());
+    }
+
+    if !has_removals {
+        let _ = writeln!(report, "(no files to remove)");
+    }
+
+    if has_skipped {
+        let _ = writeln!(report, "\n**Skipped (shared config):**");
+        for artifact in artifacts {
+            let a = artifact.borrow();
+            if cleanup::should_skip_for_report(&a.source_path) {
+                let reason = match a.kind {
+                    ArtifactKind::Hook => "contains non-hook configuration",
+                    ArtifactKind::McpServer => "may be used by other tools",
+                    _ => "shared configuration",
+                };
+                let _ = writeln!(report, "- `{}` ({reason})", a.source_path.display());
+            }
+        }
+    }
 }
 
 /// Returns the component path for display in the dry-run report.
@@ -308,7 +361,7 @@ mod tests {
             make_artifact("lint", ArtifactKind::Skill),
         ];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false);
 
         assert!(report.contains("### deploy"));
         assert!(report.contains("### lint"));
@@ -319,7 +372,7 @@ mod tests {
         let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
         let mut existing = HashSet::new();
         existing.insert("deploy".to_string());
-        let report = generate_report(&artifacts, &existing, ".claude", true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false);
 
         assert!(report.contains("deploy-renamed-1"));
         assert!(report.contains("Name conflicts (auto-renamed) | 1"));
@@ -331,7 +384,7 @@ mod tests {
         artifact.files = vec![PathBuf::from("SKILL.md"), PathBuf::from("scripts/run.sh")];
         let artifacts = vec![artifact];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false);
 
         assert!(report.contains("SKILL.md"));
         assert!(report.contains("scripts/run.sh"));
@@ -344,7 +397,7 @@ mod tests {
             make_artifact("review", ArtifactKind::Command),
         ];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false);
 
         assert!(report.contains("## Summary"));
         assert!(report.contains("Plugins to create | 2"));
@@ -355,7 +408,7 @@ mod tests {
     fn dry_run_report_empty_artifacts() {
         let artifacts: Vec<Artifact> = Vec::new();
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false);
 
         assert!(report.contains("**Artifacts found:** 0"));
         assert!(report.contains("Plugins to create | 0"));
@@ -367,7 +420,7 @@ mod tests {
         artifact.metadata.hooks = Some("PreToolUse: check".to_string());
         let artifacts = vec![artifact];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false);
 
         assert!(report.contains("**Hooks extracted:** yes"));
         assert!(report.contains("Hooks to extract | 1"));
@@ -379,7 +432,7 @@ mod tests {
         artifact.referenced_scripts = vec![PathBuf::from("scripts/run.sh")];
         let artifacts = vec![artifact];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false);
 
         assert!(report.contains("**Path rewrites:**"));
     }
@@ -388,7 +441,7 @@ mod tests {
     fn dry_run_report_commands_section() {
         let artifacts = vec![make_artifact("review", ArtifactKind::Command)];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false);
 
         assert!(report.contains("## Legacy Commands"));
     }
@@ -427,7 +480,7 @@ mod tests {
         ];
 
         let existing = HashSet::new();
-        let report = generate_recursive_report(&discovered, &plugin_plans, &existing);
+        let report = generate_recursive_report(&discovered, &plugin_plans, &existing, false);
 
         assert!(report.contains("Recursive discovery"));
         assert!(report.contains("(root)"));
@@ -455,7 +508,7 @@ mod tests {
 
         let mut existing = HashSet::new();
         existing.insert("auth".to_string());
-        let report = generate_recursive_report(&discovered, &plugin_plans, &existing);
+        let report = generate_recursive_report(&discovered, &plugin_plans, &existing, false);
 
         assert!(report.contains("auth-renamed-1"));
     }
@@ -465,7 +518,7 @@ mod tests {
         let discovered: Vec<DiscoveredSource> = Vec::new();
         let plugin_plans: Vec<PluginPlan> = Vec::new();
         let existing = HashSet::new();
-        let report = generate_recursive_report(&discovered, &plugin_plans, &existing);
+        let report = generate_recursive_report(&discovered, &plugin_plans, &existing, false);
 
         assert!(report.contains("Discovered 0"));
         assert!(report.contains("(none)"));
@@ -487,7 +540,7 @@ mod tests {
         }];
 
         let existing = HashSet::new();
-        let report = generate_recursive_report(&discovered, &plugin_plans, &existing);
+        let report = generate_recursive_report(&discovered, &plugin_plans, &existing, false);
 
         assert!(report.contains("Plugin: `api`"));
         assert!(report.contains("Type: skill"));
@@ -497,7 +550,7 @@ mod tests {
     fn dry_run_report_no_manifest_shows_hint() {
         let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", false);
+        let report = generate_report(&artifacts, &existing, ".claude", false, false);
 
         assert!(report.contains("No aipm.toml (pass --manifest to generate)"));
         assert!(!report.contains("New aipm.toml with type"));
@@ -507,7 +560,7 @@ mod tests {
     fn dry_run_report_with_manifest_shows_aipm_toml() {
         let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false);
 
         assert!(report.contains("New aipm.toml with type"));
         assert!(!report.contains("No aipm.toml (pass --manifest to generate)"));
@@ -517,7 +570,7 @@ mod tests {
     fn dry_run_report_agents_section() {
         let artifacts = vec![make_artifact("reviewer", ArtifactKind::Agent)];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false);
         assert!(report.contains("## Agents"));
         assert!(report.contains("### reviewer"));
     }
@@ -526,7 +579,7 @@ mod tests {
     fn dry_run_report_mcp_section() {
         let artifacts = vec![make_artifact("project-mcp-servers", ArtifactKind::McpServer)];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false);
         assert!(report.contains("## MCP Servers"));
         assert!(report.contains("### project-mcp-servers"));
     }
@@ -535,7 +588,7 @@ mod tests {
     fn dry_run_report_hooks_section() {
         let artifacts = vec![make_artifact("project-hooks", ArtifactKind::Hook)];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false);
         assert!(report.contains("## Hooks"));
         assert!(report.contains("### project-hooks"));
     }
@@ -544,7 +597,7 @@ mod tests {
     fn dry_run_report_output_styles_section() {
         let artifacts = vec![make_artifact("concise", ArtifactKind::OutputStyle)];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false);
         assert!(report.contains("## Output Styles"));
         assert!(report.contains("### concise"));
     }
@@ -560,7 +613,7 @@ mod tests {
             make_artifact("concise", ArtifactKind::OutputStyle),
         ];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false);
         assert!(report.contains("**Artifacts found:** 6"));
         assert!(report.contains("## Skills"));
         assert!(report.contains("## Legacy Commands"));
@@ -594,7 +647,7 @@ mod tests {
         ];
 
         let existing = HashSet::new();
-        let report = generate_recursive_report(&discovered, &plugin_plans, &existing);
+        let report = generate_recursive_report(&discovered, &plugin_plans, &existing, false);
 
         // Table should show agent and MCP counts
         assert!(report.contains("Plugin: `reviewer`"));
@@ -622,7 +675,7 @@ mod tests {
         }];
 
         let existing = HashSet::new();
-        let report = generate_recursive_report(&discovered, &plugin_plans, &existing);
+        let report = generate_recursive_report(&discovered, &plugin_plans, &existing, false);
 
         assert!(report.contains("Type: composite"));
         assert!(report.contains("agents/reviewer.md"));
@@ -647,5 +700,53 @@ mod tests {
 
         let style = make_artifact("concise", ArtifactKind::OutputStyle);
         assert_eq!(component_path(&style), "concise.md");
+    }
+
+    #[test]
+    fn dry_run_report_without_destructive_has_no_cleanup_section() {
+        let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", true, false);
+        assert!(!report.contains("Cleanup Plan"));
+    }
+
+    #[test]
+    fn dry_run_report_with_destructive_has_cleanup_section() {
+        let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", true, true);
+        assert!(report.contains("## Cleanup Plan (--destructive)"));
+        assert!(report.contains(".claude/skills/deploy/"));
+    }
+
+    #[test]
+    fn dry_run_report_destructive_skips_shared_config() {
+        let mut hook_artifact = make_artifact("project-hooks", ArtifactKind::Hook);
+        hook_artifact.source_path = PathBuf::from(".claude/settings.json");
+        let artifacts = vec![hook_artifact];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", true, true);
+        assert!(report.contains("Skipped (shared config)"));
+        assert!(report.contains("settings.json"));
+    }
+
+    #[test]
+    fn recursive_report_with_destructive_has_cleanup_section() {
+        let discovered = vec![DiscoveredSource {
+            claude_dir: PathBuf::from("/project/.claude"),
+            package_name: None,
+            relative_path: PathBuf::new(),
+        }];
+
+        let plugin_plans = vec![PluginPlan {
+            name: "deploy".to_string(),
+            artifacts: vec![make_artifact("deploy", ArtifactKind::Skill)],
+            is_package_scoped: false,
+            source_dir: PathBuf::from("/project/.claude"),
+        }];
+
+        let existing = HashSet::new();
+        let report = generate_recursive_report(&discovered, &plugin_plans, &existing, true);
+        assert!(report.contains("## Cleanup Plan (--destructive)"));
     }
 }
