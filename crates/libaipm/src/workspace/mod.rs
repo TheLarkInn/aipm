@@ -17,7 +17,7 @@ pub use error::Error;
 pub struct Member {
     /// Package name from the member's `[package].name`.
     pub name: String,
-    /// Absolute path to the member directory.
+    /// Path to the member directory.
     pub path: PathBuf,
     /// Version from the member's `[package].version`.
     pub version: String,

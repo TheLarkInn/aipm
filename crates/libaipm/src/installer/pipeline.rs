@@ -128,9 +128,9 @@ pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<Instal
 
     // Step 4b: Load link overrides (aipm link takes priority over workspace deps)
     let link_overrides: BTreeSet<String> = if config.link_state_path.exists() {
-        linker::link_state::list(&config.link_state_path)
-            .map(|entries| entries.iter().map(|e| e.name.clone()).collect())
-            .unwrap_or_default()
+        let entries = linker::link_state::list(&config.link_state_path)
+            .map_err(|e| Error::Io(std::io::Error::other(format!("link state read error: {e}"))))?;
+        entries.iter().map(|e| e.name.clone()).collect()
     } else {
         BTreeSet::new()
     };
@@ -221,15 +221,19 @@ fn link_resolved_packages(
 
         match &resolved.source {
             resolver::Source::Workspace => {
-                if let Some(member) = members.get(pkg_name) {
-                    std::fs::create_dir_all(&config.plugins_dir)?;
-                    let link_target = config.plugins_dir.join(pkg_name);
-                    linker::directory_link::create(&member.path, &link_target)
-                        .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
-                    linker::gitignore::add_entry(&config.gitignore_path, pkg_name)
-                        .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
-                    installed += 1;
-                }
+                let member = members.get(pkg_name).ok_or_else(|| {
+                    Error::Resolution(format!(
+                        "workspace package '{pkg_name}' was resolved but no corresponding \
+                         workspace member was found"
+                    ))
+                })?;
+                std::fs::create_dir_all(&config.plugins_dir)?;
+                let link_target = config.plugins_dir.join(pkg_name);
+                linker::directory_link::create(&member.path, &link_target)
+                    .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+                linker::gitignore::add_entry(&config.gitignore_path, pkg_name)
+                    .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+                installed += 1;
             },
             resolver::Source::Registry { .. } => {
                 let assembled_dir = config.links_dir.join(pkg_name);
@@ -372,22 +376,27 @@ fn resolve_workspace_deps(
                 package = name.as_str(),
                 "workspace dep has aipm link override — preserving existing link"
             );
-            if let Some(member) = members.get(&name) {
-                let version = Version::parse(&member.version).map_err(|e| {
-                    Error::Resolution(format!(
-                        "invalid version '{}' for workspace member '{}': {e}",
-                        member.version, name
-                    ))
-                })?;
-                resolved.push(resolver::Resolved {
-                    name: name.clone(),
-                    version,
-                    source: resolver::Source::Path { path: member.path.clone() },
-                    checksum: String::new(),
-                    dependencies: Vec::new(),
-                    features: BTreeSet::new(),
-                });
-            }
+            let member = members.get(&name).ok_or_else(|| {
+                let available: Vec<&str> = members.keys().map(String::as_str).collect();
+                Error::Resolution(format!(
+                    "workspace dependency '{name}' has an aipm link override but is not a \
+                     workspace member — available members: {available:?}"
+                ))
+            })?;
+            let version = Version::parse(&member.version).map_err(|e| {
+                Error::Resolution(format!(
+                    "invalid version '{}' for workspace member '{}': {e}",
+                    member.version, name
+                ))
+            })?;
+            resolved.push(resolver::Resolved {
+                name: name.clone(),
+                version,
+                source: resolver::Source::Path { path: member.path.clone() },
+                checksum: String::new(),
+                dependencies: Vec::new(),
+                features: BTreeSet::new(),
+            });
             continue;
         }
 
