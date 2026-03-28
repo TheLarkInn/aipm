@@ -172,7 +172,7 @@ fn generate_workspace_manifest() -> String {
      plugins_dir = \".ai\"\n\
      \n\
      # Shared dependency versions for all workspace members.\n\
-     # Members reference these via: dep = { workspace = \"^\" }\n\
+     # Members reference these via: dep = { workspace = \"*\" }\n\
      # [workspace.dependencies]\n\
      \n\
      # Direct registry installs (available project-wide).\n\

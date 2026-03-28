@@ -79,7 +79,7 @@ files = ["skills/", "hooks/", "README.md"]
 
 [dependencies]
 shared-lint = "^1.0"
-core-hooks = { workspace = "^" }
+core-hooks = { workspace = "*" }
 heavy-analyzer = { version = "^1.0", optional = true }
 
 [features]
@@ -241,10 +241,48 @@ name = "my-plugin"
 version = "0.1.0"
 
 [dependencies]
-sibling = { workspace = "^" }
+sibling = { workspace = "*" }
 "#;
         let result = parse_and_validate(toml, None);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn workspace_caret_protocol_rejected() {
+        let toml = r#"
+[package]
+name = "my-plugin"
+version = "0.1.0"
+
+[dependencies]
+sibling = { workspace = "^" }
+"#;
+        let result = parse_and_validate(toml, None);
+        assert!(result.is_err());
+        let err = result.err().map(|e| format!("{e}")).unwrap_or_default();
+        assert!(
+            err.contains("invalid workspace protocol"),
+            "expected InvalidWorkspaceProtocol error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn workspace_equals_protocol_rejected() {
+        let toml = r#"
+[package]
+name = "my-plugin"
+version = "0.1.0"
+
+[dependencies]
+sibling = { workspace = "=" }
+"#;
+        let result = parse_and_validate(toml, None);
+        assert!(result.is_err());
+        let err = result.err().map(|e| format!("{e}")).unwrap_or_default();
+        assert!(
+            err.contains("invalid workspace protocol"),
+            "expected InvalidWorkspaceProtocol error, got: {err}"
+        );
     }
 
     #[test]

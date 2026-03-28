@@ -53,8 +53,8 @@ fn is_valid_segment(s: &str) -> bool {
 
 /// Validate a version requirement string (caret, tilde, exact, wildcard, range).
 fn is_valid_version_req(req: &str) -> bool {
-    // Handle workspace protocol
-    if req == "^" || req == "=" || req == "*" {
+    // Handle wildcard (used in [workspace.dependencies] version specs)
+    if req == "*" {
         return true;
     }
 
@@ -145,8 +145,13 @@ fn validate_dependencies(
         let version_str = match spec {
             DependencySpec::Simple(v) => Some(v.as_str()),
             DependencySpec::Detailed(d) => {
-                // Workspace refs are valid
-                if d.workspace.is_some() {
+                if let Some(ref ws) = d.workspace {
+                    if ws != "*" {
+                        errors.push(Error::InvalidWorkspaceProtocol {
+                            dependency: name.clone(),
+                            protocol: ws.clone(),
+                        });
+                    }
                     continue;
                 }
                 d.version.as_deref()
@@ -244,9 +249,11 @@ mod tests {
 
     #[test]
     fn workspace_protocol_valid() {
-        assert!(is_valid_version_req("^"));
-        assert!(is_valid_version_req("="));
+        // Only "*" is accepted as a valid standalone version req (for workspace deps)
         assert!(is_valid_version_req("*"));
+        // "^" and "=" are no longer valid as standalone symbols
+        assert!(!is_valid_version_req("^"));
+        assert!(!is_valid_version_req("="));
     }
 
     #[test]

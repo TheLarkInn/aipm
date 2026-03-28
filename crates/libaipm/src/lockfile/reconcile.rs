@@ -38,9 +38,16 @@ pub fn reconcile(lockfile: &Lockfile, manifest_deps: &BTreeSet<String>) -> Recon
     // Removed: in lockfile but not in manifest (direct deps only)
     let removed: BTreeSet<String> = locked_names.difference(manifest_deps).cloned().collect();
 
-    // Carried forward: lockfile packages that are still in the manifest
-    let carried_forward: Vec<Package> =
-        lockfile.packages.iter().filter(|p| !removed.contains(&p.name)).cloned().collect();
+    // Carried forward: lockfile packages that are still in the manifest.
+    // Workspace packages (source = "workspace") are excluded from pins —
+    // they are resolved separately by the workspace resolver, not the
+    // registry solver, so they should not appear as lockfile pins.
+    let carried_forward: Vec<Package> = lockfile
+        .packages
+        .iter()
+        .filter(|p| !removed.contains(&p.name) && p.source != "workspace")
+        .cloned()
+        .collect();
 
     Reconciliation { needs_resolution: added, carried_forward, removed }
 }
@@ -176,6 +183,53 @@ mod tests {
         let result = prune_orphans(&packages, &reachable);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].name, "a");
+    }
+
+    fn make_lockfile_with_sources(entries: &[(&str, &str)]) -> Lockfile {
+        Lockfile {
+            metadata: Metadata { lockfile_version: 1, generated_by: "test".to_string() },
+            packages: entries
+                .iter()
+                .map(|(name, source)| Package {
+                    name: (*name).to_string(),
+                    version: "1.0.0".to_string(),
+                    source: (*source).to_string(),
+                    checksum: String::new(),
+                    dependencies: vec![],
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn workspace_packages_excluded_from_carried_forward() {
+        let lf = make_lockfile_with_sources(&[
+            ("reg-pkg", "git+https://example.com"),
+            ("ws-pkg", "workspace"),
+        ]);
+        let deps = dep_set(&["reg-pkg", "ws-pkg"]);
+
+        let result = reconcile(&lf, &deps);
+        // ws-pkg should not be carried forward
+        assert_eq!(result.carried_forward.len(), 1);
+        assert_eq!(result.carried_forward[0].name, "reg-pkg");
+        // ws-pkg should appear in needs_resolution since it wasn't carried forward
+        // and it's in the manifest but not in carried_forward names
+        assert!(result.needs_resolution.is_empty()); // it's in locked_names so not "added"
+    }
+
+    #[test]
+    fn registry_packages_still_carried_forward() {
+        let lf = make_lockfile_with_sources(&[
+            ("pkg-a", "git+https://example.com"),
+            ("pkg-b", "git+https://example.com"),
+        ]);
+        let deps = dep_set(&["pkg-a", "pkg-b"]);
+
+        let result = reconcile(&lf, &deps);
+        assert_eq!(result.carried_forward.len(), 2);
+        assert!(result.needs_resolution.is_empty());
+        assert!(result.removed.is_empty());
     }
 
     #[test]

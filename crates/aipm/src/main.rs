@@ -286,6 +286,14 @@ fn cmd_install(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let dir = resolve_dir(dir)?;
 
+    // Discover workspace root if we're inside one
+    let workspace_root = libaipm::workspace::find_workspace_root(&dir);
+    if let Some(ref ws_root) = workspace_root {
+        if ws_root != &dir {
+            tracing::info!(workspace_root = %ws_root.display(), "found workspace root");
+        }
+    }
+
     let config = libaipm::installer::pipeline::InstallConfig {
         manifest_path: dir.join("aipm.toml"),
         lockfile_path: dir.join("aipm.lock"),
@@ -294,6 +302,7 @@ fn cmd_install(
         plugins_dir: dir.join(".ai"),
         gitignore_path: dir.join(".ai/.gitignore"),
         link_state_path: dir.join(".aipm/links.toml"),
+        workspace_root,
         locked,
         add_package: package,
         generated_by: format!("aipm {}", libaipm::version()),

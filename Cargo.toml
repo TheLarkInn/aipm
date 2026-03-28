@@ -62,6 +62,9 @@ junction = "1"
 # Recursive directory walking (gitignore-aware)
 ignore = "0.4"
 
+# Glob pattern matching (workspace member discovery)
+glob = "0.3"
+
 # Data-parallel iteration
 rayon = "1"
 

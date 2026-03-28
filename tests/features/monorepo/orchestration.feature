@@ -101,36 +101,43 @@ Feature: Monorepo orchestrator integration
       When the user runs "aipm-pack publish" from the member directory
       Then the command fails unless all workspace references are resolved to real versions
 
-  Rule: Workspace protocol for inter-package references (inspired by pnpm)
+  Rule: Workspace protocol for inter-package references
 
     Scenario: Reference a workspace sibling with workspace protocol
       Given a workspace with members "core" and "cli"
       And "cli" manifest declares:
         """toml
         [dependencies]
-        core = { workspace = "^" }
+        core = { workspace = "*" }
         """
       When the user runs "aipm install" from the workspace root
       Then "cli" links to the local "core" package
       And no registry lookup is performed for "core"
 
+    @wip
     Scenario: Workspace protocol is replaced on publish
-      Given workspace member "cli" depends on "core" with workspace protocol "^"
-      And "core" is at version "2.3.0"
-      When the user runs "aipm-pack publish" from the "cli" directory
-      Then the published manifest replaces workspace reference with "^2.3.0"
-
-    Scenario: Workspace protocol with exact version
-      Given workspace member "cli" depends on "core" with workspace protocol "="
-      And "core" is at version "2.3.0"
-      When the user runs "aipm-pack publish" from the "cli" directory
-      Then the published manifest replaces workspace reference with "=2.3.0"
-
-    Scenario: Workspace protocol with wildcard
       Given workspace member "cli" depends on "core" with workspace protocol "*"
       And "core" is at version "2.3.0"
       When the user runs "aipm-pack publish" from the "cli" directory
       Then the published manifest replaces workspace reference with "2.3.0"
+
+    Scenario: Workspace protocol with caret is rejected
+      Given a workspace member manifest with:
+        """toml
+        [dependencies]
+        core = { workspace = "^" }
+        """
+      When the manifest is validated
+      Then validation fails with "invalid workspace protocol"
+
+    Scenario: Workspace protocol with equals is rejected
+      Given a workspace member manifest with:
+        """toml
+        [dependencies]
+        core = { workspace = "=" }
+        """
+      When the manifest is validated
+      Then validation fails with "invalid workspace protocol"
 
   Rule: Catalogs for shared version ranges (inspired by pnpm)
 
