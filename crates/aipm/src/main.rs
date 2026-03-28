@@ -115,6 +115,11 @@ enum Commands {
         #[arg(long)]
         dry_run: bool,
 
+        /// Remove migrated source files after successful migration.
+        /// When omitted, an interactive prompt asks whether to clean up (TTY only).
+        #[arg(long)]
+        destructive: bool,
+
         /// Source folder to scan (e.g., ".claude").
         /// When omitted, recursively discovers all .claude/ directories.
         #[arg(long)]
@@ -447,20 +452,22 @@ fn cmd_list(linked: bool, dir: PathBuf) -> Result<(), Box<dyn std::error::Error>
 
 fn cmd_migrate(
     dry_run: bool,
+    destructive: bool,
     source: Option<&str>,
     max_depth: Option<usize>,
     manifest: bool,
     dir: PathBuf,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let dir = resolve_dir(dir)?;
-    let opts = libaipm::migrate::Options { dir: &dir, source, dry_run, max_depth, manifest };
+    let opts =
+        libaipm::migrate::Options { dir: &dir, source, dry_run, destructive, max_depth, manifest };
 
     let result = libaipm::migrate::migrate(&opts, &libaipm::fs::Real)?;
 
     let mut stdout = std::io::stdout();
     for action in &result.actions {
         match action {
-            libaipm::migrate::Action::PluginCreated { name, source, plugin_type } => {
+            libaipm::migrate::Action::PluginCreated { name, source, plugin_type, .. } => {
                 let _ =
                     writeln!(stdout, "Migrated {plugin_type} '{name}' from {}", source.display());
             },
@@ -479,8 +486,49 @@ fn cmd_migrate(
             libaipm::migrate::Action::DryRunReport { path } => {
                 let _ = writeln!(stdout, "Dry run report written to {}", path.display());
             },
+            libaipm::migrate::Action::SourceFileRemoved { .. }
+            | libaipm::migrate::Action::SourceDirRemoved { .. }
+            | libaipm::migrate::Action::EmptyDirPruned { .. } => {
+                // Cleanup actions are printed separately below
+            },
         }
     }
+
+    // Post-migration cleanup phase
+    if dry_run || !result.has_migrated_artifacts() {
+        return Ok(());
+    }
+
+    let should_clean = if destructive {
+        true
+    } else {
+        let interactive = std::io::stdin().is_terminal();
+        if interactive {
+            wizard_tty::resolve_migrate_cleanup(interactive, &result)?
+        } else {
+            false
+        }
+    };
+
+    if should_clean {
+        let cleanup_actions =
+            libaipm::migrate::cleanup::remove_migrated_sources(&result, &libaipm::fs::Real)?;
+        for action in &cleanup_actions {
+            match action {
+                libaipm::migrate::Action::SourceFileRemoved { path } => {
+                    let _ = writeln!(stdout, "Removed source file: {}", path.display());
+                },
+                libaipm::migrate::Action::SourceDirRemoved { path } => {
+                    let _ = writeln!(stdout, "Removed source directory: {}", path.display());
+                },
+                libaipm::migrate::Action::EmptyDirPruned { path } => {
+                    let _ = writeln!(stdout, "Pruned empty directory: {}", path.display());
+                },
+                _ => {},
+            }
+        }
+    }
+
     Ok(())
 }
 
@@ -510,8 +558,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         Some(Commands::Link { path, dir }) => cmd_link(path, dir),
         Some(Commands::Unlink { package, dir }) => cmd_unlink(&package, dir),
         Some(Commands::List { linked, dir }) => cmd_list(linked, dir),
-        Some(Commands::Migrate { dry_run, source, max_depth, manifest, dir }) => {
-            cmd_migrate(dry_run, source.as_deref(), max_depth, manifest, dir)
+        Some(Commands::Migrate { dry_run, destructive, source, max_depth, manifest, dir }) => {
+            cmd_migrate(dry_run, destructive, source.as_deref(), max_depth, manifest, dir)
         },
         None => {
             let mut stdout = std::io::stdout();

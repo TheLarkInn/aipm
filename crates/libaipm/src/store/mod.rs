@@ -541,6 +541,7 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[cfg(unix)]
     #[test]
     fn store_package_skips_symlinks() {
         let (_tmp, store) = make_store();

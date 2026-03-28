@@ -112,6 +112,7 @@ pub fn emit_plugin<S: BuildHasher>(
         name: plugin_name.clone(),
         source: artifact.source_path.clone(),
         plugin_type: artifact.kind.to_type_string().to_string(),
+        source_is_dir: artifact.kind == ArtifactKind::Skill,
     });
 
     Ok((plugin_name, actions))
@@ -314,6 +315,7 @@ pub fn emit_plugin_with_name(
         name: plugin_name.to_string(),
         source: artifact.source_path.clone(),
         plugin_type: artifact.kind.to_type_string().to_string(),
+        source_is_dir: artifact.kind == ArtifactKind::Skill,
     });
 
     Ok(actions)
@@ -397,12 +399,18 @@ pub fn emit_package_plugin(
     } else {
         artifacts.first().map_or("composite", |a| a.kind.to_type_string())
     };
-    if let Some(first) = artifacts.first() {
-        actions.push(Action::PluginCreated {
-            name: plugin_name.to_string(),
-            source: first.source_path.clone(),
-            plugin_type: plugin_type.to_string(),
-        });
+    // Record a PluginCreated action for each distinct artifact source path
+    // so that --destructive cleanup can remove all migrated sources.
+    let mut seen_sources = std::collections::HashSet::new();
+    for artifact in artifacts {
+        if seen_sources.insert(artifact.source_path.clone()) {
+            actions.push(Action::PluginCreated {
+                name: plugin_name.to_string(),
+                source: artifact.source_path.clone(),
+                plugin_type: plugin_type.to_string(),
+                source_is_dir: artifact.kind == ArtifactKind::Skill,
+            });
+        }
     }
 
     Ok(actions)
