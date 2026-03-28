@@ -918,4 +918,51 @@ mod tests {
         assert_eq!(strip_yaml_quotes("\""), "\"");
         assert_eq!(strip_yaml_quotes("'"), "'");
     }
+
+    #[test]
+    fn migrate_unknown_source_runs_all_detectors() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.ai"));
+        fs.exists.insert(PathBuf::from("/project/.custom"));
+        fs.dirs.insert(PathBuf::from("/project/.ai"), Vec::new());
+        fs.files.insert(
+            PathBuf::from("/project/.ai/.claude-plugin/marketplace.json"),
+            r#"{"plugins":[]}"#.to_string(),
+        );
+
+        let opts = Options {
+            dir: Path::new("/project"),
+            source: Some(".custom"),
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let result = migrate(&opts, &fs);
+        // Should not error — unknown source falls back to all detectors
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn migrate_github_source_accepted() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.ai"));
+        fs.exists.insert(PathBuf::from("/project/.github"));
+        fs.dirs.insert(PathBuf::from("/project/.ai"), Vec::new());
+        fs.files.insert(
+            PathBuf::from("/project/.ai/.claude-plugin/marketplace.json"),
+            r#"{"plugins":[]}"#.to_string(),
+        );
+
+        let opts = Options {
+            dir: Path::new("/project"),
+            source: Some(".github"),
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let result = migrate(&opts, &fs);
+        assert!(result.is_ok());
+    }
 }
