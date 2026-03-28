@@ -243,4 +243,12 @@ mod tests {
         let result = read(&dir_as_file);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn write_to_path_without_parent_returns_io_error() {
+        // The root path "/" has no parent — the create_dir_all step is skipped (None branch),
+        // then writing to "/" itself fails with EISDIR.
+        let result = write(std::path::Path::new("/"), &State::default());
+        assert!(result.is_err());
+    }
 }
