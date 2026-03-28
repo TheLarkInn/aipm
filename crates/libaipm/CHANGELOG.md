@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.13.0] - 2026-03-28
+
+### Features
+- Add Copilot CLI migrate adapter with 6 new detectors ([#140](https://github.com/TheLarkInn/aipm/pull/140)) (e0b6398)
+
 ## [0.12.1] - 2026-03-28
 
 ### Miscellaneous
