@@ -1,6 +1,12 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.11.6] - 2026-03-28
+
+### Testing
+- Cover load() success path and fix &&-branch miss (6f60b0a)
+- Use separate assertions in edition_field_rejected (a3c72ba)
+
 ## [0.11.5] - 2026-03-27
 
 ### Testing
