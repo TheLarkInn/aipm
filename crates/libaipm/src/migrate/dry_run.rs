@@ -224,11 +224,11 @@ fn write_discovery_table(
 ) {
     let _ = writeln!(
         report,
-        "| Location | Package Name | Skills | Commands | Agents | MCP | Hooks | Styles |"
+        "| Location | Package Name | Skills | Commands | Agents | MCP | Hooks | Other |"
     );
     let _ = writeln!(
         report,
-        "|----------|-------------|--------|----------|--------|-----|-------|--------|"
+        "|----------|-------------|--------|----------|--------|-----|-------|-------|"
     );
 
     for src in discovered {
@@ -239,24 +239,25 @@ fn write_discovery_table(
         };
         let pkg_name = src.package_name.as_deref().unwrap_or("(root)");
 
-        let (skills, commands, agents, mcp, hooks, styles) = plugin_plans
+        let (skills, commands, agents, mcp, hooks, other) = plugin_plans
             .iter()
             .filter(|p| p.source_dir == src.source_dir)
             .flat_map(|p| &p.artifacts)
-            .fold((0u32, 0u32, 0u32, 0u32, 0u32, 0u32), |(s, c, ag, m, h, st), a| match a.kind {
-                ArtifactKind::Skill => (s + 1, c, ag, m, h, st),
-                ArtifactKind::Command => (s, c + 1, ag, m, h, st),
-                ArtifactKind::Agent => (s, c, ag + 1, m, h, st),
-                ArtifactKind::McpServer => (s, c, ag, m + 1, h, st),
-                ArtifactKind::Hook => (s, c, ag, m, h + 1, st),
+            .fold((0u32, 0u32, 0u32, 0u32, 0u32, 0u32), |(s, c, ag, m, h, o), a| match a.kind {
+                ArtifactKind::Skill => (s + 1, c, ag, m, h, o),
+                ArtifactKind::Command => (s, c + 1, ag, m, h, o),
+                ArtifactKind::Agent => (s, c, ag + 1, m, h, o),
+                ArtifactKind::McpServer => (s, c, ag, m + 1, h, o),
+                ArtifactKind::Hook => (s, c, ag, m, h + 1, o),
+                // OutputStyle, LspServer, Extension all count as "Other"
                 ArtifactKind::OutputStyle | ArtifactKind::LspServer | ArtifactKind::Extension => {
-                    (s, c, ag, m, h, st + 1)
+                    (s, c, ag, m, h, o + 1)
                 },
             });
 
         let _ = writeln!(
             report,
-            "| {location} | {pkg_name} | {skills} | {commands} | {agents} | {mcp} | {hooks} | {styles} |"
+            "| {location} | {pkg_name} | {skills} | {commands} | {agents} | {mcp} | {hooks} | {other} |"
         );
     }
 

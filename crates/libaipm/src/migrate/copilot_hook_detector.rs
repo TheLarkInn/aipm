@@ -126,7 +126,12 @@ fn collect_command_scripts(value: &serde_json::Value, scripts: &mut Vec<PathBuf>
                 if let Some(cmd) = map.get("command").and_then(|v| v.as_str()) {
                     let cmd_trimmed = cmd.trim();
                     let script_path = cmd_trimmed.split_whitespace().next().unwrap_or(cmd_trimmed);
-                    if script_path.starts_with("./") || script_path.contains('/') {
+                    if script_path.starts_with("./")
+                        || super::hook_detector::is_relative_script(
+                            script_path,
+                            std::path::Path::new("."),
+                        )
+                    {
                         scripts.push(PathBuf::from(script_path));
                     }
                 }

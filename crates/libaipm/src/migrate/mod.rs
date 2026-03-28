@@ -336,9 +336,11 @@ fn migrate_single_source(
         return Err(Error::SourceNotFound(source_dir));
     }
 
-    let detectors = detector::detectors_for_source(source);
+    let mut detectors = detector::detectors_for_source(source);
     if detectors.is_empty() {
-        return Err(Error::UnsupportedSource(source.to_string()));
+        // Unknown source type — run all detectors as a fallback
+        detectors = detector::claude_detectors();
+        detectors.extend(detector::copilot_detectors());
     }
 
     let mut all_artifacts = Vec::new();

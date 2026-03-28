@@ -105,7 +105,7 @@ fn collect_command_scripts(
 }
 
 /// Check if a path looks like a relative script (not an absolute path, not a bare command).
-fn is_relative_script(path: &str, _source_dir: &Path) -> bool {
+pub(super) fn is_relative_script(path: &str, _source_dir: &Path) -> bool {
     if path.is_empty() {
         return false;
     }

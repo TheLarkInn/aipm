@@ -58,7 +58,17 @@ impl Detector for CopilotExtensionDetector {
 /// Try to read a config file from an extension directory.
 /// Checks for config.json, extension.json, or manifest.json.
 fn try_read_config(ext_dir: &Path, fs: &dyn Fs) -> Option<String> {
-    let candidates = ["config.json", "extension.json", "manifest.json"];
+    let candidates = [
+        "config.json",
+        "extension.json",
+        "manifest.json",
+        "config.yaml",
+        "config.yml",
+        "extension.yaml",
+        "extension.yml",
+        "manifest.yaml",
+        "manifest.yml",
+    ];
     for name in &candidates {
         let path = ext_dir.join(name);
         if let Ok(content) = fs.read_to_string(&path) {
