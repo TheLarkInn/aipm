@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.12.1] - 2026-03-28
+
+### Miscellaneous
+- Update Cargo.toml dependencies (0000000)
+
 ## [0.12.0] - 2026-03-28
 
 ### Features
