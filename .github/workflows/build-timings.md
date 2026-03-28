@@ -20,7 +20,6 @@ steps:
   - uses: dtolnay/rust-toolchain@stable
     with:
       components: clippy, rustfmt
-  - uses: Swatinem/rust-cache@v2
 safe-outputs:
   create-issue:
     max: 1
@@ -116,8 +115,8 @@ Read the workspace `Cargo.toml` and check for:
   while keeping the workspace crates in debug mode?
 - **Feature flags**: Are there unnecessary features enabled on dependencies that
   increase compile time?
-- **Cargo lint configuration**: Check if `[lints.cargo]` section exists and
-  whether build-time-relevant lints are enabled.
+- **Cargo lint configuration**: Check the `[workspace.lints.clippy]` section for
+  a configured `cargo` lint group and verify that build-time-relevant lints are enabled.
 
 ### 6 — Check for build-time improvement opportunities
 
