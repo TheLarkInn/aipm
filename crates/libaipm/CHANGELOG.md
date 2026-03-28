@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.14.0] - 2026-03-28
+
+### Features
+- Workspace dependencies resolve and link locally ([#144](https://github.com/TheLarkInn/aipm/pull/144)) (13630b8)
+
 ## [0.13.0] - 2026-03-28
 
 ### Features
