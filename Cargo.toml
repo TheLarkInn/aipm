@@ -40,8 +40,8 @@ semver = { version = "1", features = ["serde"] }
 # HTTP
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 
-# Git
-git2 = "0.19"
+# Git — HTTPS only; SSH features removed to avoid libssh2-sys C compilation (~8.7s)
+git2 = { version = "0.19", default-features = false, features = ["https"] }
 
 # Hashing
 sha2 = "0.10"
@@ -136,6 +136,30 @@ unwrap_in_result          = "deny"
 clone_on_ref_ptr          = "warn"
 create_dir                = "warn"
 exit                      = "deny"
+
+# =============================================================================
+# DEV PROFILE — faster incremental builds for local development
+# =============================================================================
+
+[profile.dev]
+opt-level = 0
+debug = 1                   # line tables only — sufficient for backtraces, faster than full symbols
+split-debuginfo = "unpacked" # faster linking on Linux
+
+# Compile all third-party crates at opt-level 1 so C-heavy deps (libgit2,
+# ring, etc.) cache better after the first build and link faster.
+[profile.dev.package."*"]
+opt-level = 1
+
+# Keep all workspace crates in fast, zero-opt debug mode.
+[profile.dev.package.libaipm]
+opt-level = 0
+
+[profile.dev.package.aipm]
+opt-level = 0
+
+[profile.dev.package.aipm-pack]
+opt-level = 0
 
 # =============================================================================
 # RELEASE PROFILE — optimized for distribution binaries
