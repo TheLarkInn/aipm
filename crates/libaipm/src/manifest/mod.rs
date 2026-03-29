@@ -533,8 +533,9 @@ version = "0.1.0"
 edition = "2024"
 "#;
         let result = parse_and_validate(toml, None);
-        assert!(result.is_err(), "expected manifest parse to fail due to unknown 'edition' field");
-        let err_msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+        let err_msg = result
+            .expect_err("expected manifest parse to fail due to unknown 'edition' field")
+            .to_string();
         assert!(err_msg.contains("unknown field"), "expected 'unknown field' in: {err_msg}");
         assert!(err_msg.contains("edition"), "expected 'edition' in: {err_msg}");
     }
