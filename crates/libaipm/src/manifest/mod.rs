@@ -532,12 +532,12 @@ name = "my-plugin"
 version = "0.1.0"
 edition = "2024"
 "#;
-        let err_msg = parse_and_validate(toml, None).err().map(|e| e.to_string());
+        let err_msg = parse_and_validate(toml, None)
+            .expect_err("expected manifest parse to fail due to unknown 'edition' field")
+            .to_string();
         assert!(
-            err_msg
-                .as_deref()
-                .is_some_and(|m| m.contains("unknown field") && m.contains("edition")),
-            "expected parse error mentioning 'unknown field' and 'edition', got: {err_msg:?}"
+            err_msg.contains("unknown field") && err_msg.contains("edition"),
+            "expected parse error mentioning 'unknown field' and 'edition', got: {err_msg}"
         );
     }
 }
