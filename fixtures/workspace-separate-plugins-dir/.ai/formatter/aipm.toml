@@ -1,0 +1,7 @@
+[package]
+name = "formatter"
+version = "0.1.0"
+type = "skill"
+
+[dependencies]
+greeter = { workspace = "*" }

@@ -1,0 +1,7 @@
+# AI Plugin Manager — Workspace Configuration
+# Fixture: workspace with members but no root [dependencies].
+# Expected: `aipm install` reports 0 packages installed.
+
+[workspace]
+members = [".ai/*"]
+plugins_dir = ".ai"

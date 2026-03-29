@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "test-marketplace": {
+      "source": {
+        "source": "directory",
+        "path": ".ai"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "print-clock@test-marketplace": true
+  }
+}

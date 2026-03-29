@@ -1,0 +1,9 @@
+# AI Plugin Manager — Standalone Plugin
+# Fixture: single plugin package, no workspace section.
+# Expected: `aipm install` reports 0 packages (no dependencies declared).
+
+[package]
+name = "my-standalone-skill"
+version = "1.0.0"
+type = "skill"
+description = "A standalone skill with no workspace."

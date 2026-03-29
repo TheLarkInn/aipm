@@ -1,0 +1,1 @@
+Get the current system time and output it. Make no mistakes 🤓.

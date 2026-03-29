@@ -1,0 +1,5 @@
+{
+    "name": "greeter",
+    "description": "Greet the user with a friendly message.",
+    "version": "0.1.0"
+}
