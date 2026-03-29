@@ -532,10 +532,12 @@ name = "my-plugin"
 version = "0.1.0"
 edition = "2024"
 "#;
-        let result = parse_and_validate(toml, None);
-        assert!(result.is_err());
-        let err_msg = result.err().map(|e| e.to_string()).unwrap_or_default();
-        assert!(err_msg.contains("unknown field"), "expected 'unknown field' in: {err_msg}");
-        assert!(err_msg.contains("edition"), "expected 'edition' in: {err_msg}");
+        let err_msg = parse_and_validate(toml, None).err().map(|e| e.to_string());
+        assert!(
+            err_msg
+                .as_deref()
+                .is_some_and(|m| m.contains("unknown field") && m.contains("edition")),
+            "expected parse error mentioning 'unknown field' and 'edition', got: {err_msg:?}"
+        );
     }
 }
