@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.14.1] - 2026-03-29
+
+### Bug Fixes
+- Read plugins_dir from manifest and skip self-links ([#148](https://github.com/TheLarkInn/aipm/pull/148)) (dfc3e1c)
+
 ## [0.14.0] - 2026-03-28
 
 ### Features
