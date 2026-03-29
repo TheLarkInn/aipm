@@ -1,0 +1,5 @@
+{
+    "name": "print-clock",
+    "description": "Get the current time and print it as a clock in the terminal.",
+    "version": "0.1.0"
+}

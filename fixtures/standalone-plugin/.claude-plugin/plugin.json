@@ -1,0 +1,5 @@
+{
+    "name": "my-standalone-skill",
+    "description": "A standalone skill with no workspace.",
+    "version": "1.0.0"
+}

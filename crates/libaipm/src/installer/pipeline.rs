@@ -240,10 +240,27 @@ fn link_resolved_packages(
                 })?;
                 std::fs::create_dir_all(&config.plugins_dir)?;
                 let link_target = config.plugins_dir.join(pkg_name);
-                linker::directory_link::create(&member.path, &link_target)
-                    .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
-                linker::gitignore::add_entry(&config.gitignore_path, pkg_name)
-                    .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+
+                // If the member already lives inside the plugins directory, no
+                // link is needed — the package is already discoverable in place.
+                let member_canonical = member.path.canonicalize().ok();
+                let target_canonical = link_target.canonicalize().ok();
+                let already_in_place = match (&member_canonical, &target_canonical) {
+                    (Some(m), Some(t)) => m == t,
+                    _ => false,
+                };
+
+                if already_in_place {
+                    tracing::debug!(
+                        package = pkg_name.as_str(),
+                        "workspace member already in plugins dir — skipping link"
+                    );
+                } else {
+                    linker::directory_link::create(&member.path, &link_target)
+                        .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+                    linker::gitignore::add_entry(&config.gitignore_path, pkg_name)
+                        .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+                }
                 installed += 1;
             },
             resolver::Source::Registry { .. } => {
@@ -3049,5 +3066,157 @@ plugin-b = { workspace = "*" }
 
         let result = collect_transitive_registry_deps(vec![], &ws_resolved, &members);
         assert!(result.is_empty(), "member with no deps → no transitive deps");
+    }
+
+    // =========================================================================
+    // Skip link when workspace member already lives in plugins_dir
+    // =========================================================================
+
+    #[test]
+    fn install_workspace_dep_already_in_plugins_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Workspace where plugins_dir IS the member parent directory
+        let ws_manifest = r#"
+[workspace]
+members = [".ai/*"]
+plugins_dir = ".ai"
+
+[dependencies]
+plugin-a = { workspace = "*" }
+"#;
+        std::fs::write(root.join("aipm.toml"), ws_manifest).unwrap();
+
+        // Member lives directly inside .ai/
+        let member_dir = root.join(".ai/plugin-a");
+        std::fs::create_dir_all(&member_dir).unwrap();
+        std::fs::write(
+            member_dir.join("aipm.toml"),
+            "[package]\nname = \"plugin-a\"\nversion = \"0.2.0\"\ntype = \"skill\"\n",
+        )
+        .unwrap();
+        std::fs::write(member_dir.join("hello.txt"), "world").unwrap();
+
+        // plugins_dir points to the same .ai/ where the member already lives
+        let config = InstallConfig {
+            manifest_path: root.join("aipm.toml"),
+            lockfile_path: root.join("aipm.lock"),
+            store_path: root.join(".aipm/store"),
+            links_dir: root.join(".aipm/links"),
+            plugins_dir: root.join(".ai"),
+            gitignore_path: root.join(".ai/.gitignore"),
+            link_state_path: root.join(".aipm/links.toml"),
+            workspace_root: None,
+            locked: false,
+            add_package: None,
+            generated_by: "aipm-test 0.1.0".to_string(),
+        };
+
+        let registry = StubRegistry;
+        let result = install(&config, &registry);
+        assert!(
+            result.is_ok(),
+            "should succeed when member is already in plugins dir: {:?}",
+            result.err()
+        );
+
+        let res = result.unwrap();
+        assert_eq!(res.installed, 1, "should count the in-place member as installed");
+
+        // The original directory should still be a real directory (not a junction)
+        assert!(member_dir.exists(), "member dir should still exist");
+        assert!(
+            !linker::directory_link::is_link(&member_dir),
+            "should not have created a link over the real dir"
+        );
+
+        // Verify content is still accessible
+        let content = std::fs::read_to_string(member_dir.join("hello.txt"));
+        assert!(content.is_ok(), "should still read member files");
+        assert_eq!(content.unwrap(), "world");
+
+        // Verify lockfile was written
+        let lf = lockfile::read(&config.lockfile_path).unwrap();
+        assert_eq!(lf.packages.len(), 1);
+        assert_eq!(lf.packages[0].name, "plugin-a");
+        assert_eq!(lf.packages[0].source, "workspace");
+    }
+
+    // =========================================================================
+    // E2E: transitive workspace deps with plugins_dir == member dir
+    // =========================================================================
+
+    #[test]
+    fn install_transitive_workspace_deps_in_place() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let ws_manifest = r#"
+[workspace]
+members = [".ai/*"]
+plugins_dir = ".ai"
+
+[dependencies]
+print-clock = { workspace = "*" }
+"#;
+        std::fs::write(root.join("aipm.toml"), ws_manifest).unwrap();
+
+        // Create member: get-current-time (no deps)
+        let time_dir = root.join(".ai/get-current-time");
+        std::fs::create_dir_all(&time_dir).unwrap();
+        std::fs::write(
+            time_dir.join("aipm.toml"),
+            "[package]\nname = \"get-current-time\"\nversion = \"0.1.0\"\ntype = \"skill\"\n",
+        )
+        .unwrap();
+
+        // Create member: print-clock (depends on get-current-time)
+        let clock_dir = root.join(".ai/print-clock");
+        std::fs::create_dir_all(&clock_dir).unwrap();
+        std::fs::write(
+            clock_dir.join("aipm.toml"),
+            "[package]\nname = \"print-clock\"\nversion = \"0.1.0\"\ntype = \"skill\"\n\n\
+             [dependencies]\nget-current-time = { workspace = \"*\" }\n",
+        )
+        .unwrap();
+
+        let config = InstallConfig {
+            manifest_path: root.join("aipm.toml"),
+            lockfile_path: root.join("aipm.lock"),
+            store_path: root.join(".aipm/store"),
+            links_dir: root.join(".aipm/links"),
+            plugins_dir: root.join(".ai"),
+            gitignore_path: root.join(".ai/.gitignore"),
+            link_state_path: root.join(".aipm/links.toml"),
+            workspace_root: None,
+            locked: false,
+            add_package: None,
+            generated_by: "aipm-test 0.1.0".to_string(),
+        };
+
+        let registry = StubRegistry;
+        let result = install(&config, &registry);
+        assert!(
+            result.is_ok(),
+            "transitive workspace install should succeed when members are in plugins dir: {:?}",
+            result.err()
+        );
+
+        let res = result.unwrap();
+        assert_eq!(res.installed, 2, "should install both workspace deps");
+
+        // Both dirs should still be real directories
+        assert!(time_dir.exists(), "get-current-time should exist");
+        assert!(clock_dir.exists(), "print-clock should exist");
+        assert!(!linker::directory_link::is_link(&time_dir));
+        assert!(!linker::directory_link::is_link(&clock_dir));
+
+        // Lockfile should have both packages
+        let lf = lockfile::read(&config.lockfile_path).unwrap();
+        assert_eq!(lf.packages.len(), 2);
+        let names: Vec<&str> = lf.packages.iter().map(|p| p.name.as_str()).collect();
+        assert!(names.contains(&"get-current-time"));
+        assert!(names.contains(&"print-clock"));
     }
 }

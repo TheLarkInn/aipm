@@ -6,7 +6,7 @@ mod wizard;
 mod wizard_tty;
 
 use std::io::{IsTerminal, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
 
@@ -180,6 +180,20 @@ fn resolve_dir(dir: PathBuf) -> Result<PathBuf, Box<dyn std::error::Error>> {
     }
 }
 
+/// Read `[workspace].plugins_dir` from the manifest at `dir/aipm.toml`, falling
+/// back to `.ai` when unset or when the manifest cannot be loaded.
+fn resolve_plugins_dir(dir: &Path) -> PathBuf {
+    let manifest_path = dir.join("aipm.toml");
+    if let Ok(manifest) = libaipm::manifest::load(&manifest_path) {
+        if let Some(ws) = manifest.workspace {
+            if let Some(pd) = ws.plugins_dir {
+                return dir.join(pd);
+            }
+        }
+    }
+    dir.join(".ai")
+}
+
 /// Get the global content-addressable store path (`~/.aipm/store/`).
 fn home_store_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
     let home = std::env::var("HOME")
@@ -294,14 +308,15 @@ fn cmd_install(
         }
     }
 
+    let plugins_dir = resolve_plugins_dir(&dir);
     let config = libaipm::installer::pipeline::InstallConfig {
         manifest_path: dir.join("aipm.toml"),
         lockfile_path: dir.join("aipm.lock"),
         store_path: home_store_path()?,
         links_dir: dir.join(".aipm/links"),
-        plugins_dir: dir.join(".ai"),
-        gitignore_path: dir.join(".ai/.gitignore"),
+        gitignore_path: plugins_dir.join(".gitignore"),
         link_state_path: dir.join(".aipm/links.toml"),
+        plugins_dir,
         workspace_root,
         locked,
         add_package: package,
@@ -323,14 +338,15 @@ fn cmd_install(
 fn cmd_update(package: Option<String>, dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     let dir = resolve_dir(dir)?;
 
+    let plugins_dir = resolve_plugins_dir(&dir);
     let config = libaipm::installer::pipeline::UpdateConfig {
         manifest_path: dir.join("aipm.toml"),
         lockfile_path: dir.join("aipm.lock"),
         store_path: home_store_path()?,
         links_dir: dir.join(".aipm/links"),
-        plugins_dir: dir.join(".ai"),
-        gitignore_path: dir.join(".ai/.gitignore"),
+        gitignore_path: plugins_dir.join(".gitignore"),
         link_state_path: dir.join(".aipm/links.toml"),
+        plugins_dir,
         package,
         generated_by: format!("aipm {}", libaipm::version()),
     };
@@ -369,7 +385,7 @@ fn cmd_link(path: PathBuf, dir: PathBuf) -> Result<(), Box<dyn std::error::Error
         .map(|p| p.name.clone())
         .ok_or("manifest at linked path has no [package] section")?;
 
-    let plugins_dir = dir.join(".ai");
+    let plugins_dir = resolve_plugins_dir(&dir);
     let link_target = plugins_dir.join(&pkg_name);
 
     // Create the directory link
@@ -394,7 +410,7 @@ fn cmd_link(path: PathBuf, dir: PathBuf) -> Result<(), Box<dyn std::error::Error
 
 fn cmd_unlink(package: &str, dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     let dir = resolve_dir(dir)?;
-    let plugins_dir = dir.join(".ai");
+    let plugins_dir = resolve_plugins_dir(&dir);
     let links_dir = dir.join(".aipm/links");
 
     libaipm::linker::pipeline::unlink_package(package, &links_dir, &plugins_dir)

@@ -1,0 +1,15 @@
+{
+  "name": "local-repo-plugins",
+  "owner": {
+    "name": "local"
+  },
+  "metadata": {
+    "description": "Local plugins for this repository"
+  },
+  "plugins": [
+    {
+      "name": "hello-world",
+      "source": "./hello-world"
+    }
+  ]
+}

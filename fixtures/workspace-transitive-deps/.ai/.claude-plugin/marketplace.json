@@ -1,0 +1,19 @@
+{
+  "name": "test-marketplace",
+  "owner": {
+    "name": "local"
+  },
+  "metadata": {
+    "description": "Local plugins for this repository"
+  },
+  "plugins": [
+    {
+      "name": "get-current-time",
+      "source": "./get-current-time"
+    },
+    {
+      "name": "print-clock",
+      "source": "./print-clock"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "local-repo-plugins",
+  "owner": {
+    "name": "local"
+  },
+  "metadata": {
+    "description": "Local plugins for this repository"
+  },
+  "plugins": [
+    {
+      "name": "greeter",
+      "source": "./greeter"
+    },
+    {
+      "name": "formatter",
+      "source": "./formatter"
+    }
+  ]
+}

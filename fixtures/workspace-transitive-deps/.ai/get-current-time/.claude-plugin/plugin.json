@@ -1,0 +1,5 @@
+{
+    "name": "get-current-time",
+    "description": "Get the current system time and output it. Make no mistakes 🤓.",
+    "version": "0.1.0"
+}

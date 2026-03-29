@@ -1,0 +1,11 @@
+# AI Plugin Manager — Workspace Configuration
+# Fixture: workspace where plugins_dir ("plugins") differs from member dir (".ai").
+# Expected: `aipm install` creates junctions in plugins/ pointing to .ai/ members.
+
+[workspace]
+members = [".ai/*"]
+plugins_dir = "plugins"
+
+[dependencies]
+greeter = { workspace = "*" }
+formatter = { workspace = "*" }

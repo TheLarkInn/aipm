@@ -1,0 +1,7 @@
+[package]
+name = "print-clock"
+version = "0.1.0"
+type = "skill"
+
+[dependencies]
+get-current-time = { workspace = "*" }
