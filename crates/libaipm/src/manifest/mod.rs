@@ -533,11 +533,12 @@ version = "0.1.0"
 edition = "2024"
 "#;
         let result = parse_and_validate(toml, None);
-        assert!(result.is_err());
-        if let Err(e) = result {
-            let msg = e.to_string();
-            assert!(msg.contains("unknown field"));
-            assert!(msg.contains("edition"));
-        }
+        assert!(
+            result.is_err_and(|e| {
+                let msg = e.to_string();
+                msg.contains("unknown field") && msg.contains("edition")
+            }),
+            "expected parse error mentioning 'unknown field' and 'edition'"
+        );
     }
 }
