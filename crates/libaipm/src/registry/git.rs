@@ -423,4 +423,75 @@ mod tests {
         let url = config.download_url("my-plugin", "1.2.3");
         assert_eq!(url, "https://cdn.example.com/packages/my-plugin-1.2.3.aipm");
     }
+
+    // --- http_get tests ---
+
+    /// Bind a TCP listener on a random loopback port and return it together
+    /// with the URL base `http://127.0.0.1:<port>`.
+    fn bind_test_server() -> (std::net::TcpListener, String) {
+        let listener =
+            std::net::TcpListener::bind("127.0.0.1:0").expect("bind failed in test helper");
+        let port = listener.local_addr().expect("local_addr failed in test helper").port();
+        let base = format!("http://127.0.0.1:{port}");
+        (listener, base)
+    }
+
+    /// Serve exactly one request from `listener`, writing `response_bytes` as
+    /// the raw HTTP response, then close the connection.
+    fn serve_one(listener: std::net::TcpListener, response_bytes: &'static [u8]) {
+        std::thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                use std::io::{Read, Write};
+                let mut buf = [0u8; 4096];
+                // Drain the request so the client does not get a broken-pipe
+                let _ = stream.read(&mut buf);
+                let _ = stream.write_all(response_bytes);
+            }
+        });
+    }
+
+    #[test]
+    fn http_get_success_returns_body() {
+        let body = b"hello tarball";
+        let response: &'static [u8] =
+            b"HTTP/1.1 200 OK\r\nContent-Length: 13\r\nConnection: close\r\n\r\nhello tarball";
+
+        let (listener, base) = bind_test_server();
+        serve_one(listener, response);
+
+        let url = format!("{base}/pkg.tar.gz");
+        let result = http_get(&url);
+        assert!(result.is_ok(), "expected Ok, got: {result:?}");
+        assert_eq!(result.unwrap(), body);
+    }
+
+    #[test]
+    fn http_get_404_returns_err() {
+        let response: &'static [u8] =
+            b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+
+        let (listener, base) = bind_test_server();
+        serve_one(listener, response);
+
+        let url = format!("{base}/missing.tar.gz");
+        let result = http_get(&url);
+        assert!(result.is_err(), "expected Err for 404, got Ok");
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("HTTP request failed"), "unexpected error message: {err_msg}");
+    }
+
+    #[test]
+    fn http_get_connection_refused_returns_err() {
+        // Pick a port then immediately drop the listener so it is not listening.
+        let port = {
+            let l = std::net::TcpListener::bind("127.0.0.1:0").expect("bind failed in test helper");
+            l.local_addr().expect("local_addr failed in test helper").port()
+            // `l` is dropped here — the port is no longer bound
+        };
+        let url = format!("http://127.0.0.1:{port}/pkg.tar.gz");
+        let result = http_get(&url);
+        assert!(result.is_err(), "expected Err for refused connection, got Ok");
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("HTTP request failed"), "unexpected error message: {err_msg}");
+    }
 }
