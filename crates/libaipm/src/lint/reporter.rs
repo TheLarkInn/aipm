@@ -88,7 +88,7 @@ impl Reporter for Json {
             if i > 0 {
                 write!(writer, ", ")?;
             }
-            write!(writer, "\"{s}\"")?;
+            write!(writer, "\"{}\"", escape_json_string(s))?;
         }
         writeln!(writer, "]")?;
 

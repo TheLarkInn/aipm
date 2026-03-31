@@ -503,8 +503,16 @@ fn cmd_lint(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let dir = resolve_dir(dir)?;
 
-    // Load lint config from aipm.toml if it exists
-    let config = libaipm::lint::config::Config::default();
+    // Validate --source directory exists when explicitly requested
+    if let Some(ref src) = source {
+        let source_dir = dir.join(src);
+        if !source_dir.exists() {
+            return Err(format!("source directory '{}' not found in {}", src, dir.display()).into());
+        }
+    }
+
+    // Load lint config from aipm.toml [workspace.lints] if it exists
+    let config = load_lint_config(&dir);
 
     let opts = libaipm::lint::Options { dir, source, config, max_depth };
 
@@ -525,6 +533,76 @@ fn cmd_lint(
     }
 
     Ok(())
+}
+
+fn load_lint_config(dir: &Path) -> libaipm::lint::config::Config {
+    let manifest_path = dir.join("aipm.toml");
+    let Ok(content) = std::fs::read_to_string(&manifest_path) else {
+        return libaipm::lint::config::Config::default();
+    };
+    let Ok(manifest) = toml::from_str::<toml::Value>(&content) else {
+        return libaipm::lint::config::Config::default();
+    };
+
+    let mut config = libaipm::lint::config::Config::default();
+
+    let Some(workspace) = manifest.get("workspace") else {
+        return config;
+    };
+    let Some(lints) = workspace.get("lints") else {
+        return config;
+    };
+    let Some(lints_table) = lints.as_table() else {
+        return config;
+    };
+
+    // Parse global ignore paths
+    if let Some(ignore) = lints_table.get("ignore") {
+        if let Some(paths) = ignore.get("paths").and_then(toml::Value::as_array) {
+            for p in paths {
+                if let Some(s) = p.as_str() {
+                    config.ignore_paths.push(s.to_string());
+                }
+            }
+        }
+    }
+
+    // Parse per-rule overrides
+    for (key, value) in lints_table {
+        if key == "ignore" {
+            continue;
+        }
+        if let Some(s) = value.as_str() {
+            if s == "allow" {
+                config
+                    .rule_overrides
+                    .insert(key.clone(), libaipm::lint::config::RuleOverride::Allow);
+            } else if let Some(severity) = libaipm::lint::Severity::from_str_config(s) {
+                config
+                    .rule_overrides
+                    .insert(key.clone(), libaipm::lint::config::RuleOverride::Level(severity));
+            }
+        } else if let Some(table) = value.as_table() {
+            let level = table
+                .get("level")
+                .and_then(toml::Value::as_str)
+                .and_then(libaipm::lint::Severity::from_str_config);
+            let ignore = table
+                .get("ignore")
+                .and_then(toml::Value::as_array)
+                .map(|arr| arr.iter().filter_map(toml::Value::as_str).map(String::from).collect())
+                .unwrap_or_default();
+
+            if let Some(lvl) = level {
+                config.rule_overrides.insert(
+                    key.clone(),
+                    libaipm::lint::config::RuleOverride::Detailed { level: lvl, ignore },
+                );
+            }
+        }
+    }
+
+    config
 }
 
 fn cmd_migrate(

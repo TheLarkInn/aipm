@@ -30,7 +30,7 @@ impl Rule for MissingName {
 
         for skill in scan::scan_skills(source_dir, fs) {
             match skill.frontmatter {
-                Some(fm) if fm.fields.contains_key("name") => {},
+                Some(fm) if fm.fields.get("name").is_some_and(|v| !v.trim().is_empty()) => {},
                 Some(_) => {
                     diagnostics.push(Diagnostic {
                         rule_id: self.id().to_string(),

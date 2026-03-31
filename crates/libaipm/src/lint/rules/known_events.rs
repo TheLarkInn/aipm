@@ -1,6 +1,6 @@
 //! Hard-coded hook event lists per tool, derived from binary analysis.
 //!
-//! **Claude Code v2.1.87**: 26 events (`PascalCase`)
+//! **Claude Code v2.1.87**: 27 events (`PascalCase`)
 //! **Copilot CLI v1.0.12**: 10 events (`camelCase`) + legacy `PascalCase` mapping
 //!
 //! Updated per aipm release by re-running binary analysis.

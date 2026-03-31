@@ -18,10 +18,30 @@ use crate::fs::Fs;
 pub use diagnostic::{Diagnostic, Severity};
 pub use rule::Rule;
 
+/// Check if a file path matches any of the given glob-like ignore patterns.
+fn is_ignored(path: &str, patterns: &[String]) -> bool {
+    for pattern in patterns {
+        // Simple glob matching: support trailing ** and leading **/
+        if let Some(prefix) = pattern.strip_suffix("/**") {
+            if path.contains(prefix) {
+                return true;
+            }
+        } else if let Some(suffix) = pattern.strip_prefix("**/") {
+            if path.ends_with(suffix) || path.contains(suffix) {
+                return true;
+            }
+        } else if path.contains(pattern.trim_end_matches('*')) {
+            return true;
+        }
+    }
+    false
+}
+
 /// Run the lint pipeline.
 ///
 /// Discovers source directories, selects rules per source type, applies
-/// configuration overrides, executes rules, and collects diagnostics.
+/// configuration overrides (including ignore paths), executes rules
+/// sequentially, and collects diagnostics.
 ///
 /// # Errors
 ///
@@ -70,13 +90,23 @@ pub fn lint(opts: &Options, fs: &dyn Fs) -> Result<Outcome, Error> {
             let effective_severity =
                 opts.config.severity_override(rule.id()).unwrap_or_else(|| rule.default_severity());
 
+            // Collect ignore patterns for this rule
+            let rule_ignores = opts.config.rule_ignore_paths(rule.id());
+
             for mut d in rule_diagnostics {
+                // Apply global and per-rule ignore path filtering
+                let path_str = d.file_path.display().to_string();
+                if is_ignored(&path_str, &opts.config.ignore_paths)
+                    || is_ignored(&path_str, rule_ignores)
+                {
+                    continue;
+                }
                 d.severity = effective_severity;
                 all_diagnostics.push(d);
             }
         }
 
-        let _ = source_dir; // used for discovery context
+        let _ = source_dir;
     }
 
     // Sort by file path for consistent output
@@ -97,7 +127,7 @@ pub struct Options {
     pub source: Option<String>,
     /// Lint configuration from `[workspace.lints]`.
     pub config: config::Config,
-    /// Maximum directory traversal depth.
+    /// Maximum directory traversal depth (reserved for future use).
     pub max_depth: Option<usize>,
 }
 

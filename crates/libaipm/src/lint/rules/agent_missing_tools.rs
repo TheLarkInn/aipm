@@ -29,8 +29,9 @@ impl Rule for MissingTools {
         let mut diagnostics = Vec::new();
 
         for agent in scan::scan_agents(source_dir, fs) {
-            if let Some(ref fm) = agent.frontmatter {
-                if !fm.fields.contains_key("tools") {
+            match agent.frontmatter {
+                Some(ref fm) if fm.fields.contains_key("tools") => {},
+                Some(_) | None => {
                     diagnostics.push(Diagnostic {
                         rule_id: self.id().to_string(),
                         severity: self.default_severity(),
@@ -39,7 +40,7 @@ impl Rule for MissingTools {
                         line: Some(1),
                         source_type: ".ai".to_string(),
                     });
-                }
+                },
             }
         }
 
@@ -75,14 +76,15 @@ mod tests {
     }
 
     #[test]
-    fn agent_no_frontmatter_no_finding() {
+    fn agent_no_frontmatter_warns() {
         let mut fs = MockFs::new();
         fs.add_agent("p", "reviewer", "Just a prompt with no frontmatter");
 
         let result = MissingTools.check(Path::new(".ai"), &fs);
         assert!(result.is_ok());
-        // No frontmatter means we can't check for tools — skip silently
-        assert!(result.ok().unwrap_or_default().is_empty());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].rule_id, "agent/missing-tools");
     }
 
     #[test]

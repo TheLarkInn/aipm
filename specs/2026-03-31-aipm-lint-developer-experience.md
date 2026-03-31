@@ -124,7 +124,7 @@ error[plugin/broken-paths]: broken script reference: ${CLAUDE_SKILL_DIR}/scripts
   = help: file not found: .ai/my-plugin/skills/deploy/scripts/deploy.sh
 ```
 
-Hook validation is **tool-aware** — Claude Code has 26 valid events and Copilot CLI has 10. The rule knows which tool's event list to check against:
+Hook validation is **tool-aware** — Claude Code has 27 valid events and Copilot CLI has 10. The rule knows which tool's event list to check against:
 
 ```
 error[hook/unknown-event]: unknown hook event: InvalidEvent

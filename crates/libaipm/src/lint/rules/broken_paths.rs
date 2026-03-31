@@ -1,6 +1,8 @@
-//! Rule: `plugin/broken-paths` — broken file references in plugin markdown.
+//! Rule: `plugin/broken-paths` — broken file references in skill markdown.
 //!
-//! Checks `${CLAUDE_SKILL_DIR}/` and `${SKILL_DIR}/` references in SKILL.md files.
+//! Checks `${CLAUDE_SKILL_DIR}/` and `${SKILL_DIR}/` references in `SKILL.md` files.
+//! Validates that referenced script paths exist on disk. Rejects path traversal
+//! (`..`) and absolute paths for security.
 
 use std::path::Path;
 
@@ -50,7 +52,10 @@ impl Rule for BrokenPaths {
                             })
                             .unwrap_or(after.len());
                         let ref_path = &after[..end];
-                        if !ref_path.is_empty() {
+                        if !ref_path.is_empty()
+                            && !ref_path.starts_with('/')
+                            && !ref_path.contains("..")
+                        {
                             let resolved = skill_dir.join(ref_path);
                             if !fs.exists(&resolved) {
                                 diagnostics.push(Diagnostic {
