@@ -433,4 +433,19 @@ mod tests {
     fn should_skip_for_report_does_not_match_root_path() {
         assert!(!super::should_skip_for_report(Path::new("/")));
     }
+
+    #[test]
+    fn source_at_root_path_has_no_parent_dir_to_check() {
+        // Path::new("/").parent() returns None on Unix; verify that remove_migrated_sources
+        // handles this gracefully and does not attempt to queue a parent dir for pruning.
+        let fs = MockFs::new();
+        let outcome = make_outcome(vec![plugin_created("root-file", "/", "hook", false)]);
+        let result = remove_migrated_sources(&outcome, &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert_eq!(actions.len(), 1);
+        assert!(
+            matches!(&actions[0], Action::SourceFileRemoved { path } if path == Path::new("/"))
+        );
+    }
 }
