@@ -243,4 +243,12 @@ mod tests {
         let result = read(&dir_as_file);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn write_path_without_parent_skips_create_dir_all() {
+        // Path::new("/").parent() returns None, so the create_dir_all branch is skipped.
+        // Writing to "/" itself fails with EISDIR, confirming the None arm is reached.
+        let result = write(Path::new("/"), &State::default());
+        assert!(result.is_err());
+    }
 }
