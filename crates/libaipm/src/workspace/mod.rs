@@ -327,4 +327,26 @@ mod tests {
         let err = discover_members(root, &[".ai/*".to_string()]).unwrap_err();
         assert!(format!("{err}").contains("invalid manifest"));
     }
+
+    #[test]
+    fn discover_members_error_manifest_is_directory() {
+        // If a path named "aipm.toml" exists as a directory rather than a file,
+        // std::fs::read_to_string fails — this covers the error-conversion branch
+        // in discover_members (the map_err closure and the ? propagation).
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let member_dir = root.join(".ai").join("dir-member");
+        std::fs::create_dir_all(&member_dir).unwrap();
+        // Create a *directory* called "aipm.toml" so exists() returns true
+        // but read_to_string errors with "Is a directory".
+        let manifest_path = member_dir.join("aipm.toml");
+        std::fs::create_dir_all(&manifest_path).unwrap();
+
+        let err = discover_members(root, &[".ai/*".to_string()]).unwrap_err();
+        assert!(
+            format!("{err}").contains("failed to read"),
+            "expected 'failed to read' error, got: {err}"
+        );
+    }
 }

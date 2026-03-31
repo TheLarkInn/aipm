@@ -7,7 +7,7 @@ resolver = "2"
 # =============================================================================
 
 [workspace.package]
-version = "0.14.3"
+version = "0.14.6"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/thelarkinn/aipm"
@@ -22,7 +22,7 @@ readme = "README.md"
 
 [workspace.dependencies]
 # Shared library
-libaipm = { path = "crates/libaipm", version = "0.14.3" }
+libaipm = { path = "crates/libaipm", version = "0.14.6" }
 
 # CLI
 clap = { version = "4", features = ["derive"] }
@@ -37,8 +37,8 @@ toml_edit = "0.22"
 # Semver
 semver = { version = "1", features = ["serde"] }
 
-# HTTP
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+# HTTP -- synchronous-only client; no async runtime overhead
+ureq = { version = "3", default-features = true }
 
 # Git — HTTPS only; SSH features removed to avoid libssh2-sys C compilation (~8.7s)
 git2 = { version = "0.19", default-features = false, features = ["https"] }

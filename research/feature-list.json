@@ -1,374 +1,82 @@
 [
   {
+    "category": "performance",
+    "description": "Add system libgit2 and OpenSSL installation step to CI workflow ci job",
+    "steps": [
+      "Read .github/workflows/ci.yml to understand current job structure",
+      "Add 'Install system libraries (libgit2, OpenSSL)' step before cargo build in the ci job: sudo apt-get update && sudo apt-get install -y libgit2-dev libssl-dev pkg-config",
+      "Add LIBGIT2_SYS_USE_PKG_CONFIG: '1' to the workflow-level env block alongside existing env vars (CARGO_INCREMENTAL, CARGO_NET_RETRY, RUST_BACKTRACE)",
+      "Verify the install step is positioned after checkout and toolchain setup but before any cargo commands",
+      "Run cargo build --workspace locally to confirm no regressions from env var presence"
+    ],
+    "passes": true
+  },
+  {
+    "category": "performance",
+    "description": "Add system libgit2 and OpenSSL installation step to CI workflow coverage job",
+    "steps": [
+      "Read .github/workflows/ci.yml coverage job section",
+      "Add the same 'Install system libraries (libgit2, OpenSSL)' step before cargo llvm-cov in the coverage job: sudo apt-get update && sudo apt-get install -y libgit2-dev libssl-dev pkg-config",
+      "Verify LIBGIT2_SYS_USE_PKG_CONFIG env var from workflow-level env block applies to coverage job",
+      "Verify the install step is positioned after checkout and toolchain setup but before any cargo commands in the coverage job"
+    ],
+    "passes": true
+  },
+  {
     "category": "refactor",
-    "description": "Extract shared frontmatter parser from migrate/skill_common.rs into libaipm::frontmatter module",
+    "description": "Replace reqwest with ureq in workspace root Cargo.toml dependency declaration",
     "steps": [
-      "Create crates/libaipm/src/frontmatter.rs with Frontmatter struct (fields: BTreeMap<String, String>, start_line: usize, end_line: usize, body: String)",
-      "Implement pub fn parse(content: &str) -> Option<Frontmatter> using line-by-line scanning for --- delimiters (matching regex pattern from both CLIs: /^---\\s*\\n([\\s\\S]*?)---\\s*\\n?/)",
-      "Handle key-value extraction, multi-line values (hooks: blocks with indented continuation), and YAML quote stripping via strip_yaml_quotes()",
-      "Add pub mod frontmatter to crates/libaipm/src/lib.rs",
-      "Refactor skill_common::parse_skill_frontmatter() to delegate to frontmatter::parse()",
-      "Refactor agent_detector, command_detector, output_style_detector, copilot_agent_detector to use shared parser",
-      "Run cargo test --workspace to verify all existing migrate tests still pass",
-      "Add unit tests: valid frontmatter, missing closing ---, no frontmatter, empty content, multi-line values, quote stripping",
-      "Run cargo clippy --workspace -- -D warnings && cargo fmt --check",
-      "Verify branch coverage >= 89% for frontmatter.rs"
+      "Read Cargo.toml (workspace root) and locate the [workspace.dependencies] section",
+      "Find the reqwest dependency line: reqwest = { version = \"0.12\", default-features = false, features = [\"blocking\", \"json\", \"rustls-tls\"] }",
+      "Replace it with: ureq = { version = \"3\", default-features = true }",
+      "Add a comment above: # HTTP -- synchronous-only client; no async runtime overhead",
+      "Run cargo check --workspace to verify dependency resolution (expect compile error in git.rs until code migration)"
     ],
-    "passes": false
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Update crate-level Cargo.toml files: switch libaipm to ureq, remove reqwest from aipm-pack",
+    "steps": [
+      "Read crates/libaipm/Cargo.toml and locate reqwest = { workspace = true }",
+      "Replace reqwest = { workspace = true } with ureq = { workspace = true } in crates/libaipm/Cargo.toml",
+      "Read crates/aipm-pack/Cargo.toml and locate reqwest = { workspace = true }",
+      "Remove the reqwest = { workspace = true } line entirely from crates/aipm-pack/Cargo.toml (zero source references confirm it is unused)",
+      "Run cargo check --workspace to verify dependency changes compile (expect error in git.rs until code migration)"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Migrate http_get() function from reqwest::blocking to ureq in registry/git.rs",
+    "steps": [
+      "Read crates/libaipm/src/registry/git.rs and locate the http_get() function (around lines 152-168)",
+      "Remove the reqwest import (use reqwest or similar) if present",
+      "Replace the http_get() function body: change reqwest::blocking::get(url) to ureq::get(url).call()",
+      "Update the response body reading: replace response.bytes().map(|b| b.to_vec()) with response.into_body().read_to_vec()",
+      "Remove the explicit is_success() status check since ureq returns Err for non-2xx responses automatically",
+      "Update the doc comment from 'reqwest::blocking' to 'ureq'",
+      "Preserve the existing Error::Io mapping pattern with format! strings",
+      "Run cargo build --workspace to verify the migration compiles",
+      "Run cargo test --workspace to verify all existing tests pass",
+      "Run cargo clippy --workspace -- -D warnings to verify no lint warnings"
+    ],
+    "passes": true
   },
   {
     "category": "functional",
-    "description": "Core lint infrastructure: LintRule trait, Diagnostic struct, Severity enum, LintOutcome struct, lint Error type",
+    "description": "Run full build, test, clippy, fmt, and coverage gate to verify all changes pass quality checks",
     "steps": [
-      "Create crates/libaipm/src/lint/ directory structure: mod.rs, rule.rs, diagnostic.rs",
-      "Implement Severity enum with Warning and Error variants, derive Clone, Copy, PartialEq, Eq, PartialOrd, Ord (Warning < Error)",
-      "Implement Diagnostic struct with fields: rule_id (String), severity (Severity), message (String), file_path (PathBuf), line (Option<usize>), source_type (String)",
-      "Implement LintRule trait (Send + Sync) with methods: id() -> &'static str, name() -> &'static str, default_severity() -> Severity, check(source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error>",
-      "Implement LintOutcome struct with fields: diagnostics (Vec<Diagnostic>), error_count (usize), warning_count (usize), sources_scanned (Vec<String>)",
-      "Create lint Error enum using thiserror with appropriate variants (Io, Parse, etc.)",
-      "Add pub mod lint to crates/libaipm/src/lib.rs",
-      "Add unit tests for Severity ordering (Warning < Error), Diagnostic construction",
-      "Run cargo build --workspace && cargo clippy --workspace -- -D warnings",
-      "Verify branch coverage >= 89%"
+      "Run cargo fmt --check to verify formatting",
+      "Run cargo clippy --workspace -- -D warnings to verify no lint warnings",
+      "Run cargo build --workspace to verify clean compilation",
+      "Run cargo test --workspace to verify all tests pass",
+      "Run cargo +nightly llvm-cov clean --workspace",
+      "Run cargo +nightly llvm-cov --no-report --workspace --branch",
+      "Run cargo +nightly llvm-cov --no-report --doc",
+      "Run cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs)' and verify >= 89% branch coverage",
+      "Fix any coverage gaps by adding additional unit tests for uncovered branches"
     ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Lint configuration: LintConfig parsing from [workspace.lints] in aipm.toml (Cargo-style)",
-    "steps": [
-      "Create crates/libaipm/src/lint/config.rs",
-      "Implement LintConfig struct with ignore_paths (Vec<String>) and rule_overrides (BTreeMap<String, RuleOverride>)",
-      "Implement RuleOverride enum: Level(Severity) for simple 'skill/missing-description' = 'error', Detailed { level: Severity, ignore: Vec<String> } for inline table syntax",
-      "Implement serde Deserialize types: WorkspaceLints with #[serde(flatten)] for rules BTreeMap and ignore field, LintRuleValue untagged enum (Simple string or Detailed table), LintIgnore struct with paths field",
-      "Add optional lints field (Option<WorkspaceLints>) to the existing Workspace struct in manifest/types.rs",
-      "Implement LintConfig::from_workspace_lints() converting deserialized TOML into runtime config",
-      "Implement LintConfig::default() returning empty config (all defaults apply)",
-      "Implement override resolution: 'allow' skips rule entirely, level override changes severity, else default_severity()",
-      "Implement glob matching for ignore paths (global and per-rule) relative to workspace root using glob crate",
-      "Add unit tests: simple overrides, detailed overrides with ignore, 'allow' suppression, empty config, invalid severity string, glob pattern matching, per-rule ignore paths",
-      "Run cargo test --workspace && cargo clippy --workspace -- -D warnings",
-      "Verify branch coverage >= 89% for config.rs"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Reporters: TextReporter and JsonReporter for human-readable and JSON lint output",
-    "steps": [
-      "Create crates/libaipm/src/lint/reporter.rs",
-      "Implement Reporter trait with fn report(outcome: &LintOutcome, writer: &mut dyn Write) -> Result<(), Error>",
-      "Implement TextReporter matching clippy/rustc format: 'severity[rule_id]: message\\n  --> file:line\\n  |\\n  = help: ...'",
-      "Implement summary line: 'X error(s), Y warning(s) emitted' or 'no issues found' for clean pass",
-      "Implement JsonReporter producing { diagnostics: [...], summary: { errors, warnings, sources_scanned } } via serde_json::to_writer_pretty",
-      "Use std::io::Write with write!/writeln! for all output (never println! per CLAUDE.md)",
-      "Add unit tests: TextReporter format matches expected output, summary line, empty diagnostics ('no issues found')",
-      "Add unit tests: JsonReporter produces valid JSON, correct structure, empty case",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Verify branch coverage >= 89% for reporter.rs"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Known events module: hard-coded tool-specific hook event lists from binary analysis",
-    "steps": [
-      "Create crates/libaipm/src/lint/rules/known_events.rs",
-      "Define CLAUDE_EVENTS const array with 26 PascalCase events: PreToolUse, PostToolUse, PostToolUseFailure, Notification, SessionStart, Stop, StopFailure, SubagentStart, SubagentStop, PreCompact, PostCompact, SessionEnd, PermissionRequest, Setup, TeammateIdle, TaskCreated, TaskCompleted, UserPromptSubmit, ToolError, Elicitation, ElicitationResult, ConfigChange, InstructionsLoaded, WorktreeCreate, WorktreeRemove, CwdChanged, FileChanged",
-      "Define COPILOT_EVENTS const array with 10 camelCase events: sessionStart, sessionEnd, userPromptSubmitted, preToolUse, postToolUse, errorOccurred, agentStop, subagentStop, subagentStart, preCompact",
-      "Define COPILOT_LEGACY_MAP const array of (legacy_name, canonical_name) tuples for PascalCase -> camelCase mapping",
-      "Add helper fn is_valid_event(event: &str, tool: &str) -> bool",
-      "Add helper fn suggest_canonical(event: &str) -> Option<&'static str> for legacy name suggestions",
-      "Add unit tests for each helper function",
-      "Run cargo clippy --workspace -- -D warnings"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Marketplace lint rule: skill/missing-name — SKILL.md missing name field in frontmatter",
-    "steps": [
-      "Create crates/libaipm/src/lint/rules/skill_missing_name.rs",
-      "Implement SkillMissingNameRule as zero-sized unit struct",
-      "Implement LintRule trait: id() returns 'skill/missing-name', default_severity() returns Warning",
-      "In check(): scan source_dir for plugin subdirectories, then skills/<name>/SKILL.md files via Fs::read_dir()",
-      "Use frontmatter::parse() to extract frontmatter fields",
-      "If 'name' field is absent, produce Diagnostic with file_path and line 1",
-      "Accept &dyn Fs for all filesystem access",
-      "Add unit tests with MockFs: SKILL.md with name (no finding), without name (finding), no frontmatter (finding), multiple skills",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Verify branch coverage >= 89%"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Marketplace lint rule: skill/missing-description — SKILL.md missing description field in frontmatter",
-    "steps": [
-      "Create crates/libaipm/src/lint/rules/skill_missing_desc.rs",
-      "Implement SkillMissingDescriptionRule as zero-sized unit struct",
-      "Implement LintRule trait: id() returns 'skill/missing-description', default_severity() returns Warning",
-      "In check(): scan .ai/<plugin>/skills/<name>/SKILL.md files using &dyn Fs",
-      "Use frontmatter::parse() to check for 'description' field",
-      "If absent, produce Diagnostic with file_path and line 1 (note: Copilot auto-generates from body but quality is poor)",
-      "Add unit tests with MockFs: with description (no finding), without (finding), empty description string",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Verify branch coverage >= 89%"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Marketplace lint rule: skill/oversized — SKILL.md exceeds 15,000 characters (Copilot SKILL_CHAR_BUDGET)",
-    "steps": [
-      "Create crates/libaipm/src/lint/rules/skill_oversized.rs",
-      "Implement SkillOversizedRule as zero-sized unit struct",
-      "Define const SKILL_CHAR_BUDGET: usize = 15_000 (from Copilot CLI binary analysis)",
-      "Implement LintRule trait: id() returns 'skill/oversized', default_severity() returns Warning",
-      "In check(): read SKILL.md content via Fs::read_to_string(), check content.len() against SKILL_CHAR_BUDGET",
-      "If exceeds threshold, produce Diagnostic with character count in message",
-      "Add unit tests: small file (no finding), exactly at threshold, over threshold (finding), empty file",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Verify branch coverage >= 89%"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Marketplace lint rule: agent/missing-tools — agent markdown missing tools frontmatter declaration",
-    "steps": [
-      "Create crates/libaipm/src/lint/rules/agent_missing_tools.rs",
-      "Implement AgentMissingToolsRule as zero-sized unit struct",
-      "Implement LintRule trait: id() returns 'agent/missing-tools', default_severity() returns Warning",
-      "In check(): scan .ai/<plugin>/agents/<name>.md files",
-      "Use frontmatter::parse() to check for 'tools' field",
-      "If absent, produce Diagnostic with file_path and line 1",
-      "Add unit tests: agent with tools (no finding), without tools (finding), no frontmatter, multiple agents",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Verify branch coverage >= 89%"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Marketplace lint rule: hook/unknown-event — tool-aware hook event validation (26 Claude + 10 Copilot events)",
-    "steps": [
-      "Create crates/libaipm/src/lint/rules/hook_unknown_event.rs",
-      "Implement HookUnknownEventRule as zero-sized unit struct",
-      "Implement LintRule trait: id() returns 'hook/unknown-event', default_severity() returns Error",
-      "In check(): read hooks/hooks.json via Fs, parse as JSON using serde_json",
-      "Determine tool context from adapter (Claude vs Copilot) to select correct event list from known_events.rs",
-      "Extract event keys from the hooks object, validate each against the tool-specific event list",
-      "For marketplace (.ai/) plugins, validate against the union of both sets (accept any event valid in either tool)",
-      "For each unknown event, produce Diagnostic with line number and valid events in help message",
-      "Add unit tests: valid Claude events (no finding), valid Copilot events (no finding), unknown event (finding with valid list), multiple unknowns, malformed JSON, missing file",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Verify branch coverage >= 89%"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Marketplace lint rule: plugin/broken-paths — broken file references in plugin markdown and components",
-    "steps": [
-      "Create crates/libaipm/src/lint/rules/broken_paths.rs",
-      "Implement BrokenPathsRule as zero-sized unit struct",
-      "Implement LintRule trait: id() returns 'plugin/broken-paths', default_severity() returns Error",
-      "In check(): scan all markdown files in .ai/<plugin>/",
-      "Extract ${CLAUDE_SKILL_DIR}/ and ${SKILL_DIR}/ references from file content",
-      "Resolve references relative to the skill directory and check existence via Fs::exists()",
-      "Also check [components] paths in aipm.toml if present (parse manifest, check each component path exists)",
-      "For each broken reference, produce Diagnostic with source file path and line number",
-      "Add unit tests: valid references (no finding), broken script ref (finding), broken component path, no references, mixed valid/broken",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Verify branch coverage >= 89%"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Cross-tool rule: skill/name-too-long — skill name exceeds 64 characters (Copilot Zod limit)",
-    "steps": [
-      "Create crates/libaipm/src/lint/rules/skill_name_too_long.rs",
-      "Implement SkillNameTooLongRule as zero-sized unit struct",
-      "Define const MAX_SKILL_NAME_LENGTH: usize = 64 (from Copilot CLI Zod schema: z.string().max(64))",
-      "Implement LintRule trait: id() returns 'skill/name-too-long', default_severity() returns Warning",
-      "In check(): parse SKILL.md frontmatter, check 'name' field length against 64 char limit",
-      "If exceeds, produce Diagnostic with current length and limit in message",
-      "Add unit tests: short name (no finding), exactly 64 chars (no finding), 65 chars (finding), no name field (no finding)",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Verify branch coverage >= 89%"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Cross-tool rule: skill/name-invalid-chars — skill name doesn't match Copilot regex",
-    "steps": [
-      "Create crates/libaipm/src/lint/rules/skill_name_invalid.rs",
-      "Implement SkillNameInvalidCharsRule as zero-sized unit struct",
-      "Define the Copilot name regex: /^[a-zA-Z0-9][a-zA-Z0-9._\\- ]*$/ (from Copilot CLI Zod schema)",
-      "Implement LintRule trait: id() returns 'skill/name-invalid-chars', default_severity() returns Warning",
-      "In check(): parse SKILL.md frontmatter, validate 'name' field against regex",
-      "If doesn't match, produce Diagnostic with invalid characters highlighted",
-      "Note: Copilot replaces spaces with hyphens post-parse, so spaces are valid",
-      "Add unit tests: valid name (no finding), starts with special char (finding), contains invalid chars (finding), no name field (no finding)",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Verify branch coverage >= 89%"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Cross-tool rule: skill/description-too-long — description exceeds 1024 characters (Copilot Zod limit)",
-    "steps": [
-      "Create crates/libaipm/src/lint/rules/skill_desc_too_long.rs",
-      "Implement SkillDescriptionTooLongRule as zero-sized unit struct",
-      "Define const MAX_DESCRIPTION_LENGTH: usize = 1024 (from Copilot CLI Zod schema: z.string().max(1024))",
-      "Implement LintRule trait: id() returns 'skill/description-too-long', default_severity() returns Warning",
-      "In check(): parse SKILL.md frontmatter, check 'description' field length against 1024 char limit",
-      "If exceeds, produce Diagnostic with current length and limit in message",
-      "Add unit tests: short description (no finding), exactly 1024 chars (no finding), 1025 chars (finding), no description field (no finding)",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Verify branch coverage >= 89%"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Cross-tool rule: skill/invalid-shell — shell frontmatter field not bash or powershell (Claude Code validation)",
-    "steps": [
-      "Create crates/libaipm/src/lint/rules/skill_invalid_shell.rs",
-      "Implement SkillInvalidShellRule as zero-sized unit struct",
-      "Define const VALID_SHELLS: &[&str] = &['bash', 'powershell'] (from Claude Code binary analysis)",
-      "Implement LintRule trait: id() returns 'skill/invalid-shell', default_severity() returns Error",
-      "In check(): parse SKILL.md frontmatter, if 'shell' field present, validate against VALID_SHELLS (case-insensitive, trimmed)",
-      "If invalid, produce Diagnostic with the invalid value and valid options in message",
-      "Note: Claude Code silently falls back to bash; this rule surfaces the issue at lint time",
-      "Add unit tests: 'bash' (no finding), 'powershell' (no finding), 'zsh' (finding), 'Bash' uppercase (no finding), no shell field (no finding)",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Verify branch coverage >= 89%"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Cross-tool rule: hook/legacy-event-name — PascalCase hook event that Copilot normalizes to camelCase",
-    "steps": [
-      "Create crates/libaipm/src/lint/rules/hook_legacy_event.rs",
-      "Implement HookLegacyEventNameRule as zero-sized unit struct",
-      "Use COPILOT_LEGACY_MAP from known_events.rs for PascalCase -> camelCase mapping",
-      "Implement LintRule trait: id() returns 'hook/legacy-event-name', default_severity() returns Warning",
-      "In check(): parse hooks/hooks.json, check each event key against COPILOT_LEGACY_MAP",
-      "If a legacy name is found, produce Diagnostic suggesting the canonical camelCase name",
-      "Include mapping: SessionStart->sessionStart, Stop->agentStop, UserPromptSubmit->userPromptSubmitted, etc.",
-      "Add unit tests: canonical names (no finding), legacy 'Stop' (finding suggesting 'agentStop'), legacy 'PostToolUseFailure' (finding suggesting 'errorOccurred'), non-legacy PascalCase Claude event (no finding)",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Verify branch coverage >= 89%"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Source lint rule: source/misplaced-features — plugin features in .claude/ or .github/ instead of .ai/ marketplace",
-    "steps": [
-      "Create crates/libaipm/src/lint/rules/misplaced_features.rs",
-      "Implement MisplacedFeaturesRule struct with source_type field (&'static str)",
-      "Implement LintRule trait: id() returns 'source/misplaced-features', default_severity() returns Warning",
-      "In check(): scan source directory for known plugin artifact subdirectories (skills/, commands/, agents/, hooks/, output-styles/)",
-      "Check if .ai/ marketplace directory exists in the project root",
-      "If artifacts found and .ai/ exists, produce Diagnostic for each with suggestion to run aipm migrate",
-      "Handle both .claude and .github source types",
-      "Add unit tests: no artifacts (no finding), artifacts with .ai/ present (finding), artifacts without .ai/ (no finding), multiple artifact types",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Verify branch coverage >= 89%"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Rule factory functions, rules_for_source() dispatch, and rule module exports",
-    "steps": [
-      "Create crates/libaipm/src/lint/rules/mod.rs",
-      "Implement claude_lint_rules() returning Vec<Box<dyn LintRule>> with MisplacedFeaturesRule for .claude",
-      "Implement copilot_lint_rules() returning Vec<Box<dyn LintRule>> with MisplacedFeaturesRule for .github",
-      "Implement marketplace_lint_rules() returning Vec<Box<dyn LintRule>> with all 11 marketplace rules (6 core + 5 cross-tool)",
-      "Implement rules_for_source(source: &str) dispatch: '.claude' -> claude_lint_rules(), '.github' -> copilot_lint_rules(), '.ai' -> marketplace_lint_rules(), _ -> vec![]",
-      "Re-export all rule modules and known_events module",
-      "Add unit tests: each factory returns correct count (1, 1, 11), rules_for_source dispatch, unknown source returns empty",
-      "Run cargo clippy --workspace -- -D warnings"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Lint pipeline orchestrator: lint() entry point with parallel execution and config integration",
-    "steps": [
-      "Implement lint::lint(opts: LintOptions, fs: &dyn Fs) -> Result<LintOutcome, Error> in crates/libaipm/src/lint/mod.rs",
-      "Define LintOptions struct: dir (PathBuf), source filter (Option<String>), config (LintConfig), max_depth (Option<usize>)",
-      "Reuse migrate/discovery.rs to discover source directories with patterns ['.claude', '.github'] + always include '.ai'",
-      "Apply --source filter if provided",
-      "For each discovered source: call rules_for_source(), filter by config (remove 'allow'ed rules), apply severity overrides",
-      "Execute rules in parallel via rayon::par_iter() (matching migrate's parallelism model)",
-      "Check global and per-rule ignore paths before running each rule (ignore fast-path)",
-      "Collect all Vec<Diagnostic>, merge and sort by file_path",
-      "Count errors and warnings, build LintOutcome",
-      "Add unit tests with MockFs: clean workspace (no findings), workspace with issues, source filtering, config overrides, ignore paths, parallel execution",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Verify branch coverage >= 89%"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "CLI integration: add Lint subcommand to aipm binary with cmd_lint() handler",
-    "steps": [
-      "Add Lint variant to Commands enum in crates/aipm/src/main.rs with clap arg annotations: dir (default '.'), --source (Option<String>), --format (default 'text'), --max-depth (Option<usize>)",
-      "Add match arm in run() at the dispatch section that destructures Lint variant and calls cmd_lint()",
-      "Implement cmd_lint() handler: call resolve_dir(), load aipm.toml for [workspace.lints] config via manifest::parse(), build LintOptions, call libaipm::lint::lint()",
-      "Select reporter based on --format flag (TextReporter for 'text', JsonReporter for 'json')",
-      "Write output to stdout via reporter using std::io::stdout()",
-      "Return Ok(()) if outcome.error_count == 0, return appropriate error for exit code 1 if errors found",
-      "Handle error cases: write to stderr via writeln!",
-      "Run cargo build --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "Integration tests: aipm lint end-to-end CLI tests with fixtures",
-    "steps": [
-      "Create test fixtures for lint scenarios in fixtures/ directory: clean workspace, workspace with missing frontmatter, workspace with broken paths, workspace with unknown hook events, workspace with cross-tool violations",
-      "Add integration test: aipm lint on clean workspace returns exit 0 and 'no issues found'",
-      "Add integration test: aipm lint on workspace with errors returns exit 1 with correct diagnostics",
-      "Add integration test: aipm lint --source .claude only runs source rules (misplaced-features)",
-      "Add integration test: aipm lint --source .ai only runs marketplace rules",
-      "Add integration test: aipm lint --format json produces valid JSON output matching schema",
-      "Add integration test: config overrides with 'allow' suppress rules, severity overrides change output",
-      "Add integration test: global ignore paths exclude directories from all rules",
-      "Add integration test: per-rule ignore paths work correctly with inline table syntax",
-      "Add integration test: cross-tool rules fire for name-too-long, invalid-chars, description-too-long, invalid-shell, legacy-event-name",
-      "Run cargo test --workspace",
-      "Verify branch coverage >= 89% for all new code"
-    ],
-    "passes": false
-  },
-  {
-    "category": "functional",
-    "description": "BDD step definitions: wire up cucumber-rs steps for quality.feature lint scenarios (lines 25-49)",
-    "steps": [
-      "Add step definitions for 'Given a skill package with a SKILL.md missing the description field' (create temp fixture)",
-      "Add step definitions for 'When the user runs aipm-pack lint' (use aipm lint for v1)",
-      "Add step definitions for 'Then a warning is reported: ...' matching exact message text from Diagnostic output",
-      "Add step definitions for 'Then an error is reported: ...' matching exact message text",
-      "Add step definitions for 'Then the command succeeds with no issues found'",
-      "Add step for scenario: Lint detects oversized SKILL.md (quality.feature:30) — create fixture with >15000 chars",
-      "Add step for scenario: Lint detects agent without tools declaration (quality.feature:35)",
-      "Add step for scenario: Lint validates hook event names (quality.feature:40) — use 'InvalidEvent' as unknown",
-      "Add step for scenario: Lint passes for well-formed plugin (quality.feature:46)",
-      "Run the BDD test suite and verify all lint scenarios pass",
-      "Verify branch coverage >= 89%"
-    ],
-    "passes": false
+    "passes": true
   }
 ]
