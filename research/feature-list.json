@@ -1,230 +1,65 @@
 [
   {
+    "category": "performance",
+    "description": "Add system libgit2 and OpenSSL installation step to CI workflow ci job",
+    "steps": [
+      "Read .github/workflows/ci.yml to understand current job structure",
+      "Add 'Install system libraries (libgit2, OpenSSL)' step before cargo build in the ci job: sudo apt-get update && sudo apt-get install -y libgit2-dev libssl-dev pkg-config",
+      "Add LIBGIT2_SYS_USE_PKG_CONFIG: '1' to the workflow-level env block alongside existing env vars (CARGO_INCREMENTAL, CARGO_NET_RETRY, RUST_BACKTRACE)",
+      "Verify the install step is positioned after checkout and toolchain setup but before any cargo commands",
+      "Run cargo build --workspace locally to confirm no regressions from env var presence"
+    ],
+    "passes": true
+  },
+  {
+    "category": "performance",
+    "description": "Add system libgit2 and OpenSSL installation step to CI workflow coverage job",
+    "steps": [
+      "Read .github/workflows/ci.yml coverage job section",
+      "Add the same 'Install system libraries (libgit2, OpenSSL)' step before cargo llvm-cov in the coverage job: sudo apt-get update && sudo apt-get install -y libgit2-dev libssl-dev pkg-config",
+      "Verify LIBGIT2_SYS_USE_PKG_CONFIG env var from workflow-level env block applies to coverage job",
+      "Verify the install step is positioned after checkout and toolchain setup but before any cargo commands in the coverage job"
+    ],
+    "passes": true
+  },
+  {
     "category": "refactor",
-    "description": "Workspace protocol simplification: reject workspace = \"^\" and \"=\" in manifest validation, accept only workspace = \"*\"",
+    "description": "Replace reqwest with ureq in workspace root Cargo.toml dependency declaration",
     "steps": [
-      "Read crates/libaipm/src/manifest/validate.rs and crates/libaipm/src/manifest/error.rs",
-      "Add InvalidWorkspaceProtocol { dependency: String, protocol: String } variant to manifest error enum",
-      "Implement Display for the new error variant: \"invalid workspace protocol '{protocol}' for dependency '{dependency}' — only workspace = \\\"*\\\" is supported\"",
-      "Modify validate_dependencies() in validate.rs: when d.workspace.is_some(), check if the value is \"*\" and push InvalidWorkspaceProtocol error if not, then continue",
-      "Modify is_valid_version_req() to remove acceptance of \"^\" and \"=\" as standalone bare symbols — only \"*\" should be accepted",
-      "Add unit test: workspace_star_accepted — parse manifest with workspace = \"*\", assert valid",
-      "Add unit test: workspace_caret_rejected — parse manifest with workspace = \"^\", assert InvalidWorkspaceProtocol error",
-      "Add unit test: workspace_equals_rejected — parse manifest with workspace = \"=\", assert InvalidWorkspaceProtocol error",
-      "Update the workspace init template comment in crates/libaipm/src/workspace_init/mod.rs line 175 to reference workspace = \"*\" instead of workspace = \"^\"",
-      "Run cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
+      "Read Cargo.toml (workspace root) and locate the [workspace.dependencies] section",
+      "Find the reqwest dependency line: reqwest = { version = \"0.12\", default-features = false, features = [\"blocking\", \"json\", \"rustls-tls\"] }",
+      "Replace it with: ureq = { version = \"3\", default-features = true }",
+      "Add a comment above: # HTTP -- synchronous-only client; no async runtime overhead",
+      "Run cargo check --workspace to verify dependency resolution (expect compile error in git.rs until code migration)"
     ],
     "passes": true
   },
   {
-    "category": "functional",
-    "description": "Add glob crate dependency for workspace member pattern expansion",
+    "category": "refactor",
+    "description": "Update crate-level Cargo.toml files: switch libaipm to ureq, remove reqwest from aipm-pack",
     "steps": [
-      "Read Cargo.toml (workspace root) to find [workspace.dependencies] section",
-      "Add glob = \"0.3\" to [workspace.dependencies] in the root Cargo.toml",
-      "Add glob = { workspace = true } to [dependencies] in crates/libaipm/Cargo.toml",
-      "Run cargo build --workspace to verify the dependency resolves correctly"
+      "Read crates/libaipm/Cargo.toml and locate reqwest = { workspace = true }",
+      "Replace reqwest = { workspace = true } with ureq = { workspace = true } in crates/libaipm/Cargo.toml",
+      "Read crates/aipm-pack/Cargo.toml and locate reqwest = { workspace = true }",
+      "Remove the reqwest = { workspace = true } line entirely from crates/aipm-pack/Cargo.toml (zero source references confirm it is unused)",
+      "Run cargo check --workspace to verify dependency changes compile (expect error in git.rs until code migration)"
     ],
     "passes": true
   },
   {
-    "category": "functional",
-    "description": "Create workspace module with error types (crates/libaipm/src/workspace/error.rs)",
+    "category": "refactor",
+    "description": "Migrate http_get() function from reqwest::blocking to ureq in registry/git.rs",
     "steps": [
-      "Create directory crates/libaipm/src/workspace/",
-      "Create crates/libaipm/src/workspace/error.rs with a workspace-specific Error enum",
-      "Add variants: Discovery(String) for glob/IO/parse errors during member discovery",
-      "Add variants: NoWorkspaceRoot for when no parent with [workspace] is found",
-      "Implement std::fmt::Display and std::error::Error for the enum",
-      "Create crates/libaipm/src/workspace/mod.rs with pub mod error;",
-      "Add pub mod workspace; to crates/libaipm/src/lib.rs",
-      "Run cargo build --workspace to verify the module compiles"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Implement find_workspace_root() — walk up filesystem to find manifest with [workspace] section",
-    "steps": [
-      "Read crates/libaipm/src/workspace/mod.rs",
-      "Add use std::path::{Path, PathBuf}; and use crate::manifest;",
-      "Implement pub fn find_workspace_root(start_dir: &Path) -> Option<PathBuf> per spec section 5.2",
-      "The function loops: check current/aipm.toml exists, read it, parse with toml::from_str, check manifest.workspace.is_some(), return Some(current) if found, pop() and continue, return None if pop fails",
-      "Add unit test: find_root_from_member — create tempdir with workspace root aipm.toml (has [workspace]) and nested member dir, assert find_workspace_root from member returns root",
-      "Add unit test: find_root_returns_none — create tempdir with no workspace manifest, assert returns None",
-      "Add unit test: find_root_stops_at_first_workspace — create nested workspace roots, assert innermost is returned",
-      "Run cargo test --workspace && cargo clippy --workspace -- -D warnings"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Implement WorkspaceMember struct and discover_members() — expand glob patterns to build name-to-path map",
-    "steps": [
-      "Read crates/libaipm/src/workspace/mod.rs",
-      "Define pub struct WorkspaceMember with fields: name (String), path (PathBuf), version (String), manifest (manifest::types::Manifest)",
-      "Derive Debug, Clone on WorkspaceMember",
-      "Implement pub fn discover_members(workspace_root: &Path, member_patterns: &[String]) -> Result<BTreeMap<String, WorkspaceMember>, Error> per spec section 5.3",
-      "For each pattern: join with workspace_root, call glob::glob(), iterate entries",
-      "Skip non-directories, skip dirs without aipm.toml",
-      "Read and parse each member's aipm.toml via manifest::parse_and_validate()",
-      "Extract [package].name and version, error if no [package] section",
-      "Detect duplicate member names and return error",
-      "Add unit test: discover_single_glob — create workspace with members matching .ai/*, verify all discovered",
-      "Add unit test: discover_multiple_patterns — two glob patterns, verify union",
-      "Add unit test: discover_skips_non_dirs — file matches glob but is not a directory, verify skipped",
-      "Add unit test: discover_skips_no_manifest — directory matches but has no aipm.toml, verify skipped",
-      "Add unit test: discover_error_duplicate_name — two members declare same package name, verify error",
-      "Add unit test: discover_error_no_package — member manifest has no [package], verify error",
-      "Run cargo test --workspace && cargo clippy --workspace -- -D warnings"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Implement split_dependencies() — partition manifest deps into workspace vs registry sets",
-    "steps": [
-      "Read crates/libaipm/src/installer/pipeline.rs",
-      "Add use crate::workspace; to pipeline.rs imports if not present",
-      "Implement fn split_dependencies(manifest) -> (Vec<(String, DependencySpec)>, Vec<resolver::Dependency>) per spec section 5.4",
-      "Workspace deps are DependencySpec::Detailed(d) where d.workspace.is_some()",
-      "Registry deps use existing conversion logic (version or \"*\" fallback, features, default_features)",
-      "Note: DependencySpec needs Clone derived — check if it already has Clone, add if needed",
-      "Add unit test: split_deps_workspace_and_registry — manifest with both types, verify correct partition",
-      "Add unit test: split_deps_all_registry — no workspace deps, verify empty workspace vec",
-      "Add unit test: split_deps_all_workspace — only workspace deps, verify empty registry vec",
-      "Add unit test: split_deps_empty — no dependencies section, verify both empty",
-      "Run cargo test --workspace && cargo clippy --workspace -- -D warnings"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Implement resolve_workspace_deps() — resolve workspace deps to local member versions with transitive support",
-    "steps": [
-      "Read crates/libaipm/src/installer/pipeline.rs",
-      "Implement fn resolve_workspace_deps(workspace_dep_names, members, link_overrides) -> Result<Vec<resolver::Resolved>, Error> per spec section 5.5",
-      "Use a visited BTreeSet and queue for BFS traversal",
-      "Skip deps in link_overrides set (aipm link wins)",
-      "Look up each dep name in the members map, error if not found",
-      "Collect transitive workspace deps from member's manifest.dependencies (those with d.workspace.is_some())",
-      "Collect non-workspace transitive deps as dependency strings (\"name req\" format)",
-      "Parse member version via Version::parse(), produce Resolved with Source::Workspace, empty checksum, empty features",
-      "Add unit test: resolve_direct_workspace_dep — single dep, verify Resolved with Source::Workspace and correct version",
-      "Add unit test: resolve_transitive_workspace_deps — A depends on B (workspace), B depends on C (workspace), verify all three resolved",
-      "Add unit test: resolve_skips_link_overrides — dep in link_overrides set is skipped",
-      "Add unit test: resolve_error_unknown_member — dep name not in members map, verify error",
-      "Add unit test: resolve_circular_deps — A depends on B, B depends on A, verify no infinite loop (visited set handles it)",
-      "Add unit test: resolve_collects_transitive_dep_strings — verify dependencies field has \"name req\" strings",
-      "Run cargo test --workspace && cargo clippy --workspace -- -D warnings"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Modify lockfile reconciliation to always re-resolve workspace packages",
-    "steps": [
-      "Read crates/libaipm/src/lockfile/reconcile.rs",
-      "In the reconcile() function, modify the carried_forward filtering logic",
-      "Add condition: && pkg.source != \"workspace\" to exclude workspace packages from carried_forward",
-      "This ensures workspace deps always appear in needs_resolution, triggering re-resolution",
-      "Add unit test: workspace_packages_excluded_from_carried_forward — lockfile with workspace source, verify not in carried_forward",
-      "Add unit test: workspace_packages_in_needs_resolution — verify workspace dep appears in needs_resolution even if name matches manifest",
-      "Add unit test: registry_packages_still_carried_forward — verify non-workspace packages are unaffected",
-      "Run cargo test --workspace && cargo clippy --workspace -- -D warnings"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Add workspace_root field to InstallConfig and wire up workspace context in install()",
-    "steps": [
-      "Read crates/libaipm/src/installer/pipeline.rs — the InstallConfig struct and install() function",
-      "Add pub workspace_root: Option<PathBuf> field to InstallConfig",
-      "Update all existing InstallConfig construction sites (in main.rs cmd_install and in tests) to include workspace_root: None initially",
-      "In install(), after manifest loading and lockfile loading, add workspace discovery step",
-      "If workspace_root is Some or if manifest has workspace deps, call find_workspace_root() and discover_members()",
-      "Call split_dependencies() instead of manifest_to_resolver_deps()",
-      "Load link overrides from link_state_path via link_state::list()",
-      "Call resolve_workspace_deps() for workspace deps",
-      "Pass only registry deps to the existing resolver",
-      "Merge workspace + registry resolutions into a single Resolution",
-      "Run cargo build --workspace to verify compilation"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Modify install loop to handle Source::Workspace with directory linking instead of tarball download",
-    "steps": [
-      "Read crates/libaipm/src/installer/pipeline.rs — the fetch-store-link loop (lines 139-180)",
-      "Replace the unconditional registry.download() call with a match on resolved.source",
-      "For Source::Workspace: call directory_link::create(member_path, plugins_dir/name) and gitignore::add_entry()",
-      "For Source::Registry: keep existing tarball fetch, store, link_package(), gitignore logic",
-      "For Source::Path: skip for now (not implemented, log a warning)",
-      "Ensure the members BTreeMap is available in scope (passed from the workspace discovery step)",
-      "Ensure create_dir_all is called on plugins_dir before workspace linking (it may not exist yet)",
-      "Add unit test: workspace_dep_creates_directory_link — verify symlink/junction is created from member path to plugins dir",
-      "Add unit test: workspace_dep_updates_gitignore — verify package name appears in managed gitignore section",
-      "Add unit test: workspace_dep_in_lockfile — verify lockfile entry has source = \"workspace\" and empty checksum",
-      "Run cargo test --workspace && cargo clippy --workspace -- -D warnings"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Wire up workspace root discovery in CLI cmd_install() and pass workspace_root to InstallConfig",
-    "steps": [
-      "Read crates/aipm/src/main.rs — cmd_install() function",
-      "After resolving the working directory, check if the manifest at that dir has a [workspace] section",
-      "If not, call workspace::find_workspace_root() to walk up and find the workspace root",
-      "Set workspace_root in InstallConfig to the discovered root path (or None if not in a workspace)",
-      "If workspace root is found and differs from current dir, log an info message about the discovered root",
-      "Run cargo build --workspace to verify compilation",
-      "Manual test: create a workspace with two members, run aipm install from the root, verify both members are linked"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Handle workspace deps in --locked mode: use lockfile resolution but still create directory links",
-    "steps": [
-      "Read the --locked mode path in installer/pipeline.rs",
-      "In --locked mode, build_resolution_from_lockfile() already produces Source::Workspace for lockfile entries with source = \"workspace\"",
-      "Verify that the source-aware install loop (feature 10) correctly handles Source::Workspace entries from lockfile reconstruction",
-      "In --locked mode, workspace discovery must still run to get member paths for linking (the lockfile has versions but not paths)",
-      "Add unit test: locked_mode_workspace_deps_linked — verify workspace deps from lockfile get directory links",
-      "Add unit test: locked_mode_validates_workspace_deps — verify lockfile validation includes workspace dep names",
-      "Run cargo test --workspace && cargo clippy --workspace -- -D warnings"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Update BDD feature scenarios for workspace protocol changes",
-    "steps": [
-      "Read tests/features/monorepo/orchestration.feature",
-      "Update scenario 'Reference a workspace sibling with workspace protocol' (line 106-115) to use workspace = \"*\" instead of workspace = \"^\"",
-      "Convert 'Workspace protocol is replaced on publish' scenario (line 117-121) — since publish is out of scope, convert to a workspace = \"*\" linking scenario or mark as @wip",
-      "Convert 'Workspace protocol with exact version' scenario (line 123-127) — convert to a validation error test for workspace = \"=\"",
-      "Convert 'Workspace protocol with wildcard' scenario (line 129-133) — already uses \"*\", keep as the valid case",
-      "Add new scenario: workspace = \"^\" rejected with validation error",
-      "Add new scenario: workspace = \"=\" rejected with validation error",
-      "Verify BDD test runner includes the updated feature file if applicable (check bdd.rs filter)",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Implement tracing/logging for workspace dependency resolution observability",
-    "steps": [
-      "Read crates/libaipm/src/workspace/mod.rs",
-      "Add tracing::info! when discover_members() finds members — log count and member names",
-      "Add tracing::info! in resolve_workspace_deps() when resolving each dep — log name, version, path",
-      "Add tracing::debug! when skipping a dep due to aipm link override",
-      "Add tracing::warn! in discover_members() when a directory matches a glob but has no aipm.toml",
-      "Run cargo build --workspace && cargo clippy --workspace -- -D warnings"
+      "Read crates/libaipm/src/registry/git.rs and locate the http_get() function (around lines 152-168)",
+      "Remove the reqwest import (use reqwest or similar) if present",
+      "Replace the http_get() function body: change reqwest::blocking::get(url) to ureq::get(url).call()",
+      "Update the response body reading: replace response.bytes().map(|b| b.to_vec()) with response.into_body().read_to_vec()",
+      "Remove the explicit is_success() status check since ureq returns Err for non-2xx responses automatically",
+      "Update the doc comment from 'reqwest::blocking' to 'ureq'",
+      "Preserve the existing Error::Io mapping pattern with format! strings",
+      "Run cargo build --workspace to verify the migration compiles",
+      "Run cargo test --workspace to verify all existing tests pass",
+      "Run cargo clippy --workspace -- -D warnings to verify no lint warnings"
     ],
     "passes": true
   },
