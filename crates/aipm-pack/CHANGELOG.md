@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.14.5] - 2026-03-31
+
+### Performance
+- System libgit2 in CI + replace reqwest with ureq ([#162](https://github.com/TheLarkInn/aipm/pull/162)) (a908dc9)
+
 ## [0.14.4] - 2026-03-31
 
 ## [0.14.3] - 2026-03-31
