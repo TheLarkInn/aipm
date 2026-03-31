@@ -1,0 +1,111 @@
+//! Rule: `skill/name-too-long` — skill name exceeds 64 characters.
+//!
+//! Derived from Copilot CLI Zod schema: `z.string().max(64)`.
+
+use std::path::Path;
+
+use crate::fs::Fs;
+use crate::lint::diagnostic::{Diagnostic, Severity};
+use crate::lint::rule::Rule;
+use crate::lint::Error;
+
+use super::scan;
+
+/// Maximum length for a skill name (Copilot CLI limit).
+const MAX_SKILL_NAME_LENGTH: usize = 64;
+
+/// Checks that skill names don't exceed 64 characters.
+pub struct NameTooLong;
+
+impl Rule for NameTooLong {
+    fn id(&self) -> &'static str {
+        "skill/name-too-long"
+    }
+
+    fn name(&self) -> &'static str {
+        "skill name too long"
+    }
+
+    fn default_severity(&self) -> Severity {
+        Severity::Warning
+    }
+
+    fn check(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
+        let mut diagnostics = Vec::new();
+
+        for skill in scan::scan_skills(source_dir, fs) {
+            if let Some(ref fm) = skill.frontmatter {
+                if let Some(name) = fm.fields.get("name") {
+                    if name.len() > MAX_SKILL_NAME_LENGTH {
+                        diagnostics.push(Diagnostic {
+                            rule_id: self.id().to_string(),
+                            severity: self.default_severity(),
+                            message: format!(
+                                "skill name exceeds {} characters ({} chars, Copilot CLI limit)",
+                                MAX_SKILL_NAME_LENGTH,
+                                name.len()
+                            ),
+                            file_path: skill.path,
+                            line: Some(1),
+                            source_type: ".ai".to_string(),
+                        });
+                    }
+                }
+            }
+        }
+
+        Ok(diagnostics)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lint::rules::test_helpers::MockFs;
+
+    #[test]
+    fn short_name_no_finding() {
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "s", "---\nname: short\n---\nbody");
+
+        let result = NameTooLong.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn exactly_64_chars_no_finding() {
+        let mut fs = MockFs::new();
+        let name = "a".repeat(64);
+        let content = format!("---\nname: {name}\n---\nbody");
+        fs.add_skill("p", "s", &content);
+
+        let result = NameTooLong.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn exceeds_64_chars_finding() {
+        let mut fs = MockFs::new();
+        let name = "a".repeat(65);
+        let content = format!("---\nname: {name}\n---\nbody");
+        fs.add_skill("p", "s", &content);
+
+        let result = NameTooLong.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].rule_id, "skill/name-too-long");
+    }
+
+    #[test]
+    fn no_name_no_finding() {
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "s", "---\ndescription: test\n---\nbody");
+
+        let result = NameTooLong.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
+}

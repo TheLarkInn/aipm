@@ -1,6 +1,6 @@
 //! `aipm` — consumer CLI for AI plugin management.
 //!
-//! Commands: init, install, update, link, unlink, list, migrate.
+//! Commands: init, install, update, link, unlink, list, lint, migrate.
 
 mod wizard;
 mod wizard_tty;
@@ -9,6 +9,7 @@ use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
+use libaipm::lint::reporter::Reporter;
 
 #[derive(Parser)]
 #[command(name = "aipm", version = libaipm::version(), about = "AI Plugin Manager — consumer CLI")]
@@ -107,6 +108,25 @@ enum Commands {
         /// Project directory.
         #[arg(long, default_value = ".")]
         dir: PathBuf,
+    },
+
+    /// Lint AI plugin configurations for quality issues.
+    Lint {
+        /// Project directory.
+        #[arg(default_value = ".")]
+        dir: PathBuf,
+
+        /// Filter to a specific source type (.claude, .github, .ai).
+        #[arg(long)]
+        source: Option<String>,
+
+        /// Output format: text or json.
+        #[arg(long, default_value = "text")]
+        format: String,
+
+        /// Maximum directory traversal depth.
+        #[arg(long)]
+        max_depth: Option<usize>,
     },
 
     /// Migrate AI tool configurations into marketplace plugins.
@@ -475,6 +495,38 @@ fn cmd_list(linked: bool, dir: PathBuf) -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
+fn cmd_lint(
+    dir: PathBuf,
+    source: Option<String>,
+    format: &str,
+    max_depth: Option<usize>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let dir = resolve_dir(dir)?;
+
+    // Load lint config from aipm.toml if it exists
+    let config = libaipm::lint::config::Config::default();
+
+    let opts = libaipm::lint::Options { dir, source, config, max_depth };
+
+    let outcome = libaipm::lint::lint(&opts, &libaipm::fs::Real)?;
+
+    let mut stdout = std::io::stdout();
+    match format {
+        "json" => {
+            libaipm::lint::reporter::Json.report(&outcome, &mut stdout)?;
+        },
+        _ => {
+            libaipm::lint::reporter::Text.report(&outcome, &mut stdout)?;
+        },
+    }
+
+    if outcome.error_count > 0 {
+        return Err(format!("lint found {} error(s)", outcome.error_count).into());
+    }
+
+    Ok(())
+}
+
 fn cmd_migrate(
     dry_run: bool,
     destructive: bool,
@@ -583,6 +635,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         Some(Commands::Link { path, dir }) => cmd_link(path, dir),
         Some(Commands::Unlink { package, dir }) => cmd_unlink(&package, dir),
         Some(Commands::List { linked, dir }) => cmd_list(linked, dir),
+        Some(Commands::Lint { dir, source, format, max_depth }) => {
+            cmd_lint(dir, source, &format, max_depth)
+        },
         Some(Commands::Migrate { dry_run, destructive, source, max_depth, manifest, dir }) => {
             cmd_migrate(dry_run, destructive, source.as_deref(), max_depth, manifest, dir)
         },
