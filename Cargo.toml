@@ -37,8 +37,8 @@ toml_edit = "0.22"
 # Semver
 semver = { version = "1", features = ["serde"] }
 
-# HTTP
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+# HTTP -- synchronous-only client; no async runtime overhead
+ureq = { version = "3", default-features = true }
 
 # Git — HTTPS only; SSH features removed to avoid libssh2-sys C compilation (~8.7s)
 git2 = { version = "0.19", default-features = false, features = ["https"] }

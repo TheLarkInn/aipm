@@ -1,80 +1,31 @@
-Feature 1: COMPLETE - Workspace protocol simplification
-  - Added InvalidWorkspaceProtocol error variant to manifest/error.rs
-  - Modified validate_dependencies() to reject workspace = "^" and "=" (only "*" accepted)
-  - Modified is_valid_version_req() to remove "^" and "=" as standalone symbols
-  - Updated workspace init template to reference workspace = "*"
-  - Updated existing tests: parse_full_member_manifest, workspace_ref_dependency_valid
-  - Added new tests: workspace_caret_protocol_rejected, workspace_equals_protocol_rejected
-  - Updated workspace_protocol_valid test to assert "^" and "=" are invalid
-
-Feature 2: COMPLETE - Add glob crate dependency
-  - Added glob = "0.3" to [workspace.dependencies] in root Cargo.toml
-  - Added glob = { workspace = true } to crates/libaipm/Cargo.toml
-
-Feature 3: COMPLETE - Create workspace module with error types
-  - Created crates/libaipm/src/workspace/error.rs with Discovery and NoWorkspaceRoot variants
-  - Created crates/libaipm/src/workspace/mod.rs
-  - Added pub mod workspace; to lib.rs
-
-Feature 4: COMPLETE - Implement find_workspace_root()
-  - Walk-up filesystem discovery for manifest with [workspace] section
-  - 3 unit tests: find_root_from_member, find_root_returns_none, find_root_from_root_itself
-
-Feature 5: COMPLETE - Implement discover_members() (renamed WorkspaceMember to Member)
-  - Glob expansion of [workspace].members patterns
-  - 5 unit tests: single_glob, multiple_patterns, skips_no_manifest, error_duplicate_name, error_no_package
-  - Added Clone derive to all manifest types
-
-Feature 6: COMPLETE - Implement split_dependencies()
-  - Partitions manifest deps into workspace vs registry sets
-  - 4 unit tests: workspace_and_registry, all_registry, all_workspace, empty
-
-Feature 7: COMPLETE - Implement resolve_workspace_deps()
-  - Resolves workspace deps to local member versions with transitive BFS
-  - Skips aipm link overrides
-  - 7 unit tests: direct_dep, transitive, skips_link_overrides, error_unknown, circular, dep_strings
-
-Feature 8: COMPLETE - Modify lockfile reconciliation
-  - Workspace packages excluded from carried_forward
-  - 2 unit tests: workspace_excluded, registry_still_carried
-
-Feature 9: COMPLETE - Wire up workspace context in install()
-  - Added workspace_root: Option<PathBuf> to InstallConfig
-  - Updated all 5 construction sites
-  - Added discover_workspace_members(), resolve_registry_dependencies()
-  - Removed old resolve_dependencies() (dead code)
-
-Feature 10: COMPLETE - Source-aware install loop
-  - Extracted link_resolved_packages() to keep install() under 100 lines
-  - Source::Workspace: directory_link::create + gitignore
-  - Source::Registry: unchanged (fetch, store, link)
-  - Source::Path: warning log
-
-Feature 11: COMPLETE - CLI workspace root discovery
-  - cmd_install() calls find_workspace_root() and passes to InstallConfig
-
-Feature 12: COMPLETE - Locked mode workspace handling
-  - build_resolution_from_lockfile() handles Source::Workspace
-  - resolve_registry_dependencies() filters out workspace packages in locked mode
-  - Workspace discovery still runs to get member paths
-  - 1 unit test: resolve_registry_deps_empty
-
-Feature 13: COMPLETE - BDD scenario updates
-  - Updated orchestration.feature: workspace = "*" only
-  - Converted "^" and "=" scenarios to validation error tests
-  - Marked publish scenario as @wip
-
-Feature 14: COMPLETE - Tracing/logging
-  - tracing::info! in discover_members() (count + names)
-  - tracing::info! in resolve_workspace_deps() (name, version, path)
-  - tracing::debug! for link override skips
-  - tracing::warn! for dirs without aipm.toml
-
-Feature 15: COMPLETE - Full quality gate
-  - cargo fmt --check: clean
-  - cargo clippy --workspace -- -D warnings: 0 errors
-  - cargo build --workspace: success
-  - cargo test --workspace: 713 unit tests + 72 BDD scenarios all pass
-  - Coverage: 89.01% branch (above 89% threshold)
-
-ALL 15 FEATURES COMPLETE.
+2026-03-31: Completed features 1 & 2 (feature-list.json indices 0 and 1).
+- Added "Install system libraries (libgit2, OpenSSL)" step to the ci job in .github/workflows/ci.yml, positioned after rust-cache and before cargo build.
+- Added the same install step to the coverage job in .github/workflows/ci.yml, positioned after rust-cache and before cargo llvm-cov clean.
+- Added LIBGIT2_SYS_USE_PKG_CONFIG: "1" to the workflow-level env block so both jobs inherit it.
+- Marked passes: true for entries 0 and 1 in research/feature-list.json.
+2026-03-31: Completed features 3 & 4 (feature-list.json indices 2 and 3).
+- Replaced reqwest = { version = "0.12", ... } with ureq = { version = "3", default-features = true } in workspace root Cargo.toml [workspace.dependencies], with comment "# HTTP -- synchronous-only client; no async runtime overhead".
+- Replaced reqwest = { workspace = true } with ureq = { workspace = true } in crates/libaipm/Cargo.toml.
+- Removed reqwest = { workspace = true } entirely from crates/aipm-pack/Cargo.toml (no source references).
+- Ran cargo check --workspace: ureq v3.3.0 resolved and downloaded successfully; only expected compile errors remain in crates/libaipm/src/registry/git.rs (still references reqwest — feature 5's job).
+- Marked passes: true for entries 2 and 3 in research/feature-list.json.
+2026-03-31: Completed feature 5 (feature-list.json index 4).
+- Migrated http_get() in crates/libaipm/src/registry/git.rs from reqwest::blocking to ureq.
+- Replaced reqwest::blocking::get(url) with ureq::get(url).call() and updated error mapping.
+- Removed the explicit is_success() status check block (ureq returns Err for non-2xx automatically).
+- Changed body reading from response.bytes().map(|b| b.to_vec()) to response.into_body().read_to_vec().
+- Updated the doc comment from 'reqwest::blocking' to 'ureq'.
+- Verified: cargo build --workspace, cargo test --workspace (72 scenarios passed), cargo clippy --workspace -- -D warnings, and cargo fmt --check all pass with zero errors/warnings.
+- Marked passes: true for entry 4 in research/feature-list.json.
+2026-03-31: Completed feature 6 (feature-list.json index 5) — full quality gate.
+- BDD wire-up check: tests/features/registry/install.feature covers HTTP download behavior indirectly (scenarios: "Install a package by name", "Install verifies package integrity", "Install all dependencies from manifest"). Spec section 7.3 confirmed: http_get is tested indirectly through Registry::download integration tests. No mock-based HTTP tests exist; ureq code path exercised through BDD scenarios.
+- cargo fmt --check: PASSED (zero formatting issues)
+- cargo clippy --workspace -- -D warnings: PASSED (zero warnings)
+- cargo build --workspace: PASSED (zero errors)
+- cargo test --workspace: PASSED — 72 BDD scenarios passed (340 steps), all unit tests passed
+- cargo +nightly llvm-cov clean --workspace: clean succeeded
+- cargo +nightly llvm-cov --no-report --workspace --branch: instrumented build + tests collected
+- cargo +nightly llvm-cov --no-report --doc: doctests collected (0 doctests)
+- cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs)': TOTAL branch coverage = 89.67% (1152 branches, 119 missed) — PASSES >= 89% threshold
+- Coverage note: libaipm/src/registry/git.rs shows 50% branch coverage (3/6 branches) due to http_get() error paths (HTTP 4xx/5xx and body read errors) not being exercised in unit tests. These require a live HTTP server. The spec (section 7.3) explicitly states indirect testing via Registry::download is the strategy; total workspace coverage remains above threshold.
+- Marked passes: true for entry 5 in research/feature-list.json.

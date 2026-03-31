@@ -25,7 +25,7 @@ ignore = { workspace = true }
 glob = { workspace = true }
 rayon = { workspace = true }
 git2 = { workspace = true }
-reqwest = { workspace = true }
+ureq = { workspace = true }
 tempfile = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]

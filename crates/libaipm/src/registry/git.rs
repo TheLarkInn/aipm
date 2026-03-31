@@ -149,22 +149,16 @@ fn fetch_and_reset(repo: &git2::Repository, url: &str) -> Result<(), Error> {
     Ok(())
 }
 
-/// Download bytes from a URL using `reqwest::blocking`.
+/// Download bytes from a URL using `ureq`.
 fn http_get(url: &str) -> Result<Vec<u8>, Error> {
     tracing::info!(url = %url, "downloading package tarball");
-    let response = reqwest::blocking::get(url)
+    let response = ureq::get(url)
+        .call()
         .map_err(|e| Error::Io { reason: format!("HTTP request failed for '{url}': {e}") })?;
 
-    if !response.status().is_success() {
-        return Err(Error::Io { reason: format!("HTTP {} for '{url}'", response.status()) });
-    }
-
-    response
-        .bytes()
-        .map_err(|e| Error::Io {
-            reason: format!("failed to read response body from '{url}': {e}"),
-        })
-        .map(|b| b.to_vec())
+    response.into_body().read_to_vec().map_err(|e| Error::Io {
+        reason: format!("failed to read response body from '{url}': {e}"),
+    })
 }
 
 /// Normalize a checksum string by stripping an optional `sha512-` prefix.
