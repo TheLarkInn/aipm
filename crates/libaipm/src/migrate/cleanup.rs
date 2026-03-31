@@ -93,6 +93,8 @@ mod tests {
         removed_dirs: Mutex<Vec<PathBuf>>,
         /// If set, remove_file returns this error for matching paths.
         fail_remove_file: Mutex<Option<PathBuf>>,
+        /// If set, remove_dir_all returns a PermissionDenied error for matching paths.
+        fail_remove_dir_all: Mutex<Option<PathBuf>>,
     }
 
     impl MockFs {
@@ -103,6 +105,7 @@ mod tests {
                 removed_files: Mutex::new(Vec::new()),
                 removed_dirs: Mutex::new(Vec::new()),
                 fail_remove_file: Mutex::new(None),
+                fail_remove_dir_all: Mutex::new(None),
             }
         }
     }
@@ -150,6 +153,18 @@ mod tests {
         }
 
         fn remove_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            let fail = self
+                .fail_remove_dir_all
+                .lock()
+                .map_err(|_| std::io::Error::other("lock poisoned"))?;
+            if let Some(ref fail_path) = *fail {
+                if path == fail_path {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::PermissionDenied,
+                        "permission denied",
+                    ));
+                }
+            }
             self.removed_dirs
                 .lock()
                 .map_err(|_| std::io::Error::other("lock poisoned"))?
@@ -447,5 +462,47 @@ mod tests {
         assert!(
             matches!(&actions[0], Action::SourceFileRemoved { path } if path == Path::new("/"))
         );
+    }
+
+    #[test]
+    fn remove_dir_all_error_on_source_dir_propagates() {
+        let mut fs = MockFs::new();
+        fs.dirs.insert(
+            PathBuf::from("/p/.claude/skills/deploy"),
+            vec![DirEntry { name: "SKILL.md".to_string(), is_dir: false }],
+        );
+        *fs.fail_remove_dir_all.lock().unwrap_or_else(|e| e.into_inner()) =
+            Some(PathBuf::from("/p/.claude/skills/deploy"));
+
+        let outcome =
+            make_outcome(vec![plugin_created("deploy", "/p/.claude/skills/deploy", "skill", true)]);
+
+        let result = remove_migrated_sources(&outcome, &fs);
+        assert!(result.is_err());
+        let err = result.err().unwrap_or_else(|| std::io::Error::other("unexpected"));
+        assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
+    }
+
+    #[test]
+    fn remove_dir_all_error_on_prune_propagates() {
+        let mut fs = MockFs::new();
+        // Skill dir exists as a directory
+        fs.dirs.insert(
+            PathBuf::from("/p/.claude/skills/deploy"),
+            vec![DirEntry { name: "SKILL.md".to_string(), is_dir: false }],
+        );
+        // Parent dir is empty — pruning will try to remove_dir_all on it
+        fs.dirs.insert(PathBuf::from("/p/.claude/skills"), Vec::new());
+        // Fail only on the parent, so the source dir removal succeeds
+        *fs.fail_remove_dir_all.lock().unwrap_or_else(|e| e.into_inner()) =
+            Some(PathBuf::from("/p/.claude/skills"));
+
+        let outcome =
+            make_outcome(vec![plugin_created("deploy", "/p/.claude/skills/deploy", "skill", true)]);
+
+        let result = remove_migrated_sources(&outcome, &fs);
+        assert!(result.is_err());
+        let err = result.err().unwrap_or_else(|| std::io::Error::other("unexpected"));
+        assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
     }
 }
