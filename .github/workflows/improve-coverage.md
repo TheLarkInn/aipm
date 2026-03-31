@@ -20,6 +20,8 @@ tools:
 network:
   allowed: [defaults, rust]
 steps:
+  - name: Ensure bash is installed
+    run: which bash || sudo apt-get install -y bash
   - uses: dtolnay/rust-toolchain@nightly
     with:
       components: llvm-tools-preview
