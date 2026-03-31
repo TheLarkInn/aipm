@@ -421,4 +421,21 @@ mod tests {
         assert!(!has_windows_drive_prefix("C:"));
         assert!(!has_windows_drive_prefix("CC:\\bad"));
     }
+
+    #[test]
+    fn collect_command_scripts_with_missing_command_field() {
+        // A hook object with type=command but no "command" key should not produce any
+        // script reference — exercises the None branch of map.get("command").
+        let value = serde_json::json!({"type": "command"});
+        let mut scripts = Vec::new();
+        collect_command_scripts(&value, Path::new("/project"), &mut scripts);
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
+    fn is_relative_script_windows_backslash_path_is_relative() {
+        // A Windows-style relative path using backslashes and no drive prefix should
+        // be detected as a relative script — exercises the path.contains('\\') branch.
+        assert!(is_relative_script("scripts\\check.sh", Path::new(".")));
+    }
 }

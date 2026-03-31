@@ -238,6 +238,14 @@ mod tests {
     }
 
     #[test]
+    fn is_valid_segment_rejects_empty_string() {
+        // is_valid_segment is never called with "" via is_valid_package_name (which guards
+        // the empty-name case and the empty-scope/pkg cases before delegating).
+        // Call it directly to cover the early-return branch.
+        assert!(!is_valid_segment(""));
+    }
+
+    #[test]
     fn init_creates_manifest_and_dirs() {
         let tmp = std::env::temp_dir().join("aipm-test-init-basic");
         if tmp.exists() {
