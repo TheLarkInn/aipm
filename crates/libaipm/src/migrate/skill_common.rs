@@ -356,4 +356,77 @@ mod tests {
         let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
         assert!(scripts.is_empty());
     }
+
+    #[test]
+    fn parse_frontmatter_hooks_single_space_indent_falls_back_to_raw_line() {
+        // A hooks continuation line indented with exactly one space (not two spaces,
+        // not a tab) exercises the `strip_prefix("  ").or_else(|| strip_prefix('\t')).unwrap_or(line)`
+        // fallback — both strip_prefix calls return None, so the original line is kept.
+        let content = "---\nhooks:\n PreToolUse: check\n---\nbody";
+        let result = parse_skill_frontmatter(content, Path::new("test"));
+        assert!(result.is_ok());
+        let meta = result.ok().unwrap_or_default();
+        // The line " PreToolUse: check" starts with ' ', so it is treated as a
+        // hook continuation; it lands in hooks_lines as-is via unwrap_or.
+        assert!(meta.hooks.is_some());
+    }
+
+    #[test]
+    fn extract_scripts_terminated_by_double_quote() {
+        // `c == '"'` True branch: a double-quote following the path ends extraction.
+        let content = r#"Run "${CLAUDE_SKILL_DIR}/scripts/deploy.sh" here"#;
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("scripts/deploy.sh"));
+    }
+
+    #[test]
+    fn extract_scripts_terminated_by_single_quote() {
+        // `c == '\''` True branch: a single-quote following the path ends extraction.
+        let content = "Run '${CLAUDE_SKILL_DIR}/scripts/deploy.sh' here";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("scripts/deploy.sh"));
+    }
+
+    #[test]
+    fn extract_scripts_terminated_by_closing_paren() {
+        // `c == ')'` True branch: a closing paren following the path ends extraction.
+        let content = "Run(${CLAUDE_SKILL_DIR}/scripts/deploy.sh) here";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("scripts/deploy.sh"));
+    }
+
+    #[test]
+    fn parse_frontmatter_hooks_block_exits_on_non_indented_line() {
+        // After a hooks: continuation block, hitting a non-indented line triggers
+        // `in_hooks = false` — the False branch of `line.starts_with('\t')` when
+        // `line.starts_with(' ')` is also False.
+        let content = "---\nhooks:\n\tPreToolUse: check\nname: my-skill\n---\nbody";
+        let result = parse_skill_frontmatter(content, Path::new("test"));
+        assert!(result.is_ok());
+        let meta = result.ok().unwrap_or_default();
+        assert_eq!(meta.name.as_deref(), Some("my-skill"));
+        assert!(meta.hooks.is_some());
+    }
+
+    #[test]
+    fn collect_files_skips_entries_not_under_base() {
+        // When `full_path.strip_prefix(base)` fails — i.e., the entry's absolute
+        // path does not start with `base` — the file is silently skipped.
+        // This exercises the False (Err) branch of `if let Ok(relative) = ...`.
+        let mut fs = MockFs::new();
+        fs.dirs.insert(
+            PathBuf::from("/other"),
+            vec![crate::fs::DirEntry { name: "file.txt".to_string(), is_dir: false }],
+        );
+
+        let result = collect_files_recursive(Path::new("/other"), Path::new("/base"), &fs);
+        assert!(result.is_ok());
+        let files = result.ok().unwrap_or_default();
+        // /other/file.txt does not start with /base, so strip_prefix fails and the
+        // entry is not collected.
+        assert!(files.is_empty());
+    }
 }
