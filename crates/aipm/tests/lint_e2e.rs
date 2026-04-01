@@ -275,6 +275,114 @@ fn lint_name_too_long_warns() {
 }
 
 // =========================================================================
+// --source validation: unsupported source
+// =========================================================================
+
+#[test]
+fn lint_unsupported_source_errors() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    aipm()
+        .args(["lint", "--source", ".vscode", tmp.path().to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("unsupported source"));
+}
+
+// =========================================================================
+// --source validation: nonexistent directory
+// =========================================================================
+
+#[test]
+fn lint_nonexistent_source_dir_errors() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    aipm()
+        .args(["lint", "--source", ".claude", tmp.path().to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("not found"));
+}
+
+// =========================================================================
+// Config: [workspace.lints] suppress rule
+// =========================================================================
+
+#[test]
+fn lint_config_allow_suppresses_rule() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    let ai_dir = tmp.path().join(".ai");
+    let skills_dir = ai_dir.join("test-plugin").join("skills").join("default");
+    std::fs::create_dir_all(&skills_dir).unwrap();
+    std::fs::write(skills_dir.join("SKILL.md"), "---\nname: test\n---\nBody\n").unwrap();
+
+    std::fs::write(
+        tmp.path().join("aipm.toml"),
+        "[workspace]\nmembers = [\".ai/*\"]\n\n[workspace.lints]\n\"skill/missing-description\" = \"allow\"\n",
+    )
+    .unwrap();
+
+    aipm()
+        .args(["lint", tmp.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("skill/missing-description").not());
+}
+
+// =========================================================================
+// Config: severity override to error
+// =========================================================================
+
+#[test]
+fn lint_config_severity_override() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    let ai_dir = tmp.path().join(".ai");
+    let skills_dir = ai_dir.join("test-plugin").join("skills").join("default");
+    std::fs::create_dir_all(&skills_dir).unwrap();
+    std::fs::write(skills_dir.join("SKILL.md"), "---\nname: test\n---\nBody\n").unwrap();
+
+    std::fs::write(
+        tmp.path().join("aipm.toml"),
+        "[workspace]\nmembers = [\".ai/*\"]\n\n[workspace.lints]\n\"skill/missing-description\" = \"error\"\n",
+    )
+    .unwrap();
+
+    aipm()
+        .args(["lint", tmp.path().to_str().unwrap()])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("error[skill/missing-description]"));
+}
+
+// =========================================================================
+// Config: global ignore paths
+// =========================================================================
+
+#[test]
+fn lint_config_ignore_paths() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    let ai_dir = tmp.path().join(".ai");
+    let skills_dir = ai_dir.join("ignored-plugin").join("skills").join("default");
+    std::fs::create_dir_all(&skills_dir).unwrap();
+    std::fs::write(skills_dir.join("SKILL.md"), "---\ndescription: no name\n---\nBody\n").unwrap();
+
+    std::fs::write(
+        tmp.path().join("aipm.toml"),
+        "[workspace]\nmembers = [\".ai/*\"]\n\n[workspace.lints.ignore]\npaths = [\"**/ignored-plugin/**\"]\n",
+    )
+    .unwrap();
+
+    aipm()
+        .args(["lint", tmp.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("no issues found"));
+}
+
+// =========================================================================
 // Agent missing tools — warning
 // =========================================================================
 
