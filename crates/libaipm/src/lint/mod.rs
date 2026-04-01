@@ -174,6 +174,41 @@ pub enum Error {
 mod tests {
     use super::*;
 
+    // --- is_ignored tests ---
+
+    #[test]
+    fn is_ignored_suffix_glob() {
+        let patterns = vec!["vendor/**".to_string()];
+        assert!(is_ignored("vendor/foo/bar.md", &patterns));
+        assert!(!is_ignored("src/main.rs", &patterns));
+    }
+
+    #[test]
+    fn is_ignored_prefix_glob() {
+        let patterns = vec!["**/hooks.json".to_string()];
+        assert!(is_ignored(".ai/plugin/hooks/hooks.json", &patterns));
+        assert!(!is_ignored(".ai/plugin/skills/SKILL.md", &patterns));
+    }
+
+    #[test]
+    fn is_ignored_plain_pattern() {
+        let patterns = vec!["legacy-plugin".to_string()];
+        assert!(is_ignored(".ai/legacy-plugin/skills/SKILL.md", &patterns));
+        assert!(!is_ignored(".ai/new-plugin/skills/SKILL.md", &patterns));
+    }
+
+    #[test]
+    fn is_ignored_empty_patterns() {
+        let patterns: Vec<String> = vec![];
+        assert!(!is_ignored("any/path.md", &patterns));
+    }
+
+    #[test]
+    fn is_ignored_no_match() {
+        let patterns = vec!["vendor/**".to_string(), "**/test.md".to_string()];
+        assert!(!is_ignored(".ai/plugin/skills/SKILL.md", &patterns));
+    }
+
     #[test]
     fn lint_outcome_default_counts() {
         let outcome = Outcome {
