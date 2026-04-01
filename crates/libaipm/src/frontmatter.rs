@@ -495,4 +495,32 @@ mod tests {
         assert_eq!(fm.fields.len(), 1);
         assert_eq!(fm.fields.get("name").map(String::as_str), Some("test"));
     }
+
+    #[test]
+    fn parse_leading_spaces_do_not_increment_start_line() {
+        // Leading spaces (non-newline chars) before --- must not increment start_line.
+        // This covers the `ch != '\n'` branch in the leading-whitespace loop.
+        let content = "  ---\nname: test\n---\nbody";
+        let result = parse(content);
+        assert!(result.is_ok());
+        let fm = result.ok().and_then(|o| o);
+        assert!(fm.is_some());
+        let fm = fm.unwrap_or_else(|| Frontmatter {
+            fields: BTreeMap::new(),
+            start_line: 0,
+            end_line: 0,
+            body: String::new(),
+        });
+        // Spaces before --- do not count as newlines, so start_line stays at 1.
+        assert_eq!(fm.start_line, 1);
+        assert_eq!(fm.fields.get("name").map(String::as_str), Some("test"));
+    }
+
+    #[test]
+    fn strip_yaml_quotes_single_char_not_stripped() {
+        // A single `"` char: first == last == Some(b'"'), but len < 2 fails the guard.
+        // This covers the `bytes.len() >= 2` guard False branch in strip_yaml_quotes.
+        assert_eq!(strip_yaml_quotes("\""), "\"");
+        assert_eq!(strip_yaml_quotes("'"), "'");
+    }
 }
