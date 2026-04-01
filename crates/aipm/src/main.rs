@@ -650,6 +650,29 @@ fn cmd_migrate(
             libaipm::migrate::Action::DryRunReport { path } => {
                 let _ = writeln!(stdout, "Dry run report written to {}", path.display());
             },
+            libaipm::migrate::Action::OtherFileMigrated {
+                path,
+                destination,
+                associated_artifact,
+            } => {
+                let note = associated_artifact
+                    .as_ref()
+                    .map_or_else(|| "(unassociated)".to_string(), |a| format!("(dep of {a})"));
+                let _ = writeln!(
+                    stdout,
+                    "  Copied other file {} → {} {note}",
+                    path.display(),
+                    destination.display()
+                );
+            },
+            libaipm::migrate::Action::ExternalReferenceRewritten { path, referenced_by } => {
+                let mut stderr = std::io::stderr();
+                let _ = writeln!(
+                    stderr,
+                    "Warning: external file {} referenced by '{referenced_by}' — not moved, path rewritten",
+                    path.display()
+                );
+            },
             libaipm::migrate::Action::SourceFileRemoved { .. }
             | libaipm::migrate::Action::SourceDirRemoved { .. }
             | libaipm::migrate::Action::EmptyDirPruned { .. } => {

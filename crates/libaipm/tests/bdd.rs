@@ -750,6 +750,22 @@ async fn given_command_in_subpackage(
         .expect("write command");
 }
 
+#[given(expr = "an unclaimed file {string} exists in {string} of {string}")]
+async fn given_unclaimed_file(
+    world: &mut AipmWorld,
+    filename: String,
+    subdir: String,
+    dir: String,
+) {
+    let base = world.dir_path(&dir);
+    let file_path = base.join(&subdir).join(&filename);
+    if let Some(parent) = file_path.parent() {
+        std::fs::create_dir_all(parent).expect("create parent dir for unclaimed file");
+    }
+    std::fs::write(&file_path, format!("# Unclaimed file: {filename}"))
+        .expect("write unclaimed file");
+}
+
 #[given(expr = "a hooks config exists in {string}")]
 async fn given_hooks_config(world: &mut AipmWorld, dir: String) {
     let base = world.dir_path(&dir);

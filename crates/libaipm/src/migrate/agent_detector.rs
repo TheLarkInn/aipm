@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use crate::fs::Fs;
 
 use super::detector::Detector;
+use super::skill_common::extract_script_references;
 use super::{strip_yaml_quotes, Artifact, ArtifactKind, ArtifactMetadata, Error};
 
 /// Scans `.claude/agents/` for `.md` files (subagent definitions).
@@ -48,7 +49,7 @@ impl Detector for AgentDetector {
                 name,
                 source_path: agent_path,
                 files: vec![PathBuf::from(&entry.name)],
-                referenced_scripts: Vec::new(),
+                referenced_scripts: extract_script_references(&content, "${CLAUDE_AGENT_DIR}/"),
                 metadata,
             });
         }
@@ -296,6 +297,54 @@ mod tests {
         let result = detector.detect(Path::new("/src"), &fs);
         let artifacts = result.ok().unwrap_or_default();
         assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("my-agent"));
+    }
+
+    #[test]
+    fn agent_detects_script_refs() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(PathBuf::from("/src/agents"), vec![de("tooler.md", false)]);
+        fs.files.insert(
+            PathBuf::from("/src/agents/tooler.md"),
+            "---\nname: tooler\n---\nRun ${CLAUDE_AGENT_DIR}/scripts/tool.sh to lint".to_string(),
+        );
+
+        let detector = AgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.first().map(|a| a.referenced_scripts.len()), Some(1));
+    }
+
+    #[test]
+    fn agent_no_scripts() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(PathBuf::from("/src/agents"), vec![de("plain.md", false)]);
+        fs.files.insert(
+            PathBuf::from("/src/agents/plain.md"),
+            "---\nname: plain\n---\nNo script references here.".to_string(),
+        );
+
+        let detector = AgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        let artifacts = result.ok().unwrap_or_default();
+        assert!(artifacts.first().map_or(true, |a| a.referenced_scripts.is_empty()));
+    }
+
+    #[test]
+    fn agent_detects_relative_script_refs() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(PathBuf::from("/src/agents"), vec![de("builder.md", false)]);
+        fs.files.insert(
+            PathBuf::from("/src/agents/builder.md"),
+            "---\nname: builder\n---\nRun ./scripts/build.sh to compile".to_string(),
+        );
+
+        let detector = AgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.first().map(|a| a.referenced_scripts.len()), Some(1));
     }
 
     #[test]

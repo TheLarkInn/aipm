@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use crate::fs::Fs;
 
 use super::detector::Detector;
+use super::skill_common::extract_script_references;
 use super::{strip_yaml_quotes, Artifact, ArtifactKind, ArtifactMetadata, Error};
 
 /// Scans `.github/agents/` for `.md` and `.agent.md` files.
@@ -75,7 +76,7 @@ impl Detector for CopilotAgentDetector {
                 name,
                 source_path: agent_path.clone(),
                 files: Vec::new(),
-                referenced_scripts: Vec::new(),
+                referenced_scripts: extract_script_references(&content, "${COPILOT_AGENT_DIR}/"),
                 metadata: ArtifactMetadata {
                     name: metadata.name,
                     description: metadata.description,

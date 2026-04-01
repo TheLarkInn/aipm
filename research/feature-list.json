@@ -1,81 +1,191 @@
 [
   {
-    "category": "performance",
-    "description": "Add system libgit2 and OpenSSL installation step to CI workflow ci job",
+    "category": "functional",
+    "description": "Expand extract_script_references() to match relative paths (./path, ../path) and bare interpreter invocations (bash scripts/foo.sh)",
     "steps": [
-      "Read .github/workflows/ci.yml to understand current job structure",
-      "Add 'Install system libraries (libgit2, OpenSSL)' step before cargo build in the ci job: sudo apt-get update && sudo apt-get install -y libgit2-dev libssl-dev pkg-config",
-      "Add LIBGIT2_SYS_USE_PKG_CONFIG: '1' to the workflow-level env block alongside existing env vars (CARGO_INCREMENTAL, CARGO_NET_RETRY, RUST_BACKTRACE)",
-      "Verify the install step is positioned after checkout and toolchain setup but before any cargo commands",
-      "Run cargo build --workspace locally to confirm no regressions from env var presence"
-    ],
-    "passes": true
-  },
-  {
-    "category": "performance",
-    "description": "Add system libgit2 and OpenSSL installation step to CI workflow coverage job",
-    "steps": [
-      "Read .github/workflows/ci.yml coverage job section",
-      "Add the same 'Install system libraries (libgit2, OpenSSL)' step before cargo llvm-cov in the coverage job: sudo apt-get update && sudo apt-get install -y libgit2-dev libssl-dev pkg-config",
-      "Verify LIBGIT2_SYS_USE_PKG_CONFIG env var from workflow-level env block applies to coverage job",
-      "Verify the install step is positioned after checkout and toolchain setup but before any cargo commands in the coverage job"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Replace reqwest with ureq in workspace root Cargo.toml dependency declaration",
-    "steps": [
-      "Read Cargo.toml (workspace root) and locate the [workspace.dependencies] section",
-      "Find the reqwest dependency line: reqwest = { version = \"0.12\", default-features = false, features = [\"blocking\", \"json\", \"rustls-tls\"] }",
-      "Replace it with: ureq = { version = \"3\", default-features = true }",
-      "Add a comment above: # HTTP -- synchronous-only client; no async runtime overhead",
-      "Run cargo check --workspace to verify dependency resolution (expect compile error in git.rs until code migration)"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Update crate-level Cargo.toml files: switch libaipm to ureq, remove reqwest from aipm-pack",
-    "steps": [
-      "Read crates/libaipm/Cargo.toml and locate reqwest = { workspace = true }",
-      "Replace reqwest = { workspace = true } with ureq = { workspace = true } in crates/libaipm/Cargo.toml",
-      "Read crates/aipm-pack/Cargo.toml and locate reqwest = { workspace = true }",
-      "Remove the reqwest = { workspace = true } line entirely from crates/aipm-pack/Cargo.toml (zero source references confirm it is unused)",
-      "Run cargo check --workspace to verify dependency changes compile (expect error in git.rs until code migration)"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Migrate http_get() function from reqwest::blocking to ureq in registry/git.rs",
-    "steps": [
-      "Read crates/libaipm/src/registry/git.rs and locate the http_get() function (around lines 152-168)",
-      "Remove the reqwest import (use reqwest or similar) if present",
-      "Replace the http_get() function body: change reqwest::blocking::get(url) to ureq::get(url).call()",
-      "Update the response body reading: replace response.bytes().map(|b| b.to_vec()) with response.into_body().read_to_vec()",
-      "Remove the explicit is_success() status check since ureq returns Err for non-2xx responses automatically",
-      "Update the doc comment from 'reqwest::blocking' to 'ureq'",
-      "Preserve the existing Error::Io mapping pattern with format! strings",
-      "Run cargo build --workspace to verify the migration compiles",
-      "Run cargo test --workspace to verify all existing tests pass",
-      "Run cargo clippy --workspace -- -D warnings to verify no lint warnings"
+      "Read crates/libaipm/src/migrate/skill_common.rs and locate extract_script_references() function",
+      "Add Pattern 2: regex matching for relative path references starting with ./ or ../ terminated by whitespace, quotes, backtick, or closing paren",
+      "Add Pattern 3: regex matching for bare script invocations after known interpreters (bash|sh|python|python3|node|ruby|perl) where the path contains a directory separator or known extension",
+      "Add URL exclusion logic to avoid matching https:// or http:// paths",
+      "Add deduplication via sort() and dedup() on the results Vec",
+      "Add unit test: extract_variable_prefix — existing ${CLAUDE_SKILL_DIR}/scripts/helper.sh pattern still works",
+      "Add unit test: extract_relative_dot_slash — ./scripts/helper.sh matched",
+      "Add unit test: extract_relative_dot_dot — ../utils/lib.sh matched",
+      "Add unit test: extract_bare_invocation — bash scripts/deploy.sh matched",
+      "Add unit test: extract_ignores_urls — https://example.com/scripts/foo.sh NOT matched",
+      "Add unit test: extract_deduplicates — same path referenced twice returns one entry",
+      "Run cargo test --workspace and cargo clippy --workspace -- -D warnings"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Run full build, test, clippy, fmt, and coverage gate to verify all changes pass quality checks",
+    "description": "Add script reference extraction to AgentDetector and CopilotAgentDetector (parity with SkillDetector)",
     "steps": [
-      "Run cargo fmt --check to verify formatting",
-      "Run cargo clippy --workspace -- -D warnings to verify no lint warnings",
-      "Run cargo build --workspace to verify clean compilation",
-      "Run cargo test --workspace to verify all tests pass",
+      "Read crates/libaipm/src/migrate/agent_detector.rs and locate the referenced_scripts: Vec::new() line",
+      "Replace with extract_script_references(&content, \"${CLAUDE_AGENT_DIR}\") call",
+      "Add use crate::migrate::skill_common::extract_script_references import if not present",
+      "Read crates/libaipm/src/migrate/copilot_agent_detector.rs and apply the same change",
+      "Add unit test: agent_detects_script_refs — agent .md with ${CLAUDE_AGENT_DIR}/scripts/tool.sh populates referenced_scripts",
+      "Add unit test: agent_no_scripts — agent .md with no script references returns empty referenced_scripts",
+      "Run cargo test --workspace and cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add OtherFile type to mod.rs and create the reconciler module for identifying unclaimed files",
+    "steps": [
+      "Read crates/libaipm/src/migrate/mod.rs to understand existing types",
+      "Add OtherFile struct with fields: path (PathBuf), relative_path (PathBuf), associated_artifact (Option<String>), is_external (bool)",
+      "Add pub mod reconciler to mod.rs",
+      "Create crates/libaipm/src/migrate/reconciler.rs",
+      "Implement collect_all_files() using recursive directory walk pattern from skill_common::collect_files_recursive(), returning absolute paths",
+      "Implement build_claimed_set() that iterates artifacts, adding source_path and resolved files to a HashSet. Account for config-based artifacts (McpServer, Hook) claiming settings.json",
+      "Implement associate_with_artifacts() that checks each unclaimed file against artifact referenced_scripts and metadata.raw_content for matches",
+      "Implement the main reconcile(source_dir, artifacts, fs) function composing the above steps",
+      "Add path canonicalization and traversal safety checks (reject files resolving outside source directory boundary)",
+      "Add unit test: reconcile_empty_dir — empty source dir returns empty other files",
+      "Add unit test: reconcile_all_claimed — all files claimed by detectors yields no other files",
+      "Add unit test: reconcile_unclaimed_files — files not matching any detector returned as other files",
+      "Add unit test: reconcile_associated_dependency — unclaimed file referenced in skill content has associated_artifact set",
+      "Add unit test: reconcile_unassociated — unclaimed file not referenced has associated_artifact as None",
+      "Add unit test: reconcile_external_reference — reference to file outside source dir has is_external: true",
+      "Add unit test: reconcile_settings_json_claimed — settings.json claimed by McpDetector/HookDetector not in other files",
+      "Run cargo test --workspace and cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Integrate reconciler into the migrate orchestrator (both single-source and recursive paths)",
+    "steps": [
+      "Read crates/libaipm/src/migrate/mod.rs and locate migrate_single_source() around line 324",
+      "Add other_files field (Vec<OtherFile>) to PluginPlan struct",
+      "In migrate_single_source(), after artifact detection and before the dry-run/emit branch, call reconciler::reconcile(&source_dir, &artifacts, fs)",
+      "Thread other_files through to generate_report() and emit paths",
+      "In migrate_recursive() after parallel detection around line 447, iterate plugin_plans and call reconciler::reconcile() for each plan",
+      "Ensure PluginPlan is initialized with other_files: Vec::new() before reconciliation",
+      "Run cargo test --workspace and cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add dry-run report section for other files with warning markers",
+    "steps": [
+      "Read crates/libaipm/src/migrate/dry_run.rs and understand generate_report() and generate_recursive_report() signatures",
+      "Update generate_report() signature to accept &[OtherFile] parameter",
+      "Update generate_recursive_report() to access other_files from PluginPlan",
+      "Implement write_other_files_section() that groups files into three categories: dependencies (associated), unassociated (with warning markers), and external references",
+      "Add the other files section call in generate_report() after existing artifact sections",
+      "Add the other files section call in generate_recursive_report() for each plan's other_files",
+      "Update the summary table to include an 'Other files' count row",
+      "Add unit test: report_no_other_files — no warning section when all files classified",
+      "Add unit test: report_with_associated_files — Dependencies section lists associated files",
+      "Add unit test: report_with_unassociated_files — Unassociated section with warning markers",
+      "Add unit test: report_with_external_refs — External section with rewrite notice",
+      "Update all existing callers of generate_report() and generate_recursive_report() to pass other_files",
+      "Run cargo test --workspace and cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add emission of other files into plugin directories and path rewriting for external references",
+    "steps": [
+      "Read crates/libaipm/src/migrate/emitter.rs and understand emit_plugin(), emit_plugin_with_name(), emit_package_plugin() signatures",
+      "Implement emit_other_files(other_files, plugin_dir, fs) that copies associated files to relative path under plugin root, unassociated files to plugin root (filename only), and skips external files",
+      "Add file name collision detection for unassociated files placed at plugin root — suffix with -1, -2 etc. on collision",
+      "Implement rewrite_external_references(content, artifact_new_dir, external_refs, project_root) that computes relative path from new location to external file and replaces old reference strings",
+      "Integrate emit_other_files() call into emit_plugin() after existing script copying",
+      "Integrate emit_other_files() call into emit_plugin_with_name() after existing emission",
+      "Integrate emit_other_files() call into emit_package_plugin() after existing emission",
+      "Integrate rewrite_external_references() into skill emission path (SKILL.md content)",
+      "Integrate rewrite_external_references() into agent emission path (agent .md content)",
+      "Extend rewrite_hook_command_paths() to handle external reference path rewriting for hooks",
+      "Add OtherFileMigrated action variant to Action enum in mod.rs with fields: path, destination, associated_artifact",
+      "Add ExternalReferenceRewritten action variant to Action enum with fields: path, referenced_by",
+      "Collect OtherFileMigrated and ExternalReferenceRewritten actions during emission",
+      "Add unit test: emit_associated_other_file — associated file placed in relative path under plugin dir",
+      "Add unit test: emit_unassociated_other_file — unassociated file placed in plugin root",
+      "Add unit test: emit_skips_external — external files not copied",
+      "Add unit test: rewrite_external_skill_ref — skill content path rewritten to valid relative path",
+      "Add unit test: rewrite_external_agent_ref — agent content path rewritten to valid relative path",
+      "Add unit test: rewrite_external_hook_ref — hook command path rewritten to valid path",
+      "Run cargo test --workspace and cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Update cleanup to include migrated other files in the destructive cleanup set",
+    "steps": [
+      "Read crates/libaipm/src/migrate/cleanup.rs and understand remove_migrated_sources() and should_skip_for_report()",
+      "Read crates/libaipm/src/migrate/mod.rs Outcome::migrated_sources() method",
+      "Update migrated_sources() or add migrated_other_files() method on Outcome to also return OtherFileMigrated action paths",
+      "Ensure remove_migrated_sources() includes other file source paths when cleaning up after --destructive migration",
+      "Update write_cleanup_plan() in dry_run.rs to include other files in the cleanup listing",
+      "Run cargo test --workspace and cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add cmd_migrate CLI output handling for new OtherFileMigrated and ExternalReferenceRewritten actions",
+    "steps": [
+      "Read crates/aipm/src/main.rs cmd_migrate() function around line 617",
+      "Add match arms for Action::OtherFileMigrated — print file path and destination, noting if associated with an artifact",
+      "Add match arms for Action::ExternalReferenceRewritten — print warning about external file and which artifact references it",
+      "Ensure output uses writeln!() to stderr for warnings (not println which is denied by lint policy)",
+      "Run cargo test --workspace and cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add E2E integration tests for other files migration scenarios",
+    "steps": [
+      "Read crates/aipm/tests/migrate_e2e.rs to understand existing test patterns and helpers",
+      "Add test: migrate with other files present — set up .claude/ with a skill and extra files (README.md, utils/helper.sh), run aipm migrate, verify files appear in plugin directory",
+      "Add test: migrate with dependency script referenced by skill — skill content references ./scripts/deploy.sh, verify script migrated alongside skill",
+      "Add test: migrate with external reference — skill references ../../scripts/build.sh, verify warning printed and path rewritten in migrated content but file not copied",
+      "Add test: dry-run with other files — verify report includes the warning Other Files section with correct groupings",
+      "Run cargo test --workspace"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add BDD cucumber scenarios for other files migration behavior",
+    "steps": [
+      "Read tests/features/manifest/migrate.feature to understand existing scenario patterns",
+      "Read crates/libaipm/tests/bdd.rs to understand existing step definitions around line 691",
+      "Add BDD scenario: Dry run reports unclassified files with warnings — Given .claude with skill and extra files, When --dry-run, Then report contains Other Files section",
+      "Add BDD scenario: Dry run reports dependency files associated with parent artifact — Given skill referencing ./scripts/deploy.sh, When --dry-run, Then report lists as dependency",
+      "Add BDD scenario: Unassociated files moved to plugin root — Given .claude with skill and README.md, When migrate, Then README.md at plugin root",
+      "Add BDD scenario: Dependency files migrated alongside parent — Given skill referencing ./scripts/deploy.sh, When migrate, Then scripts/deploy.sh in plugin dir",
+      "Add BDD scenario: External file reference produces warning and path rewrite — Given skill referencing ../../scripts/build.sh, When migrate, Then file not copied but path rewritten",
+      "Add BDD scenario: Agent with script reference migrates the script — Given agent referencing ./scripts/lint.sh, When migrate, Then scripts/lint.sh in plugin dir",
+      "Add step definitions in bdd.rs for any new Given/When/Then steps not already covered",
+      "Run cargo test --workspace"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Run all cargo gates and verify branch coverage meets 89% threshold",
+    "steps": [
+      "Run cargo build --workspace — must pass with zero warnings",
+      "Run cargo test --workspace — all tests must pass",
+      "Run cargo clippy --workspace -- -D warnings — must pass with zero warnings",
+      "Run cargo fmt --check — must pass with no formatting issues",
       "Run cargo +nightly llvm-cov clean --workspace",
       "Run cargo +nightly llvm-cov --no-report --workspace --branch",
       "Run cargo +nightly llvm-cov --no-report --doc",
-      "Run cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs)' and verify >= 89% branch coverage",
-      "Fix any coverage gaps by adding additional unit tests for uncovered branches"
+      "Run cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs)'",
+      "Verify TOTAL line branch column shows >= 89%",
+      "If coverage is below 89%, identify uncovered branches and add targeted tests to reach the threshold"
     ],
     "passes": true
   }

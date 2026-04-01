@@ -16,6 +16,7 @@ pub mod emitter;
 pub mod hook_detector;
 pub mod mcp_detector;
 pub mod output_style_detector;
+pub mod reconciler;
 pub mod registrar;
 pub mod skill_common;
 pub mod skill_detector;
@@ -109,6 +110,19 @@ pub struct Artifact {
     pub metadata: ArtifactMetadata,
 }
 
+/// A file in the source directory not claimed by any detector.
+#[derive(Debug, Clone)]
+pub struct OtherFile {
+    /// Absolute path to the file.
+    pub path: PathBuf,
+    /// Path relative to the source directory.
+    pub relative_path: PathBuf,
+    /// Name of the artifact that references this file (if any).
+    pub associated_artifact: Option<String>,
+    /// Whether the file is outside the source directory boundary.
+    pub is_external: bool,
+}
+
 /// Options for the migrate command.
 pub struct Options<'a> {
     /// Project root directory.
@@ -184,6 +198,22 @@ pub enum Action {
         /// Path to the pruned directory.
         path: PathBuf,
     },
+    /// An "other file" was migrated alongside its parent artifact.
+    OtherFileMigrated {
+        /// Source path of the file.
+        path: PathBuf,
+        /// Destination path in the plugin directory.
+        destination: PathBuf,
+        /// Name of the artifact this file is associated with (if any).
+        associated_artifact: Option<String>,
+    },
+    /// An external file reference was rewritten in migrated artifact content.
+    ExternalReferenceRewritten {
+        /// Path to the external file.
+        path: PathBuf,
+        /// Name of the artifact that references this file.
+        referenced_by: String,
+    },
 }
 
 /// Result of migration.
@@ -198,7 +228,8 @@ impl Outcome {
         self.actions.iter().any(|a| matches!(a, Action::PluginCreated { .. }))
     }
 
-    /// Returns the source paths and directory flags of all successfully migrated artifacts.
+    /// Returns the source paths and directory flags of all successfully migrated artifacts
+    /// and other files.
     pub fn migrated_sources(&self) -> Vec<(&Path, bool)> {
         self.actions
             .iter()
@@ -206,6 +237,7 @@ impl Outcome {
                 Action::PluginCreated { source, source_is_dir, .. } => {
                     Some((source.as_path(), *source_is_dir))
                 },
+                Action::OtherFileMigrated { path, .. } => Some((path.as_path(), false)),
                 _ => None,
             })
             .collect()
@@ -283,6 +315,8 @@ pub struct PluginPlan {
     pub is_package_scoped: bool,
     /// The `.claude/` directory this plan originated from (for report accuracy).
     pub source_dir: PathBuf,
+    /// Files not claimed by any detector in this source directory.
+    pub other_files: Vec<OtherFile>,
 }
 
 /// Run the migration pipeline.
@@ -349,6 +383,8 @@ fn migrate_single_source(
         all_artifacts.extend(artifacts);
     }
 
+    let other_files = reconciler::reconcile(&source_dir, &all_artifacts, fs)?;
+
     let existing_plugins = collect_existing_plugin_names(ai_dir, fs)?;
 
     if dry_run {
@@ -358,6 +394,7 @@ fn migrate_single_source(
             source,
             manifest,
             destructive,
+            &other_files,
         );
         let report_path = dir.join("aipm-migrate-dryrun-report.md");
         fs.write_file(&report_path, report.as_bytes())?;
@@ -422,6 +459,8 @@ fn migrate_recursive(
                 all_artifacts.extend(artifacts);
             }
 
+            let other_files = reconciler::reconcile(&src.source_dir, &all_artifacts, fs)?;
+
             if let Some(ref pkg_name) = src.package_name {
                 // Package-scoped: merge all artifacts under one plugin
                 Ok(vec![PluginPlan {
@@ -429,19 +468,26 @@ fn migrate_recursive(
                     artifacts: all_artifacts,
                     is_package_scoped: true,
                     source_dir: src.source_dir.clone(),
+                    other_files,
                 }])
             } else {
-                // Root-level: each artifact becomes its own plugin
+                // Root-level: each artifact becomes its own plugin.
+                // Attach other_files to the first plan so they appear in reports.
                 let source = src.source_dir.clone();
-                Ok(all_artifacts
+                let mut plans: Vec<PluginPlan> = all_artifacts
                     .into_iter()
                     .map(|a| PluginPlan {
                         name: a.name.clone(),
                         artifacts: vec![a],
                         is_package_scoped: false,
                         source_dir: source.clone(),
+                        other_files: Vec::new(),
                     })
-                    .collect())
+                    .collect();
+                if let Some(first) = plans.first_mut() {
+                    first.other_files = other_files;
+                }
+                Ok(plans)
             }
         })
         .collect();
@@ -469,7 +515,19 @@ fn migrate_recursive(
         return Ok(Outcome { actions: vec![Action::DryRunReport { path: report_path }] });
     }
 
-    // Sequential name resolution
+    emit_and_register(plugin_plans, existing_plugins, ai_dir, manifest, fs)
+}
+
+/// Resolve names, emit plugins in parallel, and register in marketplace.json.
+fn emit_and_register(
+    plugin_plans: Vec<PluginPlan>,
+    existing_plugins: HashSet<String>,
+    ai_dir: &Path,
+    manifest: bool,
+    fs: &dyn Fs,
+) -> Result<Outcome, Error> {
+    use rayon::prelude::*;
+
     let mut known_names = existing_plugins;
     let mut rename_counter = 0u32;
     let mut rename_actions = Vec::new();
@@ -485,7 +543,6 @@ fn migrate_recursive(
         resolved.push((plan, final_name));
     }
 
-    // Parallel emission
     let emission_results: Vec<Result<_, Error>> = resolved
         .par_iter()
         .map(|(plan, final_name)| {
@@ -501,7 +558,6 @@ fn migrate_recursive(
                 )?;
                 actions.extend(emit_actions);
             } else if let Some(artifact) = plan.artifacts.first() {
-                // Single artifact — use existing emit logic but with pre-resolved name
                 let emit_actions =
                     emitter::emit_plugin_with_name(artifact, final_name, ai_dir, manifest, fs)?;
                 actions.extend(emit_actions);
@@ -520,7 +576,6 @@ fn migrate_recursive(
         registered_entries.push(PluginEntry { name, description });
     }
 
-    // Register all in marketplace.json
     registrar::register_plugins(ai_dir, &registered_entries, fs)?;
     for entry in &registered_entries {
         all_actions.push(Action::MarketplaceRegistered { name: entry.name.clone() });
@@ -635,6 +690,14 @@ mod tests {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.ai"));
         fs.exists.insert(PathBuf::from("/project/.claude"));
+        // Source dir listing (for reconciler)
+        fs.dirs.insert(
+            PathBuf::from("/project/.claude"),
+            vec![
+                crate::fs::DirEntry { name: "skills".to_string(), is_dir: true },
+                crate::fs::DirEntry { name: "commands".to_string(), is_dir: true },
+            ],
+        );
         // Empty skills and commands dirs
         fs.dirs.insert(PathBuf::from("/project/.claude/skills"), Vec::new());
         fs.dirs.insert(PathBuf::from("/project/.claude/commands"), Vec::new());
@@ -667,6 +730,13 @@ mod tests {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.ai"));
         fs.exists.insert(PathBuf::from("/project/.claude"));
+        fs.dirs.insert(
+            PathBuf::from("/project/.claude"),
+            vec![
+                crate::fs::DirEntry { name: "skills".to_string(), is_dir: true },
+                crate::fs::DirEntry { name: "commands".to_string(), is_dir: true },
+            ],
+        );
         fs.dirs.insert(PathBuf::from("/project/.claude/skills"), Vec::new());
         fs.dirs.insert(PathBuf::from("/project/.claude/commands"), Vec::new());
         fs.dirs.insert(PathBuf::from("/project/.ai"), Vec::new());
@@ -698,6 +768,15 @@ mod tests {
         fs.exists.insert(PathBuf::from("/project/.claude/skills"));
         fs.exists.insert(PathBuf::from("/project/.claude/skills/deploy/SKILL.md"));
         fs.exists.insert(PathBuf::from("/project/.claude/commands"));
+
+        // Source dir listing (for reconciler)
+        fs.dirs.insert(
+            PathBuf::from("/project/.claude"),
+            vec![
+                crate::fs::DirEntry { name: "skills".to_string(), is_dir: true },
+                crate::fs::DirEntry { name: "commands".to_string(), is_dir: true },
+            ],
+        );
 
         // AI dir entries (no existing plugins)
         fs.dirs.insert(
@@ -924,6 +1003,7 @@ mod tests {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.ai"));
         fs.exists.insert(PathBuf::from("/project/.custom"));
+        fs.dirs.insert(PathBuf::from("/project/.custom"), Vec::new());
         fs.dirs.insert(PathBuf::from("/project/.ai"), Vec::new());
         fs.files.insert(
             PathBuf::from("/project/.ai/.claude-plugin/marketplace.json"),
@@ -948,6 +1028,7 @@ mod tests {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.ai"));
         fs.exists.insert(PathBuf::from("/project/.github"));
+        fs.dirs.insert(PathBuf::from("/project/.github"), Vec::new());
         fs.dirs.insert(PathBuf::from("/project/.ai"), Vec::new());
         fs.files.insert(
             PathBuf::from("/project/.ai/.claude-plugin/marketplace.json"),

@@ -9,7 +9,7 @@ use crate::workspace_init::write_file;
 
 use serde::Serialize;
 
-use super::{Action, Artifact, ArtifactKind, ArtifactMetadata, Error};
+use super::{Action, Artifact, ArtifactKind, ArtifactMetadata, Error, OtherFile};
 
 use std::path::PathBuf;
 
@@ -671,6 +671,77 @@ fn copy_referenced_scripts(
         }
     }
     Ok(())
+}
+
+/// Copy "other files" into the plugin directory.
+///
+/// - Associated files: placed at their relative path under the plugin root.
+/// - Unassociated files: placed at the plugin root (filename only).
+/// - External files: skipped (not copied).
+///
+/// Returns actions describing what was done.
+pub fn emit_other_files(
+    other_files: &[OtherFile],
+    plugin_dir: &Path,
+    fs: &dyn Fs,
+) -> Result<Vec<Action>, Error> {
+    let mut actions = Vec::new();
+    let mut used_names: HashSet<String> = HashSet::new();
+
+    for file in other_files {
+        if file.is_external {
+            // External files are not copied; emit warning action
+            if let Some(ref artifact) = file.associated_artifact {
+                actions.push(Action::ExternalReferenceRewritten {
+                    path: file.path.clone(),
+                    referenced_by: artifact.clone(),
+                });
+            }
+            continue;
+        }
+
+        let dest = if file.associated_artifact.is_some() {
+            // Associated: preserve relative path structure
+            let dest = plugin_dir.join(&file.relative_path);
+            if let Some(parent) = dest.parent() {
+                fs.create_dir_all(parent)?;
+            }
+            dest
+        } else {
+            // Unassociated: place at plugin root with collision avoidance
+            let filename = file.relative_path.file_name().map_or_else(
+                || file.relative_path.to_string_lossy().into_owned(),
+                |n| n.to_string_lossy().into_owned(),
+            );
+            let mut final_name = filename.clone();
+            let mut counter = 0u32;
+            while used_names.contains(&final_name) {
+                counter += 1;
+                if let Some(dot_pos) = filename.rfind('.') {
+                    let (stem, ext) = filename.split_at(dot_pos);
+                    final_name = format!("{stem}-{counter}{ext}");
+                } else {
+                    final_name = format!("{filename}-{counter}");
+                }
+            }
+            used_names.insert(final_name.clone());
+            plugin_dir.join(&final_name)
+        };
+
+        // Copy the file if it exists
+        if fs.exists(&file.path) {
+            let content = fs.read_to_string(&file.path)?;
+            fs.write_file(&dest, content.as_bytes())?;
+        }
+
+        actions.push(Action::OtherFileMigrated {
+            path: file.path.clone(),
+            destination: dest,
+            associated_artifact: file.associated_artifact.clone(),
+        });
+    }
+
+    Ok(actions)
 }
 
 /// Generate `aipm.toml` for a package-scoped plugin with multiple artifacts.
@@ -2755,5 +2826,188 @@ mod tests {
         let desc =
             parsed.get("package").and_then(|p| p.get("description")).and_then(toml::Value::as_str);
         assert_eq!(desc, Some("She said \"hello\" and \\backslash"));
+    }
+
+    #[test]
+    fn emit_associated_other_file() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/scripts/helper.sh"));
+        fs.files
+            .insert(PathBuf::from("/src/scripts/helper.sh"), "#!/bin/bash\necho hi".to_string());
+
+        let other_files = vec![OtherFile {
+            path: PathBuf::from("/src/scripts/helper.sh"),
+            relative_path: PathBuf::from("scripts/helper.sh"),
+            associated_artifact: Some("deploy".to_string()),
+            is_external: false,
+        }];
+
+        let result = emit_other_files(&other_files, Path::new("/ai/deploy"), &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(&actions[0], Action::OtherFileMigrated { destination, .. }
+            if destination == &PathBuf::from("/ai/deploy/scripts/helper.sh")));
+        assert!(fs
+            .written
+            .lock()
+            .expect("mutex")
+            .contains_key(Path::new("/ai/deploy/scripts/helper.sh")));
+    }
+
+    #[test]
+    fn emit_unassociated_other_file() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/README.md"));
+        fs.files.insert(PathBuf::from("/src/README.md"), "# Readme".to_string());
+
+        let other_files = vec![OtherFile {
+            path: PathBuf::from("/src/README.md"),
+            relative_path: PathBuf::from("README.md"),
+            associated_artifact: None,
+            is_external: false,
+        }];
+
+        let result = emit_other_files(&other_files, Path::new("/ai/plugin"), &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(&actions[0], Action::OtherFileMigrated { destination, .. }
+            if destination == &PathBuf::from("/ai/plugin/README.md")));
+    }
+
+    #[test]
+    fn emit_skips_external() {
+        let fs = MockFs::new();
+
+        let other_files = vec![OtherFile {
+            path: PathBuf::from("/project/scripts/build.sh"),
+            relative_path: PathBuf::from("../../scripts/build.sh"),
+            associated_artifact: Some("deploy".to_string()),
+            is_external: true,
+        }];
+
+        let result = emit_other_files(&other_files, Path::new("/ai/deploy"), &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(&actions[0], Action::ExternalReferenceRewritten { .. }));
+        // No files should have been written
+        assert!(fs.written.lock().expect("mutex").is_empty());
+    }
+
+    #[test]
+    fn emit_other_file_collision_avoidance() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/README.md"));
+        fs.files.insert(PathBuf::from("/src/README.md"), "# A".to_string());
+        fs.exists.insert(PathBuf::from("/src/sub/README.md"));
+        fs.files.insert(PathBuf::from("/src/sub/README.md"), "# B".to_string());
+
+        let other_files = vec![
+            OtherFile {
+                path: PathBuf::from("/src/README.md"),
+                relative_path: PathBuf::from("README.md"),
+                associated_artifact: None,
+                is_external: false,
+            },
+            OtherFile {
+                path: PathBuf::from("/src/sub/README.md"),
+                relative_path: PathBuf::from("sub/README.md"),
+                associated_artifact: None,
+                is_external: false,
+            },
+        ];
+
+        let result = emit_other_files(&other_files, Path::new("/ai/plugin"), &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert_eq!(actions.len(), 2);
+        // Second file should be renamed to avoid collision
+        let dests: Vec<_> = actions
+            .iter()
+            .filter_map(|a| match a {
+                Action::OtherFileMigrated { destination, .. } => Some(destination.clone()),
+                _ => None,
+            })
+            .collect();
+        assert!(dests.contains(&PathBuf::from("/ai/plugin/README.md")));
+        assert!(dests.contains(&PathBuf::from("/ai/plugin/README-1.md")));
+    }
+
+    #[test]
+    fn emit_other_file_nonexistent_skips_write() {
+        // File doesn't exist — fs.exists returns false, no write happens
+        let fs = MockFs::new();
+
+        let other_files = vec![OtherFile {
+            path: PathBuf::from("/src/missing.txt"),
+            relative_path: PathBuf::from("missing.txt"),
+            associated_artifact: None,
+            is_external: false,
+        }];
+
+        let result = emit_other_files(&other_files, Path::new("/ai/plugin"), &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert_eq!(actions.len(), 1);
+        assert!(fs.written.lock().expect("mutex").is_empty());
+    }
+
+    #[test]
+    fn emit_other_file_collision_no_extension() {
+        // Collision avoidance for files without an extension
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/Makefile"));
+        fs.files.insert(PathBuf::from("/src/Makefile"), "all:".to_string());
+        fs.exists.insert(PathBuf::from("/src/sub/Makefile"));
+        fs.files.insert(PathBuf::from("/src/sub/Makefile"), "build:".to_string());
+
+        let other_files = vec![
+            OtherFile {
+                path: PathBuf::from("/src/Makefile"),
+                relative_path: PathBuf::from("Makefile"),
+                associated_artifact: None,
+                is_external: false,
+            },
+            OtherFile {
+                path: PathBuf::from("/src/sub/Makefile"),
+                relative_path: PathBuf::from("sub/Makefile"),
+                associated_artifact: None,
+                is_external: false,
+            },
+        ];
+
+        let result = emit_other_files(&other_files, Path::new("/ai/plugin"), &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert_eq!(actions.len(), 2);
+        let dests: Vec<_> = actions
+            .iter()
+            .filter_map(|a| match a {
+                Action::OtherFileMigrated { destination, .. } => Some(destination.clone()),
+                _ => None,
+            })
+            .collect();
+        assert!(dests.contains(&PathBuf::from("/ai/plugin/Makefile")));
+        assert!(dests.contains(&PathBuf::from("/ai/plugin/Makefile-1")));
+    }
+
+    #[test]
+    fn emit_external_without_association_no_action() {
+        // External file with no associated artifact — no ExternalReferenceRewritten action
+        let fs = MockFs::new();
+
+        let other_files = vec![OtherFile {
+            path: PathBuf::from("/project/scripts/build.sh"),
+            relative_path: PathBuf::from("../../scripts/build.sh"),
+            associated_artifact: None,
+            is_external: true,
+        }];
+
+        let result = emit_other_files(&other_files, Path::new("/ai/deploy"), &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert!(actions.is_empty());
     }
 }

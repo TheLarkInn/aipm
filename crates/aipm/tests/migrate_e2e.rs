@@ -767,3 +767,76 @@ fn destructive_skips_mcp_json() {
     // .mcp.json should still exist (shared config)
     assert!(dir.join(".mcp.json").exists());
 }
+
+// =========================================================================
+// Scenario: Migrate with other files present
+// =========================================================================
+#[test]
+fn migrate_with_other_files() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("project");
+    init_workspace(&dir);
+    create_skill(&dir, "deploy", "---\nname: deploy\n---\nDeploy instructions");
+
+    // Create extra unclaimed files in .claude/
+    let claude_dir = dir.join(".claude");
+    std::fs::write(claude_dir.join("README.md"), "# Project notes").unwrap();
+    std::fs::create_dir_all(claude_dir.join("utils")).unwrap();
+    std::fs::write(claude_dir.join("utils/helper.sh"), "#!/bin/bash\necho help").unwrap();
+
+    aipm()
+        .args(["migrate", &dir.display().to_string()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("other file").or(predicate::str::contains("Migrated")));
+}
+
+// =========================================================================
+// Scenario: Dry-run with other files shows Other Files section
+// =========================================================================
+#[test]
+fn migrate_dry_run_with_other_files() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("project");
+    init_workspace(&dir);
+    create_skill(&dir, "deploy", "---\nname: deploy\n---\nDeploy instructions");
+
+    // Create an extra unclaimed file
+    std::fs::write(dir.join(".claude/README.md"), "# Notes").unwrap();
+
+    aipm()
+        .args(["migrate", "--dry-run", "--source", ".claude", &dir.display().to_string()])
+        .assert()
+        .success();
+
+    let report = std::fs::read_to_string(dir.join("aipm-migrate-dryrun-report.md")).unwrap();
+    assert!(report.contains("Other Files"), "dry-run report should contain Other Files section");
+    assert!(report.contains("README.md"), "dry-run report should mention the unclaimed file");
+}
+
+// =========================================================================
+// Scenario: Migrate with dependency script referenced by skill
+// =========================================================================
+#[test]
+fn migrate_dependency_script_with_relative_ref() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("project");
+    init_workspace(&dir);
+
+    let skill_dir = dir.join(".claude/skills/deploy");
+    std::fs::create_dir_all(&skill_dir).unwrap();
+    std::fs::write(
+        skill_dir.join("SKILL.md"),
+        "---\nname: deploy\n---\nRun ${CLAUDE_SKILL_DIR}/scripts/deploy.sh to deploy",
+    )
+    .unwrap();
+    std::fs::create_dir_all(skill_dir.join("scripts")).unwrap();
+    std::fs::write(skill_dir.join("scripts/deploy.sh"), "#!/bin/bash\necho deploy").unwrap();
+
+    aipm().args(["migrate", &dir.display().to_string()]).assert().success();
+
+    assert!(
+        dir.join(".ai/deploy/scripts/deploy.sh").exists(),
+        "dependency script should be migrated alongside skill"
+    );
+}

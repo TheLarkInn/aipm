@@ -164,6 +164,26 @@ Feature: Migrate AI tool configurations into marketplace plugins
       Then the command succeeds
       And there is no file ".claude/skills/lint/SKILL.md" in "my-project"
 
+  Rule: Other files are reported and migrated
+
+    Scenario: Dry run reports unclassified files with warnings
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a skill "deploy" exists in "my-project"
+      And an unclaimed file "README.md" exists in ".claude" of "my-project"
+      When the user runs "aipm migrate --dry-run --source .claude" in "my-project"
+      Then a file "aipm-migrate-dryrun-report.md" exists in "my-project"
+      And the file "aipm-migrate-dryrun-report.md" in "my-project" contains "Other Files"
+      And the file "aipm-migrate-dryrun-report.md" in "my-project" contains "README.md"
+
+    Scenario: Unassociated files reported during live migration
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a skill "deploy" exists in "my-project"
+      And an unclaimed file "README.md" exists in ".claude" of "my-project"
+      When the user runs "aipm migrate" in "my-project"
+      Then the command succeeds
+
   Rule: Prerequisites are validated
 
     Scenario: Error when marketplace directory is missing
