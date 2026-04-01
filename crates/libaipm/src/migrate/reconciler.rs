@@ -374,4 +374,42 @@ mod tests {
         assert_eq!(others.len(), 1);
         assert!(others[0].associated_artifact.is_none());
     }
+
+    #[test]
+    fn find_associated_normalizes_dot_slash_prefix() {
+        // Referenced script uses ./scripts/foo.sh but enumerated path is scripts/foo.sh
+        let mut fs = MockFs::new();
+        fs.dirs.insert(PathBuf::from("/src"), vec![de("agents", true), de("scripts", true)]);
+        fs.dirs.insert(PathBuf::from("/src/agents"), vec![de("builder.md", false)]);
+        fs.dirs.insert(PathBuf::from("/src/scripts"), vec![de("foo.sh", false)]);
+
+        let mut artifact = make_artifact("builder", ArtifactKind::Agent, "/src/agents/builder.md");
+        // Reference with ./ prefix
+        artifact.referenced_scripts.push(PathBuf::from("./scripts/foo.sh"));
+
+        let result = reconcile(Path::new("/src"), &[artifact], &fs);
+        assert!(result.is_ok());
+        let others = result.ok().unwrap_or_default();
+        // scripts/foo.sh should be claimed via normalized matching
+        assert!(
+            !others.iter().any(|o| o.relative_path == PathBuf::from("scripts/foo.sh")),
+            "scripts/foo.sh should be claimed by ./scripts/foo.sh reference"
+        );
+    }
+
+    #[test]
+    fn reconcile_extension_files_claimed() {
+        let mut fs = MockFs::new();
+        fs.dirs.insert(PathBuf::from("/src"), vec![de("extensions", true)]);
+        fs.dirs.insert(PathBuf::from("/src/extensions"), vec![de("my-ext", true)]);
+        fs.dirs.insert(PathBuf::from("/src/extensions/my-ext"), vec![de("index.js", false)]);
+
+        let mut artifact =
+            make_artifact("my-ext", ArtifactKind::Extension, "/src/extensions/my-ext");
+        artifact.files = vec![PathBuf::from("index.js")];
+
+        let result = reconcile(Path::new("/src"), &[artifact], &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
 }

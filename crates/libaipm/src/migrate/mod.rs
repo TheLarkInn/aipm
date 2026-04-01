@@ -1062,4 +1062,64 @@ mod tests {
         let result = migrate(&opts, &fs);
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn migrate_with_other_files_emits_them() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.ai"));
+        fs.exists.insert(PathBuf::from("/project/.claude"));
+        fs.exists.insert(PathBuf::from("/project/.claude/skills"));
+        fs.exists.insert(PathBuf::from("/project/.claude/skills/deploy/SKILL.md"));
+        fs.exists.insert(PathBuf::from("/project/.claude/README.md"));
+
+        // Source dir listing includes an unclaimed file
+        fs.dirs.insert(
+            PathBuf::from("/project/.claude"),
+            vec![
+                crate::fs::DirEntry { name: "skills".to_string(), is_dir: true },
+                crate::fs::DirEntry { name: "README.md".to_string(), is_dir: false },
+            ],
+        );
+        fs.dirs.insert(
+            PathBuf::from("/project/.claude/skills"),
+            vec![crate::fs::DirEntry { name: "deploy".to_string(), is_dir: true }],
+        );
+        fs.dirs.insert(
+            PathBuf::from("/project/.claude/skills/deploy"),
+            vec![crate::fs::DirEntry { name: "SKILL.md".to_string(), is_dir: false }],
+        );
+        fs.files.insert(
+            PathBuf::from("/project/.claude/skills/deploy/SKILL.md"),
+            "---\nname: deploy\n---\nDeploy".to_string(),
+        );
+        fs.files.insert(PathBuf::from("/project/.claude/README.md"), "# Notes".to_string());
+        fs.dirs.insert(
+            PathBuf::from("/project/.ai"),
+            vec![crate::fs::DirEntry { name: ".claude-plugin".to_string(), is_dir: true }],
+        );
+        fs.files.insert(
+            PathBuf::from("/project/.ai/.claude-plugin/marketplace.json"),
+            r#"{"plugins":[]}"#.to_string(),
+        );
+
+        let opts = Options {
+            dir: Path::new("/project"),
+            source: Some(".claude"),
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let result = migrate(&opts, &fs);
+        assert!(result.is_ok());
+
+        if let Some(result) = result.ok() {
+            let other_migrated = result
+                .actions
+                .iter()
+                .filter(|a| matches!(a, Action::OtherFileMigrated { .. }))
+                .count();
+            assert!(other_migrated > 0, "should have OtherFileMigrated actions");
+        }
+    }
 }
