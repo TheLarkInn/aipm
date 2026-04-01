@@ -1,6 +1,10 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.15.0] - 2026-04-01
+
+### Dependency updates
+- Bump workspace version and `libaipm` dependency to 0.15.0.
 ## [0.14.9] - 2026-04-01
 
 ## [0.14.8] - 2026-04-01
