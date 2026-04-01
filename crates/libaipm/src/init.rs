@@ -606,4 +606,48 @@ mod tests {
         let err = result.err();
         assert!(err.is_some_and(|e| e.to_string().contains("cannot determine package name")));
     }
+
+    #[test]
+    fn init_fails_for_empty_name() {
+        let fs = FailFs { fail_on: "never" };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-empty-name");
+        let opts = Options { dir: &tmp, name: Some(""), plugin_type: None };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| e.to_string().contains("invalid package name")));
+    }
+
+    #[test]
+    fn init_fails_for_scoped_name_without_slash() {
+        let fs = FailFs { fail_on: "never" };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-scoped-noslash");
+        let opts = Options { dir: &tmp, name: Some("@noslash"), plugin_type: None };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| e.to_string().contains("invalid package name")));
+    }
+
+    #[test]
+    fn init_fails_for_scoped_name_with_empty_scope() {
+        let fs = FailFs { fail_on: "never" };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-scoped-noscope");
+        let opts = Options { dir: &tmp, name: Some("@/pkg"), plugin_type: None };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| e.to_string().contains("invalid package name")));
+    }
+
+    #[test]
+    fn init_fails_for_scoped_name_with_invalid_segment() {
+        let fs = FailFs { fail_on: "never" };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-scoped-invalid-seg");
+        let opts = Options { dir: &tmp, name: Some("@INVALID/pkg"), plugin_type: None };
+        let result = init(&opts, &fs);
+        assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| e.to_string().contains("invalid package name")));
+    }
 }
