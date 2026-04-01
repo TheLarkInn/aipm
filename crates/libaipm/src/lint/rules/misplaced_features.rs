@@ -10,7 +10,8 @@ use crate::lint::rule::Rule;
 use crate::lint::Error;
 
 /// Known subdirectory names that indicate plugin features.
-const FEATURE_DIRS: &[&str] = &["skills", "commands", "agents", "hooks", "output-styles"];
+const FEATURE_DIRS: &[&str] =
+    &["skills", "commands", "agents", "hooks", "output-styles", "extensions"];
 
 /// Checks for plugin features sitting in tool-specific directories.
 pub struct MisplacedFeatures {

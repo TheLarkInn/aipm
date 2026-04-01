@@ -18,20 +18,13 @@ use crate::fs::Fs;
 pub use diagnostic::{Diagnostic, Severity};
 pub use rule::Rule;
 
-/// Check if a file path matches any of the given glob-like ignore patterns.
+/// Check if a file path matches any of the given glob ignore patterns.
 fn is_ignored(path: &str, patterns: &[String]) -> bool {
     for pattern in patterns {
-        // Simple glob matching: support trailing ** and leading **/
-        if let Some(prefix) = pattern.strip_suffix("/**") {
-            if path.contains(prefix) {
+        if let Ok(pat) = glob::Pattern::new(pattern) {
+            if pat.matches(path) {
                 return true;
             }
-        } else if let Some(suffix) = pattern.strip_prefix("**/") {
-            if path.ends_with(suffix) || path.contains(suffix) {
-                return true;
-            }
-        } else if path.contains(pattern.trim_end_matches('*')) {
-            return true;
         }
     }
     false
@@ -80,7 +73,7 @@ pub fn lint(opts: &Options, fs: &dyn Fs) -> Result<Outcome, Error> {
 
         for rule in &all_rules {
             // Skip rules suppressed by config
-            if opts.config.is_allowed(rule.id()) {
+            if opts.config.is_suppressed(rule.id()) {
                 continue;
             }
 
@@ -191,8 +184,15 @@ mod tests {
     }
 
     #[test]
-    fn is_ignored_plain_pattern() {
-        let patterns = vec!["legacy-plugin".to_string()];
+    fn is_ignored_wildcard_pattern() {
+        let patterns = vec!["**/legacy-plugin/**".to_string()];
+        assert!(is_ignored(".ai/legacy-plugin/skills/SKILL.md", &patterns));
+        assert!(!is_ignored(".ai/new-plugin/skills/SKILL.md", &patterns));
+    }
+
+    #[test]
+    fn is_ignored_star_pattern() {
+        let patterns = vec![".ai/legacy-*/**".to_string()];
         assert!(is_ignored(".ai/legacy-plugin/skills/SKILL.md", &patterns));
         assert!(!is_ignored(".ai/new-plugin/skills/SKILL.md", &patterns));
     }

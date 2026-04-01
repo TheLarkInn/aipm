@@ -503,8 +503,15 @@ fn cmd_lint(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let dir = resolve_dir(dir)?;
 
-    // Validate --source directory exists when explicitly requested
+    // Validate --source against supported set and check directory exists
     if let Some(ref src) = source {
+        const SUPPORTED_SOURCES: &[&str] = &[".claude", ".github", ".ai"];
+        if !SUPPORTED_SOURCES.contains(&src.as_str()) {
+            return Err(format!(
+                "unsupported source '{src}'; valid sources: .claude, .github, .ai"
+            )
+            .into());
+        }
         let source_dir = dir.join(src);
         if !source_dir.exists() {
             return Err(format!("source directory '{}' not found in {}", src, dir.display()).into());
@@ -529,6 +536,8 @@ fn cmd_lint(
     }
 
     if outcome.error_count > 0 {
+        // Use a specific error type so main() can distinguish lint failures
+        // from unexpected errors, avoiding noisy "error:" prefix for JSON consumers.
         return Err(format!("lint found {} error(s)", outcome.error_count).into());
     }
 

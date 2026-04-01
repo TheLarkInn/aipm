@@ -30,8 +30,8 @@ pub enum RuleOverride {
 }
 
 impl Config {
-    /// Check if a rule is suppressed (set to `"allow"`).
-    pub fn is_allowed(&self, rule_id: &str) -> bool {
+    /// Check if a rule is suppressed (set to `"allow"` in config).
+    pub fn is_suppressed(&self, rule_id: &str) -> bool {
         matches!(self.rule_overrides.get(rule_id), Some(RuleOverride::Allow))
     }
 
@@ -65,11 +65,11 @@ mod tests {
     }
 
     #[test]
-    fn is_allowed_returns_true_for_allow() {
+    fn is_suppressed_returns_true_for_allow() {
         let mut config = Config::default();
         config.rule_overrides.insert("skill/oversized".to_string(), RuleOverride::Allow);
-        assert!(config.is_allowed("skill/oversized"));
-        assert!(!config.is_allowed("skill/missing-name"));
+        assert!(config.is_suppressed("skill/oversized"));
+        assert!(!config.is_suppressed("skill/missing-name"));
     }
 
     #[test]
@@ -119,12 +119,12 @@ mod tests {
     }
 
     #[test]
-    fn is_allowed_returns_false_for_level() {
+    fn is_suppressed_returns_false_for_level() {
         let mut config = Config::default();
         config
             .rule_overrides
             .insert("skill/oversized".to_string(), RuleOverride::Level(Severity::Warning));
-        assert!(!config.is_allowed("skill/oversized"));
+        assert!(!config.is_suppressed("skill/oversized"));
     }
 
     #[test]

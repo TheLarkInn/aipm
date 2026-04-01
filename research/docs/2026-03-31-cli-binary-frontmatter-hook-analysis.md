@@ -21,7 +21,7 @@ Can we extract the actual frontmatter parser, recognized fields, hook events, an
 
 **Yes.** Both CLIs were successfully analyzed — Claude Code v2.1.87 (compiled ELF with bundled JS) via `strings` extraction, and Copilot CLI v1.0.12 (Node.js) via direct source reading. The findings reveal significant discrepancies between our prior documentation and the actual implementations:
 
-- **Hook events**: Claude Code supports **26 events** (not 22). Copilot CLI supports **10 events** (not the same set). Both tools have events the other doesn't.
+- **Hook events**: Claude Code supports **27 events** (not 22). Copilot CLI supports **10 events** (not the same set). Both tools have events the other doesn't.
 - **Frontmatter fields**: Claude Code recognizes **16+ fields**. Copilot CLI validates via Zod schema with **5 fields** for skills and strict constraints (name max 64 chars, description max 1024 chars).
 - **Frontmatter regex**: Both tools use nearly identical regex patterns but different YAML parsers.
 - **Hook types**: Claude Code supports command + notify (plus agentic, HTTP, LLM prompt). Copilot supports command + prompt (sessionStart only).
