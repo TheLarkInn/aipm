@@ -19,13 +19,13 @@ Both work across .NET, Python, Node.js, and Rust projects with no runtime depend
 ### Shell (Linux / macOS)
 
 ```sh
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/thelarkinn/aipm/releases/download/latest/aipm-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/thelarkinn/aipm/releases/latest/download/aipm-installer.sh | sh
 ```
 
 ### PowerShell (Windows)
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://github.com/thelarkinn/aipm/releases/download/latest/aipm-installer.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/thelarkinn/aipm/releases/latest/download/aipm-installer.ps1 | iex"
 ```
 
 > Installers are provided by [cargo-dist](https://opensource.axo.dev/cargo-dist/). Run `aipm-update` to self-update.
