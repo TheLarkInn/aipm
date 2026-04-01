@@ -6,7 +6,7 @@ use std::hash::BuildHasher;
 
 use super::cleanup;
 use super::discovery::DiscoveredSource;
-use super::{Artifact, ArtifactKind, PluginPlan};
+use super::{Artifact, ArtifactKind, OtherFile, PluginPlan};
 
 /// Generate a dry-run report as markdown.
 pub fn generate_report<S: BuildHasher>(
@@ -15,6 +15,7 @@ pub fn generate_report<S: BuildHasher>(
     source_name: &str,
     manifest: bool,
     destructive: bool,
+    other_files: &[OtherFile],
 ) -> String {
     let mut report = String::new();
 
@@ -69,6 +70,10 @@ pub fn generate_report<S: BuildHasher>(
         }
     }
 
+    if !other_files.is_empty() {
+        write_other_files_section(&mut report, other_files);
+    }
+
     // Summary table
     let _ = writeln!(report, "## Summary\n");
     let _ = writeln!(report, "| Action | Count |");
@@ -77,6 +82,9 @@ pub fn generate_report<S: BuildHasher>(
     let _ = writeln!(report, "| Marketplace entries to add | {} |", artifacts.len());
     let _ = writeln!(report, "| Name conflicts (auto-renamed) | {total_conflicts} |");
     let _ = writeln!(report, "| Hooks to extract | {total_hooks} |");
+    if !other_files.is_empty() {
+        let _ = writeln!(report, "| Other files | {} |", other_files.len());
+    }
 
     if destructive {
         write_cleanup_plan(&mut report, artifacts);
@@ -157,6 +165,13 @@ pub fn generate_recursive_report<S: BuildHasher>(
         let _ = writeln!(report);
     }
 
+    // Other files section (aggregate from all plans)
+    let all_other_files: Vec<&OtherFile> =
+        plugin_plans.iter().flat_map(|p| &p.other_files).collect();
+    if !all_other_files.is_empty() {
+        write_other_files_section_refs(&mut report, &all_other_files);
+    }
+
     // Name conflicts section
     let _ = writeln!(report, "## Name Conflicts");
     if conflicts.is_empty() {
@@ -174,6 +189,65 @@ pub fn generate_recursive_report<S: BuildHasher>(
     }
 
     report
+}
+
+/// Write the "Other Files" section for the dry-run report (owned slice variant).
+fn write_other_files_section(report: &mut String, other_files: &[OtherFile]) {
+    let refs: Vec<&OtherFile> = other_files.iter().collect();
+    write_other_files_section_refs(report, &refs);
+}
+
+/// Write the "Other Files" section for the dry-run report (reference slice variant).
+fn write_other_files_section_refs(report: &mut String, other_files: &[&OtherFile]) {
+    let _ = writeln!(report, "## Other Files\n");
+
+    let dependencies: Vec<&&OtherFile> =
+        other_files.iter().filter(|f| f.associated_artifact.is_some() && !f.is_external).collect();
+    let unassociated: Vec<&&OtherFile> =
+        other_files.iter().filter(|f| f.associated_artifact.is_none() && !f.is_external).collect();
+    let external: Vec<&&OtherFile> = other_files.iter().filter(|f| f.is_external).collect();
+
+    if !dependencies.is_empty() {
+        let _ = writeln!(report, "### Dependencies\n");
+        for f in &dependencies {
+            if let Some(ref artifact) = f.associated_artifact {
+                let _ = writeln!(
+                    report,
+                    "- `{}` (dependency of **{artifact}**)",
+                    f.relative_path.display()
+                );
+            }
+        }
+        let _ = writeln!(report);
+    }
+
+    if !unassociated.is_empty() {
+        let _ = writeln!(report, "### Unassociated\n");
+        for f in &unassociated {
+            let _ = writeln!(
+                report,
+                "- \u{26a0}\u{fe0f} `{}` — not referenced by any artifact, will be moved to plugin root",
+                f.relative_path.display()
+            );
+        }
+        let _ = writeln!(report);
+    }
+
+    if !external.is_empty() {
+        let _ = writeln!(report, "### External References\n");
+        for f in &external {
+            let artifact_note = f
+                .associated_artifact
+                .as_ref()
+                .map_or_else(String::new, |a| format!(" (referenced by **{a}**)"));
+            let _ = writeln!(
+                report,
+                "- \u{26a0}\u{fe0f} `{}`{artifact_note} — external file, will NOT be moved; path will be rewritten",
+                f.path.display()
+            );
+        }
+        let _ = writeln!(report);
+    }
 }
 
 /// Write the cleanup plan section listing files that would be deleted.
@@ -379,7 +453,7 @@ mod tests {
             make_artifact("lint", ArtifactKind::Skill),
         ];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, false);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &[]);
 
         assert!(report.contains("### deploy"));
         assert!(report.contains("### lint"));
@@ -390,7 +464,7 @@ mod tests {
         let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
         let mut existing = HashSet::new();
         existing.insert("deploy".to_string());
-        let report = generate_report(&artifacts, &existing, ".claude", true, false);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &[]);
 
         assert!(report.contains("deploy-renamed-1"));
         assert!(report.contains("Name conflicts (auto-renamed) | 1"));
@@ -402,7 +476,7 @@ mod tests {
         artifact.files = vec![PathBuf::from("SKILL.md"), PathBuf::from("scripts/run.sh")];
         let artifacts = vec![artifact];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, false);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &[]);
 
         assert!(report.contains("SKILL.md"));
         assert!(report.contains("scripts/run.sh"));
@@ -415,7 +489,7 @@ mod tests {
             make_artifact("review", ArtifactKind::Command),
         ];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, false);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &[]);
 
         assert!(report.contains("## Summary"));
         assert!(report.contains("Plugins to create | 2"));
@@ -426,7 +500,7 @@ mod tests {
     fn dry_run_report_empty_artifacts() {
         let artifacts: Vec<Artifact> = Vec::new();
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, false);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &[]);
 
         assert!(report.contains("**Artifacts found:** 0"));
         assert!(report.contains("Plugins to create | 0"));
@@ -438,7 +512,7 @@ mod tests {
         artifact.metadata.hooks = Some("PreToolUse: check".to_string());
         let artifacts = vec![artifact];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, false);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &[]);
 
         assert!(report.contains("**Hooks extracted:** yes"));
         assert!(report.contains("Hooks to extract | 1"));
@@ -450,7 +524,7 @@ mod tests {
         artifact.referenced_scripts = vec![PathBuf::from("scripts/run.sh")];
         let artifacts = vec![artifact];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, false);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &[]);
 
         assert!(report.contains("**Path rewrites:**"));
     }
@@ -459,7 +533,7 @@ mod tests {
     fn dry_run_report_commands_section() {
         let artifacts = vec![make_artifact("review", ArtifactKind::Command)];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, false);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &[]);
 
         assert!(report.contains("## Legacy Commands"));
     }
@@ -487,6 +561,7 @@ mod tests {
                 artifacts: vec![make_artifact("deploy", ArtifactKind::Skill)],
                 is_package_scoped: false,
                 source_dir: PathBuf::from("/project/.claude"),
+                other_files: Vec::new(),
             },
             PluginPlan {
                 name: "auth".to_string(),
@@ -496,6 +571,7 @@ mod tests {
                 ],
                 is_package_scoped: true,
                 source_dir: PathBuf::from("/project/packages/auth/.claude"),
+                other_files: Vec::new(),
             },
         ];
 
@@ -525,6 +601,7 @@ mod tests {
             artifacts: vec![make_artifact("deploy", ArtifactKind::Skill)],
             is_package_scoped: true,
             source_dir: PathBuf::from("/project/packages/auth/.claude"),
+            other_files: Vec::new(),
         }];
 
         let mut existing = HashSet::new();
@@ -559,6 +636,7 @@ mod tests {
             artifacts: vec![make_artifact("deploy", ArtifactKind::Skill)],
             is_package_scoped: true,
             source_dir: PathBuf::from("/project/packages/api/.claude"),
+            other_files: Vec::new(),
         }];
 
         let existing = HashSet::new();
@@ -572,7 +650,7 @@ mod tests {
     fn dry_run_report_no_manifest_shows_hint() {
         let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", false, false);
+        let report = generate_report(&artifacts, &existing, ".claude", false, false, &[]);
 
         assert!(report.contains("No aipm.toml (pass --manifest to generate)"));
         assert!(!report.contains("New aipm.toml with type"));
@@ -582,7 +660,7 @@ mod tests {
     fn dry_run_report_with_manifest_shows_aipm_toml() {
         let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, false);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &[]);
 
         assert!(report.contains("New aipm.toml with type"));
         assert!(!report.contains("No aipm.toml (pass --manifest to generate)"));
@@ -592,7 +670,7 @@ mod tests {
     fn dry_run_report_agents_section() {
         let artifacts = vec![make_artifact("reviewer", ArtifactKind::Agent)];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, false);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &[]);
         assert!(report.contains("## Agents"));
         assert!(report.contains("### reviewer"));
     }
@@ -601,7 +679,7 @@ mod tests {
     fn dry_run_report_mcp_section() {
         let artifacts = vec![make_artifact("project-mcp-servers", ArtifactKind::McpServer)];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, false);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &[]);
         assert!(report.contains("## MCP Servers"));
         assert!(report.contains("### project-mcp-servers"));
     }
@@ -610,7 +688,7 @@ mod tests {
     fn dry_run_report_hooks_section() {
         let artifacts = vec![make_artifact("project-hooks", ArtifactKind::Hook)];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, false);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &[]);
         assert!(report.contains("## Hooks"));
         assert!(report.contains("### project-hooks"));
     }
@@ -619,7 +697,7 @@ mod tests {
     fn dry_run_report_output_styles_section() {
         let artifacts = vec![make_artifact("concise", ArtifactKind::OutputStyle)];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, false);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &[]);
         assert!(report.contains("## Output Styles"));
         assert!(report.contains("### concise"));
     }
@@ -635,7 +713,7 @@ mod tests {
             make_artifact("concise", ArtifactKind::OutputStyle),
         ];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, false);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &[]);
         assert!(report.contains("**Artifacts found:** 6"));
         assert!(report.contains("## Skills"));
         assert!(report.contains("## Legacy Commands"));
@@ -660,12 +738,14 @@ mod tests {
                 artifacts: vec![make_artifact("reviewer", ArtifactKind::Agent)],
                 is_package_scoped: false,
                 source_dir: PathBuf::from("/project/.claude"),
+                other_files: Vec::new(),
             },
             PluginPlan {
                 name: "mcp".to_string(),
                 artifacts: vec![make_artifact("mcp", ArtifactKind::McpServer)],
                 is_package_scoped: false,
                 source_dir: PathBuf::from("/project/.claude"),
+                other_files: Vec::new(),
             },
         ];
 
@@ -696,6 +776,7 @@ mod tests {
             ],
             is_package_scoped: true,
             source_dir: PathBuf::from("/project/packages/auth/.claude"),
+            other_files: Vec::new(),
         }];
 
         let existing = HashSet::new();
@@ -730,7 +811,7 @@ mod tests {
     fn dry_run_report_without_destructive_has_no_cleanup_section() {
         let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, false);
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &[]);
         assert!(!report.contains("Cleanup Plan"));
     }
 
@@ -738,7 +819,7 @@ mod tests {
     fn dry_run_report_with_destructive_has_cleanup_section() {
         let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, true, &[]);
         assert!(report.contains("## Cleanup Plan (--destructive)"));
         assert!(report.contains(".claude/skills/deploy/"));
     }
@@ -749,7 +830,7 @@ mod tests {
         hook_artifact.source_path = PathBuf::from(".claude/settings.json");
         let artifacts = vec![hook_artifact];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, true, &[]);
         assert!(report.contains("Skipped (shared config)"));
         assert!(report.contains("settings.json"));
     }
@@ -768,6 +849,7 @@ mod tests {
             artifacts: vec![make_artifact("deploy", ArtifactKind::Skill)],
             is_package_scoped: false,
             source_dir: PathBuf::from("/project/.claude"),
+            other_files: Vec::new(),
         }];
 
         let existing = HashSet::new();
@@ -781,7 +863,7 @@ mod tests {
         mcp_artifact.source_path = PathBuf::from(".mcp.json");
         let artifacts = vec![mcp_artifact];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, true, &[]);
         assert!(report.contains("Skipped (shared config)"));
         assert!(report.contains("may be used by other tools"));
     }
@@ -793,7 +875,7 @@ mod tests {
         hook_artifact.source_path = PathBuf::from(".claude/settings.json");
         let artifacts = vec![hook_artifact];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, true, &[]);
         assert!(report.contains("(no files to remove)"));
         assert!(report.contains("Skipped (shared config)"));
     }
@@ -802,7 +884,7 @@ mod tests {
     fn dry_run_report_destructive_skill_listed_as_directory() {
         let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, true, &[]);
         assert!(report.contains("(directory)"));
     }
 
@@ -812,7 +894,79 @@ mod tests {
         cmd.source_path = PathBuf::from(".claude/commands/review.md");
         let artifacts = vec![cmd];
         let existing = HashSet::new();
-        let report = generate_report(&artifacts, &existing, ".claude", true, true);
+        let report = generate_report(&artifacts, &existing, ".claude", true, true, &[]);
         assert!(report.contains("(file)"));
+    }
+
+    #[test]
+    fn report_no_other_files() {
+        let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &[]);
+        assert!(!report.contains("## Other Files"));
+    }
+
+    #[test]
+    fn report_with_associated_files() {
+        let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
+        let existing = HashSet::new();
+        let other = vec![OtherFile {
+            path: PathBuf::from("/src/scripts/helper.sh"),
+            relative_path: PathBuf::from("scripts/helper.sh"),
+            associated_artifact: Some("deploy".to_string()),
+            is_external: false,
+        }];
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &other);
+        assert!(report.contains("## Other Files"));
+        assert!(report.contains("### Dependencies"));
+        assert!(report.contains("scripts/helper.sh"));
+        assert!(report.contains("deploy"));
+    }
+
+    #[test]
+    fn report_with_unassociated_files() {
+        let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
+        let existing = HashSet::new();
+        let other = vec![OtherFile {
+            path: PathBuf::from("/src/README.md"),
+            relative_path: PathBuf::from("README.md"),
+            associated_artifact: None,
+            is_external: false,
+        }];
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &other);
+        assert!(report.contains("## Other Files"));
+        assert!(report.contains("### Unassociated"));
+        assert!(report.contains("README.md"));
+        assert!(report.contains("plugin root"));
+    }
+
+    #[test]
+    fn report_with_external_refs() {
+        let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
+        let existing = HashSet::new();
+        let other = vec![OtherFile {
+            path: PathBuf::from("/project/scripts/build.sh"),
+            relative_path: PathBuf::from("../../scripts/build.sh"),
+            associated_artifact: Some("deploy".to_string()),
+            is_external: true,
+        }];
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &other);
+        assert!(report.contains("## Other Files"));
+        assert!(report.contains("### External References"));
+        assert!(report.contains("will NOT be moved"));
+    }
+
+    #[test]
+    fn report_other_files_in_summary_table() {
+        let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
+        let existing = HashSet::new();
+        let other = vec![OtherFile {
+            path: PathBuf::from("/src/README.md"),
+            relative_path: PathBuf::from("README.md"),
+            associated_artifact: None,
+            is_external: false,
+        }];
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &other);
+        assert!(report.contains("Other files | 1"));
     }
 }

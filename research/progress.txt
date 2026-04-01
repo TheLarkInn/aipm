@@ -1,31 +1,22 @@
-2026-03-31: Completed features 1 & 2 (feature-list.json indices 0 and 1).
-- Added "Install system libraries (libgit2, OpenSSL)" step to the ci job in .github/workflows/ci.yml, positioned after rust-cache and before cargo build.
-- Added the same install step to the coverage job in .github/workflows/ci.yml, positioned after rust-cache and before cargo llvm-cov clean.
-- Added LIBGIT2_SYS_USE_PKG_CONFIG: "1" to the workflow-level env block so both jobs inherit it.
-- Marked passes: true for entries 0 and 1 in research/feature-list.json.
-2026-03-31: Completed features 3 & 4 (feature-list.json indices 2 and 3).
-- Replaced reqwest = { version = "0.12", ... } with ureq = { version = "3", default-features = true } in workspace root Cargo.toml [workspace.dependencies], with comment "# HTTP -- synchronous-only client; no async runtime overhead".
-- Replaced reqwest = { workspace = true } with ureq = { workspace = true } in crates/libaipm/Cargo.toml.
-- Removed reqwest = { workspace = true } entirely from crates/aipm-pack/Cargo.toml (no source references).
-- Ran cargo check --workspace: ureq v3.3.0 resolved and downloaded successfully; only expected compile errors remain in crates/libaipm/src/registry/git.rs (still references reqwest — feature 5's job).
-- Marked passes: true for entries 2 and 3 in research/feature-list.json.
-2026-03-31: Completed feature 5 (feature-list.json index 4).
-- Migrated http_get() in crates/libaipm/src/registry/git.rs from reqwest::blocking to ureq.
-- Replaced reqwest::blocking::get(url) with ureq::get(url).call() and updated error mapping.
-- Removed the explicit is_success() status check block (ureq returns Err for non-2xx automatically).
-- Changed body reading from response.bytes().map(|b| b.to_vec()) to response.into_body().read_to_vec().
-- Updated the doc comment from 'reqwest::blocking' to 'ureq'.
-- Verified: cargo build --workspace, cargo test --workspace (72 scenarios passed), cargo clippy --workspace -- -D warnings, and cargo fmt --check all pass with zero errors/warnings.
-- Marked passes: true for entry 4 in research/feature-list.json.
-2026-03-31: Completed feature 6 (feature-list.json index 5) — full quality gate.
-- BDD wire-up check: tests/features/registry/install.feature covers HTTP download behavior indirectly (scenarios: "Install a package by name", "Install verifies package integrity", "Install all dependencies from manifest"). Spec section 7.3 confirmed: http_get is tested indirectly through Registry::download integration tests. No mock-based HTTP tests exist; ureq code path exercised through BDD scenarios.
-- cargo fmt --check: PASSED (zero formatting issues)
-- cargo clippy --workspace -- -D warnings: PASSED (zero warnings)
-- cargo build --workspace: PASSED (zero errors)
-- cargo test --workspace: PASSED — 72 BDD scenarios passed (340 steps), all unit tests passed
-- cargo +nightly llvm-cov clean --workspace: clean succeeded
-- cargo +nightly llvm-cov --no-report --workspace --branch: instrumented build + tests collected
-- cargo +nightly llvm-cov --no-report --doc: doctests collected (0 doctests)
-- cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs)': TOTAL branch coverage = 89.67% (1152 branches, 119 missed) — PASSES >= 89% threshold
-- Coverage note: libaipm/src/registry/git.rs shows 50% branch coverage (3/6 branches) due to http_get() error paths (HTTP 4xx/5xx and body read errors) not being exercised in unit tests. These require a live HTTP server. The spec (section 7.3) explicitly states indirect testing via Registry::download is the strategy; total workspace coverage remains above threshold.
-- Marked passes: true for entry 5 in research/feature-list.json.
+ALL 11 FEATURES COMPLETE - All passes: true
+
+Feature 1: DONE - Expanded extract_script_references() with Pattern 2 (relative paths) and Pattern 3 (bare interpreter invocations), URL exclusion, dedup
+Feature 2: DONE - AgentDetector and CopilotAgentDetector now use extract_script_references() instead of Vec::new()
+Feature 3: DONE - OtherFile struct added to mod.rs, reconciler.rs created with reconcile/collect_all_files/build_claimed_set/associate_with_artifacts
+Feature 4: DONE - Reconciler integrated into migrate_single_source() and migrate_recursive(), PluginPlan extended with other_files, dry_run report updated
+Feature 5: DONE - Dry-run report section with Dependencies/Unassociated/External groupings
+Feature 6: DONE - emit_other_files() with associated/unassociated/external handling, collision avoidance, Action variants OtherFileMigrated and ExternalReferenceRewritten
+Feature 7: DONE - Outcome::migrated_sources() extended to include OtherFileMigrated paths for cleanup
+Feature 8: DONE - CLI match arms for OtherFileMigrated (stdout) and ExternalReferenceRewritten (stderr)
+Feature 9: DONE - E2E tests: migrate_with_other_files, migrate_dry_run_with_other_files, migrate_dependency_script_with_relative_ref
+Feature 10: DONE - BDD scenarios: dry run reports unclassified files, unassociated files reported during live migration; new step def for unclaimed files
+Feature 11: DONE - All cargo gates pass. Branch coverage: 89.21% (>= 89% threshold)
+
+Final stats:
+- cargo build: clean
+- cargo test: 1077+ tests, 0 failures, 74 BDD scenarios
+- cargo clippy: clean
+- cargo fmt: clean
+- Branch coverage: 89.21%
+- New file: crates/libaipm/src/migrate/reconciler.rs
+- Modified: skill_common.rs, agent_detector.rs, copilot_agent_detector.rs, mod.rs, dry_run.rs, emitter.rs, main.rs, migrate_e2e.rs, bdd.rs, migrate.feature

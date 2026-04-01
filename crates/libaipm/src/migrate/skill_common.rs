@@ -76,31 +76,96 @@ pub fn parse_skill_frontmatter(content: &str, path: &Path) -> Result<ArtifactMet
     Ok(metadata)
 }
 
-/// Extract script references from SKILL.md content.
+/// Extract script references from artifact content.
 ///
-/// Looks for `<variable_prefix><path>` patterns where the variable prefix
-/// is e.g. `${CLAUDE_SKILL_DIR}/` or `${SKILL_DIR}/`.
-/// Only keeps paths starting with `scripts/`.
+/// Matches three patterns:
+/// 1. Variable-prefix: `${CLAUDE_SKILL_DIR}/scripts/helper.sh`
+/// 2. Relative paths: `./scripts/helper.sh`, `../utils/lib.sh`
+/// 3. Bare script invocations: `bash scripts/deploy.sh`, `python utils/run.py`
+///
+/// URLs (`https://`, `http://`) are excluded. Results are deduplicated.
 pub fn extract_script_references(content: &str, variable_prefix: &str) -> Vec<PathBuf> {
-    let mut scripts = Vec::new();
+    const INTERPRETERS: &[&str] =
+        &["bash ", "sh ", "python ", "python3 ", "node ", "ruby ", "perl "];
+    let mut refs = Vec::new();
 
     for line in content.lines() {
+        // Pattern 1: existing ${VARIABLE_PREFIX}/scripts/* matching
         let mut search = line;
         while let Some(pos) = search.find(variable_prefix) {
             let after = &search[pos + variable_prefix.len()..];
-            // Extract the path until whitespace, quote, backtick, or end of line
             let end = after
                 .find(|c: char| c.is_whitespace() || c == '"' || c == '\'' || c == '`' || c == ')')
                 .unwrap_or(after.len());
             let path_str = &after[..end];
             if path_str.starts_with("scripts/") {
-                scripts.push(PathBuf::from(path_str));
+                refs.push(PathBuf::from(path_str));
             }
             search = &search[pos + variable_prefix.len() + end..];
         }
+
+        // Pattern 2: relative path references starting with ./ or ../
+        let mut search = line;
+        while let Some(idx) = search.find("./") {
+            // Skip URLs (https:// or http://)
+            if idx > 0 {
+                let before = search.as_bytes().get(idx - 1).copied().unwrap_or(0);
+                if before == b'/' || before == b':' {
+                    search = &search[idx + 2..];
+                    continue;
+                }
+            }
+            let start = if idx > 0 && search.as_bytes().get(idx - 1).copied() == Some(b'.') {
+                // ../path — back up one char to include the leading ..
+                idx - 1
+            } else {
+                idx
+            };
+            let path_part = &search[start..];
+            let end = path_part
+                .find(|c: char| c.is_whitespace() || c == '"' || c == '\'' || c == '`' || c == ')')
+                .unwrap_or(path_part.len());
+            let path_str = &path_part[..end];
+            if path_str.len() > 2 {
+                refs.push(PathBuf::from(path_str));
+            }
+            search = &search[start + end..];
+        }
+
+        // Pattern 3: bare script invocations after known interpreters
+        for interpreter in INTERPRETERS {
+            let mut search = line;
+            while let Some(pos) = search.find(interpreter) {
+                // Ensure interpreter is at start of line or preceded by whitespace/backtick
+                let valid_start = pos == 0 || {
+                    let prev = search.as_bytes().get(pos - 1).copied().unwrap_or(0);
+                    prev == b' ' || prev == b'\t' || prev == b'`' || prev == b'$' || prev == b'('
+                };
+                let after = &search[pos + interpreter.len()..];
+                let after_trimmed = after.trim_start();
+                let end = after_trimmed
+                    .find(|c: char| {
+                        c.is_whitespace() || c == '"' || c == '\'' || c == '`' || c == ')'
+                    })
+                    .unwrap_or(after_trimmed.len());
+                let path_str = &after_trimmed[..end];
+                if valid_start
+                    && !path_str.is_empty()
+                    && !path_str.starts_with('-')
+                    && !path_str.starts_with("http://")
+                    && !path_str.starts_with("https://")
+                    && (path_str.contains('/') || path_str.contains('.'))
+                {
+                    refs.push(PathBuf::from(path_str));
+                }
+                search = &search[pos + interpreter.len()..];
+            }
+        }
     }
 
-    scripts
+    refs.sort();
+    refs.dedup();
+    refs
 }
 
 /// Recursively collect all files in a directory, returning paths relative to `base`.
@@ -412,6 +477,69 @@ mod tests {
     }
 
     #[test]
+    fn extract_variable_prefix_still_works() {
+        let content = "Run `${CLAUDE_SKILL_DIR}/scripts/helper.sh` here";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("scripts/helper.sh"));
+    }
+
+    #[test]
+    fn extract_relative_dot_slash() {
+        let content = "Run `./scripts/helper.sh` to deploy";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("./scripts/helper.sh"));
+    }
+
+    #[test]
+    fn extract_relative_dot_dot() {
+        let content = "Source ../utils/lib.sh for shared functions";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("../utils/lib.sh"));
+    }
+
+    #[test]
+    fn extract_bare_invocation() {
+        let content = "bash scripts/deploy.sh --env prod";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("scripts/deploy.sh"));
+    }
+
+    #[test]
+    fn extract_ignores_urls() {
+        let content =
+            "Download from https://example.com/scripts/foo.sh and http://example.com/bar.sh";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
+    fn extract_deduplicates() {
+        let content = "Run ./scripts/a.sh then ./scripts/a.sh again";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("./scripts/a.sh"));
+    }
+
+    #[test]
+    fn extract_bare_invocation_python3() {
+        let content = "python3 utils/run.py --flag";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("utils/run.py"));
+    }
+
+    #[test]
+    fn extract_bare_invocation_ignores_flags() {
+        let content = "bash -c 'echo hello'";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
     fn collect_files_skips_entries_not_under_base() {
         // When `full_path.strip_prefix(base)` fails — i.e., the entry's absolute
         // path does not start with `base` — the file is silently skipped.
@@ -428,5 +556,122 @@ mod tests {
         // /other/file.txt does not start with /base, so strip_prefix fails and the
         // entry is not collected.
         assert!(files.is_empty());
+    }
+
+    #[test]
+    fn extract_pattern2_at_start_of_line() {
+        // ./path at the very start of a line (idx == 0)
+        let content = "./scripts/run.sh arg1";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("./scripts/run.sh"));
+    }
+
+    #[test]
+    fn extract_pattern2_dot_dot_slash() {
+        // ../ at idx > 0 with preceding '.' char
+        let content = "source ../shared/utils.sh";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("../shared/utils.sh"));
+    }
+
+    #[test]
+    fn extract_pattern2_dot_slash_dot_dot_is_captured() {
+        // ./..<path> is now captured (no longer filtered out)
+        let content = "path ./..invalid here";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("./..invalid"));
+    }
+
+    #[test]
+    fn extract_pattern2_short_path_skipped() {
+        // A path like "./" alone (len == 2) should be skipped
+        let content = "path ./ more";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
+    fn extract_pattern3_invalid_start() {
+        // Interpreter mid-word: "notbash scripts/deploy.sh" — valid_start is false
+        let content = "notbash scripts/deploy.sh";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
+    fn extract_pattern3_empty_path() {
+        // "bash " at end of line — empty path_str
+        let content = "bash ";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
+    fn extract_pattern3_no_slash_or_dot() {
+        // "bash simple" — no directory separator or extension
+        let content = "bash simple";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
+    fn extract_pattern3_with_url() {
+        // "bash https://example.com" — URL should be excluded
+        let content = "bash https://example.com/script.sh";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
+    fn extract_pattern3_backtick_preceded() {
+        // Interpreter preceded by backtick
+        let content = "run `bash scripts/test.sh`";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+    }
+
+    #[test]
+    fn extract_pattern3_dollar_preceded() {
+        // Interpreter preceded by $
+        let content = "$(bash scripts/test.sh)";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+    }
+
+    #[test]
+    fn extract_pattern3_paren_preceded() {
+        // Interpreter preceded by (
+        let content = "(bash scripts/test.sh)";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+    }
+
+    #[test]
+    fn extract_pattern2_colon_before_skips() {
+        // A colon before ./ should skip (like file:./path)
+        let content = "file:./path/to/thing";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
+    fn extract_multiple_patterns_combined() {
+        // Multiple patterns on the same line
+        let content =
+            "Use ${CLAUDE_SKILL_DIR}/scripts/a.sh and ./scripts/b.sh then bash scripts/c.sh";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 3);
+    }
+
+    #[test]
+    fn extract_pattern3_with_extension_only() {
+        // "node script.js" — has extension but no /
+        let content = "node script.js";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("script.js"));
     }
 }
