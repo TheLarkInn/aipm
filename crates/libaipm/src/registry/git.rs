@@ -240,6 +240,24 @@ mod tests {
         assert!(verify_checksum(data, &expected, "pkg", "0.0.1").is_ok());
     }
 
+    #[test]
+    fn checksum_with_sha512_prefix() {
+        let data = b"test data";
+        let hash = sha512_hex(data);
+        let prefixed = format!("sha512-{hash}");
+        assert!(verify_checksum(data, &prefixed, "pkg", "1.0.0").is_ok());
+    }
+
+    #[test]
+    fn normalize_strips_prefix() {
+        assert_eq!(normalize_checksum("sha512-abc123"), "abc123");
+    }
+
+    #[test]
+    fn normalize_no_prefix_unchanged() {
+        assert_eq!(normalize_checksum("abc123"), "abc123");
+    }
+
     // --- from_local_index + get_metadata tests ---
 
     #[test]
