@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 ### Features
 - Detect, report, and migrate unclaimed files during aipm migrate ([#177](https://github.com/TheLarkInn/aipm/pull/177)) (40afc2f)
 
+### Breaking changes
+- `PluginPlan` now exposes a new public field. Code that constructs `PluginPlan` directly may need to be updated to initialize this field.
+- The `Action` enum gained additional variants. Exhaustive `match` statements over `Action` must be updated to handle the new cases.
+- `dry_run::generate_report` had its arity changed. Call sites must be updated to pass the new set of arguments in the correct order.
 ## [0.14.9] - 2026-04-01
 
 ## [0.14.8] - 2026-04-01
