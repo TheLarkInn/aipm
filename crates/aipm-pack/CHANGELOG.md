@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.14.8] - 2026-04-01
+
+### Bug Fixes
+- Correct GitHub latest release download URL format in README installers ([#171](https://github.com/TheLarkInn/aipm/pull/171)) (99b7ec5)
+
 ## [0.14.7] - 2026-04-01
 
 ## [0.14.6] - 2026-03-31
