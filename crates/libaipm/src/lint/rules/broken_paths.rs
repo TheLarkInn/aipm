@@ -187,6 +187,61 @@ mod tests {
     }
 
     #[test]
+    fn absolute_path_rejected() {
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "s", "---\nname: s\n---\n${CLAUDE_SKILL_DIR}//etc/passwd");
+
+        let result = BrokenPaths.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        // Absolute path is silently rejected (security)
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn path_traversal_rejected() {
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "s", "---\nname: s\n---\n${CLAUDE_SKILL_DIR}/../../../etc/passwd");
+
+        let result = BrokenPaths.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        // Path traversal is silently rejected (security)
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn reference_terminated_by_backtick() {
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "s", "---\nname: s\n---\n`${CLAUDE_SKILL_DIR}/scripts/x.sh`");
+
+        let result = BrokenPaths.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+    }
+
+    #[test]
+    fn reference_terminated_by_single_quote() {
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "s", "---\nname: s\n---\n'${CLAUDE_SKILL_DIR}/scripts/x.sh'");
+
+        let result = BrokenPaths.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+    }
+
+    #[test]
+    fn reference_terminated_by_paren() {
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "s", "---\nname: s\n---\n(${CLAUDE_SKILL_DIR}/scripts/x.sh)");
+
+        let result = BrokenPaths.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+    }
+
+    #[test]
     fn empty_ref_path_ignored() {
         let mut fs = MockFs::new();
         // Empty reference: ${CLAUDE_SKILL_DIR}/ immediately followed by whitespace

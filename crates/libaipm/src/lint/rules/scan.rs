@@ -211,6 +211,88 @@ mod tests {
     }
 
     #[test]
+    fn scan_skills_read_dir_error_on_skills_dir() {
+        let mut fs = MockFs::new();
+        fs.dirs.insert(
+            PathBuf::from(".ai"),
+            vec![crate::fs::DirEntry { name: "p".to_string(), is_dir: true }],
+        );
+        let skills_dir = PathBuf::from(".ai/p/skills");
+        fs.exists.insert(skills_dir);
+        // skills_dir exists but read_dir will fail (not in dirs map)
+        let skills = scan_skills(Path::new(".ai"), &fs);
+        assert!(skills.is_empty());
+    }
+
+    #[test]
+    fn scan_skills_read_to_string_error() {
+        let mut fs = MockFs::new();
+        fs.dirs.insert(
+            PathBuf::from(".ai"),
+            vec![crate::fs::DirEntry { name: "p".to_string(), is_dir: true }],
+        );
+        let skills_dir = PathBuf::from(".ai/p/skills");
+        fs.exists.insert(skills_dir.clone());
+        fs.dirs.insert(
+            skills_dir.clone(),
+            vec![crate::fs::DirEntry { name: "s".to_string(), is_dir: true }],
+        );
+        let skill_md = skills_dir.join("s").join("SKILL.md");
+        fs.exists.insert(skill_md);
+        // SKILL.md exists but read_to_string will fail (not in files map)
+        let skills = scan_skills(Path::new(".ai"), &fs);
+        assert!(skills.is_empty());
+    }
+
+    #[test]
+    fn scan_agents_read_dir_error() {
+        let mut fs = MockFs::new();
+        fs.dirs.insert(
+            PathBuf::from(".ai"),
+            vec![crate::fs::DirEntry { name: "p".to_string(), is_dir: true }],
+        );
+        let agents_dir = PathBuf::from(".ai/p/agents");
+        fs.exists.insert(agents_dir);
+        // agents_dir exists but read_dir will fail
+        let agents = scan_agents(Path::new(".ai"), &fs);
+        assert!(agents.is_empty());
+    }
+
+    #[test]
+    fn scan_agents_read_to_string_error() {
+        let mut fs = MockFs::new();
+        fs.dirs.insert(
+            PathBuf::from(".ai"),
+            vec![crate::fs::DirEntry { name: "p".to_string(), is_dir: true }],
+        );
+        let agents_dir = PathBuf::from(".ai/p/agents");
+        fs.exists.insert(agents_dir.clone());
+        fs.dirs.insert(
+            agents_dir.clone(),
+            vec![crate::fs::DirEntry { name: "agent.md".to_string(), is_dir: false }],
+        );
+        let agent_md = agents_dir.join("agent.md");
+        fs.exists.insert(agent_md);
+        // agent.md exists but read_to_string will fail
+        let agents = scan_agents(Path::new(".ai"), &fs);
+        assert!(agents.is_empty());
+    }
+
+    #[test]
+    fn scan_hooks_read_to_string_error() {
+        let mut fs = MockFs::new();
+        fs.dirs.insert(
+            PathBuf::from(".ai"),
+            vec![crate::fs::DirEntry { name: "p".to_string(), is_dir: true }],
+        );
+        let hooks_json = PathBuf::from(".ai/p/hooks/hooks.json");
+        fs.exists.insert(hooks_json);
+        // hooks.json exists but read_to_string will fail
+        let hooks = scan_hook_files(Path::new(".ai"), &fs);
+        assert!(hooks.is_empty());
+    }
+
+    #[test]
     fn scan_skills_finds_skill() {
         let mut fs = MockFs::new();
         fs.add_skill("p", "s", "---\nname: s\n---\nbody");
