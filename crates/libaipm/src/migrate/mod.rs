@@ -207,8 +207,8 @@ pub enum Action {
         /// Name of the artifact this file is associated with (if any).
         associated_artifact: Option<String>,
     },
-    /// An external file reference was rewritten in migrated artifact content.
-    ExternalReferenceRewritten {
+    /// An external file reference was detected in migrated artifact content.
+    ExternalReferenceDetected {
         /// Path to the external file.
         path: PathBuf,
         /// Name of the artifact that references this file.
@@ -423,6 +423,15 @@ fn migrate_single_source(
         });
     }
 
+    // Emit other files into the first created plugin's directory
+    if !other_files.is_empty() {
+        if let Some(first_entry) = registered_entries.first() {
+            let plugin_dir = ai_dir.join(&first_entry.name);
+            let other_actions = emitter::emit_other_files(&other_files, &plugin_dir, fs)?;
+            actions.extend(other_actions);
+        }
+    }
+
     registrar::register_plugins(ai_dir, &registered_entries, fs)?;
     for entry in &registered_entries {
         actions.push(Action::MarketplaceRegistered { name: entry.name.clone() });
@@ -561,6 +570,13 @@ fn emit_and_register(
                 let emit_actions =
                     emitter::emit_plugin_with_name(artifact, final_name, ai_dir, manifest, fs)?;
                 actions.extend(emit_actions);
+            }
+
+            // Emit other files into the plugin directory
+            if !plan.other_files.is_empty() {
+                let plugin_dir = ai_dir.join(final_name);
+                let other_actions = emitter::emit_other_files(&plan.other_files, &plugin_dir, fs)?;
+                actions.extend(other_actions);
             }
 
             let description = plan.artifacts.first().and_then(|a| a.metadata.description.clone());

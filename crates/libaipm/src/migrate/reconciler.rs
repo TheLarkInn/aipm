@@ -46,8 +46,8 @@ fn build_claimed_set(source_dir: &Path, artifacts: &[Artifact]) -> HashSet<PathB
         // The source_path itself is claimed
         claimed.insert(artifact.source_path.clone());
 
-        // For directory-based artifacts (skills), claim all files relative to source_path
-        if matches!(artifact.kind, ArtifactKind::Skill) {
+        // For directory-based artifacts (skills, extensions), claim all files relative to source_path
+        if matches!(artifact.kind, ArtifactKind::Skill | ArtifactKind::Extension) {
             for file in &artifact.files {
                 claimed.insert(artifact.source_path.join(file));
             }
@@ -56,11 +56,6 @@ fn build_claimed_set(source_dir: &Path, artifacts: &[Artifact]) -> HashSet<PathB
         // Referenced scripts are relative to the source dir
         for script in &artifact.referenced_scripts {
             claimed.insert(source_dir.join(script));
-        }
-
-        // Config-based artifacts (McpServer, Hook) claim settings.json
-        if matches!(artifact.kind, ArtifactKind::McpServer | ArtifactKind::Hook) {
-            claimed.insert(source_dir.join("settings.json"));
         }
     }
 
@@ -77,6 +72,7 @@ fn associate_with_artifacts(
 
     for path in unclaimed {
         let relative_path = path.strip_prefix(source_dir).unwrap_or(path).to_path_buf();
+        // Always false when walking source_dir; reserved for future cross-boundary detection.
         let is_external = !path.starts_with(source_dir);
 
         // Check if any artifact references this file
@@ -93,14 +89,20 @@ fn associate_with_artifacts(
     other_files
 }
 
+/// Strip a leading `./` prefix from a path string.
+fn strip_dot_slash(p: &Path) -> &Path {
+    p.strip_prefix("./").unwrap_or(p)
+}
+
 /// Find the first artifact that references the given relative path.
 fn find_associated_artifact(relative_path: &Path, artifacts: &[Artifact]) -> Option<String> {
     let path_str = relative_path.to_string_lossy();
+    let normalized = strip_dot_slash(relative_path);
 
     for artifact in artifacts {
         // Check referenced_scripts
         for script in &artifact.referenced_scripts {
-            if script == relative_path {
+            if strip_dot_slash(script) == normalized {
                 return Some(artifact.name.clone());
             }
         }

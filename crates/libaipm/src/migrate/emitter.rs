@@ -655,6 +655,13 @@ fn copy_referenced_scripts(
                 || artifact.source_path.join(&normalized),
                 |root| root.join(&normalized),
             )
+        } else if artifact.source_path.extension().is_some() {
+            // File-based artifacts (agents, commands, output styles): resolve scripts
+            // against the parent directory of the source file.
+            artifact.source_path.parent().map_or_else(
+                || artifact.source_path.join(&normalized),
+                |parent| parent.join(&normalized),
+            )
         } else {
             artifact.source_path.join(&normalized)
         };
@@ -692,7 +699,7 @@ pub fn emit_other_files(
         if file.is_external {
             // External files are not copied; emit warning action
             if let Some(ref artifact) = file.associated_artifact {
-                actions.push(Action::ExternalReferenceRewritten {
+                actions.push(Action::ExternalReferenceDetected {
                     path: file.path.clone(),
                     referenced_by: artifact.clone(),
                 });
@@ -715,7 +722,7 @@ pub fn emit_other_files(
             );
             let mut final_name = filename.clone();
             let mut counter = 0u32;
-            while used_names.contains(&final_name) {
+            while used_names.contains(&final_name) || fs.exists(&plugin_dir.join(&final_name)) {
                 counter += 1;
                 if let Some(dot_pos) = filename.rfind('.') {
                     let (stem, ext) = filename.split_at(dot_pos);
@@ -2891,7 +2898,7 @@ mod tests {
         assert!(result.is_ok());
         let actions = result.ok().unwrap_or_default();
         assert_eq!(actions.len(), 1);
-        assert!(matches!(&actions[0], Action::ExternalReferenceRewritten { .. }));
+        assert!(matches!(&actions[0], Action::ExternalReferenceDetected { .. }));
         // No files should have been written
         assert!(fs.written.lock().expect("mutex").is_empty());
     }
@@ -2995,7 +3002,7 @@ mod tests {
 
     #[test]
     fn emit_external_without_association_no_action() {
-        // External file with no associated artifact — no ExternalReferenceRewritten action
+        // External file with no associated artifact — no ExternalReferenceDetected action
         let fs = MockFs::new();
 
         let other_files = vec![OtherFile {

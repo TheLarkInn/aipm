@@ -665,11 +665,11 @@ fn cmd_migrate(
                     destination.display()
                 );
             },
-            libaipm::migrate::Action::ExternalReferenceRewritten { path, referenced_by } => {
+            libaipm::migrate::Action::ExternalReferenceDetected { path, referenced_by } => {
                 let mut stderr = std::io::stderr();
                 let _ = writeln!(
                     stderr,
-                    "Warning: external file {} referenced by '{referenced_by}' — not moved, path rewritten",
+                    "Warning: external file {} referenced by '{referenced_by}' — not moved",
                     path.display()
                 );
             },

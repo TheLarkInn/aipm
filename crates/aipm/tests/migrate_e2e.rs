@@ -789,6 +789,18 @@ fn migrate_with_other_files() {
         .assert()
         .success()
         .stdout(predicate::str::contains("other file").or(predicate::str::contains("Migrated")));
+
+    // Other files should be copied into the first created plugin directory
+    let deploy_plugin_dir = dir.join(".ai/deploy");
+    assert!(
+        deploy_plugin_dir.join("README.md").exists(),
+        "README.md should be copied to plugin directory"
+    );
+    assert!(
+        deploy_plugin_dir.join("utils/helper.sh").exists()
+            || deploy_plugin_dir.join("helper.sh").exists(),
+        "helper.sh should be copied to plugin directory"
+    );
 }
 
 // =========================================================================

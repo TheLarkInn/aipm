@@ -126,7 +126,7 @@ pub fn extract_script_references(content: &str, variable_prefix: &str) -> Vec<Pa
                 .find(|c: char| c.is_whitespace() || c == '"' || c == '\'' || c == '`' || c == ')')
                 .unwrap_or(path_part.len());
             let path_str = &path_part[..end];
-            if path_str.len() > 2 && !path_str.starts_with("./..") {
+            if path_str.len() > 2 {
                 refs.push(PathBuf::from(path_str));
             }
             search = &search[start + end..];
@@ -577,11 +577,12 @@ mod tests {
     }
 
     #[test]
-    fn extract_pattern2_skips_dot_slash_dot_dot() {
-        // ./..<path> should be skipped (starts_with("./.."))
+    fn extract_pattern2_dot_slash_dot_dot_is_captured() {
+        // ./..<path> is now captured (no longer filtered out)
         let content = "path ./..invalid here";
         let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
-        assert!(scripts.is_empty());
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("./..invalid"));
     }
 
     #[test]
