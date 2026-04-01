@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.14.7] - 2026-04-01
+
+### Features
+- Add `aipm lint` command with 12 rules ([#168](https://github.com/TheLarkInn/aipm/pull/168)) (1020f35)
+
 ## [0.14.6] - 2026-03-31
 
 ## [0.14.5] - 2026-03-31
