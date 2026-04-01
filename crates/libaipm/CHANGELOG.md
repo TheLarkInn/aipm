@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.15.0] - 2026-04-01
+
+### Features
+- Detect, report, and migrate unclaimed files during aipm migrate ([#177](https://github.com/TheLarkInn/aipm/pull/177)) (40afc2f)
+
 ## [0.14.9] - 2026-04-01
 
 ## [0.14.8] - 2026-04-01
