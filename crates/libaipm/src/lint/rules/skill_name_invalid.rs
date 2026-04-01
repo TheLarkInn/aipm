@@ -69,7 +69,10 @@ impl Rule for NameInvalidChars {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use super::*;
+    use crate::lint::rules::test_helpers::MockFs;
 
     #[test]
     fn valid_names() {
@@ -88,5 +91,38 @@ mod tests {
         assert!(!is_valid_copilot_name(".starts-with-dot"));
         assert!(!is_valid_copilot_name("has@special"));
         assert!(!is_valid_copilot_name("has/slash"));
+    }
+
+    #[test]
+    fn check_invalid_name_produces_diagnostic() {
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "bad-name", "---\nname: has@special\n---\nbody");
+
+        let result = NameInvalidChars.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].rule_id, "skill/name-invalid-chars");
+        assert!(diags[0].message.contains("has@special"));
+    }
+
+    #[test]
+    fn check_valid_name_no_diagnostic() {
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "good-name", "---\nname: valid-skill\n---\nbody");
+
+        let result = NameInvalidChars.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn check_no_name_field_no_diagnostic() {
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "no-name", "---\ndescription: A skill\n---\nbody");
+
+        let result = NameInvalidChars.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
     }
 }
