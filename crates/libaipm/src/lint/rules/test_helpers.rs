@@ -87,6 +87,81 @@ impl MockFs {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mock_fs_write_file() {
+        let fs = MockFs::new();
+        assert!(fs.write_file(Path::new("/tmp/test.txt"), b"hello").is_ok());
+    }
+
+    #[test]
+    fn mock_fs_create_dir_all() {
+        let fs = MockFs::new();
+        assert!(fs.create_dir_all(Path::new("/tmp/dir")).is_ok());
+    }
+
+    #[test]
+    fn mock_fs_read_to_string_not_found() {
+        let fs = MockFs::new();
+        assert!(fs.read_to_string(Path::new("/missing")).is_err());
+    }
+
+    #[test]
+    fn mock_fs_read_dir_not_found() {
+        let fs = MockFs::new();
+        assert!(fs.read_dir(Path::new("/missing")).is_err());
+    }
+
+    #[test]
+    fn mock_fs_exists_false() {
+        let fs = MockFs::new();
+        assert!(!fs.exists(Path::new("/nonexistent")));
+    }
+
+    #[test]
+    fn mock_fs_add_existing() {
+        let mut fs = MockFs::new();
+        fs.add_existing("/tmp/file");
+        assert!(fs.exists(Path::new("/tmp/file")));
+    }
+
+    #[test]
+    fn mock_fs_add_skill_creates_entries() {
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "s", "content");
+        assert!(fs.exists(Path::new(".ai/p/skills/s/SKILL.md")));
+        assert!(fs.read_to_string(Path::new(".ai/p/skills/s/SKILL.md")).is_ok());
+    }
+
+    #[test]
+    fn mock_fs_add_agent_creates_entries() {
+        let mut fs = MockFs::new();
+        fs.add_agent("p", "reviewer", "content");
+        assert!(fs.exists(Path::new(".ai/p/agents/reviewer.md")));
+    }
+
+    #[test]
+    fn mock_fs_add_hooks_creates_entries() {
+        let mut fs = MockFs::new();
+        fs.add_hooks("p", "{}");
+        assert!(fs.exists(Path::new(".ai/p/hooks/hooks.json")));
+    }
+
+    #[test]
+    fn mock_fs_no_duplicate_entries() {
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "s1", "a");
+        fs.add_skill("p", "s2", "b");
+        // Plugin "p" should only appear once in .ai dir listing
+        let entries = fs.read_dir(Path::new(".ai")).unwrap_or_default();
+        let plugin_count = entries.iter().filter(|e| e.name == "p").count();
+        assert_eq!(plugin_count, 1);
+    }
+}
+
 impl Fs for MockFs {
     fn exists(&self, path: &Path) -> bool {
         self.exists.contains(path)

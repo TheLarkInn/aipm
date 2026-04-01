@@ -118,6 +118,39 @@ mod tests {
     }
 
     #[test]
+    fn multiple_legacy_events() {
+        let mut fs = MockFs::new();
+        fs.add_hooks("p", r#"{ "Stop": [], "SessionStart": [] }"#);
+
+        let result = LegacyEventName.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 2);
+    }
+
+    #[test]
+    fn nested_hooks_with_legacy() {
+        let mut fs = MockFs::new();
+        fs.add_hooks("p", r#"{ "hooks": { "Stop": [], "preToolUse": [] } }"#);
+
+        let result = LegacyEventName.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert!(diags[0].message.contains("agentStop"));
+    }
+
+    #[test]
+    fn empty_hooks_object() {
+        let mut fs = MockFs::new();
+        fs.add_hooks("p", r#"{ "hooks": {} }"#);
+
+        let result = LegacyEventName.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
     fn malformed_json_skipped() {
         let mut fs = MockFs::new();
         fs.add_hooks("p", "not json");

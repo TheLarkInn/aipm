@@ -210,6 +210,13 @@ mod tests {
     }
 
     #[test]
+    fn is_ignored_invalid_pattern_skipped() {
+        // An invalid glob pattern (unclosed bracket) should be silently skipped
+        let patterns = vec!["[invalid".to_string()];
+        assert!(!is_ignored("any/path", &patterns));
+    }
+
+    #[test]
     fn lint_outcome_default_counts() {
         let outcome = Outcome {
             diagnostics: vec![],
