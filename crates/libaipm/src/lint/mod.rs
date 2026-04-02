@@ -136,7 +136,7 @@ pub struct Options {
     pub source: Option<String>,
     /// Lint configuration from `[workspace.lints]`.
     pub config: config::Config,
-    /// Maximum directory traversal depth (reserved for future use).
+    /// Maximum directory traversal depth for `.claude`/`.github` discovery.
     pub max_depth: Option<usize>,
 }
 
@@ -179,7 +179,7 @@ pub enum Error {
     },
 
     /// Discovery failed during recursive directory walking.
-    #[error("discovery failed: {0}")]
+    #[error(transparent)]
     DiscoveryFailed(#[from] crate::discovery::Error),
 }
 
@@ -283,7 +283,7 @@ mod tests {
         let err =
             Error::DiscoveryFailed(crate::discovery::Error::WalkFailed("access denied".into()));
         let msg = format!("{err}");
-        assert!(msg.contains("discovery failed"));
+        assert!(msg.contains("discovery walk failed"));
     }
 
     #[test]

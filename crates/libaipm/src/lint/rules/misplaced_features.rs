@@ -14,7 +14,7 @@ const FEATURE_DIRS: &[&str] =
     &["skills", "commands", "agents", "hooks", "output-styles", "extensions"];
 
 /// Checks for plugin features sitting in tool-specific directories.
-pub struct MisplacedFeatures {
+pub(crate) struct MisplacedFeatures {
     /// The source type this rule checks (e.g., `".claude"` or `".github"`).
     pub source_type: &'static str,
     /// The project root directory, used to check for `.ai/` marketplace.
