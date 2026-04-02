@@ -81,6 +81,9 @@ cargo install cargo-llvm-cov
 - `Cargo.toml` — workspace root, lint configuration
 - `rustfmt.toml` — formatting rules (100 char width, Unix newlines)
 - `clippy.toml` — clippy thresholds (complexity, stack size, test exemptions)
+- `crates/aipm/` — consumer CLI binary (`init`, `install`, `update`, `link`, `unlink`, `list`, `lint`, `migrate`)
+- `crates/aipm-pack/` — author CLI binary (`init`)
+- `crates/libaipm/` — core library (manifest, validation, migration, scaffolding, lint, install, link, resolve)
 - `specs/` — technical design documents
 - `tests/features/` — cucumber-rs BDD feature files
 - `research/` — research documents and feature tracking
