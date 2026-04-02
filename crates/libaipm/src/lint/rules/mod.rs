@@ -25,7 +25,7 @@ use std::path::Path;
 use super::rule::Rule;
 
 /// Rules for validating `.claude/` source directories.
-pub fn for_claude(project_root: &Path) -> Vec<Box<dyn Rule>> {
+pub(crate) fn for_claude(project_root: &Path) -> Vec<Box<dyn Rule>> {
     vec![Box::new(misplaced_features::MisplacedFeatures {
         source_type: ".claude",
         project_root: project_root.to_path_buf(),
@@ -33,7 +33,7 @@ pub fn for_claude(project_root: &Path) -> Vec<Box<dyn Rule>> {
 }
 
 /// Rules for validating `.github/` source directories.
-pub fn for_copilot(project_root: &Path) -> Vec<Box<dyn Rule>> {
+pub(crate) fn for_copilot(project_root: &Path) -> Vec<Box<dyn Rule>> {
     vec![Box::new(misplaced_features::MisplacedFeatures {
         source_type: ".github",
         project_root: project_root.to_path_buf(),
@@ -41,7 +41,7 @@ pub fn for_copilot(project_root: &Path) -> Vec<Box<dyn Rule>> {
 }
 
 /// Rules for validating `.ai/` marketplace plugins.
-pub fn for_marketplace() -> Vec<Box<dyn Rule>> {
+pub(crate) fn for_marketplace() -> Vec<Box<dyn Rule>> {
     vec![
         // Core rules (from BDD spec + issue #110)
         Box::new(skill_missing_name::MissingName),
@@ -63,7 +63,7 @@ pub fn for_marketplace() -> Vec<Box<dyn Rule>> {
 ///
 /// For `.claude` and `.github`, `project_root` is used to locate the `.ai/`
 /// marketplace directory. For `.ai` and unknown sources, it is ignored.
-pub fn for_source(source: &str, project_root: &Path) -> Vec<Box<dyn Rule>> {
+pub(crate) fn for_source(source: &str, project_root: &Path) -> Vec<Box<dyn Rule>> {
     match source {
         ".claude" => for_claude(project_root),
         ".github" => for_copilot(project_root),

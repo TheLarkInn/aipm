@@ -286,7 +286,7 @@ pub enum Error {
     },
 
     /// Discovery failed during recursive directory walking.
-    #[error("failed to discover .claude directories: {0}")]
+    #[error("failed to discover source directories: {0}")]
     DiscoveryFailed(#[from] crate::discovery::Error),
 
     /// An I/O error occurred.
