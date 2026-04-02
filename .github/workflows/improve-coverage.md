@@ -45,6 +45,8 @@ safe-outputs:
     max: 1
     target: "*"
     required-title-prefix: "[coverage-improver]"
+  noop:
+    report-as-issue: false
 ---
 
 # Coverage Improver

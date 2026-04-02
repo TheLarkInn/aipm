@@ -20,6 +20,8 @@ network:
 safe-outputs:
   create-pull-request:
     max: 1
+  noop:
+    report-as-issue: false
 ---
 
 # Documentation Updater

@@ -5,7 +5,7 @@ description: >
   lints for build-time improvements, and opens an issue summarizing findings
   with actionable recommendations to reduce build times.
 on:
-  schedule: weekly on mondays
+  schedule: weekly on monday
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,6 +26,8 @@ safe-outputs:
   add-labels:
     allowed: [build-timings]
     max: 1
+  noop:
+    report-as-issue: false
 ---
 
 # Build Timings Analyzer
