@@ -4,17 +4,17 @@
 
 All lints are configured in `Cargo.toml` under `[workspace.lints]`. The key rules:
 
-1. **NEVER add `#[allow(...)]`, `#[expect(...)]`, or `#![allow(...)]` attributes.** The `allow_attributes` lint is set to `deny` — the compiler will reject any hand-written lint suppression. Derive macros (serde, thiserror) are permitted to emit internal `#[allow]`.
+1. **NEVER add `#[allow(...)]`, `#[expect(...)]`, or `#![allow(...)]` attributes.** The `allow_attributes` lint is set to `warn` — the CI `-D warnings` flag treats this as an error, so hand-written lint suppressions are rejected in practice. Derive macros (serde, thiserror) are permitted to emit internal `#[allow]`.
 
 2. **NEVER use `.unwrap()`, `.expect()`, `panic!()`, `todo!()`, `unimplemented!()`, `unreachable!()`** — these are all `deny`. Use proper error handling with `Result`/`Option` combinators, `?` operator, or `if let`/`match`.
 
 3. **NEVER use `println!()`, `eprintln!()`, `print!()`, `eprint!()`** — these are `deny`. Use `std::io::Write` with `write!()`/`writeln!()` for output, or a logging framework.
 
-4. **NEVER use `dbg!()`** — `forbid`. Remove all debug macros before committing.
+4. **NEVER use `dbg!()`** — `deny`. Remove all debug macros before committing.
 
 5. **NEVER use `unsafe`** — `forbid`. No unsafe code anywhere.
 
-6. **NEVER use `std::process::exit()`** — `forbid`. Return from main instead.
+6. **NEVER use `std::process::exit()`** — `deny`. Return from main instead.
 
 7. **NEVER use `.unwrap()` inside functions returning `Result`** — `forbid` via `unwrap_in_result`.
 
