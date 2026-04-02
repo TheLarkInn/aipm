@@ -9,7 +9,7 @@ AIPM ships as **two Rust binaries** with **zero runtime dependencies**:
 
 | Binary | Role | Commands |
 |--------|------|----------|
-| **`aipm`** | Consumer CLI | `init`, `migrate` |
+| **`aipm`** | Consumer CLI | `init`, `install`, `update`, `link`, `unlink`, `list`, `lint`, `migrate` |
 | **`aipm-pack`** | Author CLI | `init` |
 
 Both work across .NET, Python, Node.js, and Rust projects with no runtime dependency.
@@ -80,6 +80,7 @@ aipm migrate [OPTIONS] [DIR]
 | Flag | Description |
 |------|-------------|
 | `--dry-run` | Preview migration without writing files (generates report) |
+| `--destructive` | Remove migrated source files after successful migration (interactive prompt if omitted on TTY) |
 | `--source <SRC>` | Source folder to scan (e.g., `.claude`). Omit to discover recursively |
 | `--max-depth <N>` | Maximum depth for recursive discovery |
 | `--manifest` | Generate `aipm.toml` manifests for migrated plugins |
@@ -125,6 +126,14 @@ Shared library powering both CLIs. All logic lives here; the binaries are thin w
 | `workspace_init` | Workspace + `.ai/` marketplace scaffolding (`aipm init`) |
 | `workspace_init::adaptors` | Tool-specific config writers (Claude Code, Copilot, Cursor) |
 | `migrate` | Tool config migration with recursive discovery, dry-run, and all artifact types |
+| `lint` | Quality linting for AI plugin configurations, diagnostics, and reporting |
+| `installer` | Package installation pipeline and manifest editing |
+| `linker` | Local dev link overrides (`aipm link` / `unlink`) |
+| `lockfile` | Deterministic `aipm.lock` creation and drift detection |
+| `resolver` | Semver dependency resolution |
+| `store` | Content-addressable global package store |
+| `registry` | Registry client interface |
+| `frontmatter` | YAML front-matter parsing for plugin files |
 | `fs` | Trait-based filesystem abstraction (`Real` + test mocking) |
 | `version` | Crate version constant |
 
@@ -202,9 +211,9 @@ framework = "^2.0.0-beta.1"
 
 ```
 crates/
-  aipm/         Consumer CLI binary (init, migrate)
+  aipm/         Consumer CLI binary (init, install, update, link, unlink, list, lint, migrate)
   aipm-pack/    Author CLI binary (init)
-  libaipm/      Core library (manifest, validation, migration, scaffolding)
+  libaipm/      Core library (manifest, validation, migration, scaffolding, lint, install, link, resolve)
 specs/          Technical design documents
 tests/features/ Cucumber BDD feature files (220+ scenarios)
 research/       Competitive analysis and design research
