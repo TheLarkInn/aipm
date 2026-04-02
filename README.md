@@ -124,7 +124,7 @@ Shared library powering both CLIs. All logic lives here; the binaries are thin w
 | `manifest::validate` | Name format, semver, dependency version, component path validation |
 | `init` | Plugin package scaffolding (`aipm-pack init`) |
 | `workspace_init` | Workspace + `.ai/` marketplace scaffolding (`aipm init`) |
-| `workspace_init::adaptors` | Tool-specific config writers (Claude Code, Copilot, Cursor) |
+| `workspace_init::adaptors` | Tool-specific config writers (Claude Code; Copilot/Cursor planned) |
 | `migrate` | Tool config migration with recursive discovery, dry-run, and all artifact types |
 | `lint` | Quality linting for AI plugin configurations, diagnostics, and reporting |
 | `installer` | Package installation pipeline and manifest editing |
@@ -149,7 +149,7 @@ files = ["skills/", "hooks/", "README.md"]
 
 [dependencies]
 shared-lint = "^1.0"
-core-hooks = { workspace = "^" }
+core-hooks = { workspace = "*" }
 heavy-analyzer = { version = "^1.0", optional = true }
 
 [features]
