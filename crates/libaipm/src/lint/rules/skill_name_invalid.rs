@@ -125,4 +125,14 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
     }
+
+    #[test]
+    fn check_no_frontmatter_no_diagnostic() {
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "s", "no frontmatter here");
+
+        let result = NameInvalidChars.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
 }

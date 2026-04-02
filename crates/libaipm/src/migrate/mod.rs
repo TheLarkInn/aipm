@@ -10,7 +10,6 @@ pub mod copilot_lsp_detector;
 pub mod copilot_mcp_detector;
 pub mod copilot_skill_detector;
 pub mod detector;
-pub mod discovery;
 pub mod dry_run;
 pub mod emitter;
 pub mod hook_detector;
@@ -287,8 +286,8 @@ pub enum Error {
     },
 
     /// Discovery failed during recursive directory walking.
-    #[error("failed to discover .claude directories: {0}")]
-    DiscoveryFailed(String),
+    #[error("failed to discover source directories: {0}")]
+    DiscoveryFailed(#[from] crate::discovery::Error),
 
     /// An I/O error occurred.
     #[error(transparent)]
@@ -452,7 +451,8 @@ fn migrate_recursive(
 ) -> Result<Outcome, Error> {
     use rayon::prelude::*;
 
-    let discovered = discovery::discover_source_dirs(dir, &[".claude", ".github"], max_depth)?;
+    let discovered =
+        crate::discovery::discover_source_dirs(dir, &[".claude", ".github"], max_depth)?;
     if discovered.is_empty() {
         return Ok(Outcome { actions: Vec::new() });
     }

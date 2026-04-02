@@ -2,7 +2,7 @@
 //!
 //! Checks `.claude/` or `.github/` for skills, agents, hooks, etc. that should be in `.ai/`.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::fs::Fs;
 use crate::lint::diagnostic::{Diagnostic, Severity};
@@ -14,9 +14,11 @@ const FEATURE_DIRS: &[&str] =
     &["skills", "commands", "agents", "hooks", "output-styles", "extensions"];
 
 /// Checks for plugin features sitting in tool-specific directories.
-pub struct MisplacedFeatures {
+pub(crate) struct MisplacedFeatures {
     /// The source type this rule checks (e.g., `".claude"` or `".github"`).
     pub source_type: &'static str,
+    /// The project root directory, used to check for `.ai/` marketplace.
+    pub project_root: PathBuf,
 }
 
 impl Rule for MisplacedFeatures {
@@ -36,8 +38,7 @@ impl Rule for MisplacedFeatures {
         let mut diagnostics = Vec::new();
 
         // Check if .ai/ marketplace exists (only warn if it does)
-        let project_root = source_dir.parent().unwrap_or(source_dir);
-        let ai_dir = project_root.join(".ai");
+        let ai_dir = self.project_root.join(".ai");
         if !fs.exists(&ai_dir) {
             return Ok(diagnostics);
         }
@@ -68,13 +69,19 @@ mod tests {
     use super::*;
     use crate::lint::rules::test_helpers::MockFs;
 
+    /// Helper: project root for mock-based tests.
+    /// Uses `/project` as a concrete path so `project_root.join(".ai")` matches MockFs entries.
+    fn mock_root() -> PathBuf {
+        PathBuf::from("/project")
+    }
+
     #[test]
     fn no_feature_dirs_no_finding() {
         let mut fs = MockFs::new();
-        fs.add_existing(".ai");
+        fs.add_existing("/project/.ai");
 
-        let rule = MisplacedFeatures { source_type: ".claude" };
-        let result = rule.check(Path::new(".claude"), &fs);
+        let rule = MisplacedFeatures { source_type: ".claude", project_root: mock_root() };
+        let result = rule.check(Path::new("/project/.claude"), &fs);
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
     }
@@ -82,11 +89,11 @@ mod tests {
     #[test]
     fn skills_dir_with_marketplace_warns() {
         let mut fs = MockFs::new();
-        fs.add_existing(".ai");
-        fs.add_existing(".claude/skills");
+        fs.add_existing("/project/.ai");
+        fs.add_existing("/project/.claude/skills");
 
-        let rule = MisplacedFeatures { source_type: ".claude" };
-        let result = rule.check(Path::new(".claude"), &fs);
+        let rule = MisplacedFeatures { source_type: ".claude", project_root: mock_root() };
+        let result = rule.check(Path::new("/project/.claude"), &fs);
         assert!(result.is_ok());
         let diags = result.ok().unwrap_or_default();
         assert_eq!(diags.len(), 1);
@@ -97,10 +104,10 @@ mod tests {
     fn skills_dir_without_marketplace_no_finding() {
         let mut fs = MockFs::new();
         // .ai does NOT exist
-        fs.add_existing(".claude/skills");
+        fs.add_existing("/project/.claude/skills");
 
-        let rule = MisplacedFeatures { source_type: ".claude" };
-        let result = rule.check(Path::new(".claude"), &fs);
+        let rule = MisplacedFeatures { source_type: ".claude", project_root: mock_root() };
+        let result = rule.check(Path::new("/project/.claude"), &fs);
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
     }
@@ -108,13 +115,13 @@ mod tests {
     #[test]
     fn multiple_feature_dirs() {
         let mut fs = MockFs::new();
-        fs.add_existing(".ai");
-        fs.add_existing(".claude/skills");
-        fs.add_existing(".claude/agents");
-        fs.add_existing(".claude/hooks");
+        fs.add_existing("/project/.ai");
+        fs.add_existing("/project/.claude/skills");
+        fs.add_existing("/project/.claude/agents");
+        fs.add_existing("/project/.claude/hooks");
 
-        let rule = MisplacedFeatures { source_type: ".claude" };
-        let result = rule.check(Path::new(".claude"), &fs);
+        let rule = MisplacedFeatures { source_type: ".claude", project_root: mock_root() };
+        let result = rule.check(Path::new("/project/.claude"), &fs);
         assert!(result.is_ok());
         assert_eq!(result.ok().unwrap_or_default().len(), 3);
     }
@@ -122,14 +129,29 @@ mod tests {
     #[test]
     fn github_source_type() {
         let mut fs = MockFs::new();
-        fs.add_existing(".ai");
-        fs.add_existing(".github/skills");
+        fs.add_existing("/project/.ai");
+        fs.add_existing("/project/.github/skills");
 
-        let rule = MisplacedFeatures { source_type: ".github" };
-        let result = rule.check(Path::new(".github"), &fs);
+        let rule = MisplacedFeatures { source_type: ".github", project_root: mock_root() };
+        let result = rule.check(Path::new("/project/.github"), &fs);
         assert!(result.is_ok());
         let diags = result.ok().unwrap_or_default();
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].source_type, ".github");
+    }
+
+    #[test]
+    fn nested_source_dir_with_root_marketplace() {
+        let mut fs = MockFs::new();
+        fs.add_existing("/project/.ai");
+        fs.add_existing("/project/packages/auth/.claude/skills");
+
+        // Nested .claude dir should still find .ai at project root
+        let rule = MisplacedFeatures { source_type: ".claude", project_root: mock_root() };
+        let result = rule.check(Path::new("/project/packages/auth/.claude"), &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert!(diags[0].message.contains("skills/"));
     }
 }

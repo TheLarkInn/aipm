@@ -294,14 +294,27 @@ fn lint_unsupported_source_errors() {
 // =========================================================================
 
 #[test]
-fn lint_nonexistent_source_dir_errors() {
+fn lint_nonexistent_ai_source_dir_errors() {
     let tmp = tempfile::tempdir().unwrap();
 
+    // .ai requires root-level existence check
     aipm()
-        .args(["lint", "--source", ".claude", tmp.path().to_str().unwrap()])
+        .args(["lint", "--source", ".ai", tmp.path().to_str().unwrap()])
         .assert()
         .failure()
         .stderr(predicate::str::contains("not found"));
+}
+
+#[test]
+fn lint_nonexistent_claude_source_dir_succeeds() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    // .claude/.github use recursive discovery — missing root dir is fine (no findings)
+    aipm()
+        .args(["lint", "--source", ".claude", tmp.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("no issues found"));
 }
 
 // =========================================================================
@@ -405,4 +418,75 @@ fn lint_agent_missing_tools_warns() {
         .assert()
         .success()
         .stdout(predicate::str::contains("agent/missing-tools"));
+}
+
+// =========================================================================
+// Monorepo: nested .claude/ directories discovered recursively
+// =========================================================================
+
+#[test]
+fn lint_monorepo_finds_nested_misplaced_features() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    // Create .ai/ marketplace at root
+    std::fs::create_dir_all(tmp.path().join(".ai")).unwrap();
+    // Create nested .claude/skills/ (misplaced feature in a package)
+    let nested = tmp.path().join("packages").join("auth").join(".claude").join("skills");
+    std::fs::create_dir_all(&nested).unwrap();
+
+    aipm()
+        .args(["lint", tmp.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("source/misplaced-features"));
+}
+
+// =========================================================================
+// Monorepo: --source .claude with no root .claude/ but nested .claude/
+// =========================================================================
+
+#[test]
+fn lint_source_claude_no_root_dir_succeeds_with_nested() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    // Create .ai/ marketplace at root
+    std::fs::create_dir_all(tmp.path().join(".ai")).unwrap();
+    // No root .claude/ — only nested
+    let nested = tmp.path().join("packages").join("auth").join(".claude").join("skills");
+    std::fs::create_dir_all(&nested).unwrap();
+
+    aipm()
+        .args(["lint", "--source", ".claude", tmp.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("source/misplaced-features"));
+}
+
+// =========================================================================
+// Monorepo: --max-depth limits recursive discovery
+// =========================================================================
+
+#[test]
+fn lint_max_depth_cli_flag() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    // Create .ai/ marketplace at root
+    std::fs::create_dir_all(tmp.path().join(".ai")).unwrap();
+    // Root .claude/skills at depth 1
+    std::fs::create_dir_all(tmp.path().join(".claude").join("skills")).unwrap();
+    // Nested .claude/skills at depth 3
+    let nested = tmp.path().join("packages").join("auth").join(".claude").join("skills");
+    std::fs::create_dir_all(&nested).unwrap();
+
+    // --max-depth 1 should only find root .claude (not nested)
+    let output = aipm()
+        .args(["lint", "--max-depth", "1", tmp.path().to_str().unwrap()])
+        .output()
+        .expect("command should run");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // Should find misplaced features (root .claude/skills)
+    assert!(stdout.contains("source/misplaced-features"));
+    // The nested path should NOT appear in output
+    assert!(!stdout.contains("auth"));
 }

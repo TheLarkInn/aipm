@@ -108,4 +108,14 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
     }
+
+    #[test]
+    fn no_frontmatter_no_finding() {
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "s", "no frontmatter here");
+
+        let result = NameTooLong.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
 }

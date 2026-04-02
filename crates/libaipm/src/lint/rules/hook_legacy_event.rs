@@ -160,4 +160,15 @@ mod tests {
         // Malformed JSON is silently skipped (hook_unknown_event handles parse errors)
         assert!(result.ok().unwrap_or_default().is_empty());
     }
+
+    #[test]
+    fn json_array_not_object_skipped() {
+        let mut fs = MockFs::new();
+        // Valid JSON but not an object — hooks_obj becomes None
+        fs.add_hooks("p", r#"["not", "an", "object"]"#);
+
+        let result = LegacyEventName.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
 }

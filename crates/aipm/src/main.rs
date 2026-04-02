@@ -503,7 +503,7 @@ fn cmd_lint(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let dir = resolve_dir(dir)?;
 
-    // Validate --source against supported set and check directory exists
+    // Validate --source against supported set
     if let Some(ref src) = source {
         const SUPPORTED_SOURCES: &[&str] = &[".claude", ".github", ".ai"];
         if !SUPPORTED_SOURCES.contains(&src.as_str()) {
@@ -512,9 +512,14 @@ fn cmd_lint(
             )
             .into());
         }
-        let source_dir = dir.join(src);
-        if !source_dir.exists() {
-            return Err(format!("source directory '{}' not found in {}", src, dir.display()).into());
+        // For .ai, validate root existence. For .claude/.github, recursive discovery handles it.
+        if src == ".ai" {
+            let source_dir = dir.join(src);
+            if !source_dir.exists() {
+                return Err(
+                    format!("source directory '{}' not found in {}", src, dir.display()).into()
+                );
+            }
         }
     }
 

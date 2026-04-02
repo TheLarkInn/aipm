@@ -5,8 +5,8 @@ use std::fmt::Write;
 use std::hash::BuildHasher;
 
 use super::cleanup;
-use super::discovery::DiscoveredSource;
 use super::{Artifact, ArtifactKind, OtherFile, PluginPlan};
+use crate::discovery::DiscoveredSource;
 
 /// Generate a dry-run report as markdown.
 pub fn generate_report<S: BuildHasher>(

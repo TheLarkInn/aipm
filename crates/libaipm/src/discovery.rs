@@ -1,10 +1,17 @@
-//! Recursive `.claude/` directory discovery for the migrate command.
+//! Recursive directory discovery for AI tool source directories.
 //!
 //! Uses the `ignore` crate for gitignore-aware directory traversal.
+//! Shared by both the `lint` and `migrate` pipelines.
 
 use std::path::{Path, PathBuf};
 
-use super::Error;
+/// Errors from directory discovery.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    /// A walk entry produced an I/O error.
+    #[error("discovery walk failed: {0}")]
+    WalkFailed(String),
+}
 
 /// A discovered source directory and its package context.
 #[derive(Debug, Clone)]
@@ -78,7 +85,7 @@ pub fn discover_source_dirs(
     let mut discovered = Vec::new();
 
     for result in builder.build() {
-        let entry = result.map_err(|e| Error::DiscoveryFailed(e.to_string()))?;
+        let entry = result.map_err(|e| Error::WalkFailed(e.to_string()))?;
 
         let is_dir = entry.file_type().is_some_and(|ft| ft.is_dir());
         if !is_dir {
@@ -370,5 +377,13 @@ mod tests {
         let sources = result.ok().unwrap_or_default();
         assert_eq!(sources.len(), 1);
         assert!(sources.first().is_some_and(|s| s.package_name.is_none()));
+    }
+
+    #[test]
+    fn error_display() {
+        let err = Error::WalkFailed("permission denied".to_string());
+        let msg = format!("{err}");
+        assert!(msg.contains("discovery walk failed"));
+        assert!(msg.contains("permission denied"));
     }
 }
