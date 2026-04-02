@@ -5,7 +5,7 @@ description: >
   lints for build-time improvements, and opens an issue summarizing findings
   with actionable recommendations to reduce build times.
 on:
-  schedule: daily on weekdays
+  schedule: weekly on mondays
   workflow_dispatch:
 permissions:
   contents: read
@@ -26,7 +26,6 @@ safe-outputs:
   add-labels:
     allowed: [build-timings]
     max: 1
-  noop:
 ---
 
 # Build Timings Analyzer
@@ -184,6 +183,4 @@ Then use the `add-labels` safe output to add the `build-timings` label.
 ### 9 — Nothing noteworthy?
 
 If the build is fast (under 30 seconds) and there are no actionable
-recommendations, call the `noop` safe output with a message like:
-> "Build timings analysis complete — build is healthy at X seconds with
-> no actionable recommendations."
+recommendations, simply stop. No issue needs to be created.

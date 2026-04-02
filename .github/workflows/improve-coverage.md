@@ -45,7 +45,6 @@ safe-outputs:
     max: 1
     target: "*"
     required-title-prefix: "[coverage-improver]"
-  noop:
 ---
 
 # Coverage Improver
@@ -131,9 +130,6 @@ If there are no actionable review comments on the existing PR:
    out of draft status. This queues the CI build and allows auto-merge to
    trigger once all checks pass (auto-merge was enabled when the PR was
    originally created).
-2. Call the `noop` safe output with a message such as:
-   > "No outstanding review comments found on PR #N. Marked as ready for
-   > review — auto-merge will trigger once all checks pass."
 
 **Stop** — do not run coverage analysis or create a new PR.
 
@@ -218,7 +214,5 @@ all CI checks pass and any required reviews are approved.
 ### 12 — Nothing to do?
 
 If coverage is already at 100% or all remaining uncovered branches are in
-excluded files (`wizard_tty.rs`, `tests/`, etc.), call the `noop` safe output
-with a message like:
-> "Coverage analysis complete — no actionable uncovered branches found.
-> Current branch coverage: XX.XX%."
+excluded files (`wizard_tty.rs`, `tests/`, etc.), simply stop. No further
+action is needed.

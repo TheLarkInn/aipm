@@ -20,7 +20,6 @@ network:
 safe-outputs:
   create-pull-request:
     max: 1
-  noop:
 ---
 
 # Documentation Updater
@@ -68,7 +67,7 @@ that changed source code under `crates/`, `Cargo.toml`, `tests/`, or
 git log origin/main --since='7 days ago' --pretty=format:'%h %s' -- 'crates/' 'Cargo.toml' 'tests/' 'fixtures/'
 ```
 
-If there are no recent code commits, skip to **Step 7** (noop).
+If there are no recent code commits, skip to **Step 7**.
 
 ### 2 — Identify impacted documentation areas
 
@@ -146,7 +145,4 @@ is factually wrong.
 ### 7 — Nothing to update?
 
 If documentation is already in sync with the code (or there were no recent
-code changes), call the `noop` safe output with a message like:
-
-> "Documentation review complete — all docs are in sync with recent code
-> changes. No updates needed."
+code changes), simply stop. No further action is needed.
