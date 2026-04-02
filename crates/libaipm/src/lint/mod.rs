@@ -756,12 +756,7 @@ mod tests {
         let mut cfg = config::Config::default();
         cfg.ignore_paths = vec!["**/ignored/**".to_string()];
 
-        let opts = Options {
-            dir: root.to_path_buf(),
-            source: None,
-            config: cfg,
-            max_depth: None,
-        };
+        let opts = Options { dir: root.to_path_buf(), source: None, config: cfg, max_depth: None };
         let result = lint(&opts, &crate::fs::Real);
         assert!(result.is_ok());
         let outcome = result.unwrap_or_else(|_| Outcome {
@@ -796,17 +791,10 @@ mod tests {
         assert!(std::fs::create_dir_all(root.join(".claude").join("skills")).is_ok());
 
         let mut cfg = config::Config::default();
-        cfg.rule_overrides.insert(
-            "source/misplaced-features".to_string(),
-            config::RuleOverride::Allow,
-        );
+        cfg.rule_overrides
+            .insert("source/misplaced-features".to_string(), config::RuleOverride::Allow);
 
-        let opts = Options {
-            dir: root.to_path_buf(),
-            source: None,
-            config: cfg,
-            max_depth: None,
-        };
+        let opts = Options { dir: root.to_path_buf(), source: None, config: cfg, max_depth: None };
         let result = lint(&opts, &crate::fs::Real);
         assert!(result.is_ok());
         let outcome = result.unwrap_or_else(|_| Outcome {
