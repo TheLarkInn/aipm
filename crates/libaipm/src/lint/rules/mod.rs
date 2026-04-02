@@ -20,16 +20,24 @@ pub mod skill_oversized;
 #[cfg(test)]
 pub(crate) mod test_helpers;
 
+use std::path::Path;
+
 use super::rule::Rule;
 
 /// Rules for validating `.claude/` source directories.
-pub fn for_claude() -> Vec<Box<dyn Rule>> {
-    vec![Box::new(misplaced_features::MisplacedFeatures { source_type: ".claude" })]
+pub fn for_claude(project_root: &Path) -> Vec<Box<dyn Rule>> {
+    vec![Box::new(misplaced_features::MisplacedFeatures {
+        source_type: ".claude",
+        project_root: project_root.to_path_buf(),
+    })]
 }
 
 /// Rules for validating `.github/` source directories.
-pub fn for_copilot() -> Vec<Box<dyn Rule>> {
-    vec![Box::new(misplaced_features::MisplacedFeatures { source_type: ".github" })]
+pub fn for_copilot(project_root: &Path) -> Vec<Box<dyn Rule>> {
+    vec![Box::new(misplaced_features::MisplacedFeatures {
+        source_type: ".github",
+        project_root: project_root.to_path_buf(),
+    })]
 }
 
 /// Rules for validating `.ai/` marketplace plugins.
@@ -52,10 +60,13 @@ pub fn for_marketplace() -> Vec<Box<dyn Rule>> {
 }
 
 /// Dispatch: source type string -> rule set.
-pub fn for_source(source: &str) -> Vec<Box<dyn Rule>> {
+///
+/// For `.claude` and `.github`, `project_root` is used to locate the `.ai/`
+/// marketplace directory. For `.ai` and unknown sources, it is ignored.
+pub fn for_source(source: &str, project_root: &Path) -> Vec<Box<dyn Rule>> {
     match source {
-        ".claude" => for_claude(),
-        ".github" => for_copilot(),
+        ".claude" => for_claude(project_root),
+        ".github" => for_copilot(project_root),
         ".ai" => for_marketplace(),
         _ => vec![],
     }
@@ -67,12 +78,12 @@ mod tests {
 
     #[test]
     fn unknown_source_returns_empty() {
-        assert!(for_source(".unknown").is_empty());
+        assert!(for_source(".unknown", std::path::Path::new(".")).is_empty());
     }
 
     #[test]
     fn claude_returns_rules() {
-        let rules = for_source(".claude");
+        let rules = for_source(".claude", std::path::Path::new("."));
         let _ = rules;
     }
 }

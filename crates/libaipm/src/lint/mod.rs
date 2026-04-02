@@ -30,76 +30,92 @@ fn is_ignored(path: &str, patterns: &[String]) -> bool {
     false
 }
 
+/// Run rules for a given source type against a directory, collecting diagnostics.
+fn run_rules_for_source(
+    source_type: &str,
+    scan_dir: &std::path::Path,
+    project_root: &std::path::Path,
+    fs: &dyn Fs,
+    config: &config::Config,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Result<(), Error> {
+    let all_rules = rules::for_source(source_type, project_root);
+
+    for rule in &all_rules {
+        if config.is_suppressed(rule.id()) {
+            continue;
+        }
+
+        let rule_diagnostics = rule.check(scan_dir, fs)?;
+
+        let effective_severity =
+            config.severity_override(rule.id()).unwrap_or_else(|| rule.default_severity());
+
+        let rule_ignores = config.rule_ignore_paths(rule.id());
+
+        for mut d in rule_diagnostics {
+            let path_str = d.file_path.display().to_string();
+            if is_ignored(&path_str, &config.ignore_paths) || is_ignored(&path_str, rule_ignores) {
+                continue;
+            }
+            d.severity = effective_severity;
+            diagnostics.push(d);
+        }
+    }
+
+    Ok(())
+}
+
 /// Run the lint pipeline.
 ///
-/// Discovers source directories, selects rules per source type, applies
-/// configuration overrides (including ignore paths), executes rules
-/// sequentially, and collects diagnostics.
+/// Discovers source directories recursively for `.claude/` and `.github/`
+/// using the shared `discovery` module (gitignore-aware tree walk).
+/// The `.ai/` marketplace is checked as a flat root-level directory.
 ///
 /// # Errors
 ///
-/// Returns an error if a critical I/O failure prevents scanning.
+/// Returns an error if a critical I/O or discovery failure prevents scanning.
 pub fn lint(opts: &Options, fs: &dyn Fs) -> Result<Outcome, Error> {
     let mut all_diagnostics = Vec::new();
     let mut sources_scanned = Vec::new();
 
-    // Determine which sources to scan
-    let source_types: Vec<&str> = opts.source.as_deref().map_or_else(
-        || {
-            // Auto-discover: check which source dirs exist
-            let mut found = Vec::new();
-            if fs.exists(&opts.dir.join(".claude")) {
-                found.push(".claude");
+    // Phase 1: Recursive discovery for .claude/.github source directories
+    let source_patterns: Vec<&str> = match opts.source.as_deref() {
+        Some(".ai") => vec![],
+        Some(src) => vec![src],
+        None => vec![".claude", ".github"],
+    };
+
+    if !source_patterns.is_empty() {
+        let discovered =
+            crate::discovery::discover_source_dirs(&opts.dir, &source_patterns, opts.max_depth)?;
+
+        for src in &discovered {
+            if !sources_scanned.contains(&src.source_type) {
+                sources_scanned.push(src.source_type.clone());
             }
-            if fs.exists(&opts.dir.join(".github")) {
-                found.push(".github");
-            }
-            if fs.exists(&opts.dir.join(".ai")) {
-                found.push(".ai");
-            }
-            found
-        },
-        |s| vec![s],
-    );
-
-    for source_type in &source_types {
-        sources_scanned.push((*source_type).to_string());
-
-        let source_dir = opts.dir.join(source_type.trim_start_matches('.'));
-        // For .ai, the dir is just .ai; for .claude, it's .claude
-        let scan_dir = opts.dir.join(source_type);
-
-        let all_rules = rules::for_source(source_type);
-
-        for rule in &all_rules {
-            // Skip rules suppressed by config
-            if opts.config.is_suppressed(rule.id()) {
-                continue;
-            }
-
-            let rule_diagnostics = rule.check(&scan_dir, fs)?;
-
-            // Apply severity overrides from config
-            let effective_severity =
-                opts.config.severity_override(rule.id()).unwrap_or_else(|| rule.default_severity());
-
-            // Collect ignore patterns for this rule
-            let rule_ignores = opts.config.rule_ignore_paths(rule.id());
-
-            for mut d in rule_diagnostics {
-                // Apply global and per-rule ignore path filtering
-                let path_str = d.file_path.display().to_string();
-                if is_ignored(&path_str, &opts.config.ignore_paths)
-                    || is_ignored(&path_str, rule_ignores)
-                {
-                    continue;
-                }
-                d.severity = effective_severity;
-                all_diagnostics.push(d);
-            }
+            run_rules_for_source(
+                &src.source_type,
+                &src.source_dir,
+                &opts.dir,
+                fs,
+                &opts.config,
+                &mut all_diagnostics,
+            )?;
         }
+    }
 
-        let _ = source_dir;
+    // Phase 2: Flat marketplace check for .ai/
+    let check_marketplace = match opts.source.as_deref() {
+        Some(".ai") => true,
+        Some(_) => false,
+        None => fs.exists(&opts.dir.join(".ai")),
+    };
+
+    if check_marketplace {
+        sources_scanned.push(".ai".to_string());
+        let scan_dir = opts.dir.join(".ai");
+        run_rules_for_source(".ai", &scan_dir, &opts.dir, fs, &opts.config, &mut all_diagnostics)?;
     }
 
     // Sort by file path for consistent output
@@ -161,6 +177,10 @@ pub enum Error {
         /// Reason for the parse failure.
         reason: String,
     },
+
+    /// Discovery failed during recursive directory walking.
+    #[error("discovery failed: {0}")]
+    DiscoveryFailed(#[from] crate::discovery::Error),
 }
 
 #[cfg(test)]
@@ -259,20 +279,28 @@ mod tests {
         };
         let msg = format!("{err}");
         assert!(msg.contains("SKILL.md"));
+
+        let err =
+            Error::DiscoveryFailed(crate::discovery::Error::WalkFailed("access denied".into()));
+        let msg = format!("{err}");
+        assert!(msg.contains("discovery failed"));
     }
 
     #[test]
     fn lint_empty_dir_no_sources() {
-        use crate::lint::rules::test_helpers::MockFs;
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = root.as_ref().copied().unwrap_or(std::path::Path::new("."));
 
-        let fs = MockFs::new();
         let opts = Options {
-            dir: PathBuf::from("/tmp/empty"),
+            dir: root.to_path_buf(),
             source: None,
             config: config::Config::default(),
             max_depth: None,
         };
-        let result = lint(&opts, &fs);
+        let result = lint(&opts, &crate::fs::Real);
         assert!(result.is_ok());
         let outcome = result.unwrap_or_else(|_| Outcome {
             diagnostics: vec![],
@@ -360,22 +388,24 @@ mod tests {
 
     #[test]
     fn lint_auto_discovers_sources() {
-        use crate::lint::rules::test_helpers::MockFs;
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = root.as_ref().copied().unwrap_or(std::path::Path::new("."));
 
-        let mut fs = MockFs::new();
-        fs.add_existing("/project/.claude");
-        fs.add_existing("/project/.github");
-        fs.add_existing("/project/.ai");
-        // Empty dirs
-        fs.dirs.insert(PathBuf::from("/project/.ai"), vec![]);
+        // Create all three source directories on real FS
+        assert!(std::fs::create_dir_all(root.join(".claude")).is_ok());
+        assert!(std::fs::create_dir_all(root.join(".github")).is_ok());
+        assert!(std::fs::create_dir_all(root.join(".ai")).is_ok());
 
         let opts = Options {
-            dir: PathBuf::from("/project"),
+            dir: root.to_path_buf(),
             source: None,
             config: config::Config::default(),
             max_depth: None,
         };
-        let result = lint(&opts, &fs);
+        let result = lint(&opts, &crate::fs::Real);
         assert!(result.is_ok());
         let outcome = result.unwrap_or_else(|_| Outcome {
             diagnostics: vec![],
@@ -434,5 +464,386 @@ mod tests {
         assert!(desc_diag.is_some());
         assert_eq!(desc_diag.map(|d| d.severity), Some(Severity::Error));
         assert!(outcome.error_count > 0);
+    }
+
+    // --- Recursive discovery integration tests ---
+
+    #[test]
+    fn lint_discovers_nested_claude_dirs() {
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = root.as_ref().copied().unwrap_or(std::path::Path::new("."));
+
+        // Create .ai/ marketplace so misplaced-features rule fires
+        assert!(std::fs::create_dir_all(root.join(".ai")).is_ok());
+        // Create nested .claude/skills/ (misplaced feature)
+        assert!(std::fs::create_dir_all(
+            root.join("packages").join("auth").join(".claude").join("skills")
+        )
+        .is_ok());
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap_or_else(|_| Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        });
+        // Should find misplaced-features in the nested .claude dir
+        assert!(outcome.diagnostics.iter().any(|d| d.rule_id == "source/misplaced-features"));
+        let diag = outcome.diagnostics.iter().find(|d| d.rule_id == "source/misplaced-features");
+        assert!(diag.is_some());
+        // The file_path should reference the nested location
+        let path_str = diag.map(|d| d.file_path.display().to_string()).unwrap_or_default();
+        assert!(path_str.contains("auth"));
+    }
+
+    #[test]
+    fn lint_discovers_nested_github_dirs() {
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = root.as_ref().copied().unwrap_or(std::path::Path::new("."));
+
+        assert!(std::fs::create_dir_all(root.join(".ai")).is_ok());
+        assert!(std::fs::create_dir_all(
+            root.join("packages").join("api").join(".github").join("hooks")
+        )
+        .is_ok());
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap_or_else(|_| Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        });
+        assert!(outcome
+            .diagnostics
+            .iter()
+            .any(|d| d.rule_id == "source/misplaced-features" && d.source_type == ".github"));
+    }
+
+    #[test]
+    fn lint_source_filter_claude_only() {
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = root.as_ref().copied().unwrap_or(std::path::Path::new("."));
+
+        assert!(std::fs::create_dir_all(root.join(".ai")).is_ok());
+        // Both .claude and .github have misplaced features
+        assert!(std::fs::create_dir_all(root.join(".claude").join("skills")).is_ok());
+        assert!(std::fs::create_dir_all(root.join(".github").join("skills")).is_ok());
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: Some(".claude".to_string()),
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap_or_else(|_| Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        });
+        // Only .claude diagnostics, no .github
+        assert!(outcome.diagnostics.iter().all(|d| d.source_type == ".claude"));
+        assert!(!outcome.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn lint_source_filter_ai_skips_discovery() {
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = root.as_ref().copied().unwrap_or(std::path::Path::new("."));
+
+        assert!(std::fs::create_dir_all(root.join(".ai")).is_ok());
+        // .claude has misplaced features but --source .ai should skip it
+        assert!(std::fs::create_dir_all(root.join(".claude").join("skills")).is_ok());
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: Some(".ai".to_string()),
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap_or_else(|_| Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        });
+        // No misplaced-features diagnostics (those come from .claude, not .ai)
+        assert!(!outcome.diagnostics.iter().any(|d| d.rule_id == "source/misplaced-features"));
+        assert_eq!(outcome.sources_scanned, vec![".ai"]);
+    }
+
+    #[test]
+    fn lint_max_depth_limits_discovery() {
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = root.as_ref().copied().unwrap_or(std::path::Path::new("."));
+
+        assert!(std::fs::create_dir_all(root.join(".ai")).is_ok());
+        // Root .claude/skills at depth 1
+        assert!(std::fs::create_dir_all(root.join(".claude").join("skills")).is_ok());
+        // Nested .claude/skills at depth 3
+        assert!(std::fs::create_dir_all(
+            root.join("packages").join("auth").join(".claude").join("skills")
+        )
+        .is_ok());
+
+        // max_depth=1 should only find root .claude
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: Some(1),
+        };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap_or_else(|_| Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        });
+        // Should have exactly 1 misplaced-features diagnostic (root only)
+        let misplaced: Vec<_> = outcome
+            .diagnostics
+            .iter()
+            .filter(|d| d.rule_id == "source/misplaced-features")
+            .collect();
+        assert_eq!(misplaced.len(), 1);
+    }
+
+    #[test]
+    fn lint_no_sources_found_succeeds() {
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = root.as_ref().copied().unwrap_or(std::path::Path::new("."));
+
+        // Only create src/ -- no .claude, .github, or .ai
+        assert!(std::fs::create_dir_all(root.join("src")).is_ok());
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap_or_else(|_| Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        });
+        assert!(outcome.sources_scanned.is_empty());
+        assert!(outcome.diagnostics.is_empty());
+    }
+
+    #[test]
+    fn lint_deduplicates_sources_scanned() {
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = root.as_ref().copied().unwrap_or(std::path::Path::new("."));
+
+        // Multiple .claude dirs
+        assert!(std::fs::create_dir_all(root.join(".claude")).is_ok());
+        assert!(std::fs::create_dir_all(root.join("packages").join("a").join(".claude")).is_ok());
+        assert!(std::fs::create_dir_all(root.join("packages").join("b").join(".claude")).is_ok());
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: Some(".claude".to_string()),
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap_or_else(|_| Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        });
+        // sources_scanned should have exactly one ".claude" entry despite 3 dirs
+        let claude_count =
+            outcome.sources_scanned.iter().filter(|s| s.as_str() == ".claude").count();
+        assert_eq!(claude_count, 1);
+    }
+
+    #[test]
+    fn lint_source_github_filters_discovery() {
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = root.as_ref().copied().unwrap_or(std::path::Path::new("."));
+
+        assert!(std::fs::create_dir_all(root.join(".ai")).is_ok());
+        assert!(std::fs::create_dir_all(root.join(".github").join("skills")).is_ok());
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: Some(".github".to_string()),
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap_or_else(|_| Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        });
+        assert!(outcome.diagnostics.iter().all(|d| d.source_type == ".github"));
+        assert!(!outcome.diagnostics.is_empty());
+        // .ai should NOT be scanned
+        assert!(!outcome.sources_scanned.contains(&".ai".to_string()));
+    }
+
+    #[test]
+    fn lint_ignore_paths_filter_source_diagnostics() {
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = root.as_ref().copied().unwrap_or(std::path::Path::new("."));
+
+        assert!(std::fs::create_dir_all(root.join(".ai")).is_ok());
+        assert!(std::fs::create_dir_all(root.join(".claude").join("skills")).is_ok());
+        assert!(std::fs::create_dir_all(
+            root.join("packages").join("ignored").join(".claude").join("skills")
+        )
+        .is_ok());
+
+        let mut cfg = config::Config::default();
+        cfg.ignore_paths = vec!["**/ignored/**".to_string()];
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: cfg,
+            max_depth: None,
+        };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap_or_else(|_| Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        });
+        // The root .claude/skills should be found, but not the ignored one
+        let misplaced: Vec<_> = outcome
+            .diagnostics
+            .iter()
+            .filter(|d| d.rule_id == "source/misplaced-features")
+            .collect();
+        assert_eq!(misplaced.len(), 1);
+        // Verify the ignored path is not in diagnostics
+        assert!(misplaced.iter().all(|d| {
+            let path_str = d.file_path.display().to_string();
+            !path_str.contains("ignored")
+        }));
+    }
+
+    #[test]
+    fn lint_config_suppress_misplaced_features() {
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = root.as_ref().copied().unwrap_or(std::path::Path::new("."));
+
+        assert!(std::fs::create_dir_all(root.join(".ai")).is_ok());
+        assert!(std::fs::create_dir_all(root.join(".claude").join("skills")).is_ok());
+
+        let mut cfg = config::Config::default();
+        cfg.rule_overrides.insert(
+            "source/misplaced-features".to_string(),
+            config::RuleOverride::Allow,
+        );
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: cfg,
+            max_depth: None,
+        };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap_or_else(|_| Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        });
+        // misplaced-features should be suppressed
+        assert!(!outcome.diagnostics.iter().any(|d| d.rule_id == "source/misplaced-features"));
+    }
+
+    #[test]
+    fn lint_no_marketplace_no_source_findings() {
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = root.as_ref().copied().unwrap_or(std::path::Path::new("."));
+
+        // .claude/skills exists but NO .ai — misplaced-features should not fire
+        assert!(std::fs::create_dir_all(root.join(".claude").join("skills")).is_ok());
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap_or_else(|_| Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        });
+        assert!(outcome.diagnostics.is_empty());
     }
 }
