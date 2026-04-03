@@ -159,3 +159,15 @@ Verification:
 - cargo test --workspace: 1124 tests pass
 - cargo clippy --workspace -- -D warnings: clean
 - Manual: --reporter human shows colored snippets, --format json backwards compat works
+
+## 2026-04-03 — Feature 13: Create rule documentation markdown files
+
+Status: COMPLETE
+
+Changes:
+- Created docs/rules/ directory with 5 subdirs: skill/, agent/, hook/, plugin/, source/
+- Created 12 markdown doc files matching all rule help_url() paths
+- Each file: rule ID, severity, description, incorrect/correct examples, how to fix
+
+Verification:
+- All 12 files exist matching help_url paths in rule implementations

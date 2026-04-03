@@ -262,7 +262,7 @@
   },
   {
     "category": "functional",
-    "description": "Create rule documentation markdown files in docs/rules/",
+    "description": "Create rule documentation markdown files in docs/rules/ [DONE]",
     "steps": [
       "Create docs/rules/ directory structure: docs/rules/skill/, docs/rules/agent/, docs/rules/hook/, docs/rules/plugin/, docs/rules/source/",
       "Create docs/rules/skill/missing-name.md with: rule description, what it catches, how to fix, example of correct frontmatter",
@@ -279,7 +279,7 @@
       "Create docs/rules/source/misplaced-features.md",
       "Verify each rule's help_url() return value matches the actual file path in the repo"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
