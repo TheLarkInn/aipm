@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.17.0] - 2026-04-03
+
+### Features
+- Lint display UX improvements ([#198](https://github.com/TheLarkInn/aipm/pull/198)) ([#203](https://github.com/TheLarkInn/aipm/pull/203)) (42d9a01)
+
 ## [0.16.1] - 2026-04-03
 
 ### Features
