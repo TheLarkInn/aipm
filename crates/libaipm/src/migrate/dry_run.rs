@@ -614,7 +614,6 @@ mod tests {
     #[test]
     fn recursive_report_rename_loop_skips_already_used_name() {
         // When *both* "auth" and "auth-renamed-1" already exist, the rename loop
-        // must iterate a second time — covering the `False` branch of the
         // must iterate a second time, covering the case where a generated rename
         // candidate is already used and the loop must continue searching.
         let discovered = vec![DiscoveredSource {
