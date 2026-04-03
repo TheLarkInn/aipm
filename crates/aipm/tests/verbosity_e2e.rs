@@ -97,10 +97,7 @@ fn log_format_invalid_rejected() {
 #[test]
 fn default_verbosity_no_tracing_on_stderr() {
     let tmp = tempfile::tempdir().unwrap();
-    let output = aipm()
-        .args(["list", "--dir", tmp.path().to_str().unwrap()])
-        .output()
-        .unwrap();
+    let output = aipm().args(["list", "--dir", tmp.path().to_str().unwrap()]).output().unwrap();
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     // At default (Warn), a clean `list` on an empty dir should not produce
@@ -118,16 +115,11 @@ fn default_verbosity_no_tracing_on_stderr() {
 #[test]
 fn quiet_suppresses_warnings() {
     let tmp = tempfile::tempdir().unwrap();
-    let output = aipm()
-        .args(["-q", "list", "--dir", tmp.path().to_str().unwrap()])
-        .output()
-        .unwrap();
+    let output =
+        aipm().args(["-q", "list", "--dir", tmp.path().to_str().unwrap()]).output().unwrap();
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(
-        !stderr.contains("WARN"),
-        "quiet mode should suppress warnings on stderr: {stderr}"
-    );
+    assert!(!stderr.contains("WARN"), "quiet mode should suppress warnings on stderr: {stderr}");
 }
 
 // =========================================================================
@@ -152,21 +144,15 @@ fn aipm_log_env_var_accepted() {
 #[test]
 fn file_log_created_in_temp_dir() {
     let tmp = tempfile::tempdir().unwrap();
-    aipm()
-        .args(["-v", "list", "--dir", tmp.path().to_str().unwrap()])
-        .assert()
-        .success();
+    aipm().args(["-v", "list", "--dir", tmp.path().to_str().unwrap()]).assert().success();
 
     // Check that at least one aipm*.log file exists in the system temp dir
     let temp_dir = std::env::temp_dir();
-    let has_log = std::fs::read_dir(&temp_dir)
-        .unwrap()
-        .filter_map(|e| e.ok())
-        .any(|entry| {
-            let name = entry.file_name();
-            let name = name.to_string_lossy();
-            name.starts_with("aipm") && name.ends_with(".log")
-        });
+    let has_log = std::fs::read_dir(&temp_dir).unwrap().filter_map(|e| e.ok()).any(|entry| {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        name.starts_with("aipm") && name.ends_with(".log")
+    });
 
     assert!(has_log, "expected aipm*.log file in {}", temp_dir.display());
 }
