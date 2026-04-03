@@ -43,6 +43,13 @@ cargo test --workspace           # run all tests
 
 Initializes workspaces and migrates existing AI tool configurations into portable marketplace plugins.
 
+### Global Flags
+
+| Flag | Description |
+|------|-------------|
+| `-v, --verbose` | Increase verbosity (`-v` info, `-vv` debug, `-vvv` trace); default level is warn |
+| `--log-format <FMT>` | Tracing output format on stderr: `text` (default) or `json` |
+
 ### `aipm init`
 
 Scaffold a workspace with a `.ai/` local marketplace and tool-specific settings.
@@ -125,14 +132,17 @@ Shared library powering both CLIs. All logic lives here; the binaries are thin w
 | `init` | Plugin package scaffolding (`aipm-pack init`) |
 | `workspace_init` | Workspace + `.ai/` marketplace scaffolding (`aipm init`) |
 | `workspace_init::adaptors` | Tool-specific config writers (Claude Code; Copilot/Cursor planned) |
+| `workspace` | Workspace root discovery and `[workspace].members` glob expansion |
 | `migrate` | Tool config migration with recursive discovery, dry-run, and all artifact types |
 | `lint` | Quality linting for AI plugin configurations, diagnostics, and reporting |
+| `discovery` | Gitignore-aware recursive discovery of AI tool source directories (shared by `lint` and `migrate`) |
 | `installer` | Package installation pipeline and manifest editing |
 | `linker` | Local dev link overrides (`aipm link` / `unlink`) |
 | `lockfile` | Deterministic `aipm.lock` creation and drift detection |
 | `resolver` | Semver dependency resolution |
 | `store` | Content-addressable global package store |
 | `registry` | Registry client interface |
+| `logging` | Layered `tracing` subscriber initialization (stderr verbosity + rotating file log) |
 | `frontmatter` | YAML front-matter parsing for plugin files |
 | `fs` | Trait-based filesystem abstraction (`Real` + test mocking) |
 | `version` | Crate version constant |
