@@ -44,3 +44,15 @@ Changes:
 Verification:
 - cargo test --workspace: 1107 tests pass (4 new)
 - cargo clippy --workspace -- -D warnings: clean
+
+## 2026-04-03 — Feature 4: Update diagnostic sorting to use file_path then line then col
+
+Status: COMPLETE
+
+Changes:
+- Updated sort_by in lint/mod.rs to chain file_path -> line -> col comparisons
+- Added 2 new tests: diagnostics_sort_by_file_then_line_then_col, diagnostics_sort_none_line_before_some
+
+Verification:
+- cargo test --workspace: 1109 tests pass (2 new)
+- cargo clippy --workspace -- -D warnings: clean

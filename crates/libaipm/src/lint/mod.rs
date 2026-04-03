@@ -127,8 +127,13 @@ pub fn lint(opts: &Options, fs: &dyn Fs) -> Result<Outcome, Error> {
         run_rules_for_source(".ai", &scan_dir, &opts.dir, fs, &opts.config, &mut all_diagnostics)?;
     }
 
-    // Sort by file path for consistent output
-    all_diagnostics.sort_by(|a, b| a.file_path.cmp(&b.file_path));
+    // Sort by file path, then line, then column for consistent output
+    all_diagnostics.sort_by(|a, b| {
+        a.file_path
+            .cmp(&b.file_path)
+            .then_with(|| a.line.cmp(&b.line))
+            .then_with(|| a.col.cmp(&b.col))
+    });
 
     let error_count = all_diagnostics.iter().filter(|d| d.severity == Severity::Error).count();
     let warning_count = all_diagnostics.iter().filter(|d| d.severity == Severity::Warning).count();
@@ -911,5 +916,107 @@ mod tests {
             }),
             "vendor .claude/skills diagnostic should be filtered by rule ignore"
         );
+    }
+
+    // --- Sorting tests ---
+
+    #[test]
+    fn diagnostics_sort_by_file_then_line_then_col() {
+        let mut diags = vec![
+            Diagnostic {
+                rule_id: "r1".into(),
+                severity: Severity::Warning,
+                message: "m".into(),
+                file_path: PathBuf::from("b.md"),
+                line: Some(5),
+                col: Some(10),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+            },
+            Diagnostic {
+                rule_id: "r2".into(),
+                severity: Severity::Error,
+                message: "m".into(),
+                file_path: PathBuf::from("a.md"),
+                line: Some(3),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+            },
+            Diagnostic {
+                rule_id: "r3".into(),
+                severity: Severity::Warning,
+                message: "m".into(),
+                file_path: PathBuf::from("a.md"),
+                line: Some(1),
+                col: Some(5),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+            },
+            Diagnostic {
+                rule_id: "r4".into(),
+                severity: Severity::Warning,
+                message: "m".into(),
+                file_path: PathBuf::from("a.md"),
+                line: Some(1),
+                col: Some(1),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+            },
+        ];
+
+        diags.sort_by(|a, b| {
+            a.file_path
+                .cmp(&b.file_path)
+                .then_with(|| a.line.cmp(&b.line))
+                .then_with(|| a.col.cmp(&b.col))
+        });
+
+        assert_eq!(diags[0].rule_id, "r4"); // a.md:1:1
+        assert_eq!(diags[1].rule_id, "r3"); // a.md:1:5
+        assert_eq!(diags[2].rule_id, "r2"); // a.md:3:None
+        assert_eq!(diags[3].rule_id, "r1"); // b.md:5:10
+    }
+
+    #[test]
+    fn diagnostics_sort_none_line_before_some() {
+        let mut diags = vec![
+            Diagnostic {
+                rule_id: "with_line".into(),
+                severity: Severity::Warning,
+                message: "m".into(),
+                file_path: PathBuf::from("a.md"),
+                line: Some(5),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+            },
+            Diagnostic {
+                rule_id: "no_line".into(),
+                severity: Severity::Warning,
+                message: "m".into(),
+                file_path: PathBuf::from("a.md"),
+                line: None,
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+            },
+        ];
+
+        diags.sort_by(|a, b| {
+            a.file_path
+                .cmp(&b.file_path)
+                .then_with(|| a.line.cmp(&b.line))
+                .then_with(|| a.col.cmp(&b.col))
+        });
+
+        assert_eq!(diags[0].rule_id, "no_line"); // None sorts before Some
+        assert_eq!(diags[1].rule_id, "with_line");
     }
 }

@@ -72,7 +72,7 @@
       "Run cargo test --workspace",
       "Run cargo clippy --workspace -- -D warnings"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
