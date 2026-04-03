@@ -15,3 +15,17 @@ Verification:
 - cargo test --workspace: 74 scenarios, 354 steps all pass
 - cargo clippy --workspace -- -D warnings: clean
 - cargo fmt --check: clean
+
+## 2026-04-03 — Feature 2: Extend Rule trait with help_url() and help_text() default methods
+
+Status: COMPLETE
+
+Changes:
+- Added `help_url(&self) -> Option<&'static str>` with default `None` to Rule trait in rule.rs
+- Added `help_text(&self) -> Option<&'static str>` with default `None` to Rule trait in rule.rs
+- Default method impls mean zero breakage for all 12 existing rule implementations
+
+Verification:
+- cargo build --workspace: OK
+- cargo test --workspace: 1103 unit + 74 BDD scenarios all pass
+- cargo clippy --workspace -- -D warnings: clean

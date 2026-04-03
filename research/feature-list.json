@@ -36,7 +36,7 @@
       "Run cargo test --workspace to verify all existing tests pass",
       "Run cargo clippy --workspace -- -D warnings"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
