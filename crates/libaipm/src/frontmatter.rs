@@ -594,4 +594,92 @@ mod tests {
         // Querying a non-existent key returns None
         assert_eq!(fm.field_lines.get("nonexistent"), None);
     }
+
+    #[test]
+    fn parse_leading_spaces_only() {
+        // Leading whitespace with no newlines — covers the ch != '\n' branch at line 50
+        let content = "  ---\nname: test\n---\nbody";
+        let result = parse(content);
+        if let Ok(Some(fm)) = result {
+            assert_eq!(fm.start_line, 1);
+            assert_eq!(fm.fields.get("name").map(|s| s.as_str()), Some("test"));
+        } else {
+            assert!(false, "expected Some(Frontmatter)");
+        }
+    }
+
+    #[test]
+    fn parse_leading_blank_lines_start_line_offset() {
+        let content = "\n\n---\nname: test\n---\nbody";
+        let result = parse(content);
+        if let Ok(Some(fm)) = result {
+            assert_eq!(fm.start_line, 3);
+            assert_eq!(fm.fields.get("name").map(|s| s.as_str()), Some("test"));
+        } else {
+            assert!(false, "expected Some(Frontmatter)");
+        }
+    }
+
+    #[test]
+    fn parse_tab_indented_multiline() {
+        let content = "---\nhooks:\n\tPreToolUse\n\tPostToolUse\n---\nbody";
+        let result = parse(content);
+        if let Ok(Some(fm)) = result {
+            let hooks = fm.fields.get("hooks").map(|s| s.as_str());
+            assert!(hooks.is_some());
+            assert!(hooks.unwrap_or("").contains("PreToolUse"));
+        } else {
+            assert!(false, "expected Some(Frontmatter)");
+        }
+    }
+
+    #[test]
+    fn strip_yaml_quotes_single_quotes() {
+        assert_eq!(strip_yaml_quotes("'hello'"), "hello");
+        assert_eq!(strip_yaml_quotes("'a'"), "a");
+    }
+
+    #[test]
+    fn strip_yaml_quotes_no_match_cases() {
+        assert_eq!(strip_yaml_quotes("hello"), "hello");
+        assert_eq!(strip_yaml_quotes("'mixed\""), "'mixed\"");
+        assert_eq!(strip_yaml_quotes(""), "");
+        // Single char — less than 2 bytes, so no stripping
+        assert_eq!(strip_yaml_quotes("'"), "'");
+        assert_eq!(strip_yaml_quotes("\""), "\"");
+    }
+
+    #[test]
+    fn parse_key_empty_value_no_continuation() {
+        let content = "---\nempty_key:\nnext: value\n---\nbody";
+        let result = parse(content);
+        if let Ok(Some(fm)) = result {
+            assert_eq!(fm.fields.get("empty_key").map(|s| s.as_str()), Some(""));
+            assert_eq!(fm.fields.get("next").map(|s| s.as_str()), Some("value"));
+        } else {
+            assert!(false, "expected Some(Frontmatter)");
+        }
+    }
+
+    #[test]
+    fn parse_final_key_empty_no_continuation() {
+        let content = "---\ntrailing:\n---\nbody";
+        let result = parse(content);
+        if let Ok(Some(fm)) = result {
+            assert_eq!(fm.fields.get("trailing").map(|s| s.as_str()), Some(""));
+        } else {
+            assert!(false, "expected Some(Frontmatter)");
+        }
+    }
+
+    #[test]
+    fn parse_carriage_return_body() {
+        let content = "---\nname: test\n---\r\nbody with cr";
+        let result = parse(content);
+        if let Ok(Some(fm)) = result {
+            assert!(fm.body.contains("body with cr"));
+        } else {
+            assert!(false, "expected Some(Frontmatter)");
+        }
+    }
 }

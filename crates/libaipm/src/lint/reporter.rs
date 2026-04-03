@@ -257,14 +257,14 @@ impl Reporter for Json {
                 Severity::Error => 1,
                 Severity::Warning => 2,
             };
-            let help_url_json = d.help_url.as_ref().map_or_else(
-                || "null".to_string(),
-                |u| format!("\"{}\"", escape_json_string(u)),
-            );
-            let help_text_json = d.help_text.as_ref().map_or_else(
-                || "null".to_string(),
-                |t| format!("\"{}\"", escape_json_string(t)),
-            );
+            let help_url_json = d
+                .help_url
+                .as_ref()
+                .map_or_else(|| "null".to_string(), |u| format!("\"{}\"", escape_json_string(u)));
+            let help_text_json = d
+                .help_text
+                .as_ref()
+                .map_or_else(|| "null".to_string(), |t| format!("\"{}\"", escape_json_string(t)));
             writeln!(writer, "    {{")?;
             writeln!(writer, "      \"rule_id\": \"{}\",", d.rule_id)?;
             writeln!(writer, "      \"severity\": \"{}\",", d.severity)?;
@@ -433,6 +433,91 @@ mod tests {
         Text.report(&outcome, &mut buf).ok();
         let output = String::from_utf8(buf).unwrap_or_default();
         assert!(output.contains("no issues found"));
+    }
+
+    #[test]
+    fn text_reporter_warnings_only() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/warn".into(),
+                severity: Severity::Warning,
+                message: "a warning".into(),
+                file_path: PathBuf::from("test.md"),
+                line: Some(1),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        Text.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("1 warning(s) emitted"));
+        assert!(!output.contains("error(s) emitted"));
+        assert!(!output.contains("no issues found"));
+    }
+
+    #[test]
+    fn text_reporter_errors_only() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/err".into(),
+                severity: Severity::Error,
+                message: "an error".into(),
+                file_path: PathBuf::from("test.md"),
+                line: Some(1),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 1,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        Text.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("1 error(s) emitted"));
+        assert!(!output.contains("warning(s) emitted"));
+        assert!(!output.contains("no issues found"));
+    }
+
+    #[test]
+    fn human_reporter_line_past_file_end() {
+        let mut mock_fs = MockFs::new();
+        mock_fs.files.insert(PathBuf::from("/project/test.md"), "only one line".to_string());
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/oob".into(),
+                severity: Severity::Warning,
+                message: "out of bounds".into(),
+                file_path: PathBuf::from("test.md"),
+                line: Some(999),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("test/oob"));
     }
 
     #[test]
@@ -799,6 +884,182 @@ mod tests {
         reporter.report(&outcome, &mut buf).ok();
         let output = String::from_utf8(buf).unwrap_or_default();
         assert!(output.contains("no issues found"));
+    }
+
+    #[test]
+    fn human_reporter_col_only_span() {
+        let mut mock_fs = MockFs::new();
+        mock_fs.files.insert(
+            PathBuf::from("/project/test.md"),
+            "line one\nline two\nline three".to_string(),
+        );
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/col".into(),
+                severity: Severity::Warning,
+                message: "col only".into(),
+                file_path: PathBuf::from("test.md"),
+                line: Some(2),
+                col: Some(3),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("line two"));
+        assert!(output.contains("test/col"));
+    }
+
+    #[test]
+    fn human_reporter_col_and_end_col_span() {
+        let mut mock_fs = MockFs::new();
+        mock_fs.files.insert(
+            PathBuf::from("/project/test.md"),
+            "line one\nline two\nline three".to_string(),
+        );
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/range".into(),
+                severity: Severity::Error,
+                message: "col range".into(),
+                file_path: PathBuf::from("test.md"),
+                line: Some(2),
+                col: Some(1),
+                end_line: Some(2),
+                end_col: Some(4),
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 1,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("line two"));
+        assert!(output.contains("test/range"));
+    }
+
+    #[test]
+    fn human_reporter_help_text_and_url_together() {
+        let mock_fs = MockFs::new();
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/both".into(),
+                severity: Severity::Warning,
+                message: "both help".into(),
+                file_path: PathBuf::from("test.md"),
+                line: None,
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: Some("fix this".into()),
+                help_url: Some("https://example.com/rule".into()),
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("fix this"));
+        assert!(output.contains("https://example.com/rule"));
+    }
+
+    #[test]
+    fn color_choice_never_always() {
+        assert!(!ColorChoice::Never.should_color());
+        assert!(ColorChoice::Always.should_color());
+    }
+
+    #[test]
+    fn color_choice_auto_no_color_env() {
+        // Serialize env var access to avoid races
+        static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = ENV_LOCK.lock();
+
+        // Test NO_COLOR suppresses color
+        std::env::set_var("NO_COLOR", "1");
+        std::env::remove_var("CLICOLOR");
+        assert!(!ColorChoice::Auto.should_color());
+
+        // Test CLICOLOR=0 suppresses color
+        std::env::remove_var("NO_COLOR");
+        std::env::set_var("CLICOLOR", "0");
+        assert!(!ColorChoice::Auto.should_color());
+
+        // Test Auto fallback (no env overrides)
+        std::env::remove_var("NO_COLOR");
+        std::env::remove_var("CLICOLOR");
+        // Result depends on TTY/CI detection — just ensure it doesn't panic
+        let _ = ColorChoice::Auto.should_color();
+    }
+
+    #[test]
+    fn ci_github_with_col() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Error,
+                message: "msg".into(),
+                file_path: PathBuf::from("file.md"),
+                line: Some(10),
+                col: Some(5),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 1,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiGitHub.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("line=10,col=5"));
+    }
+
+    #[test]
+    fn ci_azure_with_col() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Error,
+                message: "msg".into(),
+                file_path: PathBuf::from("file.md"),
+                line: Some(10),
+                col: Some(5),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 1,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("linenumber=10;columnnumber=5"));
     }
 
     #[test]

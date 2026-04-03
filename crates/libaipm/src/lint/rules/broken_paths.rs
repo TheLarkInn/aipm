@@ -269,6 +269,20 @@ mod tests {
     }
 
     #[test]
+    fn multiple_references_on_same_line() {
+        let mut fs = MockFs::new();
+        let content = "---\nname: s\n---\n${CLAUDE_SKILL_DIR}/a.sh ${CLAUDE_SKILL_DIR}/b.sh";
+        fs.add_skill("p", "s", content);
+
+        let result = BrokenPaths.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 2);
+        assert!(diags.iter().any(|d| d.message.contains("a.sh")));
+        assert!(diags.iter().any(|d| d.message.contains("b.sh")));
+    }
+
+    #[test]
     fn line_number_is_correct() {
         let mut fs = MockFs::new();
         let content = "---\nname: s\n---\nline1\nline2\n${CLAUDE_SKILL_DIR}/scripts/x.sh";

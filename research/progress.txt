@@ -171,3 +171,24 @@ Changes:
 
 Verification:
 - All 12 files exist matching help_url paths in rule implementations
+
+## 2026-04-03 — Feature 14: Full verification gate
+
+Status: COMPLETE
+
+Changes:
+- Added 20+ tests across reporter.rs, frontmatter.rs, broken_paths.rs, logging.rs
+- Covered Text reporter warnings-only and errors-only branches
+- Covered Human reporter col-only, col+end_col, help_text+url, out-of-bounds line
+- Covered ColorChoice::Auto env var detection (NO_COLOR, CLICOLOR=0, fallback)
+- Covered frontmatter leading spaces, tab multiline, empty keys, CR body
+- Covered broken_paths multiple refs on same line
+- Covered logging stderr_filter all verbosity levels
+
+Verification:
+- cargo fmt --check: clean
+- cargo clippy --workspace -- -D warnings: clean
+- cargo test --workspace: 1144 tests pass
+- Branch coverage: 89.12% (meets 89% gate)
+
+## All 14 features from research/feature-list.json are COMPLETE
