@@ -570,6 +570,10 @@ mod tests {
         let git = Git::new(&url, &cache_root).expect("Git::new");
         std::fs::create_dir_all(&git.cache_dir).expect("create cache_dir");
         git2::Repository::clone(&url, &git.cache_dir).expect("pre-clone");
+        assert!(
+            git.cache_dir.join(".git").exists(),
+            "expected pre-cloned cache dir to contain .git so the fetch path is exercised"
+        );
 
         // --- exercise the fetch branch ---
 
