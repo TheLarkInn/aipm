@@ -25,20 +25,33 @@ impl Rule for MissingName {
         Severity::Warning
     }
 
+    fn help_url(&self) -> Option<&'static str> {
+        Some("https://github.com/TheLarkInn/aipm/blob/main/docs/rules/skill/missing-name.md")
+    }
+
+    fn help_text(&self) -> Option<&'static str> {
+        Some("add a \"name\" field to the YAML frontmatter")
+    }
+
     fn check(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
         let mut diagnostics = Vec::new();
 
         for skill in scan::scan_skills(source_dir, fs) {
             match skill.frontmatter {
-                Some(fm) if fm.fields.get("name").is_some_and(|v| !v.trim().is_empty()) => {},
-                Some(_) => {
+                Some(ref fm) if fm.fields.get("name").is_some_and(|v| !v.trim().is_empty()) => {},
+                Some(ref fm) => {
                     diagnostics.push(Diagnostic {
                         rule_id: self.id().to_string(),
                         severity: self.default_severity(),
                         message: "SKILL.md missing required field: name".to_string(),
                         file_path: skill.path,
-                        line: Some(1),
+                        line: Some(fm.start_line),
+                        col: None,
+                        end_line: None,
+                        end_col: None,
                         source_type: ".ai".to_string(),
+                        help_text: None,
+                        help_url: None,
                     });
                 },
                 None => {
@@ -48,7 +61,12 @@ impl Rule for MissingName {
                         message: "SKILL.md has no frontmatter".to_string(),
                         file_path: skill.path,
                         line: Some(1),
+                        col: None,
+                        end_line: None,
+                        end_col: None,
                         source_type: ".ai".to_string(),
+                        help_text: None,
+                        help_url: None,
                     });
                 },
             }

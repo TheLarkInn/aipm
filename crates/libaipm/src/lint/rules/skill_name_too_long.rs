@@ -30,6 +30,14 @@ impl Rule for NameTooLong {
         Severity::Warning
     }
 
+    fn help_url(&self) -> Option<&'static str> {
+        Some("https://github.com/TheLarkInn/aipm/blob/main/docs/rules/skill/name-too-long.md")
+    }
+
+    fn help_text(&self) -> Option<&'static str> {
+        Some("shorten the name to 60 characters or fewer")
+    }
+
     fn check(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
         let mut diagnostics = Vec::new();
 
@@ -46,8 +54,13 @@ impl Rule for NameTooLong {
                                 name.len()
                             ),
                             file_path: skill.path,
-                            line: Some(1),
+                            line: fm.field_lines.get("name").copied(),
+                            col: None,
+                            end_line: None,
+                            end_col: None,
                             source_type: ".ai".to_string(),
+                            help_text: None,
+                            help_url: None,
                         });
                     }
                 }

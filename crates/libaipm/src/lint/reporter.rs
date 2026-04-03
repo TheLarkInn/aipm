@@ -1,6 +1,11 @@
 //! Output reporters for lint diagnostics.
 
 use std::io::Write;
+use std::path::Path;
+
+use annotate_snippets::{Level, Renderer, Snippet};
+
+use crate::fs::Fs;
 
 use super::{Diagnostic, Outcome, Severity};
 
@@ -51,6 +56,185 @@ fn write_diagnostic(d: &Diagnostic, writer: &mut dyn Write) -> std::io::Result<(
     Ok(())
 }
 
+/// Color choice for the Human reporter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ColorChoice {
+    /// Never emit ANSI color codes.
+    Never,
+    /// Auto-detect based on TTY, `NO_COLOR`, and `CLICOLOR`.
+    Auto,
+    /// Always emit ANSI color codes.
+    Always,
+}
+
+impl ColorChoice {
+    /// Resolve the color choice into a boolean using environment detection.
+    pub fn should_color(self) -> bool {
+        match self {
+            Self::Never => false,
+            Self::Always => true,
+            Self::Auto => {
+                // Respect NO_COLOR (https://no-color.org/)
+                if std::env::var_os("NO_COLOR").is_some() {
+                    return false;
+                }
+                // Respect CLICOLOR=0
+                if std::env::var("CLICOLOR").ok().as_deref() == Some("0") {
+                    return false;
+                }
+                // Check terminal color support (do NOT force color on CI — that
+                // would inject ANSI escape codes into non-TTY CI log streams)
+                anstyle_query::term_supports_ansi_color()
+            },
+        }
+    }
+}
+
+/// Rich colored terminal reporter with source code snippets.
+///
+/// Uses `annotate-snippets` for rustc-style diagnostic rendering with
+/// ANSI color support. Reads source files via `&dyn Fs` at render time.
+pub struct Human<'a> {
+    /// Filesystem for reading source files to render snippets.
+    pub fs: &'a dyn Fs,
+    /// Color output mode.
+    pub color: ColorChoice,
+    /// Base directory for resolving diagnostic file paths.
+    pub base_dir: &'a Path,
+}
+
+impl Reporter for Human<'_> {
+    fn report(&self, outcome: &Outcome, writer: &mut dyn Write) -> std::io::Result<()> {
+        let renderer =
+            if self.color.should_color() { Renderer::styled() } else { Renderer::plain() };
+
+        for d in &outcome.diagnostics {
+            self.write_rich_diagnostic(d, &renderer, writer)?;
+        }
+
+        if outcome.error_count == 0 && outcome.warning_count == 0 {
+            writeln!(writer, "no issues found")?;
+        } else {
+            if outcome.warning_count > 0 {
+                writeln!(
+                    writer,
+                    "{}: {} warning(s) emitted",
+                    Severity::Warning,
+                    outcome.warning_count
+                )?;
+            }
+            if outcome.error_count > 0 {
+                writeln!(writer, "{}: {} error(s) emitted", Severity::Error, outcome.error_count)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Human<'_> {
+    fn write_rich_diagnostic(
+        &self,
+        d: &Diagnostic,
+        renderer: &Renderer,
+        writer: &mut dyn Write,
+    ) -> std::io::Result<()> {
+        let level = match d.severity {
+            Severity::Error => Level::Error,
+            Severity::Warning => Level::Warning,
+        };
+
+        // Try to read the source file for snippet context
+        let file_path = self.base_dir.join(&d.file_path);
+        let source_content = self.fs.read_to_string(&file_path).ok();
+
+        let origin = d.file_path.display().to_string();
+
+        // Pre-compute snippet source string so it outlives the message borrow
+        let snippet_data = if let (Some(line), Some(ref content)) = (d.line, &source_content) {
+            let lines: Vec<&str> = content.lines().collect();
+            let total_lines = lines.len();
+
+            let target_idx = line.saturating_sub(1);
+            let start_idx = target_idx.saturating_sub(1);
+            let end_idx = (target_idx + 2).min(total_lines);
+
+            if start_idx < total_lines && start_idx < end_idx {
+                let context_lines: Vec<&str> =
+                    lines.get(start_idx..end_idx).unwrap_or(&[]).to_vec();
+                let snippet_source = context_lines.join("\n");
+
+                let mut byte_offset = 0;
+                for (i, ctx_line) in context_lines.iter().enumerate() {
+                    if start_idx + i == target_idx {
+                        break;
+                    }
+                    byte_offset += ctx_line.len() + 1;
+                }
+
+                let target_line_in_snippet =
+                    context_lines.get(target_idx - start_idx).unwrap_or(&"");
+                let target_line_len = target_line_in_snippet.len();
+
+                let (span_start, span_end) = if let (Some(col), Some(end_col)) = (d.col, d.end_col)
+                {
+                    let start = byte_offset + col.saturating_sub(1);
+                    let end = byte_offset + end_col.min(target_line_len);
+                    (start, end)
+                } else if let Some(col) = d.col {
+                    let start = byte_offset + col.saturating_sub(1);
+                    let end = (start + 1).min(byte_offset + target_line_len);
+                    (start, end)
+                } else {
+                    (byte_offset, byte_offset + target_line_len)
+                };
+
+                let snippet_len = snippet_source.len();
+                let span_start = span_start.min(snippet_len);
+                let span_end = span_end.min(snippet_len).max(span_start);
+
+                Some((snippet_source, start_idx, span_start, span_end))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Build the annotate-snippets Message
+        let mut message = level.title(&d.message).id(&d.rule_id);
+
+        // Add snippet if we have pre-computed data; always attach origin for
+        // location context even when source cannot be read or line is out of range.
+        if let Some((ref snippet_source, start_idx, span_start, span_end)) = snippet_data {
+            let snippet = Snippet::source(snippet_source)
+                .line_start(start_idx + 1) // 1-based
+                .origin(&origin)
+                .annotation(level.span(span_start..span_end));
+            message = message.snippet(snippet);
+        } else {
+            // Directory-level or unreadable file — show origin without snippet
+            let snippet = Snippet::source("").origin(&origin);
+            message = message.snippet(snippet);
+        }
+
+        // Add help text and help URL as footers, then render once
+        if let Some(ref help_text) = d.help_text {
+            message = message.footer(Level::Help.title(help_text));
+        }
+        let link_msg;
+        if let Some(ref help_url) = d.help_url {
+            link_msg = format!("for further information visit {help_url}");
+            message = message.footer(Level::Help.title(&link_msg));
+        }
+
+        let msg_output = renderer.render(message);
+        writeln!(writer, "{msg_output}")?;
+
+        Ok(())
+    }
+}
+
 /// JSON reporter for CI/tooling integration.
 pub struct Json;
 
@@ -63,17 +247,36 @@ impl Reporter for Json {
 
         for (i, d) in outcome.diagnostics.iter().enumerate() {
             let comma = if i + 1 < outcome.diagnostics.len() { "," } else { "" };
-            let line_str = d.line.map_or_else(|| "null".to_string(), |l| l.to_string());
+            let to_json_opt =
+                |v: Option<usize>| v.map_or_else(|| "null".to_string(), |n| n.to_string());
+            let severity_code = match d.severity {
+                Severity::Error => 1,
+                Severity::Warning => 2,
+            };
+            let help_url_json = d
+                .help_url
+                .as_ref()
+                .map_or_else(|| "null".to_string(), |u| format!("\"{}\"", escape_json_string(u)));
+            let help_text_json = d
+                .help_text
+                .as_ref()
+                .map_or_else(|| "null".to_string(), |t| format!("\"{}\"", escape_json_string(t)));
             writeln!(writer, "    {{")?;
             writeln!(writer, "      \"rule_id\": \"{}\",", d.rule_id)?;
             writeln!(writer, "      \"severity\": \"{}\",", d.severity)?;
+            writeln!(writer, "      \"severity_code\": {severity_code},")?;
             writeln!(writer, "      \"message\": \"{}\",", escape_json_string(&d.message))?;
             writeln!(
                 writer,
                 "      \"file_path\": \"{}\",",
                 escape_json_string(&d.file_path.display().to_string())
             )?;
-            writeln!(writer, "      \"line\": {line_str},")?;
+            writeln!(writer, "      \"line\": {},", to_json_opt(d.line))?;
+            writeln!(writer, "      \"col\": {},", to_json_opt(d.col))?;
+            writeln!(writer, "      \"end_line\": {},", to_json_opt(d.end_line))?;
+            writeln!(writer, "      \"end_col\": {},", to_json_opt(d.end_col))?;
+            writeln!(writer, "      \"help_url\": {help_url_json},")?;
+            writeln!(writer, "      \"help_text\": {help_text_json},")?;
             writeln!(writer, "      \"source_type\": \"{}\"", d.source_type)?;
             writeln!(writer, "    }}{comma}")?;
         }
@@ -99,6 +302,85 @@ impl Reporter for Json {
     }
 }
 
+/// GitHub Actions annotation reporter.
+///
+/// Emits `::error` and `::warning` workflow commands that GitHub renders
+/// as inline PR annotations.
+pub struct CiGitHub;
+
+impl Reporter for CiGitHub {
+    fn report(&self, outcome: &Outcome, writer: &mut dyn Write) -> std::io::Result<()> {
+        for d in &outcome.diagnostics {
+            let severity = match d.severity {
+                Severity::Error => "error",
+                Severity::Warning => "warning",
+            };
+            let line = d.line.unwrap_or(1);
+            let col = d.col.unwrap_or(1);
+            // GitHub Actions workflow command escaping (properties and message)
+            let file = escape_github_prop(&d.file_path.display().to_string());
+            let rule_id = escape_github_message(&d.rule_id);
+            let message = escape_github_message(&d.message);
+            writeln!(
+                writer,
+                "::{severity} file={file},line={line},col={col}::{rule_id}: {message}",
+            )?;
+        }
+        Ok(())
+    }
+}
+
+/// Azure DevOps annotation reporter.
+///
+/// Emits `##vso[task.logissue]` logging commands that Azure DevOps
+/// renders as pipeline annotations.
+pub struct CiAzure;
+
+impl Reporter for CiAzure {
+    fn report(&self, outcome: &Outcome, writer: &mut dyn Write) -> std::io::Result<()> {
+        for d in &outcome.diagnostics {
+            let severity = match d.severity {
+                Severity::Error => "error",
+                Severity::Warning => "warning",
+            };
+            let line = d.line.unwrap_or(1);
+            let col = d.col.unwrap_or(1);
+            // Azure DevOps log-command escaping for property block and message
+            let sourcepath = escape_azure_log_command(&d.file_path.display().to_string());
+            let rule_id = escape_azure_log_command(&d.rule_id);
+            let message = escape_azure_log_command(&d.message);
+            writeln!(
+                writer,
+                "##vso[task.logissue type={severity};sourcepath={sourcepath};linenumber={line};columnnumber={col}]{rule_id}: {message}",
+            )?;
+        }
+        Ok(())
+    }
+}
+
+/// Escape a string for use in GitHub Actions workflow command properties.
+fn escape_github_prop(s: &str) -> String {
+    s.replace('%', "%25")
+        .replace('\r', "%0D")
+        .replace('\n', "%0A")
+        .replace(':', "%3A")
+        .replace(',', "%2C")
+}
+
+/// Escape a string for use in GitHub Actions workflow command message bodies.
+fn escape_github_message(s: &str) -> String {
+    s.replace('%', "%25").replace('\r', "%0D").replace('\n', "%0A")
+}
+
+/// Escape a string for use in Azure DevOps `##vso[...]` log commands.
+fn escape_azure_log_command(s: &str) -> String {
+    s.replace('%', "%AZP25")
+        .replace('\r', "%0D")
+        .replace('\n', "%0A")
+        .replace(';', "%3B")
+        .replace(']', "%5D")
+}
+
 fn escape_json_string(s: &str) -> String {
     s.replace('\\', "\\\\")
         .replace('"', "\\\"")
@@ -121,7 +403,12 @@ mod tests {
                     message: "SKILL.md missing required field: description".to_string(),
                     file_path: PathBuf::from(".ai/my-plugin/skills/default/SKILL.md"),
                     line: Some(1),
+                    col: None,
+                    end_line: None,
+                    end_col: None,
                     source_type: ".ai".to_string(),
+                    help_text: None,
+                    help_url: None,
                 },
                 Diagnostic {
                     rule_id: "hook/unknown-event".to_string(),
@@ -129,7 +416,12 @@ mod tests {
                     message: "unknown hook event: InvalidEvent".to_string(),
                     file_path: PathBuf::from(".ai/my-plugin/hooks/hooks.json"),
                     line: Some(5),
+                    col: None,
+                    end_line: None,
+                    end_col: None,
                     source_type: ".ai".to_string(),
+                    help_text: None,
+                    help_url: None,
                 },
             ],
             error_count: 1,
@@ -165,6 +457,91 @@ mod tests {
     }
 
     #[test]
+    fn text_reporter_warnings_only() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/warn".into(),
+                severity: Severity::Warning,
+                message: "a warning".into(),
+                file_path: PathBuf::from("test.md"),
+                line: Some(1),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        Text.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("1 warning(s) emitted"));
+        assert!(!output.contains("error(s) emitted"));
+        assert!(!output.contains("no issues found"));
+    }
+
+    #[test]
+    fn text_reporter_errors_only() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/err".into(),
+                severity: Severity::Error,
+                message: "an error".into(),
+                file_path: PathBuf::from("test.md"),
+                line: Some(1),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 1,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        Text.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("1 error(s) emitted"));
+        assert!(!output.contains("warning(s) emitted"));
+        assert!(!output.contains("no issues found"));
+    }
+
+    #[test]
+    fn human_reporter_line_past_file_end() {
+        let mut mock_fs = MockFs::new();
+        mock_fs.files.insert(PathBuf::from("/project/test.md"), "only one line".to_string());
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/oob".into(),
+                severity: Severity::Warning,
+                message: "out of bounds".into(),
+                file_path: PathBuf::from("test.md"),
+                line: Some(999),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("test/oob"));
+    }
+
+    #[test]
     fn json_reporter_valid_json() {
         let outcome = sample_outcome();
         let mut buf = Vec::new();
@@ -175,6 +552,51 @@ mod tests {
         assert!(output.contains("\"skill/missing-description\""));
         assert!(output.contains("\"errors\": 1"));
         assert!(output.contains("\"warnings\": 1"));
+    }
+
+    #[test]
+    fn json_reporter_includes_new_fields() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Error,
+                message: "test".into(),
+                file_path: PathBuf::from("test.md"),
+                line: Some(3),
+                col: Some(5),
+                end_line: Some(3),
+                end_col: Some(10),
+                source_type: ".ai".into(),
+                help_text: Some("fix it".into()),
+                help_url: Some("https://example.com".into()),
+            }],
+            error_count: 1,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        Json.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("\"severity_code\": 1"));
+        assert!(output.contains("\"col\": 5"));
+        assert!(output.contains("\"end_line\": 3"));
+        assert!(output.contains("\"end_col\": 10"));
+        assert!(output.contains("\"help_url\": \"https://example.com\""));
+        assert!(output.contains("\"help_text\": \"fix it\""));
+    }
+
+    #[test]
+    fn json_reporter_null_optional_fields() {
+        let outcome = sample_outcome();
+        let mut buf = Vec::new();
+        Json.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("\"col\": null"));
+        assert!(output.contains("\"end_line\": null"));
+        assert!(output.contains("\"end_col\": null"));
+        assert!(output.contains("\"help_url\": null"));
+        assert!(output.contains("\"help_text\": null"));
+        assert!(output.contains("\"severity_code\": 2")); // warning
     }
 
     #[test]
@@ -207,5 +629,488 @@ mod tests {
         assert_eq!(escape_json_string("hello \"world\""), "hello \\\"world\\\"");
         assert_eq!(escape_json_string("line1\nline2"), "line1\\nline2");
         assert_eq!(escape_json_string("path\\to\\file"), "path\\\\to\\\\file");
+    }
+
+    // --- Human reporter tests ---
+
+    // --- CI GitHub reporter tests ---
+
+    #[test]
+    fn ci_github_error_format() {
+        let outcome = sample_outcome();
+        let mut buf = Vec::new();
+        CiGitHub.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains(
+            "::warning file=.ai/my-plugin/skills/default/SKILL.md,line=1,col=1::skill/missing-description"
+        ));
+        assert!(output.contains(
+            "::error file=.ai/my-plugin/hooks/hooks.json,line=5,col=1::hook/unknown-event"
+        ));
+    }
+
+    #[test]
+    fn ci_github_empty_diagnostics() {
+        let outcome = Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiGitHub.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn ci_github_defaults_line_col() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Warning,
+                message: "msg".into(),
+                file_path: PathBuf::from("dir/"),
+                line: None,
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiGitHub.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("line=1,col=1"));
+    }
+
+    // --- CI Azure reporter tests ---
+
+    #[test]
+    fn ci_azure_error_format() {
+        let outcome = sample_outcome();
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("##vso[task.logissue type=warning;sourcepath=.ai/my-plugin/skills/default/SKILL.md;linenumber=1;columnnumber=1]skill/missing-description"));
+        assert!(output.contains("##vso[task.logissue type=error;sourcepath=.ai/my-plugin/hooks/hooks.json;linenumber=5;columnnumber=1]hook/unknown-event"));
+    }
+
+    #[test]
+    fn ci_azure_empty_diagnostics() {
+        let outcome = Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn ci_azure_defaults_line_col() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Warning,
+                message: "msg".into(),
+                file_path: PathBuf::from("dir/"),
+                line: None,
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("linenumber=1;columnnumber=1"));
+    }
+
+    // --- Human reporter tests ---
+
+    use crate::lint::rules::test_helpers::MockFs;
+
+    fn make_human_reporter(fs: &dyn Fs) -> Human<'_> {
+        Human { fs, color: ColorChoice::Never, base_dir: Path::new("/project") }
+    }
+
+    #[test]
+    fn human_reporter_no_color_output() {
+        let mut mock_fs = MockFs::new();
+        mock_fs.files.insert(
+            PathBuf::from("/project/.ai/my-plugin/skills/default/SKILL.md"),
+            "---\nname: my-skill\n---\nbody content".to_string(),
+        );
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = sample_outcome();
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        // Should contain rule id and message
+        assert!(output.contains("skill/missing-description"));
+        assert!(output.contains("SKILL.md missing required field: description"));
+        // Should not contain ANSI escape codes
+        assert!(!output.contains("\x1b["));
+        // Should have summary
+        assert!(output.contains("warning(s) emitted"));
+        assert!(output.contains("error(s) emitted"));
+    }
+
+    #[test]
+    fn human_reporter_renders_snippet_with_source() {
+        let mut mock_fs = MockFs::new();
+        mock_fs.files.insert(
+            PathBuf::from("/project/test.md"),
+            "line one\nline two\nline three\nline four".to_string(),
+        );
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Warning,
+                message: "test warning".into(),
+                file_path: PathBuf::from("test.md"),
+                line: Some(2),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        // Should contain context lines around line 2
+        assert!(output.contains("line one"));
+        assert!(output.contains("line two"));
+        assert!(output.contains("line three"));
+    }
+
+    #[test]
+    fn human_reporter_directory_level_no_snippet() {
+        let mock_fs = MockFs::new();
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "source/misplaced-features".into(),
+                severity: Severity::Warning,
+                message: "skill found in .claude/".into(),
+                file_path: PathBuf::from(".claude/skills/code-review/"),
+                line: None,
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".claude".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("source/misplaced-features"));
+        assert!(output.contains(".claude/skills/code-review/"));
+    }
+
+    #[test]
+    fn human_reporter_renders_help_text() {
+        let mock_fs = MockFs::new();
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Warning,
+                message: "test".into(),
+                file_path: PathBuf::from("test.md"),
+                line: None,
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: Some("add a name field".into()),
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("add a name field"));
+    }
+
+    #[test]
+    fn human_reporter_renders_help_url() {
+        let mock_fs = MockFs::new();
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Warning,
+                message: "test".into(),
+                file_path: PathBuf::from("test.md"),
+                line: None,
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: Some("https://example.com/rules/test".into()),
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("https://example.com/rules/test"));
+    }
+
+    #[test]
+    fn human_reporter_no_issues() {
+        let mock_fs = MockFs::new();
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("no issues found"));
+    }
+
+    #[test]
+    fn human_reporter_col_only_span() {
+        let mut mock_fs = MockFs::new();
+        mock_fs.files.insert(
+            PathBuf::from("/project/test.md"),
+            "line one\nline two\nline three".to_string(),
+        );
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/col".into(),
+                severity: Severity::Warning,
+                message: "col only".into(),
+                file_path: PathBuf::from("test.md"),
+                line: Some(2),
+                col: Some(3),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("line two"));
+        assert!(output.contains("test/col"));
+    }
+
+    #[test]
+    fn human_reporter_col_and_end_col_span() {
+        let mut mock_fs = MockFs::new();
+        mock_fs.files.insert(
+            PathBuf::from("/project/test.md"),
+            "line one\nline two\nline three".to_string(),
+        );
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/range".into(),
+                severity: Severity::Error,
+                message: "col range".into(),
+                file_path: PathBuf::from("test.md"),
+                line: Some(2),
+                col: Some(1),
+                end_line: Some(2),
+                end_col: Some(4),
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 1,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("line two"));
+        assert!(output.contains("test/range"));
+    }
+
+    #[test]
+    fn human_reporter_help_text_and_url_together() {
+        let mock_fs = MockFs::new();
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/both".into(),
+                severity: Severity::Warning,
+                message: "both help".into(),
+                file_path: PathBuf::from("test.md"),
+                line: None,
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: Some("fix this".into()),
+                help_url: Some("https://example.com/rule".into()),
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("fix this"));
+        assert!(output.contains("https://example.com/rule"));
+    }
+
+    #[test]
+    fn color_choice_never_always() {
+        assert!(!ColorChoice::Never.should_color());
+        assert!(ColorChoice::Always.should_color());
+    }
+
+    #[test]
+    fn color_choice_auto_no_color_env() {
+        // Serialize env var access to avoid races
+        static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = ENV_LOCK.lock();
+
+        // Test NO_COLOR suppresses color
+        std::env::set_var("NO_COLOR", "1");
+        std::env::remove_var("CLICOLOR");
+        assert!(!ColorChoice::Auto.should_color());
+
+        // Test CLICOLOR=0 suppresses color
+        std::env::remove_var("NO_COLOR");
+        std::env::set_var("CLICOLOR", "0");
+        assert!(!ColorChoice::Auto.should_color());
+
+        // Test Auto fallback (no env overrides)
+        std::env::remove_var("NO_COLOR");
+        std::env::remove_var("CLICOLOR");
+        // Result depends on TTY/CI detection — just ensure it doesn't panic
+        let _ = ColorChoice::Auto.should_color();
+    }
+
+    #[test]
+    fn ci_github_with_col() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Error,
+                message: "msg".into(),
+                file_path: PathBuf::from("file.md"),
+                line: Some(10),
+                col: Some(5),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 1,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiGitHub.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("line=10,col=5"));
+    }
+
+    #[test]
+    fn ci_azure_with_col() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Error,
+                message: "msg".into(),
+                file_path: PathBuf::from("file.md"),
+                line: Some(10),
+                col: Some(5),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 1,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("linenumber=10;columnnumber=5"));
+    }
+
+    #[test]
+    fn human_reporter_graceful_missing_file() {
+        // File doesn't exist in mock fs — should still render without snippet
+        let mock_fs = MockFs::new();
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Error,
+                message: "test error".into(),
+                file_path: PathBuf::from("nonexistent.md"),
+                line: Some(1),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 1,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        // Should still render the diagnostic header even without file
+        assert!(output.contains("test/rule"));
+        assert!(output.contains("test error"));
     }
 }

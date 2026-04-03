@@ -32,6 +32,14 @@ impl Rule for BrokenPaths {
         Severity::Error
     }
 
+    fn help_url(&self) -> Option<&'static str> {
+        Some("https://github.com/TheLarkInn/aipm/blob/main/docs/rules/plugin/broken-paths.md")
+    }
+
+    fn help_text(&self) -> Option<&'static str> {
+        Some("fix or remove the broken file reference")
+    }
+
     fn check(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
         let mut diagnostics = Vec::new();
 
@@ -44,6 +52,7 @@ impl Rule for BrokenPaths {
             for prefix in VARIABLE_PREFIXES {
                 for (line_num, line) in skill.content.lines().enumerate() {
                     let mut search = line;
+                    let mut col_offset: usize = 0;
                     while let Some(pos) = search.find(prefix) {
                         let after = &search[pos + prefix.len()..];
                         let end = after
@@ -67,10 +76,16 @@ impl Rule for BrokenPaths {
                                     ),
                                     file_path: skill.path.clone(),
                                     line: Some(line_num + 1),
+                                    col: Some(col_offset + pos + 1),
+                                    end_line: None,
+                                    end_col: None,
                                     source_type: ".ai".to_string(),
+                                    help_text: None,
+                                    help_url: None,
                                 });
                             }
                         }
+                        col_offset += pos + prefix.len() + end;
                         search = &search[pos + prefix.len() + end..];
                     }
                 }
@@ -251,6 +266,20 @@ mod tests {
         assert!(result.is_ok());
         // Empty path should be skipped
         assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn multiple_references_on_same_line() {
+        let mut fs = MockFs::new();
+        let content = "---\nname: s\n---\n${CLAUDE_SKILL_DIR}/a.sh ${CLAUDE_SKILL_DIR}/b.sh";
+        fs.add_skill("p", "s", content);
+
+        let result = BrokenPaths.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 2);
+        assert!(diags.iter().any(|d| d.message.contains("a.sh")));
+        assert!(diags.iter().any(|d| d.message.contains("b.sh")));
     }
 
     #[test]

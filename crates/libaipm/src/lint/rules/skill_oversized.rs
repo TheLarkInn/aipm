@@ -30,6 +30,14 @@ impl Rule for Oversized {
         Severity::Warning
     }
 
+    fn help_url(&self) -> Option<&'static str> {
+        Some("https://github.com/TheLarkInn/aipm/blob/main/docs/rules/skill/oversized.md")
+    }
+
+    fn help_text(&self) -> Option<&'static str> {
+        Some("reduce file size below 15000 characters")
+    }
+
     fn check(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
         let mut diagnostics = Vec::new();
 
@@ -45,7 +53,12 @@ impl Rule for Oversized {
                     ),
                     file_path: skill.path,
                     line: Some(1),
+                    col: None,
+                    end_line: None,
+                    end_col: None,
                     source_type: ".ai".to_string(),
+                    help_text: None,
+                    help_url: None,
                 });
             }
         }

@@ -29,6 +29,9 @@ rayon = { workspace = true }
 git2 = { workspace = true }
 ureq = { workspace = true }
 tempfile = { workspace = true }
+annotate-snippets = { workspace = true }
+anstyle = { workspace = true }
+anstyle-query = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 junction = { workspace = true }

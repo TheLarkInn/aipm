@@ -28,6 +28,14 @@ impl Rule for UnknownEvent {
         Severity::Error
     }
 
+    fn help_url(&self) -> Option<&'static str> {
+        Some("https://github.com/TheLarkInn/aipm/blob/main/docs/rules/hook/unknown-event.md")
+    }
+
+    fn help_text(&self) -> Option<&'static str> {
+        Some("use a valid hook event name")
+    }
+
     fn check(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
         let mut diagnostics = Vec::new();
 
@@ -43,7 +51,12 @@ impl Rule for UnknownEvent {
                         message: format!("failed to parse hooks.json: {e}"),
                         file_path: path,
                         line: Some(1),
+                        col: None,
+                        end_line: None,
+                        end_col: None,
                         source_type: ".ai".to_string(),
+                        help_text: None,
+                        help_url: None,
                     });
                     continue;
                 },
@@ -71,7 +84,12 @@ impl Rule for UnknownEvent {
                         message: format!("unknown hook event: {key}"),
                         file_path: path.clone(),
                         line: None,
+                        col: None,
+                        end_line: None,
+                        end_col: None,
                         source_type: ".ai".to_string(),
+                        help_text: None,
+                        help_url: None,
                     });
                 }
             }

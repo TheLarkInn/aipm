@@ -1,28 +1,194 @@
-2026-04-03: Verbosity Levels Implementation (Issue #189) — COMPLETE
+## 2026-04-03 — Feature 1: Extend Diagnostic struct with col, end_line, end_col fields
 
-All 17 features implemented and passing:
+Status: COMPLETE
 
-1. [DONE] Added workspace dependencies: clap-verbosity-flag 3, tracing-appender 0.2, updated tracing-subscriber with env-filter+json features
-2. [DONE] Created libaipm::logging module with LogFormat enum + init() function (layered subscriber: stderr + file)
-3. [DONE] Added -v/-q (Verbosity<WarnLevel>) and --log-format=text|json flags to Cli struct
-4. [DONE] Wired logging::init() into run() function before command dispatch
-5. [DONE] Instrumented resolve_plugins_dir fallback (main.rs)
-6. [DONE] Instrumented load_lint_config fallback (main.rs)
-7. [DONE] Instrumented find_workspace_root manifest parse skip (workspace/mod.rs)
-8. [DONE] Instrumented build_pins version parse skip (installer/pipeline.rs)
-9. [DONE] Instrumented is_ignored glob pattern skip (lint/mod.rs)
-10. [DONE] Instrumented scan_skills/scan_agents/scan_hook_files read failures (lint/rules/scan.rs)
-11. [DONE] Verified store link_to already has tracing::warn! for hard-link fallback (store/mod.rs)
-12. [DONE] Instrumented try_read_config candidate file search (migrate/copilot_extension_detector.rs)
-13. [DONE] Instrumented file read skip in migration emitter (migrate/emitter.rs)
-14. [DONE] Instrumented directory read skip in cleanup pruning (migrate/cleanup.rs)
-15. [DONE] Instrumented atomic write backup cleanup errors (fs.rs)
-16. [DONE] Unit tests for logging module (5 tests in logging.rs)
-17. [DONE] Integration tests for CLI flags (17 tests in verbosity_e2e.rs)
+Changes:
+- Added `col: Option<usize>`, `end_line: Option<usize>`, `end_col: Option<usize>` to Diagnostic struct in diagnostic.rs
+- Updated 17 Diagnostic struct literal constructions across 14 files:
+  - diagnostic.rs (1 test literal)
+  - reporter.rs (2 test literals)
+  - 12 rule files (1-2 production literals each)
+- All new fields set to `None` — purely additive, no behavioral change
 
 Verification:
-- cargo build --workspace: PASS
-- cargo clippy --workspace -- -D warnings: PASS (zero warnings)
-- cargo fmt --check: PASS
-- cargo test --workspace: PASS (1296 tests, 0 failures)
-- Branch coverage: 89.29% (meets 89% gate)
+- cargo build --workspace: OK
+- cargo test --workspace: 74 scenarios, 354 steps all pass
+- cargo clippy --workspace -- -D warnings: clean
+- cargo fmt --check: clean
+
+## 2026-04-03 — Feature 2: Extend Rule trait with help_url() and help_text() default methods
+
+Status: COMPLETE
+
+Changes:
+- Added `help_url(&self) -> Option<&'static str>` with default `None` to Rule trait in rule.rs
+- Added `help_text(&self) -> Option<&'static str>` with default `None` to Rule trait in rule.rs
+- Default method impls mean zero breakage for all 12 existing rule implementations
+
+Verification:
+- cargo build --workspace: OK
+- cargo test --workspace: 1103 unit + 74 BDD scenarios all pass
+- cargo clippy --workspace -- -D warnings: clean
+
+## 2026-04-03 — Feature 3: Add per-field line tracking to Frontmatter struct and parser
+
+Status: COMPLETE
+
+Changes:
+- Added `field_lines: BTreeMap<String, usize>` to Frontmatter struct
+- Updated parse() to track 1-based line number for each key using .enumerate()
+- Formula: yaml_base_line = start_line + newlines_in_skip, then abs_line = yaml_base_line + line_index
+- Updated 16 Frontmatter struct literals in test code
+- Added 4 new tests for field_lines tracking
+
+Verification:
+- cargo test --workspace: 1107 tests pass (4 new)
+- cargo clippy --workspace -- -D warnings: clean
+
+## 2026-04-03 — Feature 4: Update diagnostic sorting to use file_path then line then col
+
+Status: COMPLETE
+
+Changes:
+- Updated sort_by in lint/mod.rs to chain file_path -> line -> col comparisons
+- Added 2 new tests: diagnostics_sort_by_file_then_line_then_col, diagnostics_sort_none_line_before_some
+
+Verification:
+- cargo test --workspace: 1109 tests pass (2 new)
+- cargo clippy --workspace -- -D warnings: clean
+
+## 2026-04-03 — Feature 5: Update all 12 rules with help_url(), help_text(), and accurate line numbers
+
+Status: COMPLETE
+
+Changes:
+- All 12 rules now implement help_url() and help_text()
+- Skill rules using frontmatter now use field_lines.get() for precise line numbers
+- Missing-field rules (missing-name, missing-desc, agent/missing-tools) use fm.start_line
+- broken_paths rule now exposes col via col_offset tracking
+- hook/legacy-event-name now searches raw JSON for key line numbers
+- misplaced_features keeps line: None (directory-level)
+
+Verification:
+- cargo test --workspace: 1109 tests pass
+- cargo clippy --workspace -- -D warnings: clean
+
+## 2026-04-03 — Features 7 + 12: Human reporter + help_text/help_url on Diagnostic
+
+Status: COMPLETE
+
+Changes:
+- Added ColorChoice enum (Never/Auto/Always) with env detection (NO_COLOR, CLICOLOR, TTY)
+- Implemented Human reporter using annotate-snippets for rustc-style rendering
+- Added help_text: Option<String> and help_url: Option<String> to Diagnostic struct
+- Updated all 20+ Diagnostic literal constructions with help_text: None, help_url: None
+- Wired run_rules_for_source to populate help_text/help_url from Rule trait on each diagnostic
+- Added 7 Human reporter tests (no-color, snippet rendering, directory-level, help text/url, no issues, missing file)
+
+Verification:
+- cargo test --workspace: 1116 tests pass (7 new)
+- cargo clippy --workspace -- -D warnings: clean
+
+## 2026-04-03 — Feature 6: Add annotate-snippets and anstyle dependencies
+
+Status: COMPLETE
+
+Changes:
+- Added annotate-snippets 0.11, anstyle 1, anstyle-query 1 to workspace Cargo.toml
+- Added workspace references in crates/libaipm/Cargo.toml
+- anstyle 1.0.13 and anstyle-query 1.1.5 were already transitive via clap
+
+Verification:
+- cargo build --workspace: OK (annotate-snippets 0.11.5 compiled)
+- cargo clippy --workspace -- -D warnings: clean
+
+## 2026-04-03 — Feature 8: Extend Json reporter with new fields
+
+Status: COMPLETE
+
+Changes:
+- Extended Json reporter output with severity_code (1=error, 2=warning), col, end_line, end_col, help_url, help_text
+- All new fields serialized as JSON number/string/null as appropriate
+- Added 2 unit tests for new Json fields
+
+Verification:
+- cargo test --workspace: 1124 tests pass
+- cargo clippy --workspace -- -D warnings: clean
+
+## 2026-04-03 — Feature 9: Implement ci-github reporter
+
+Status: COMPLETE
+
+Changes:
+- Created CiGitHub struct implementing Reporter trait
+- Emits `::error file=...,line=...,col=...::rule_id: message` per diagnostic
+- Defaults line=1, col=1 when None
+- Added 3 unit tests
+
+Verification:
+- cargo test --workspace: 1124 tests pass
+- cargo clippy --workspace -- -D warnings: clean
+
+## 2026-04-03 — Feature 10: Implement ci-azure reporter
+
+Status: COMPLETE
+
+Changes:
+- Created CiAzure struct implementing Reporter trait
+- Emits `##vso[task.logissue type=...;sourcepath=...;linenumber=...;columnnumber=...]rule_id: message` per diagnostic
+- Defaults linenumber=1, columnnumber=1 when None
+- Added 3 unit tests
+
+Verification:
+- cargo test --workspace: 1124 tests pass
+- cargo clippy --workspace -- -D warnings: clean
+
+## 2026-04-03 — Feature 11: Update CLI with --reporter, --color flags
+
+Status: COMPLETE
+
+Changes:
+- Added --reporter flag (human/json/ci-github/ci-azure, default: human) to Lint command
+- Added --color flag (never/auto/always, default: auto) to Lint command
+- Changed --format to hidden deprecated alias (Option<String>)
+- Legacy "text" format value auto-maps to "human" reporter
+- Updated cmd_lint to dispatch Human (with ColorChoice + Fs), Json, CiGitHub, CiAzure
+
+Verification:
+- cargo build --workspace: OK
+- cargo test --workspace: 1124 tests pass
+- cargo clippy --workspace -- -D warnings: clean
+- Manual: --reporter human shows colored snippets, --format json backwards compat works
+
+## 2026-04-03 — Feature 13: Create rule documentation markdown files
+
+Status: COMPLETE
+
+Changes:
+- Created docs/rules/ directory with 5 subdirs: skill/, agent/, hook/, plugin/, source/
+- Created 12 markdown doc files matching all rule help_url() paths
+- Each file: rule ID, severity, description, incorrect/correct examples, how to fix
+
+Verification:
+- All 12 files exist matching help_url paths in rule implementations
+
+## 2026-04-03 — Feature 14: Full verification gate
+
+Status: COMPLETE
+
+Changes:
+- Added 20+ tests across reporter.rs, frontmatter.rs, broken_paths.rs, logging.rs
+- Covered Text reporter warnings-only and errors-only branches
+- Covered Human reporter col-only, col+end_col, help_text+url, out-of-bounds line
+- Covered ColorChoice::Auto env var detection (NO_COLOR, CLICOLOR=0, fallback)
+- Covered frontmatter leading spaces, tab multiline, empty keys, CR body
+- Covered broken_paths multiple refs on same line
+- Covered logging stderr_filter all verbosity levels
+
+Verification:
+- cargo fmt --check: clean
+- cargo clippy --workspace -- -D warnings: clean
+- cargo test --workspace: 1144 tests pass
+- Branch coverage: 89.12% (meets 89% gate)
+
+## All 14 features from research/feature-list.json are COMPLETE

@@ -48,8 +48,18 @@ pub struct Diagnostic {
     pub file_path: PathBuf,
     /// Optional 1-based line number.
     pub line: Option<usize>,
+    /// Optional 1-based column number.
+    pub col: Option<usize>,
+    /// Optional 1-based end line number.
+    pub end_line: Option<usize>,
+    /// Optional 1-based end column number.
+    pub end_col: Option<usize>,
     /// Source type that produced this diagnostic (e.g., `".claude"`, `".ai"`).
     pub source_type: String,
+    /// Optional help text describing how to fix the issue.
+    pub help_text: Option<String>,
+    /// Optional URL to rule documentation.
+    pub help_url: Option<String>,
 }
 
 #[cfg(test)]
@@ -90,7 +100,12 @@ mod tests {
             message: "SKILL.md missing required field: description".to_string(),
             file_path: PathBuf::from(".ai/my-plugin/skills/default/SKILL.md"),
             line: Some(1),
+            col: None,
+            end_line: None,
+            end_col: None,
             source_type: ".ai".to_string(),
+            help_text: None,
+            help_url: None,
         };
         assert_eq!(d.rule_id, "skill/missing-description");
         assert_eq!(d.severity, Severity::Warning);

@@ -27,6 +27,14 @@ impl Rule for LegacyEventName {
         Severity::Warning
     }
 
+    fn help_url(&self) -> Option<&'static str> {
+        Some("https://github.com/TheLarkInn/aipm/blob/main/docs/rules/hook/legacy-event-name.md")
+    }
+
+    fn help_text(&self) -> Option<&'static str> {
+        Some("rename to the PascalCase event name")
+    }
+
     fn check(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
         let mut diagnostics = Vec::new();
 
@@ -47,6 +55,15 @@ impl Rule for LegacyEventName {
 
             for key in hooks.keys() {
                 if let Some(canonical) = known_events::suggest_canonical(key) {
+                    // Try to find the line number by searching raw content
+                    let line_num = content.lines().enumerate().find_map(|(i, line)| {
+                        let needle = format!("\"{key}\"");
+                        if line.contains(&needle) {
+                            Some(i + 1)
+                        } else {
+                            None
+                        }
+                    });
                     diagnostics.push(Diagnostic {
                         rule_id: self.id().to_string(),
                         severity: self.default_severity(),
@@ -54,8 +71,13 @@ impl Rule for LegacyEventName {
                             "\"{key}\" is a legacy event name, use \"{canonical}\" instead"
                         ),
                         file_path: path.clone(),
-                        line: None,
+                        line: line_num,
+                        col: None,
+                        end_line: None,
+                        end_col: None,
                         source_type: ".ai".to_string(),
+                        help_text: None,
+                        help_url: None,
                     });
                 }
             }

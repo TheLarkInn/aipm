@@ -23,6 +23,16 @@ pub trait Rule: Send + Sync {
     /// Default severity when not overridden by config.
     fn default_severity(&self) -> Severity;
 
+    /// URL to the rule's documentation page, if available.
+    fn help_url(&self) -> Option<&'static str> {
+        None
+    }
+
+    /// Short actionable help text describing how to fix the issue.
+    fn help_text(&self) -> Option<&'static str> {
+        None
+    }
+
     /// Run the rule against a source directory.
     ///
     /// Returns zero or more diagnostics. An empty vec means no issues found.

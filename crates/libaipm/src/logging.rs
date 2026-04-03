@@ -153,6 +153,29 @@ mod tests {
     }
 
     #[test]
+    fn stderr_filter_all_verbosity_levels() {
+        static ENV_LOCK2: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = ENV_LOCK2.lock();
+        std::env::remove_var("AIPM_LOG");
+
+        let levels = [
+            (LevelFilter::OFF, "off"),
+            (LevelFilter::ERROR, "error"),
+            (LevelFilter::INFO, "info"),
+            (LevelFilter::DEBUG, "debug"),
+            (LevelFilter::TRACE, "trace"),
+        ];
+        for (level, expected) in levels {
+            let filter = stderr_filter(level);
+            let dbg = format!("{filter:?}").to_lowercase();
+            assert!(
+                dbg.contains(expected),
+                "level {level:?} filter should contain '{expected}': {dbg}"
+            );
+        }
+    }
+
+    #[test]
     fn error_display() {
         let e = Error::FileAppender { reason: "test".to_string() };
         assert!(e.to_string().contains("file appender"));

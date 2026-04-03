@@ -15,6 +15,8 @@ pub struct Frontmatter {
     /// Raw key-value pairs extracted from the frontmatter block.
     /// Multi-line values (like `hooks:` blocks) are joined with newlines.
     pub fields: BTreeMap<String, String>,
+    /// Maps each field key to its 1-based line number in the source file.
+    pub field_lines: BTreeMap<String, usize>,
     /// 1-based line number where frontmatter starts (the opening `---`).
     pub start_line: usize,
     /// 1-based line number where frontmatter ends (the closing `---`).
@@ -81,10 +83,15 @@ pub fn parse(content: &str) -> Result<Option<Frontmatter>, String> {
 
     // Parse key-value pairs line by line
     let mut fields = BTreeMap::new();
+    let mut field_lines = BTreeMap::new();
     let mut current_key: Option<String> = None;
     let mut current_multiline: Vec<String> = Vec::new();
 
-    for line in yaml_block.lines() {
+    // The first yaml content line starts after the opening --- and any
+    // newlines stripped between it and the yaml block.
+    let yaml_base_line = start_line + newlines_in_skip;
+
+    for (line_index, line) in yaml_block.lines().enumerate() {
         let trimmed_line = line.trim();
 
         // Check if this is a continuation of a multi-line value (indented)
@@ -112,6 +119,9 @@ pub fn parse(content: &str) -> Result<Option<Frontmatter>, String> {
             let value = trimmed_line[colon_pos + 1..].trim();
             let value = strip_yaml_quotes(value);
 
+            let abs_line = yaml_base_line + line_index;
+
+            field_lines.insert(key.clone(), abs_line);
             if value.is_empty() {
                 // This might be a multi-line block (e.g., `hooks:`)
                 current_key = Some(key);
@@ -131,7 +141,7 @@ pub fn parse(content: &str) -> Result<Option<Frontmatter>, String> {
         }
     }
 
-    Ok(Some(Frontmatter { fields, start_line, end_line, body: body.to_string() }))
+    Ok(Some(Frontmatter { fields, field_lines, start_line, end_line, body: body.to_string() }))
 }
 
 /// Strip matching surrounding YAML quote delimiters from a scalar value.
@@ -159,6 +169,7 @@ mod tests {
         assert!(result.is_ok());
         let fm = result.ok().and_then(|o| o).unwrap_or_else(|| Frontmatter {
             fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
             start_line: 0,
             end_line: 0,
             body: String::new(),
@@ -201,6 +212,7 @@ mod tests {
         assert!(fm.is_some());
         let fm = fm.unwrap_or_else(|| Frontmatter {
             fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
             start_line: 0,
             end_line: 0,
             body: String::new(),
@@ -230,6 +242,7 @@ mod tests {
         assert!(fm.is_some());
         let fm = fm.unwrap_or_else(|| Frontmatter {
             fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
             start_line: 0,
             end_line: 0,
             body: String::new(),
@@ -247,6 +260,7 @@ mod tests {
         assert!(fm.is_some());
         let fm = fm.unwrap_or_else(|| Frontmatter {
             fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
             start_line: 0,
             end_line: 0,
             body: String::new(),
@@ -265,6 +279,7 @@ mod tests {
         assert!(fm.is_some());
         let fm = fm.unwrap_or_else(|| Frontmatter {
             fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
             start_line: 0,
             end_line: 0,
             body: String::new(),
@@ -282,6 +297,7 @@ mod tests {
         assert!(fm.is_some());
         let fm = fm.unwrap_or_else(|| Frontmatter {
             fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
             start_line: 0,
             end_line: 0,
             body: String::new(),
@@ -309,6 +325,7 @@ mod tests {
         assert!(fm.is_some());
         let fm = fm.unwrap_or_else(|| Frontmatter {
             fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
             start_line: 0,
             end_line: 0,
             body: String::new(),
@@ -363,6 +380,7 @@ mod tests {
         assert!(fm.is_some());
         let fm = fm.unwrap_or_else(|| Frontmatter {
             fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
             start_line: 0,
             end_line: 0,
             body: String::new(),
@@ -380,6 +398,7 @@ mod tests {
         assert!(fm.is_some());
         let fm = fm.unwrap_or_else(|| Frontmatter {
             fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
             start_line: 0,
             end_line: 0,
             body: String::new(),
@@ -399,6 +418,7 @@ mod tests {
         assert!(fm.is_some());
         let fm = fm.unwrap_or_else(|| Frontmatter {
             fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
             start_line: 0,
             end_line: 0,
             body: String::new(),
@@ -417,6 +437,7 @@ mod tests {
         assert!(fm.is_some());
         let fm = fm.unwrap_or_else(|| Frontmatter {
             fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
             start_line: 0,
             end_line: 0,
             body: String::new(),
@@ -435,6 +456,7 @@ mod tests {
         assert!(fm.is_some());
         let fm = fm.unwrap_or_else(|| Frontmatter {
             fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
             start_line: 0,
             end_line: 0,
             body: String::new(),
@@ -452,6 +474,7 @@ mod tests {
         assert!(fm.is_some());
         let fm = fm.unwrap_or_else(|| Frontmatter {
             fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
             start_line: 0,
             end_line: 0,
             body: String::new(),
@@ -472,6 +495,7 @@ mod tests {
         // Only the first colon splits key:value; rest is the value
         let fm = fm.unwrap_or_else(|| Frontmatter {
             fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
             start_line: 0,
             end_line: 0,
             body: String::new(),
@@ -488,11 +512,174 @@ mod tests {
         assert!(fm.is_some());
         let fm = fm.unwrap_or_else(|| Frontmatter {
             fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
             start_line: 0,
             end_line: 0,
             body: String::new(),
         });
         assert_eq!(fm.fields.len(), 1);
         assert_eq!(fm.fields.get("name").map(String::as_str), Some("test"));
+    }
+
+    #[test]
+    fn field_lines_tracks_each_key_line() {
+        let content = "---\nname: deploy\ndescription: Deploy app\nshell: bash\n---\nbody";
+        let result = parse(content);
+        let fm = result.ok().and_then(|o| o);
+        assert!(fm.is_some());
+        let fm = fm.unwrap_or_else(|| Frontmatter {
+            fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
+            start_line: 0,
+            end_line: 0,
+            body: String::new(),
+        });
+        // --- is line 1, name is line 2, description is line 3, shell is line 4
+        assert_eq!(fm.field_lines.get("name").copied(), Some(2));
+        assert_eq!(fm.field_lines.get("description").copied(), Some(3));
+        assert_eq!(fm.field_lines.get("shell").copied(), Some(4));
+    }
+
+    #[test]
+    fn field_lines_accounts_for_leading_blank_lines() {
+        let content = "\n\n---\nname: test\n---\nbody";
+        let result = parse(content);
+        let fm = result.ok().and_then(|o| o);
+        assert!(fm.is_some());
+        let fm = fm.unwrap_or_else(|| Frontmatter {
+            fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
+            start_line: 0,
+            end_line: 0,
+            body: String::new(),
+        });
+        // Two leading blank lines: --- is line 3, name is line 4
+        assert_eq!(fm.start_line, 3);
+        assert_eq!(fm.field_lines.get("name").copied(), Some(4));
+    }
+
+    #[test]
+    fn field_lines_multiline_value_records_starting_line() {
+        let content = "---\nhooks:\n  PreToolUse: check\n  PostToolUse: done\n---\nbody";
+        let result = parse(content);
+        let fm = result.ok().and_then(|o| o);
+        assert!(fm.is_some());
+        let fm = fm.unwrap_or_else(|| Frontmatter {
+            fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
+            start_line: 0,
+            end_line: 0,
+            body: String::new(),
+        });
+        // hooks: is on line 2 (the key line, not continuation lines)
+        assert_eq!(fm.field_lines.get("hooks").copied(), Some(2));
+    }
+
+    #[test]
+    fn field_lines_empty_frontmatter_no_fields() {
+        // Frontmatter with a single key but no field_lines of interest
+        let content = "---\nname: test\n---\nbody";
+        let result = parse(content);
+        let fm = result.ok().and_then(|o| o);
+        assert!(fm.is_some());
+        let fm = fm.unwrap_or_else(|| Frontmatter {
+            fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
+            start_line: 0,
+            end_line: 0,
+            body: String::new(),
+        });
+        // field_lines should have exactly the keys that were parsed
+        assert_eq!(fm.field_lines.len(), fm.fields.len());
+        // Querying a non-existent key returns None
+        assert_eq!(fm.field_lines.get("nonexistent"), None);
+    }
+
+    #[test]
+    fn parse_leading_spaces_only() {
+        // Leading whitespace with no newlines — covers the ch != '\n' branch at line 50
+        let content = "  ---\nname: test\n---\nbody";
+        let result = parse(content);
+        if let Ok(Some(fm)) = result {
+            assert_eq!(fm.start_line, 1);
+            assert_eq!(fm.fields.get("name").map(|s| s.as_str()), Some("test"));
+        } else {
+            assert!(false, "expected Some(Frontmatter)");
+        }
+    }
+
+    #[test]
+    fn parse_leading_blank_lines_start_line_offset() {
+        let content = "\n\n---\nname: test\n---\nbody";
+        let result = parse(content);
+        if let Ok(Some(fm)) = result {
+            assert_eq!(fm.start_line, 3);
+            assert_eq!(fm.fields.get("name").map(|s| s.as_str()), Some("test"));
+        } else {
+            assert!(false, "expected Some(Frontmatter)");
+        }
+    }
+
+    #[test]
+    fn parse_tab_indented_multiline() {
+        let content = "---\nhooks:\n\tPreToolUse\n\tPostToolUse\n---\nbody";
+        let result = parse(content);
+        if let Ok(Some(fm)) = result {
+            let hooks = fm.fields.get("hooks").map(|s| s.as_str());
+            assert!(hooks.is_some());
+            assert!(hooks.unwrap_or("").contains("PreToolUse"));
+        } else {
+            assert!(false, "expected Some(Frontmatter)");
+        }
+    }
+
+    #[test]
+    fn strip_yaml_quotes_single_quotes() {
+        assert_eq!(strip_yaml_quotes("'hello'"), "hello");
+        assert_eq!(strip_yaml_quotes("'a'"), "a");
+    }
+
+    #[test]
+    fn strip_yaml_quotes_no_match_cases() {
+        assert_eq!(strip_yaml_quotes("hello"), "hello");
+        assert_eq!(strip_yaml_quotes("'mixed\""), "'mixed\"");
+        assert_eq!(strip_yaml_quotes(""), "");
+        // Single char — less than 2 bytes, so no stripping
+        assert_eq!(strip_yaml_quotes("'"), "'");
+        assert_eq!(strip_yaml_quotes("\""), "\"");
+    }
+
+    #[test]
+    fn parse_key_empty_value_no_continuation() {
+        let content = "---\nempty_key:\nnext: value\n---\nbody";
+        let result = parse(content);
+        if let Ok(Some(fm)) = result {
+            assert_eq!(fm.fields.get("empty_key").map(|s| s.as_str()), Some(""));
+            assert_eq!(fm.fields.get("next").map(|s| s.as_str()), Some("value"));
+        } else {
+            assert!(false, "expected Some(Frontmatter)");
+        }
+    }
+
+    #[test]
+    fn parse_final_key_empty_no_continuation() {
+        let content = "---\ntrailing:\n---\nbody";
+        let result = parse(content);
+        if let Ok(Some(fm)) = result {
+            assert_eq!(fm.fields.get("trailing").map(|s| s.as_str()), Some(""));
+        } else {
+            assert!(false, "expected Some(Frontmatter)");
+        }
+    }
+
+    #[test]
+    fn parse_carriage_return_body() {
+        let content = "---\nname: test\n---\r\nbody with cr";
+        let result = parse(content);
+        if let Ok(Some(fm)) = result {
+            assert!(fm.body.contains("body with cr"));
+        } else {
+            assert!(false, "expected Some(Frontmatter)");
+        }
     }
 }
