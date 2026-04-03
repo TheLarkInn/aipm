@@ -72,3 +72,16 @@ Changes:
 Verification:
 - cargo test --workspace: 1109 tests pass
 - cargo clippy --workspace -- -D warnings: clean
+
+## 2026-04-03 — Feature 6: Add annotate-snippets and anstyle dependencies
+
+Status: COMPLETE
+
+Changes:
+- Added annotate-snippets 0.11, anstyle 1, anstyle-query 1 to workspace Cargo.toml
+- Added workspace references in crates/libaipm/Cargo.toml
+- anstyle 1.0.13 and anstyle-query 1.1.5 were already transitive via clap
+
+Verification:
+- cargo build --workspace: OK (annotate-snippets 0.11.5 compiled)
+- cargo clippy --workspace -- -D warnings: clean
