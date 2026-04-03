@@ -220,7 +220,7 @@
   },
   {
     "category": "functional",
-    "description": "Update CLI: add --reporter flag, --color flag, deprecate --format as hidden alias",
+    "description": "Update CLI: add --reporter flag, --color flag, deprecate --format as hidden alias [DONE]",
     "steps": [
       "Open crates/aipm/src/main.rs",
       "In the Lint variant of the Commands enum, add: reporter: String field with #[arg(long, default_value = \"human\", value_parser = [\"human\", \"json\", \"ci-github\", \"ci-azure\"])]",
@@ -242,7 +242,7 @@
       "Run cargo test --workspace",
       "Run cargo clippy --workspace -- -D warnings"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

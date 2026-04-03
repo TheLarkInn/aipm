@@ -129,9 +129,17 @@ enum Commands {
         #[arg(long)]
         source: Option<String>,
 
-        /// Output format: text or json.
-        #[arg(long, default_value = "text")]
-        format: String,
+        /// Output reporter: human, json, ci-github, ci-azure.
+        #[arg(long, default_value = "human", value_parser = ["human", "json", "ci-github", "ci-azure"])]
+        reporter: String,
+
+        /// Color mode for the human reporter.
+        #[arg(long, default_value = "auto", value_parser = ["never", "auto", "always"])]
+        color: String,
+
+        /// Deprecated alias for --reporter (hidden).
+        #[arg(long, hide = true)]
+        format: Option<String>,
 
         /// Maximum directory traversal depth.
         #[arg(long)]
@@ -513,7 +521,9 @@ fn cmd_list(linked: bool, dir: PathBuf) -> Result<(), Box<dyn std::error::Error>
 fn cmd_lint(
     dir: PathBuf,
     source: Option<String>,
-    format: &str,
+    reporter: &str,
+    color: &str,
+    format: Option<&str>,
     max_depth: Option<usize>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let dir = resolve_dir(dir)?;
@@ -538,20 +548,47 @@ fn cmd_lint(
         }
     }
 
+    // --format is a deprecated alias for --reporter; it takes precedence when provided
+    let effective_reporter = format.unwrap_or(reporter);
+
+    // Map legacy format names to new reporter names
+    let effective_reporter = match effective_reporter {
+        "text" => "human",
+        other => other,
+    };
+
+    // Resolve color choice
+    let color_choice = match color {
+        "never" => libaipm::lint::reporter::ColorChoice::Never,
+        "always" => libaipm::lint::reporter::ColorChoice::Always,
+        _ => libaipm::lint::reporter::ColorChoice::Auto,
+    };
+
     // Load lint config from aipm.toml [workspace.lints] if it exists
     let config = load_lint_config(&dir);
 
-    let opts = libaipm::lint::Options { dir, source, config, max_depth };
+    let opts = libaipm::lint::Options { dir: dir.clone(), source, config, max_depth };
 
     let outcome = libaipm::lint::lint(&opts, &libaipm::fs::Real)?;
 
     let mut stdout = std::io::stdout();
-    match format {
+    match effective_reporter {
         "json" => {
             libaipm::lint::reporter::Json.report(&outcome, &mut stdout)?;
         },
+        "ci-github" => {
+            libaipm::lint::reporter::CiGitHub.report(&outcome, &mut stdout)?;
+        },
+        "ci-azure" => {
+            libaipm::lint::reporter::CiAzure.report(&outcome, &mut stdout)?;
+        },
         _ => {
-            libaipm::lint::reporter::Text.report(&outcome, &mut stdout)?;
+            let human = libaipm::lint::reporter::Human {
+                fs: &libaipm::fs::Real,
+                color: color_choice,
+                base_dir: &dir,
+            };
+            human.report(&outcome, &mut stdout)?;
         },
     }
 
@@ -793,8 +830,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         Some(Commands::Link { path, dir }) => cmd_link(path, dir),
         Some(Commands::Unlink { package, dir }) => cmd_unlink(&package, dir),
         Some(Commands::List { linked, dir }) => cmd_list(linked, dir),
-        Some(Commands::Lint { dir, source, format, max_depth }) => {
-            cmd_lint(dir, source, &format, max_depth)
+        Some(Commands::Lint { dir, source, reporter, color, format, max_depth }) => {
+            cmd_lint(dir, source, &reporter, &color, format.as_deref(), max_depth)
         },
         Some(Commands::Migrate { dry_run, destructive, source, max_depth, manifest, dir }) => {
             cmd_migrate(dry_run, destructive, source.as_deref(), max_depth, manifest, dir)

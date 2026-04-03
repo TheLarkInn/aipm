@@ -142,3 +142,20 @@ Changes:
 Verification:
 - cargo test --workspace: 1124 tests pass
 - cargo clippy --workspace -- -D warnings: clean
+
+## 2026-04-03 — Feature 11: Update CLI with --reporter, --color flags
+
+Status: COMPLETE
+
+Changes:
+- Added --reporter flag (human/json/ci-github/ci-azure, default: human) to Lint command
+- Added --color flag (never/auto/always, default: auto) to Lint command
+- Changed --format to hidden deprecated alias (Option<String>)
+- Legacy "text" format value auto-maps to "human" reporter
+- Updated cmd_lint to dispatch Human (with ColorChoice + Fs), Json, CiGitHub, CiAzure
+
+Verification:
+- cargo build --workspace: OK
+- cargo test --workspace: 1124 tests pass
+- cargo clippy --workspace -- -D warnings: clean
+- Manual: --reporter human shows colored snippets, --format json backwards compat works
