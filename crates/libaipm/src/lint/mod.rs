@@ -68,6 +68,8 @@ fn run_rules_for_source(
                 continue;
             }
             d.severity = effective_severity;
+            d.help_text = rule.help_text().map(String::from);
+            d.help_url = rule.help_url().map(String::from);
             diagnostics.push(d);
         }
     }
@@ -933,6 +935,8 @@ mod tests {
                 end_line: None,
                 end_col: None,
                 source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
             },
             Diagnostic {
                 rule_id: "r2".into(),
@@ -944,6 +948,8 @@ mod tests {
                 end_line: None,
                 end_col: None,
                 source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
             },
             Diagnostic {
                 rule_id: "r3".into(),
@@ -955,6 +961,8 @@ mod tests {
                 end_line: None,
                 end_col: None,
                 source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
             },
             Diagnostic {
                 rule_id: "r4".into(),
@@ -966,6 +974,8 @@ mod tests {
                 end_line: None,
                 end_col: None,
                 source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
             },
         ];
 
@@ -995,6 +1005,8 @@ mod tests {
                 end_line: None,
                 end_col: None,
                 source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
             },
             Diagnostic {
                 rule_id: "no_line".into(),
@@ -1006,6 +1018,8 @@ mod tests {
                 end_line: None,
                 end_col: None,
                 source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
             },
         ];
 

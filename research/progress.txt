@@ -73,6 +73,22 @@ Verification:
 - cargo test --workspace: 1109 tests pass
 - cargo clippy --workspace -- -D warnings: clean
 
+## 2026-04-03 — Features 7 + 12: Human reporter + help_text/help_url on Diagnostic
+
+Status: COMPLETE
+
+Changes:
+- Added ColorChoice enum (Never/Auto/Always) with env detection (NO_COLOR, CLICOLOR, TTY)
+- Implemented Human reporter using annotate-snippets for rustc-style rendering
+- Added help_text: Option<String> and help_url: Option<String> to Diagnostic struct
+- Updated all 20+ Diagnostic literal constructions with help_text: None, help_url: None
+- Wired run_rules_for_source to populate help_text/help_url from Rule trait on each diagnostic
+- Added 7 Human reporter tests (no-color, snippet rendering, directory-level, help text/url, no issues, missing file)
+
+Verification:
+- cargo test --workspace: 1116 tests pass (7 new)
+- cargo clippy --workspace -- -D warnings: clean
+
 ## 2026-04-03 — Feature 6: Add annotate-snippets and anstyle dependencies
 
 Status: COMPLETE

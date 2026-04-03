@@ -58,6 +58,8 @@ impl Rule for InvalidShell {
                             end_line: None,
                             end_col: None,
                             source_type: ".ai".to_string(),
+                            help_text: None,
+                            help_url: None,
                         });
                     }
                 }

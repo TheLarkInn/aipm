@@ -67,6 +67,8 @@ impl Rule for MisplacedFeatures {
                     end_line: None,
                     end_col: None,
                     source_type: self.source_type.to_string(),
+                    help_text: None,
+                    help_url: None,
                 });
             }
         }

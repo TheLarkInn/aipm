@@ -117,7 +117,7 @@
   },
   {
     "category": "functional",
-    "description": "Implement Human reporter with annotate-snippets colored output and snippet rendering",
+    "description": "Implement Human reporter with annotate-snippets colored output and snippet rendering [DONE]",
     "steps": [
       "Create crates/libaipm/src/lint/reporter/ directory if converting reporter.rs to a module (or keep inline in reporter.rs)",
       "Define pub struct Human with fields: fs: &dyn Fs (for reading source files), color: ColorChoice enum (Never/Auto/Always), base_dir: PathBuf",
@@ -149,7 +149,7 @@
       "Run cargo test --workspace",
       "Run cargo clippy --workspace -- -D warnings"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -246,7 +246,7 @@
   },
   {
     "category": "refactor",
-    "description": "Add help_url and help_text fields to Diagnostic struct for reporter access",
+    "description": "Add help_url and help_text fields to Diagnostic struct for reporter access [DONE]",
     "steps": [
       "Open crates/libaipm/src/lint/diagnostic.rs",
       "Add help_url: Option<String> and help_text: Option<String> fields to the Diagnostic struct",
@@ -258,7 +258,7 @@
       "Run cargo test --workspace",
       "Run cargo clippy --workspace -- -D warnings"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
