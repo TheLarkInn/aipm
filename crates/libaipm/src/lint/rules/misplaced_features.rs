@@ -34,6 +34,14 @@ impl Rule for MisplacedFeatures {
         Severity::Warning
     }
 
+    fn help_url(&self) -> Option<&'static str> {
+        Some("https://github.com/TheLarkInn/aipm/blob/main/docs/rules/source/misplaced-features.md")
+    }
+
+    fn help_text(&self) -> Option<&'static str> {
+        Some("run \"aipm migrate\" to move into the .ai/ marketplace")
+    }
+
     fn check(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
         let mut diagnostics = Vec::new();
 

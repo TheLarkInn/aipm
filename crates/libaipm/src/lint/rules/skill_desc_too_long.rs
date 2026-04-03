@@ -30,6 +30,16 @@ impl Rule for DescriptionTooLong {
         Severity::Warning
     }
 
+    fn help_url(&self) -> Option<&'static str> {
+        Some(
+            "https://github.com/TheLarkInn/aipm/blob/main/docs/rules/skill/description-too-long.md",
+        )
+    }
+
+    fn help_text(&self) -> Option<&'static str> {
+        Some("shorten the description to 200 characters or fewer")
+    }
+
     fn check(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
         let mut diagnostics = Vec::new();
 
@@ -46,7 +56,7 @@ impl Rule for DescriptionTooLong {
                                 desc.len()
                             ),
                             file_path: skill.path,
-                            line: Some(1),
+                            line: fm.field_lines.get("description").copied(),
                             col: None,
                             end_line: None,
                             end_col: None,

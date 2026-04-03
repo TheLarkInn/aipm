@@ -32,6 +32,14 @@ impl Rule for BrokenPaths {
         Severity::Error
     }
 
+    fn help_url(&self) -> Option<&'static str> {
+        Some("https://github.com/TheLarkInn/aipm/blob/main/docs/rules/plugin/broken-paths.md")
+    }
+
+    fn help_text(&self) -> Option<&'static str> {
+        Some("fix or remove the broken file reference")
+    }
+
     fn check(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
         let mut diagnostics = Vec::new();
 
@@ -44,6 +52,7 @@ impl Rule for BrokenPaths {
             for prefix in VARIABLE_PREFIXES {
                 for (line_num, line) in skill.content.lines().enumerate() {
                     let mut search = line;
+                    let mut col_offset: usize = 0;
                     while let Some(pos) = search.find(prefix) {
                         let after = &search[pos + prefix.len()..];
                         let end = after
@@ -67,13 +76,14 @@ impl Rule for BrokenPaths {
                                     ),
                                     file_path: skill.path.clone(),
                                     line: Some(line_num + 1),
-                                    col: None,
+                                    col: Some(col_offset + pos + 1),
                                     end_line: None,
                                     end_col: None,
                                     source_type: ".ai".to_string(),
                                 });
                             }
                         }
+                        col_offset += pos + prefix.len() + end;
                         search = &search[pos + prefix.len() + end..];
                     }
                 }

@@ -25,19 +25,27 @@ impl Rule for MissingDescription {
         Severity::Warning
     }
 
+    fn help_url(&self) -> Option<&'static str> {
+        Some("https://github.com/TheLarkInn/aipm/blob/main/docs/rules/skill/missing-description.md")
+    }
+
+    fn help_text(&self) -> Option<&'static str> {
+        Some("add a \"description\" field to the YAML frontmatter")
+    }
+
     fn check(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
         let mut diagnostics = Vec::new();
 
         for skill in scan::scan_skills(source_dir, fs) {
             match skill.frontmatter {
                 Some(ref fm) if fm.fields.contains_key("description") => {},
-                Some(_) => {
+                Some(ref fm) => {
                     diagnostics.push(Diagnostic {
                         rule_id: self.id().to_string(),
                         severity: self.default_severity(),
                         message: "SKILL.md missing required field: description".to_string(),
                         file_path: skill.path,
-                        line: Some(1),
+                        line: Some(fm.start_line),
                         col: None,
                         end_line: None,
                         end_col: None,

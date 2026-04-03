@@ -56,3 +56,19 @@ Changes:
 Verification:
 - cargo test --workspace: 1109 tests pass (2 new)
 - cargo clippy --workspace -- -D warnings: clean
+
+## 2026-04-03 — Feature 5: Update all 12 rules with help_url(), help_text(), and accurate line numbers
+
+Status: COMPLETE
+
+Changes:
+- All 12 rules now implement help_url() and help_text()
+- Skill rules using frontmatter now use field_lines.get() for precise line numbers
+- Missing-field rules (missing-name, missing-desc, agent/missing-tools) use fm.start_line
+- broken_paths rule now exposes col via col_offset tracking
+- hook/legacy-event-name now searches raw JSON for key line numbers
+- misplaced_features keeps line: None (directory-level)
+
+Verification:
+- cargo test --workspace: 1109 tests pass
+- cargo clippy --workspace -- -D warnings: clean

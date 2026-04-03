@@ -41,6 +41,14 @@ impl Rule for NameInvalidChars {
         Severity::Warning
     }
 
+    fn help_url(&self) -> Option<&'static str> {
+        Some("https://github.com/TheLarkInn/aipm/blob/main/docs/rules/skill/name-invalid-chars.md")
+    }
+
+    fn help_text(&self) -> Option<&'static str> {
+        Some("use only alphanumeric, hyphen, and underscore characters")
+    }
+
     fn check(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
         let mut diagnostics = Vec::new();
 
@@ -55,7 +63,7 @@ impl Rule for NameInvalidChars {
                                 "skill name \"{name}\" contains characters not allowed by Copilot CLI (must match /^[a-zA-Z0-9][a-zA-Z0-9._\\- ]*$/)"
                             ),
                             file_path: skill.path,
-                            line: Some(1),
+                            line: fm.field_lines.get("name").copied(),
                             col: None,
                             end_line: None,
                             end_col: None,

@@ -25,13 +25,34 @@ impl Rule for MissingTools {
         Severity::Warning
     }
 
+    fn help_url(&self) -> Option<&'static str> {
+        Some("https://github.com/TheLarkInn/aipm/blob/main/docs/rules/agent/missing-tools.md")
+    }
+
+    fn help_text(&self) -> Option<&'static str> {
+        Some("add a \"tools\" field listing required tools")
+    }
+
     fn check(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
         let mut diagnostics = Vec::new();
 
         for agent in scan::scan_agents(source_dir, fs) {
             match agent.frontmatter {
                 Some(ref fm) if fm.fields.contains_key("tools") => {},
-                Some(_) | None => {
+                Some(ref fm) => {
+                    diagnostics.push(Diagnostic {
+                        rule_id: self.id().to_string(),
+                        severity: self.default_severity(),
+                        message: "agent definition missing tools declaration".to_string(),
+                        file_path: agent.path,
+                        line: Some(fm.start_line),
+                        col: None,
+                        end_line: None,
+                        end_col: None,
+                        source_type: ".ai".to_string(),
+                    });
+                },
+                None => {
                     diagnostics.push(Diagnostic {
                         rule_id: self.id().to_string(),
                         severity: self.default_severity(),
