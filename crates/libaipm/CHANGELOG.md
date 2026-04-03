@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.16.1] - 2026-04-03
+
+### Features
+- Implement verbosity levels across aipm ([#189](https://github.com/TheLarkInn/aipm/pull/189)) ([#195](https://github.com/TheLarkInn/aipm/pull/195)) (7a06b09)
+
 ## [0.16.0] - 2026-04-02
 
 ### Features
