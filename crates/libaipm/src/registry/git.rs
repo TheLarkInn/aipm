@@ -567,14 +567,11 @@ mod tests {
 
         // --- pre-populate the cache directory that Git::new() will use ---
         let cache_root = tmp.path().join("cache");
-        // Replicate the path computation from Git::new() to place the clone correctly.
-        let url_hash = &crate::store::hash::sha512_hex(url.as_bytes())[..16];
-        let cache_dir = cache_root.join(url_hash);
-        std::fs::create_dir_all(&cache_dir).expect("create cache_dir");
-        git2::Repository::clone(&url, &cache_dir).expect("pre-clone");
+        let git = Git::new(&url, &cache_root).expect("Git::new");
+        std::fs::create_dir_all(&git.cache_dir).expect("create cache_dir");
+        git2::Repository::clone(&url, &git.cache_dir).expect("pre-clone");
 
         // --- exercise the fetch branch ---
-        let git = Git::new(&url, &cache_root).expect("Git::new");
 
         // Triggers: ensure_index → synced=false → git_dir.exists()=true → fetch_index.
         // After fetching, the package lookup fails with "not found" — that is expected.
