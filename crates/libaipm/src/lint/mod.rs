@@ -834,4 +834,73 @@ mod tests {
         });
         assert!(outcome.diagnostics.is_empty());
     }
+
+    /// Covers the `is_ignored(&path_str, rule_ignores)` True branch in `run_rules_for_source`.
+    ///
+    /// When global `ignore_paths` is empty the first check returns False, so the
+    /// second `is_ignored` call (per-rule ignore patterns from `RuleOverride::Detailed`)
+    /// is the only gate.  A path matching that per-rule pattern must be skipped while
+    /// a path that does not match still appears in the output.
+    #[test]
+    fn lint_rule_ignore_paths_filter_diagnostics() {
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = root.as_ref().copied().unwrap_or(std::path::Path::new("."));
+
+        // .ai/ must exist so misplaced-features fires
+        assert!(std::fs::create_dir_all(root.join(".ai")).is_ok());
+        // Root .claude/skills — should NOT be filtered (path doesn't contain "vendor")
+        assert!(std::fs::create_dir_all(root.join(".claude").join("skills")).is_ok());
+        // A nested .claude/skills under a "vendor" package — should be filtered by rule ignore
+        assert!(std::fs::create_dir_all(
+            root.join("packages").join("vendor").join(".claude").join("skills")
+        )
+        .is_ok());
+
+        let mut cfg = config::Config::default();
+        // No global ignore_paths — first is_ignored() always returns false.
+        // Per-rule ignore for misplaced-features: suppress diagnostics under "vendor/".
+        cfg.rule_overrides.insert(
+            "source/misplaced-features".to_string(),
+            config::RuleOverride::Detailed {
+                level: Severity::Warning,
+                ignore: vec!["**/vendor/**".to_string()],
+            },
+        );
+
+        let opts = Options { dir: root.to_path_buf(), source: None, config: cfg, max_depth: None };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap_or_else(|_| Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        });
+
+        let misplaced: Vec<_> = outcome
+            .diagnostics
+            .iter()
+            .filter(|d| d.rule_id == "source/misplaced-features")
+            .collect();
+
+        // Root .claude/skills diagnostic must still be present
+        assert!(
+            misplaced.iter().any(|d| {
+                let p = d.file_path.display().to_string();
+                !p.contains("vendor")
+            }),
+            "root .claude/skills diagnostic should remain"
+        );
+        // The vendor path must be suppressed by the per-rule ignore
+        assert!(
+            !misplaced.iter().any(|d| {
+                let p = d.file_path.display().to_string();
+                p.contains("vendor")
+            }),
+            "vendor .claude/skills diagnostic should be filtered by rule ignore"
+        );
+    }
 }
