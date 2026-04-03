@@ -11,7 +11,10 @@ use assert_cmd::Command;
 use predicates::prelude::*;
 
 fn aipm() -> assert_cmd::Command {
-    Command::cargo_bin("aipm").expect("aipm binary should be built")
+    let mut cmd = Command::cargo_bin("aipm").expect("aipm binary should be built");
+    // Clear AIPM_LOG so external env doesn't make tests flaky
+    cmd.env_remove("AIPM_LOG");
+    cmd
 }
 
 // =========================================================================

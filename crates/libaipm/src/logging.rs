@@ -130,23 +130,25 @@ mod tests {
         assert!(json.contains("Json"));
     }
 
+    /// Consolidated into a single test to avoid env-var races when the test
+    /// runner executes tests in parallel.
     #[test]
-    fn stderr_filter_uses_verbosity_when_no_env() {
-        // Ensure AIPM_LOG is not set for this test
+    fn stderr_filter_respects_env_and_verbosity() {
+        // Use a mutex to serialize access to AIPM_LOG env var
+        static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = ENV_LOCK.lock();
+
+        // Without AIPM_LOG: should use the verbosity level
         std::env::remove_var("AIPM_LOG");
         let filter = stderr_filter(LevelFilter::WARN);
-        let debug_repr = format!("{filter:?}");
-        let lower = debug_repr.to_lowercase();
-        assert!(lower.contains("warn"), "filter should contain warn directive: {debug_repr}");
-    }
+        let lower = format!("{filter:?}").to_lowercase();
+        assert!(lower.contains("warn"), "filter should contain warn directive: {lower}");
 
-    #[test]
-    fn stderr_filter_uses_env_when_set() {
+        // With AIPM_LOG: env var should take precedence
         std::env::set_var("AIPM_LOG", "debug");
         let filter = stderr_filter(LevelFilter::WARN);
-        let debug_repr = format!("{filter:?}");
-        let lower = debug_repr.to_lowercase();
-        assert!(lower.contains("debug"), "filter should use AIPM_LOG value: {debug_repr}");
+        let lower = format!("{filter:?}").to_lowercase();
+        assert!(lower.contains("debug"), "filter should use AIPM_LOG value: {lower}");
         std::env::remove_var("AIPM_LOG");
     }
 
