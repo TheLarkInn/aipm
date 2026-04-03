@@ -1,28 +1,17 @@
-2026-04-03: Verbosity Levels Implementation (Issue #189) — COMPLETE
+## 2026-04-03 — Feature 1: Extend Diagnostic struct with col, end_line, end_col fields
 
-All 17 features implemented and passing:
+Status: COMPLETE
 
-1. [DONE] Added workspace dependencies: clap-verbosity-flag 3, tracing-appender 0.2, updated tracing-subscriber with env-filter+json features
-2. [DONE] Created libaipm::logging module with LogFormat enum + init() function (layered subscriber: stderr + file)
-3. [DONE] Added -v/-q (Verbosity<WarnLevel>) and --log-format=text|json flags to Cli struct
-4. [DONE] Wired logging::init() into run() function before command dispatch
-5. [DONE] Instrumented resolve_plugins_dir fallback (main.rs)
-6. [DONE] Instrumented load_lint_config fallback (main.rs)
-7. [DONE] Instrumented find_workspace_root manifest parse skip (workspace/mod.rs)
-8. [DONE] Instrumented build_pins version parse skip (installer/pipeline.rs)
-9. [DONE] Instrumented is_ignored glob pattern skip (lint/mod.rs)
-10. [DONE] Instrumented scan_skills/scan_agents/scan_hook_files read failures (lint/rules/scan.rs)
-11. [DONE] Verified store link_to already has tracing::warn! for hard-link fallback (store/mod.rs)
-12. [DONE] Instrumented try_read_config candidate file search (migrate/copilot_extension_detector.rs)
-13. [DONE] Instrumented file read skip in migration emitter (migrate/emitter.rs)
-14. [DONE] Instrumented directory read skip in cleanup pruning (migrate/cleanup.rs)
-15. [DONE] Instrumented atomic write backup cleanup errors (fs.rs)
-16. [DONE] Unit tests for logging module (5 tests in logging.rs)
-17. [DONE] Integration tests for CLI flags (17 tests in verbosity_e2e.rs)
+Changes:
+- Added `col: Option<usize>`, `end_line: Option<usize>`, `end_col: Option<usize>` to Diagnostic struct in diagnostic.rs
+- Updated 17 Diagnostic struct literal constructions across 14 files:
+  - diagnostic.rs (1 test literal)
+  - reporter.rs (2 test literals)
+  - 12 rule files (1-2 production literals each)
+- All new fields set to `None` — purely additive, no behavioral change
 
 Verification:
-- cargo build --workspace: PASS
-- cargo clippy --workspace -- -D warnings: PASS (zero warnings)
-- cargo fmt --check: PASS
-- cargo test --workspace: PASS (1296 tests, 0 failures)
-- Branch coverage: 89.29% (meets 89% gate)
+- cargo build --workspace: OK
+- cargo test --workspace: 74 scenarios, 354 steps all pass
+- cargo clippy --workspace -- -D warnings: clean
+- cargo fmt --check: clean

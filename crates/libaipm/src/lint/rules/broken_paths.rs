@@ -67,6 +67,9 @@ impl Rule for BrokenPaths {
                                     ),
                                     file_path: skill.path.clone(),
                                     line: Some(line_num + 1),
+                                    col: None,
+                                    end_line: None,
+                                    end_col: None,
                                     source_type: ".ai".to_string(),
                                 });
                             }

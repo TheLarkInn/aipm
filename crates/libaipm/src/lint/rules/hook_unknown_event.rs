@@ -43,6 +43,9 @@ impl Rule for UnknownEvent {
                         message: format!("failed to parse hooks.json: {e}"),
                         file_path: path,
                         line: Some(1),
+                        col: None,
+                        end_line: None,
+                        end_col: None,
                         source_type: ".ai".to_string(),
                     });
                     continue;
@@ -71,6 +74,9 @@ impl Rule for UnknownEvent {
                         message: format!("unknown hook event: {key}"),
                         file_path: path.clone(),
                         line: None,
+                        col: None,
+                        end_line: None,
+                        end_col: None,
                         source_type: ".ai".to_string(),
                     });
                 }

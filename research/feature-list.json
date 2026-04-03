@@ -1,224 +1,300 @@
 [
   {
-    "category": "functional",
-    "description": "Add workspace dependencies: clap-verbosity-flag, tracing-appender, update tracing-subscriber features",
+    "category": "refactor",
+    "description": "Extend Diagnostic struct with col, end_line, end_col fields",
     "steps": [
-      "Add tracing-appender = \"0.2\" to [workspace.dependencies] in Cargo.toml",
-      "Add clap-verbosity-flag = { version = \"3\", default-features = false, features = [\"tracing\"] } to [workspace.dependencies] in Cargo.toml",
-      "Update tracing-subscriber in [workspace.dependencies] to { version = \"0.3\", features = [\"env-filter\", \"json\"] }",
-      "Add clap-verbosity-flag = { workspace = true } to crates/aipm/Cargo.toml [dependencies]",
-      "Add tracing-subscriber = { workspace = true } to crates/libaipm/Cargo.toml [dependencies]",
-      "Add tracing-appender = { workspace = true } to crates/libaipm/Cargo.toml [dependencies]",
-      "Run cargo build --workspace to verify all dependencies resolve correctly",
+      "Open crates/libaipm/src/lint/diagnostic.rs",
+      "Add three new fields to the Diagnostic struct: col: Option<usize>, end_line: Option<usize>, end_col: Option<usize> (after the existing line field)",
+      "Update every Diagnostic struct literal across all rule files to include col: None, end_line: None, end_col: None",
+      "Update crates/libaipm/src/lint/rules/skill_missing_name.rs diagnostic construction",
+      "Update crates/libaipm/src/lint/rules/skill_missing_desc.rs diagnostic construction",
+      "Update crates/libaipm/src/lint/rules/skill_oversized.rs diagnostic construction",
+      "Update crates/libaipm/src/lint/rules/skill_name_too_long.rs diagnostic construction",
+      "Update crates/libaipm/src/lint/rules/skill_name_invalid.rs diagnostic construction",
+      "Update crates/libaipm/src/lint/rules/skill_desc_too_long.rs diagnostic construction",
+      "Update crates/libaipm/src/lint/rules/skill_invalid_shell.rs diagnostic construction",
+      "Update crates/libaipm/src/lint/rules/agent_missing_tools.rs diagnostic construction",
+      "Update crates/libaipm/src/lint/rules/hook_unknown_event.rs diagnostic construction",
+      "Update crates/libaipm/src/lint/rules/hook_legacy_event.rs diagnostic construction",
+      "Update crates/libaipm/src/lint/rules/broken_paths.rs diagnostic construction",
+      "Update crates/libaipm/src/lint/rules/misplaced_features.rs diagnostic construction",
+      "Update any test code that constructs Diagnostic literals to include the new fields",
+      "Run cargo build --workspace to verify compilation",
+      "Run cargo test --workspace to verify all existing tests pass",
       "Run cargo clippy --workspace -- -D warnings to verify no lint issues"
     ],
     "passes": true
   },
   {
-    "category": "functional",
-    "description": "Create libaipm::logging module with LogFormat enum and init() subscriber function",
+    "category": "refactor",
+    "description": "Extend Rule trait with help_url() and help_text() default methods",
     "steps": [
-      "Create new file crates/libaipm/src/logging.rs",
-      "Define pub enum LogFormat { Text, Json }",
-      "Implement pub fn init(verbosity: LevelFilter, format: LogFormat) -> Result<(), Box<dyn std::error::Error>>",
-      "Create file appender layer: RollingFileAppender with DAILY rotation, 'aipm' prefix, 'log' suffix, max 7 files, targeting std::env::temp_dir()",
-      "Create file layer: fmt::layer() with .with_writer(file_appender), .with_ansi(false), .with_target(true), .with_filter(LevelFilter::DEBUG)",
-      "Implement AIPM_LOG env var check: if std::env::var(\"AIPM_LOG\").is_ok() use EnvFilter::from_env(\"AIPM_LOG\"), else use EnvFilter from verbosity level",
-      "Implement Text format branch: fmt::layer().with_writer(std::io::stderr).with_target(true).with_filter(stderr_filter)",
-      "Implement Json format branch: fmt::layer().json().with_writer(std::io::stderr).with_target(true).with_file(true).with_line_number(true).with_filter(stderr_filter)",
-      "Wire both stderr and file layers into tracing_subscriber::registry().with(...).with(...).init()",
-      "Add pub mod logging; to crates/libaipm/src/lib.rs",
-      "Run cargo build --workspace to verify compilation",
-      "Run cargo clippy --workspace -- -D warnings to verify no lint issues",
-      "Ensure no use of .unwrap(), .expect(), panic!(), println!(), or any denied lint patterns"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Add -v/-q verbosity flags and --log-format flag to aipm Cli struct via clap-verbosity-flag",
-    "steps": [
-      "Add use clap_verbosity_flag::{Verbosity, WarnLevel}; to crates/aipm/src/main.rs",
-      "Add #[command(flatten)] verbose: Verbosity<WarnLevel> field to Cli struct",
-      "Add #[arg(long, default_value = \"text\", value_parser = [\"text\", \"json\"])] log_format: String field to Cli struct",
-      "Verify the flag mapping: -qq=OFF, -q=ERROR, none=WARN, -v=INFO, -vv=DEBUG, -vvv=TRACE",
-      "Run cargo build --workspace to verify Cli struct compiles",
+      "Open crates/libaipm/src/lint/rule.rs",
+      "Add fn help_url(&self) -> Option<&'static str> { None } to the Rule trait (after default_severity, before check)",
+      "Add fn help_text(&self) -> Option<&'static str> { None } to the Rule trait (after help_url, before check)",
+      "Run cargo build --workspace to verify all existing rule implementations still compile (default methods mean no breakage)",
+      "Run cargo test --workspace to verify all existing tests pass",
       "Run cargo clippy --workspace -- -D warnings"
     ],
-    "passes": true
+    "passes": false
   },
   {
-    "category": "functional",
-    "description": "Wire logging::init() into aipm run() function to activate tracing subscriber on startup",
+    "category": "refactor",
+    "description": "Add per-field line tracking to Frontmatter struct and parser",
     "steps": [
-      "In crates/aipm/src/main.rs run() function, after Cli::parse(), extract verbosity: let verbosity = cli.verbose.tracing_level_filter();",
-      "Parse log_format: match cli.log_format.as_str() to convert to libaipm::logging::LogFormat enum",
-      "Call libaipm::logging::init(verbosity, format)? before the match on cli.command",
-      "Verify existing tracing::info! call at main.rs:327 (workspace root found) now produces output with -v flag",
+      "Open crates/libaipm/src/frontmatter.rs",
+      "Add field_lines: BTreeMap<String, usize> to the Frontmatter struct (after the fields field)",
+      "In the parse() function, change the yaml_block.lines() loop (around line 87) to use .enumerate() to get line indices",
+      "Compute absolute 1-based line number for each key as: start_line + 1 + line_index (accounting for the opening --- delimiter)",
+      "At every fields.insert(key, value) call site, also insert the key and computed line number into field_lines",
+      "Handle multi-line continuation values: only record the line of the initial key, not continuation lines",
+      "Update all Frontmatter struct literal constructions in test code to include field_lines: BTreeMap::new() or appropriate test values",
+      "Add unit tests: parse frontmatter with 3 fields, verify field_lines maps each key to correct 1-based line",
+      "Add unit test: parse frontmatter with leading blank lines, verify field_lines accounts for start_line offset",
+      "Add unit test: parse frontmatter with multi-line value, verify field_lines records starting line only",
+      "Add unit test: empty frontmatter (--- followed by ---) produces empty field_lines",
       "Run cargo build --workspace",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Run cargo test --workspace to verify all existing tests still pass"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Instrument silent fallback in resolve_plugins_dir (main.rs:205-215)",
-    "steps": [
-      "Refactor resolve_plugins_dir to use match on manifest::load() result instead of if let Ok",
-      "Add tracing::debug!(path = %manifest_path.display(), \"manifest has no plugins_dir, using .ai\") for the no-plugins_dir case",
-      "Add tracing::debug!(path = %manifest_path.display(), error = %e, \"could not load manifest, using .ai\") for the Err case",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Instrument silent fallback in load_lint_config (main.rs:552-619)",
-    "steps": [
-      "Identify where Config::default() is used as fallback when manifest parsing fails",
-      "Add tracing::warn! or tracing::debug! call logging the parse failure and fallback to default config",
-      "Include the manifest path and error details in structured tracing fields",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Instrument silent fallback in find_workspace_root (workspace/mod.rs:32-49)",
-    "steps": [
-      "Locate where unparseable manifests are silently skipped during workspace root walk",
-      "Add tracing::debug! call logging the skipped manifest path and parse error",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Instrument silent fallback in build_pins (installer/pipeline.rs:638-646)",
-    "steps": [
-      "Locate where packages with unparseable versions are silently skipped",
-      "Add tracing::warn! call logging the package name and version parse error",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Instrument silent fallback in is_ignored (lint/mod.rs:22-31)",
-    "steps": [
-      "Locate where invalid glob patterns are silently skipped",
-      "Add tracing::warn!(pattern = %pat, error = %e, \"ignoring invalid glob pattern in ignore list\")",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Instrument silent fallbacks in scan functions (lint/rules/scan.rs:32-131)",
-    "steps": [
-      "Locate scan_skills, scan_agents, scan_hook_files functions",
-      "Add tracing::debug! calls where unreadable directories or files are silently skipped",
-      "Include the path and error in structured tracing fields",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Instrument silent fallback in store link_to (store/mod.rs:160-186) — verify existing tracing::warn! is adequate",
-    "steps": [
-      "Read store/mod.rs:160-186 to check existing tracing::warn! call for hard-link to copy fallback",
-      "Verify the existing tracing::warn! has sufficient structured fields (source, dest)",
-      "Add or improve structured fields if needed",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Instrument silent fallback in copilot_extension_detector try_read_config (migrate/copilot_extension_detector.rs:60-79)",
-    "steps": [
-      "Locate where 9 candidate config filenames are tried silently",
-      "Add tracing::debug! calls logging each attempted filename and whether it was found or skipped",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Instrument silent fallbacks in migrate emitter and cleanup (emitter.rs:618-626, cleanup.rs:64-71)",
-    "steps": [
-      "In migrate/emitter.rs:618-626, add tracing::warn! for files that fail to read during migration",
-      "In migrate/cleanup.rs:64-71, add tracing::warn! for directories that fail to read during pruning",
-      "Include file/directory path and error in structured tracing fields",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Instrument silent fallback in fs.rs atomic write backup cleanup (fs.rs:201-205)",
-    "steps": [
-      "Locate where atomic write backup cleanup silently discards errors on Windows",
-      "Add tracing::debug! call logging the cleanup failure path and error",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Run cargo test --workspace"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Unit tests for libaipm::logging module",
-    "steps": [
-      "Create test module in crates/libaipm/src/logging.rs",
-      "Test init() with LevelFilter::WARN and LogFormat::Text does not error",
-      "Test init() with LevelFilter::DEBUG and LogFormat::Json does not error",
-      "Test init() with LevelFilter::OFF and LogFormat::Text does not error",
-      "Test that LogFormat enum variants are correctly distinguishable",
-      "Note: tracing global subscriber can only be set once per process; use tracing::subscriber::with_default for test isolation or test in separate integration tests",
       "Run cargo test --workspace",
       "Run cargo clippy --workspace -- -D warnings"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "functional",
-    "description": "Integration tests for CLI verbosity flags and log format",
+    "description": "Update diagnostic sorting to use file_path then line then col",
     "steps": [
-      "Add integration test: aipm --help still works (smoke test)",
-      "Add integration test: aipm with no flags produces no tracing output on stderr for clean operations",
-      "Add integration test: aipm -v produces INFO-level output on stderr",
-      "Add integration test: aipm -q suppresses warnings on stderr",
-      "Add integration test: aipm --log-format=json produces valid JSON on stderr when combined with -v",
-      "Add integration test: AIPM_LOG=debug overrides default warn level",
-      "Add integration test: verify file log is created in temp dir after operation",
+      "Open crates/libaipm/src/lint/mod.rs",
+      "Find the sort_by call at line 131 that sorts only by file_path",
+      "Replace with multi-key sort: a.file_path.cmp(&b.file_path).then_with(|| a.line.cmp(&b.line)).then_with(|| a.col.cmp(&b.col))",
+      "Add unit test: create diagnostics with same file but different lines, verify sort order",
+      "Add unit test: create diagnostics with same file and line but different cols, verify sort order",
+      "Add unit test: create diagnostics with None line values, verify they sort before Some values",
       "Run cargo test --workspace",
       "Run cargo clippy --workspace -- -D warnings"
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "functional",
-    "description": "Coverage verification — ensure all new code meets 89% branch coverage gate",
+    "description": "Update all 12 rules with help_url(), help_text(), and accurate line numbers from Frontmatter field_lines",
     "steps": [
+      "Update skill/missing-name (skill_missing_name.rs): implement help_url() returning GitHub docs link, help_text() returning 'add a \"name\" field to the YAML frontmatter', change line from Some(1) to frontmatter.start_line when field is absent",
+      "Update skill/missing-description (skill_missing_desc.rs): implement help_url(), help_text() returning 'add a \"description\" field to the YAML frontmatter', change line to frontmatter.start_line",
+      "Update skill/oversized (skill_oversized.rs): implement help_url(), help_text() returning 'reduce file size below 15000 characters', keep line as Some(1) since it is whole-file",
+      "Update skill/name-too-long (skill_name_too_long.rs): implement help_url(), help_text() returning 'shorten the name to 60 characters or fewer', change line to frontmatter.field_lines.get(\"name\").copied()",
+      "Update skill/name-invalid-chars (skill_name_invalid.rs): implement help_url(), help_text() returning 'use only alphanumeric, hyphen, underscore characters', change line to frontmatter.field_lines.get(\"name\").copied()",
+      "Update skill/description-too-long (skill_desc_too_long.rs): implement help_url(), help_text() returning 'shorten the description to 200 characters or fewer', change line to frontmatter.field_lines.get(\"description\").copied()",
+      "Update skill/invalid-shell (skill_invalid_shell.rs): implement help_url(), help_text() returning 'use a supported shell value', change line to frontmatter.field_lines.get(\"shell\").copied()",
+      "Update agent/missing-tools (agent_missing_tools.rs): implement help_url(), help_text() returning 'add a \"tools\" field listing required tools', change line to frontmatter.start_line",
+      "Update hook/unknown-event (hook_unknown_event.rs): implement help_url(), help_text() returning 'use a valid hook event name', keep existing line computation",
+      "Update hook/legacy-event-name (hook_legacy_event.rs): implement help_url(), help_text() returning 'rename to the PascalCase event name', add line-by-line search of raw JSON to find key line number",
+      "Update plugin/broken-paths (broken_paths.rs): implement help_url(), help_text() returning 'fix or remove the broken file reference', expose the already-computed pos variable as col: Some(pos + 1) in the Diagnostic",
+      "Update source/misplaced-features (misplaced_features.rs): implement help_url(), help_text() returning 'run \"aipm migrate\" to move into .ai/', keep line as None",
+      "Update all corresponding unit tests to verify help_url() returns Some(...) for each rule",
+      "Update all corresponding unit tests to verify help_text() returns Some(...) for each rule",
+      "Update tests that assert on line numbers to reflect accurate field_lines-based values",
+      "Run cargo test --workspace",
+      "Run cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Add annotate-snippets and anstyle dependencies to workspace Cargo.toml",
+    "steps": [
+      "Open the workspace Cargo.toml at the repo root",
+      "Add annotate-snippets = \"0.11\" (or latest stable) to [workspace.dependencies]",
+      "Add anstyle = \"1\" to [workspace.dependencies] (verify version matches clap's transitive dep with cargo tree -p clap -i anstyle)",
+      "Add anstyle-query = \"1\" to [workspace.dependencies] (verify version matches clap's transitive dep)",
+      "Open crates/libaipm/Cargo.toml",
+      "Add annotate-snippets = { workspace = true } to [dependencies]",
+      "Add anstyle = { workspace = true } to [dependencies]",
+      "Add anstyle-query = { workspace = true } to [dependencies]",
+      "Run cargo build --workspace to verify all dependencies resolve",
+      "Run cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Implement Human reporter with annotate-snippets colored output and snippet rendering",
+    "steps": [
+      "Create crates/libaipm/src/lint/reporter/ directory if converting reporter.rs to a module (or keep inline in reporter.rs)",
+      "Define pub struct Human with fields: fs: &dyn Fs (for reading source files), color: ColorChoice enum (Never/Auto/Always), base_dir: PathBuf",
+      "Define a ColorChoice enum (or reuse from anstyle-query) with Never, Auto, Always variants",
+      "Implement color auto-detection function: check --color flag value first, then NO_COLOR env var, then CLICOLOR=0, then is_atty(stdout)",
+      "Implement Reporter trait for Human struct",
+      "In the report() method, iterate outcome.diagnostics and render each as a rustc-style block",
+      "For each diagnostic: write severity label with color (bold red for error, bold yellow for warning) using anstyle",
+      "Write rule_id in brackets after severity (bold)",
+      "Write message after colon",
+      "Write --> arrow line with file_path:line:col (bold blue for --> and line numbers)",
+      "Write | gutter separator (bold blue)",
+      "If diagnostic.line is Some and file can be read via fs: read the source file, extract context lines (line-1, line, line+1), render via annotate-snippets Snippet",
+      "If diagnostic has col/end_col: render underline carets ^^^ at the column range in the severity color",
+      "If diagnostic.line is None (directory-level): skip snippet section, only show --> path",
+      "After snippet: write = help: lines for help_text (bold cyan label) if the rule provides help_text()",
+      "Write = help: line for help_url (bold cyan label) if the rule provides help_url()",
+      "After all diagnostics: write summary line like 'error: N error(s), M warning(s) emitted'",
+      "Handle case where fs.read() fails for a file: gracefully skip snippet, still render diagnostic header and help",
+      "Add unit test: Human reporter with color=Never produces expected uncolored output for a warning diagnostic",
+      "Add unit test: Human reporter with color=Always produces ANSI-colored output with correct escape codes",
+      "Add unit test: Human reporter renders snippet when line is Some and file content is available via MockFs",
+      "Add unit test: Human reporter skips snippet when line is None (directory-level diagnostic)",
+      "Add unit test: Human reporter renders underline carets when col and end_col are present",
+      "Add unit test: Human reporter renders help text and help url lines when provided",
+      "Add unit test: Human reporter handles missing file gracefully (fs.read returns error)",
+      "Add unit test: summary line shows correct counts for mixed errors and warnings",
+      "Add unit test: 'no issues found' message when diagnostics is empty",
+      "Run cargo test --workspace",
+      "Run cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Extend Json reporter with col, end_line, end_col, help_url, help_text, and severity_code fields",
+    "steps": [
+      "Open crates/libaipm/src/lint/reporter.rs (or the new reporter module)",
+      "In the Json reporter's report() method, find the diagnostic JSON object construction (around lines 67-78)",
+      "After the existing 'line' field, add 'col' field: emit as number if Some, null if None",
+      "Add 'end_line' field: emit as number if Some, null if None",
+      "Add 'end_col' field: emit as number if Some, null if None",
+      "Add 'severity_code' field: emit 1 for Error, 2 for Warning (LSP-compatible numeric mapping)",
+      "Add 'help_url' field: this requires access to the Rule that produced the diagnostic -- either store help_url/help_text on Diagnostic itself, or look up from a rule registry. Simplest: add help_url and help_text as Optional fields on Diagnostic, populated by rules",
+      "Add 'help_text' field: emit as escaped JSON string if Some, null if None",
+      "Update escape_json_string if needed for any new characters in help_url/help_text values",
+      "Update existing Json reporter unit tests to verify new fields appear in output",
+      "Add unit test: Json output includes severity_code 1 for error diagnostic",
+      "Add unit test: Json output includes severity_code 2 for warning diagnostic",
+      "Add unit test: Json output includes col, end_line, end_col as null when None",
+      "Add unit test: Json output includes col as number when Some",
+      "Add unit test: Json output includes help_url and help_text when provided",
+      "Add unit test: Json output is valid parseable JSON (can parse with serde_json in test)",
+      "Run cargo test --workspace",
+      "Run cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Implement ci-github reporter emitting GitHub Actions annotation format",
+    "steps": [
+      "Create the CiGitHub struct (zero-sized unit struct) in the reporter module",
+      "Implement Reporter trait for CiGitHub",
+      "In report(): iterate outcome.diagnostics",
+      "For each diagnostic: emit ::{severity} file={file_path},line={line},col={col}::{rule_id}: {message}",
+      "Map Severity::Error to 'error', Severity::Warning to 'warning'",
+      "Default line to 1 if None, col to 1 if None",
+      "No color, no snippets, no summary line -- just annotation commands",
+      "Add unit test: CiGitHub reporter produces correct ::error format for error diagnostic",
+      "Add unit test: CiGitHub reporter produces correct ::warning format for warning diagnostic",
+      "Add unit test: CiGitHub reporter defaults line=1, col=1 when diagnostic has None values",
+      "Add unit test: CiGitHub reporter handles special characters in message (no escaping needed for GH format)",
+      "Add unit test: CiGitHub reporter with empty diagnostics produces no output",
+      "Run cargo test --workspace",
+      "Run cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Implement ci-azure reporter emitting Azure DevOps ##vso[task.logissue] format",
+    "steps": [
+      "Create the CiAzure struct (zero-sized unit struct) in the reporter module",
+      "Implement Reporter trait for CiAzure",
+      "In report(): iterate outcome.diagnostics",
+      "For each diagnostic: emit ##vso[task.logissue type={severity};sourcepath={file_path};linenumber={line};columnnumber={col}]{rule_id}: {message}",
+      "Map Severity::Error to 'error', Severity::Warning to 'warning'",
+      "Default linenumber to 1 if None, columnnumber to 1 if None",
+      "No color, no snippets, no summary -- just logging commands",
+      "Add unit test: CiAzure reporter produces correct ##vso format for error diagnostic",
+      "Add unit test: CiAzure reporter produces correct ##vso format for warning diagnostic",
+      "Add unit test: CiAzure reporter defaults linenumber=1, columnnumber=1 when None",
+      "Add unit test: CiAzure reporter handles special characters in message (semicolons in particular need care for vso format)",
+      "Add unit test: CiAzure reporter with empty diagnostics produces no output",
+      "Run cargo test --workspace",
+      "Run cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Update CLI: add --reporter flag, --color flag, deprecate --format as hidden alias",
+    "steps": [
+      "Open crates/aipm/src/main.rs",
+      "In the Lint variant of the Commands enum, add: reporter: String field with #[arg(long, default_value = \"human\", value_parser = [\"human\", \"json\", \"ci-github\", \"ci-azure\"])]",
+      "Change existing format field to: format: Option<String> with #[arg(long, hide = true)]",
+      "Add: color: String field with #[arg(long, default_value = \"auto\", value_parser = [\"never\", \"auto\", \"always\"])]",
+      "Update the Commands::Lint match arm to destructure the new fields: reporter, format, color",
+      "Update cmd_lint function signature to accept reporter: &str, format: Option<&str>, color: &str parameters",
+      "In cmd_lint, compute effective_reporter: let effective_reporter = format.unwrap_or(reporter)",
+      "Implement color_choice resolution: match color { 'never' => Never, 'always' => Always, _ => auto-detect via anstyle-query or manual TTY/NO_COLOR/CLICOLOR check }",
+      "Update the reporter match block to dispatch to Human, Json, CiGitHub, or CiAzure based on effective_reporter",
+      "For Human reporter: construct with fs, color_choice, and base_dir",
+      "For other reporters: construct zero-sized structs as before",
+      "Add integration test: --reporter json produces valid JSON output",
+      "Add integration test: --reporter ci-github produces ::error/::warning lines",
+      "Add integration test: --reporter ci-azure produces ##vso lines",
+      "Add integration test: --format json (deprecated alias) produces same output as --reporter json",
+      "Add integration test: --color=never with human reporter produces no ANSI escape codes",
+      "Add integration test: unknown --reporter value is rejected by clap value_parser",
+      "Run cargo test --workspace",
+      "Run cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": false
+  },
+  {
+    "category": "refactor",
+    "description": "Add help_url and help_text fields to Diagnostic struct for reporter access",
+    "steps": [
+      "Open crates/libaipm/src/lint/diagnostic.rs",
+      "Add help_url: Option<String> and help_text: Option<String> fields to the Diagnostic struct",
+      "Update all Diagnostic construction sites in rule files to include help_url: None, help_text: None initially",
+      "Update crates/libaipm/src/lint/mod.rs run_rules_for_source: after collecting diagnostics from a rule, populate help_url and help_text from the Rule trait methods on each diagnostic",
+      "This bridges the gap between Rule trait (which knows help info) and Diagnostic (which reporters consume)",
+      "Update all test Diagnostic constructions to include the new fields",
+      "Run cargo build --workspace",
+      "Run cargo test --workspace",
+      "Run cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Create rule documentation markdown files in docs/rules/",
+    "steps": [
+      "Create docs/rules/ directory structure: docs/rules/skill/, docs/rules/agent/, docs/rules/hook/, docs/rules/plugin/, docs/rules/source/",
+      "Create docs/rules/skill/missing-name.md with: rule description, what it catches, how to fix, example of correct frontmatter",
+      "Create docs/rules/skill/missing-description.md",
+      "Create docs/rules/skill/oversized.md",
+      "Create docs/rules/skill/name-too-long.md",
+      "Create docs/rules/skill/name-invalid-chars.md",
+      "Create docs/rules/skill/description-too-long.md",
+      "Create docs/rules/skill/invalid-shell.md",
+      "Create docs/rules/agent/missing-tools.md",
+      "Create docs/rules/hook/unknown-event.md",
+      "Create docs/rules/hook/legacy-event-name.md",
+      "Create docs/rules/plugin/broken-paths.md",
+      "Create docs/rules/source/misplaced-features.md",
+      "Verify each rule's help_url() return value matches the actual file path in the repo"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Run full test suite, clippy, fmt, and coverage gate to verify all changes",
+    "steps": [
+      "Run cargo fmt --check to verify formatting",
+      "Run cargo clippy --workspace -- -D warnings to verify no lint violations",
+      "Run cargo test --workspace to verify all tests pass",
       "Run cargo +nightly llvm-cov clean --workspace",
       "Run cargo +nightly llvm-cov --no-report --workspace --branch",
       "Run cargo +nightly llvm-cov --no-report --doc",
-      "Run cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs)'",
-      "Verify TOTAL line branch column shows >= 89%",
-      "If coverage is below threshold, add additional tests for uncovered branches",
-      "Run cargo fmt --check to verify formatting"
+      "Run cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs)' and verify TOTAL branch coverage >= 89%",
+      "If coverage is below 89%, add additional tests targeting uncovered branches",
+      "Run all four checks one final time: cargo fmt --check && cargo clippy --workspace -- -D warnings && cargo test --workspace && coverage report"
     ],
-    "passes": true
+    "passes": false
   }
 ]

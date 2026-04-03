@@ -38,6 +38,9 @@ impl Rule for MissingTools {
                         message: "agent definition missing tools declaration".to_string(),
                         file_path: agent.path,
                         line: Some(1),
+                        col: None,
+                        end_line: None,
+                        end_col: None,
                         source_type: ".ai".to_string(),
                     });
                 },

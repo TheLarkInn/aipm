@@ -55,6 +55,9 @@ impl Rule for LegacyEventName {
                         ),
                         file_path: path.clone(),
                         line: None,
+                        col: None,
+                        end_line: None,
+                        end_col: None,
                         source_type: ".ai".to_string(),
                     });
                 }

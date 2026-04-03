@@ -46,6 +46,9 @@ impl Rule for InvalidShell {
                             ),
                             file_path: skill.path,
                             line: Some(1),
+                            col: None,
+                            end_line: None,
+                            end_col: None,
                             source_type: ".ai".to_string(),
                         });
                     }

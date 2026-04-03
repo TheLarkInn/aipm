@@ -38,6 +38,9 @@ impl Rule for MissingDescription {
                         message: "SKILL.md missing required field: description".to_string(),
                         file_path: skill.path,
                         line: Some(1),
+                        col: None,
+                        end_line: None,
+                        end_col: None,
                         source_type: ".ai".to_string(),
                     });
                 },
@@ -48,6 +51,9 @@ impl Rule for MissingDescription {
                         message: "SKILL.md has no frontmatter".to_string(),
                         file_path: skill.path,
                         line: Some(1),
+                        col: None,
+                        end_line: None,
+                        end_col: None,
                         source_type: ".ai".to_string(),
                     });
                 },

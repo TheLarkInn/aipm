@@ -55,6 +55,9 @@ impl Rule for MisplacedFeatures {
                     ),
                     file_path: dir,
                     line: None,
+                    col: None,
+                    end_line: None,
+                    end_col: None,
                     source_type: self.source_type.to_string(),
                 });
             }
