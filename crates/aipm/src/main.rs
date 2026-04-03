@@ -9,6 +9,7 @@ use std::io::{IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
+use clap_verbosity_flag::{Verbosity, WarnLevel};
 use libaipm::lint::reporter::Reporter;
 
 #[derive(Parser)]
@@ -16,6 +17,14 @@ use libaipm::lint::reporter::Reporter;
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
+
+    /// Increase verbosity (-v info, -vv debug, -vvv trace).
+    #[command(flatten)]
+    verbose: Verbosity<WarnLevel>,
+
+    /// Log output format for tracing diagnostics on stderr; top-level fatal errors are always plain text.
+    #[arg(long, default_value = "text", value_parser = ["text", "json"])]
+    log_format: String,
 }
 
 #[derive(Subcommand)]
@@ -204,12 +213,18 @@ fn resolve_dir(dir: PathBuf) -> Result<PathBuf, Box<dyn std::error::Error>> {
 /// back to `.ai` when unset or when the manifest cannot be loaded.
 fn resolve_plugins_dir(dir: &Path) -> PathBuf {
     let manifest_path = dir.join("aipm.toml");
-    if let Ok(manifest) = libaipm::manifest::load(&manifest_path) {
-        if let Some(ws) = manifest.workspace {
-            if let Some(pd) = ws.plugins_dir {
-                return dir.join(pd);
+    match libaipm::manifest::load(&manifest_path) {
+        Ok(manifest) => {
+            if let Some(ws) = manifest.workspace {
+                if let Some(pd) = ws.plugins_dir {
+                    return dir.join(pd);
+                }
             }
-        }
+            tracing::debug!(path = %manifest_path.display(), "manifest has no plugins_dir, using .ai");
+        },
+        Err(e) => {
+            tracing::debug!(path = %manifest_path.display(), error = %e, "could not load manifest, using .ai");
+        },
     }
     dir.join(".ai")
 }
@@ -551,11 +566,31 @@ fn cmd_lint(
 
 fn load_lint_config(dir: &Path) -> libaipm::lint::config::Config {
     let manifest_path = dir.join("aipm.toml");
-    let Ok(content) = std::fs::read_to_string(&manifest_path) else {
-        return libaipm::lint::config::Config::default();
+    let content = match std::fs::read_to_string(&manifest_path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            tracing::debug!(path = %manifest_path.display(), "no aipm.toml found, using default lint config");
+            return libaipm::lint::config::Config::default();
+        },
+        Err(e) => {
+            tracing::warn!(
+                path = %manifest_path.display(),
+                error = %e,
+                "failed to read aipm.toml, using default lint config"
+            );
+            return libaipm::lint::config::Config::default();
+        },
     };
-    let Ok(manifest) = toml::from_str::<toml::Value>(&content) else {
-        return libaipm::lint::config::Config::default();
+    let manifest = match toml::from_str::<toml::Value>(&content) {
+        Ok(m) => m,
+        Err(e) => {
+            tracing::warn!(
+                path = %manifest_path.display(),
+                error = %e,
+                "failed to parse aipm.toml, using default lint config"
+            );
+            return libaipm::lint::config::Config::default();
+        },
     };
 
     let mut config = libaipm::lint::config::Config::default();
@@ -730,6 +765,14 @@ fn cmd_migrate(
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
+
+    // Initialize logging from CLI flags
+    let verbosity = cli.verbose.tracing_level_filter();
+    let log_fmt = match cli.log_format.as_str() {
+        "json" => libaipm::logging::LogFormat::Json,
+        _ => libaipm::logging::LogFormat::Text,
+    };
+    libaipm::logging::init(verbosity, log_fmt)?;
 
     match cli.command {
         Some(Commands::Init { yes, workspace, marketplace, no_starter, manifest, name, dir }) => {

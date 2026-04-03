@@ -21,10 +21,19 @@ pub use rule::Rule;
 /// Check if a file path matches any of the given glob ignore patterns.
 fn is_ignored(path: &str, patterns: &[String]) -> bool {
     for pattern in patterns {
-        if let Ok(pat) = glob::Pattern::new(pattern) {
-            if pat.matches(path) {
-                return true;
-            }
+        match glob::Pattern::new(pattern) {
+            Ok(pat) => {
+                if pat.matches(path) {
+                    return true;
+                }
+            },
+            Err(e) => {
+                tracing::warn!(
+                    pattern = %pattern,
+                    error = %e,
+                    "ignoring invalid glob pattern in ignore list"
+                );
+            },
         }
     }
     false

@@ -18,6 +18,7 @@ serde_json = { workspace = true }
 toml = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+clap-verbosity-flag = { workspace = true }
 
 [dev-dependencies]
 assert_cmd = { workspace = true }

@@ -23,6 +23,8 @@ target
 # Local AI Profiles
 .github/copilot/settings.local.json
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/ralph-loop.local.md
 
 # Coverage artifacts
 coverage/
