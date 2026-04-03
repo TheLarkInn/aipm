@@ -512,4 +512,74 @@ mod tests {
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("HTTP request failed"), "unexpected error message: {err_msg}");
     }
+
+    // --- ensure_index branch coverage ---
+
+    /// Covers: `synced=false` + `git_dir.exists()=false` → clone path in `ensure_index`.
+    ///
+    /// `Git::new()` initialises `synced=false`. The first `get_metadata` call therefore
+    /// enters the "not yet synced" branch of `ensure_index`.  Because the cache directory
+    /// has no `.git` sub-directory, the code takes the clone path.  Pointing the URL at a
+    /// plain (non-git) directory makes `clone_index` fail immediately, so the test does not
+    /// need network access.
+    #[test]
+    fn ensure_index_clone_path_covered_when_not_synced() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let cache_root = tmp.path().join("cache");
+
+        // A plain directory (not a git repo) used as the "remote" URL.
+        let not_a_repo = tmp.path().join("not-a-git-repo");
+        std::fs::create_dir_all(&not_a_repo).expect("create dir");
+        let url = format!("file://{}", not_a_repo.display());
+
+        // Git::new() creates cache_dir with synced=false.
+        let git = Git::new(&url, &cache_root).expect("Git::new should succeed");
+
+        // Triggers: ensure_index → synced=false → git_dir.exists()=false → clone_index → Err.
+        let result = git.get_metadata("any-pkg");
+        assert!(result.is_err(), "expected Err when source is not a git repo: {result:?}");
+    }
+
+    /// Covers: `synced=false` + `git_dir.exists()=true` → fetch path in `ensure_index`.
+    ///
+    /// A minimal local git repository is initialised and cloned into the exact cache
+    /// directory that `Git::new()` would compute, so that `.git` already exists when
+    /// `ensure_index` runs.  The code takes the fetch path; the fetch succeeds against
+    /// the local repo.  The package lookup then fails with "not found", which is fine —
+    /// the goal is branch coverage of `ensure_index`, not a successful download.
+    #[test]
+    fn ensure_index_fetch_path_covered_when_git_dir_exists() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+
+        // --- set up a minimal local git repo to act as the "remote" ---
+        let remote_dir = tmp.path().join("remote");
+        std::fs::create_dir_all(&remote_dir).expect("create remote dir");
+        let repo = git2::Repository::init(&remote_dir).expect("git init");
+
+        // Create an initial commit so the repo has a valid HEAD.
+        let sig = git2::Signature::now("Test", "test@test.invalid").expect("signature");
+        let mut index = repo.index().expect("repo index");
+        let tree_id = index.write_tree().expect("write_tree");
+        let tree = repo.find_tree(tree_id).expect("find_tree");
+        repo.commit(Some("HEAD"), &sig, &sig, "init", &tree, &[]).expect("initial commit");
+
+        let url = format!("file://{}", remote_dir.display());
+
+        // --- pre-populate the cache directory that Git::new() will use ---
+        let cache_root = tmp.path().join("cache");
+        let git = Git::new(&url, &cache_root).expect("Git::new");
+        std::fs::create_dir_all(&git.cache_dir).expect("create cache_dir");
+        git2::Repository::clone(&url, &git.cache_dir).expect("pre-clone");
+        assert!(
+            git.cache_dir.join(".git").exists(),
+            "expected pre-cloned cache dir to contain .git so the fetch path is exercised"
+        );
+
+        // --- exercise the fetch branch ---
+
+        // Triggers: ensure_index → synced=false → git_dir.exists()=true → fetch_index.
+        // After fetching, the package lookup fails with "not found" — that is expected.
+        let result = git.get_metadata("nonexistent-pkg");
+        assert!(result.is_err(), "expected Err (package not found after fetch): {result:?}");
+    }
 }
