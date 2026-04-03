@@ -29,3 +29,18 @@ Verification:
 - cargo build --workspace: OK
 - cargo test --workspace: 1103 unit + 74 BDD scenarios all pass
 - cargo clippy --workspace -- -D warnings: clean
+
+## 2026-04-03 — Feature 3: Add per-field line tracking to Frontmatter struct and parser
+
+Status: COMPLETE
+
+Changes:
+- Added `field_lines: BTreeMap<String, usize>` to Frontmatter struct
+- Updated parse() to track 1-based line number for each key using .enumerate()
+- Formula: yaml_base_line = start_line + newlines_in_skip, then abs_line = yaml_base_line + line_index
+- Updated 16 Frontmatter struct literals in test code
+- Added 4 new tests for field_lines tracking
+
+Verification:
+- cargo test --workspace: 1107 tests pass (4 new)
+- cargo clippy --workspace -- -D warnings: clean

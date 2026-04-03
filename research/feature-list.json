@@ -40,7 +40,7 @@
   },
   {
     "category": "refactor",
-    "description": "Add per-field line tracking to Frontmatter struct and parser",
+    "description": "Add per-field line tracking to Frontmatter struct and parser [DONE]",
     "steps": [
       "Open crates/libaipm/src/frontmatter.rs",
       "Add field_lines: BTreeMap<String, usize> to the Frontmatter struct (after the fields field)",
@@ -57,7 +57,7 @@
       "Run cargo test --workspace",
       "Run cargo clippy --workspace -- -D warnings"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
