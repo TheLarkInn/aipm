@@ -419,6 +419,9 @@ mod tests {
         // covering the ? error paths in collect_all_files / collect_files_recursive.
         let fs = MockFs::new();
         let result = reconcile(Path::new("/src"), &[], &fs);
-        assert!(result.is_err(), "reconcile should propagate read_dir failure");
+        assert!(
+            matches!(result, Err(Error::Io(ref e)) if e.kind() == std::io::ErrorKind::NotFound),
+            "reconcile should propagate read_dir NotFound failure"
+        );
     }
 }

@@ -149,7 +149,7 @@ mod tests {
     #[test]
     fn assemble_missing_hash_returns_error() {
         // A valid-format hash that was never stored — link_to returns NotFound,
-        // covering the map_err closure on the store.link_to call (lines 51-54).
+        // covering the error mapping on the store.link_to call.
         let tmp = tempfile::tempdir().expect("tempdir");
         let store = store::Store::new(tmp.path().join("store"));
 
@@ -159,6 +159,10 @@ mod tests {
 
         let target = tmp.path().join("links").join("ghost-pkg");
         let result = assemble(&store, &file_hashes, &target);
-        assert!(result.is_err(), "assemble should fail when hash is not in the store");
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt")),
+            "assemble should fail with Io error for ghost.txt, got: {:?}",
+            result
+        );
     }
 }
