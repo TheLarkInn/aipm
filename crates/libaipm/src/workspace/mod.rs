@@ -34,12 +34,28 @@ pub fn find_workspace_root(start_dir: &Path) -> Option<PathBuf> {
     loop {
         let manifest_path = current.join("aipm.toml");
         if manifest_path.exists() {
-            if let Ok(content) = std::fs::read_to_string(&manifest_path) {
-                if let Ok(m) = toml::from_str::<manifest::types::Manifest>(&content) {
-                    if m.workspace.is_some() {
-                        return Some(current);
-                    }
-                }
+            match std::fs::read_to_string(&manifest_path) {
+                Ok(content) => match toml::from_str::<manifest::types::Manifest>(&content) {
+                    Ok(m) => {
+                        if m.workspace.is_some() {
+                            return Some(current);
+                        }
+                    },
+                    Err(e) => {
+                        tracing::debug!(
+                            path = %manifest_path.display(),
+                            error = %e,
+                            "skipping unparseable manifest during workspace discovery"
+                        );
+                    },
+                },
+                Err(e) => {
+                    tracing::debug!(
+                        path = %manifest_path.display(),
+                        error = %e,
+                        "could not read manifest during workspace discovery"
+                    );
+                },
             }
         }
         if !current.pop() {

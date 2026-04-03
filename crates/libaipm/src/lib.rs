@@ -12,6 +12,7 @@ pub mod installer;
 pub mod linker;
 pub mod lint;
 pub mod lockfile;
+pub mod logging;
 pub mod manifest;
 pub mod migrate;
 pub mod registry;

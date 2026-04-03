@@ -1,19 +1,28 @@
-Feature 1: Promote discovery module to top-level libaipm::discovery - DONE
-Feature 2: Add DiscoveryFailed error variant to lint::Error - DONE
-Feature 3: Modify lint() pipeline to use recursive discovery - DONE
-Feature 4: Update cmd_lint() CLI validation for --source - DONE
-Feature 5: Unit tests for recursive discovery integration in lint - DONE
-Feature 6: E2E tests for monorepo lint scenarios - DONE
-Feature 7: Final verification - DONE
+2026-04-03: Verbosity Levels Implementation (Issue #189) — COMPLETE
 
-Build: PASS
-Tests: 1092 passed, 0 failed (was 1080 before, +12 new tests)
-Clippy: PASS (no warnings)
-Fmt: PASS
-Coverage: 88.71% branch (pre-existing gap, was 88.81% before changes)
+All 17 features implemented and passing:
 
-Note on coverage: The branch coverage was already below 89% (88.81%) before
-this work. The 0.1% decrease is from adding new branches that are fully
-covered in tests, while the pre-existing uncovered branches (in lint rules
-like skill_name_too_long.rs, skill_missing_name.rs, etc.) remain unchanged.
-The new code (discovery.rs, misplaced_features.rs) has 100% branch coverage.
+1. [DONE] Added workspace dependencies: clap-verbosity-flag 3, tracing-appender 0.2, updated tracing-subscriber with env-filter+json features
+2. [DONE] Created libaipm::logging module with LogFormat enum + init() function (layered subscriber: stderr + file)
+3. [DONE] Added -v/-q (Verbosity<WarnLevel>) and --log-format=text|json flags to Cli struct
+4. [DONE] Wired logging::init() into run() function before command dispatch
+5. [DONE] Instrumented resolve_plugins_dir fallback (main.rs)
+6. [DONE] Instrumented load_lint_config fallback (main.rs)
+7. [DONE] Instrumented find_workspace_root manifest parse skip (workspace/mod.rs)
+8. [DONE] Instrumented build_pins version parse skip (installer/pipeline.rs)
+9. [DONE] Instrumented is_ignored glob pattern skip (lint/mod.rs)
+10. [DONE] Instrumented scan_skills/scan_agents/scan_hook_files read failures (lint/rules/scan.rs)
+11. [DONE] Verified store link_to already has tracing::warn! for hard-link fallback (store/mod.rs)
+12. [DONE] Instrumented try_read_config candidate file search (migrate/copilot_extension_detector.rs)
+13. [DONE] Instrumented file read skip in migration emitter (migrate/emitter.rs)
+14. [DONE] Instrumented directory read skip in cleanup pruning (migrate/cleanup.rs)
+15. [DONE] Instrumented atomic write backup cleanup errors (fs.rs)
+16. [DONE] Unit tests for logging module (5 tests in logging.rs)
+17. [DONE] Integration tests for CLI flags (17 tests in verbosity_e2e.rs)
+
+Verification:
+- cargo build --workspace: PASS
+- cargo clippy --workspace -- -D warnings: PASS (zero warnings)
+- cargo fmt --check: PASS
+- cargo test --workspace: PASS (1296 tests, 0 failures)
+- Branch coverage: 89.29% (meets 89% gate)

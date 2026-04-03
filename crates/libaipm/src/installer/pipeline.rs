@@ -638,8 +638,18 @@ fn resolve_registry_dependencies(
 fn build_pins(packages: &[lockfile::types::Package]) -> BTreeMap<String, Version> {
     let mut pins = BTreeMap::new();
     for pkg in packages {
-        if let Ok(v) = Version::parse(&pkg.version) {
-            pins.insert(pkg.name.clone(), v);
+        match Version::parse(&pkg.version) {
+            Ok(v) => {
+                pins.insert(pkg.name.clone(), v);
+            },
+            Err(e) => {
+                tracing::warn!(
+                    package = %pkg.name,
+                    version = %pkg.version,
+                    error = %e,
+                    "skipping package with unparseable version in lockfile"
+                );
+            },
         }
     }
     pins

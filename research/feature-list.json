@@ -1,113 +1,223 @@
 [
   {
-    "category": "refactor",
-    "description": "Promote discovery module from migrate/discovery.rs to top-level libaipm::discovery with its own error type",
+    "category": "functional",
+    "description": "Add workspace dependencies: clap-verbosity-flag, tracing-appender, update tracing-subscriber features",
     "steps": [
-      "Create crates/libaipm/src/discovery.rs with contents of crates/libaipm/src/migrate/discovery.rs",
-      "Define a self-contained discovery::Error enum with WalkFailed(String) variant, replacing use of migrate::Error",
-      "Update all functions in the new module to return discovery::Error instead of migrate::Error",
-      "Add pub mod discovery; to crates/libaipm/src/lib.rs",
-      "Update crates/libaipm/src/migrate/mod.rs to replace pub mod discovery; with pub use crate::discovery; (or update internal references)",
-      "Update crates/libaipm/src/migrate/dry_run.rs import from use super::discovery::DiscoveredSource to use crate::discovery::DiscoveredSource",
-      "Update the discover_source_dirs() call in migrate/mod.rs to use crate::discovery::discover_source_dirs and map discovery::Error to migrate::Error",
-      "Replace migrate::Error::DiscoveryFailed with a From<discovery::Error> impl on migrate::Error",
-      "Delete the old crates/libaipm/src/migrate/discovery.rs file",
+      "Add tracing-appender = \"0.2\" to [workspace.dependencies] in Cargo.toml",
+      "Add clap-verbosity-flag = { version = \"3\", default-features = false, features = [\"tracing\"] } to [workspace.dependencies] in Cargo.toml",
+      "Update tracing-subscriber in [workspace.dependencies] to { version = \"0.3\", features = [\"env-filter\", \"json\"] }",
+      "Add clap-verbosity-flag = { workspace = true } to crates/aipm/Cargo.toml [dependencies]",
+      "Add tracing-subscriber = { workspace = true } to crates/libaipm/Cargo.toml [dependencies]",
+      "Add tracing-appender = { workspace = true } to crates/libaipm/Cargo.toml [dependencies]",
+      "Run cargo build --workspace to verify all dependencies resolve correctly",
+      "Run cargo clippy --workspace -- -D warnings to verify no lint issues"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Create libaipm::logging module with LogFormat enum and init() subscriber function",
+    "steps": [
+      "Create new file crates/libaipm/src/logging.rs",
+      "Define pub enum LogFormat { Text, Json }",
+      "Implement pub fn init(verbosity: LevelFilter, format: LogFormat) -> Result<(), Box<dyn std::error::Error>>",
+      "Create file appender layer: RollingFileAppender with DAILY rotation, 'aipm' prefix, 'log' suffix, max 7 files, targeting std::env::temp_dir()",
+      "Create file layer: fmt::layer() with .with_writer(file_appender), .with_ansi(false), .with_target(true), .with_filter(LevelFilter::DEBUG)",
+      "Implement AIPM_LOG env var check: if std::env::var(\"AIPM_LOG\").is_ok() use EnvFilter::from_env(\"AIPM_LOG\"), else use EnvFilter from verbosity level",
+      "Implement Text format branch: fmt::layer().with_writer(std::io::stderr).with_target(true).with_filter(stderr_filter)",
+      "Implement Json format branch: fmt::layer().json().with_writer(std::io::stderr).with_target(true).with_file(true).with_line_number(true).with_filter(stderr_filter)",
+      "Wire both stderr and file layers into tracing_subscriber::registry().with(...).with(...).init()",
+      "Add pub mod logging; to crates/libaipm/src/lib.rs",
       "Run cargo build --workspace to verify compilation",
-      "Run cargo test --workspace to verify all existing discovery tests pass",
       "Run cargo clippy --workspace -- -D warnings to verify no lint issues",
-      "Run cargo fmt --check to verify formatting"
+      "Ensure no use of .unwrap(), .expect(), panic!(), println!(), or any denied lint patterns"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Add DiscoveryFailed error variant to lint::Error with From<discovery::Error> impl",
+    "description": "Add -v/-q verbosity flags and --log-format flag to aipm Cli struct via clap-verbosity-flag",
     "steps": [
-      "Open crates/libaipm/src/lint/mod.rs and locate the Error enum",
-      "Add a new variant: DiscoveryFailed(String) with #[error(\"discovery failed: {0}\")] annotation",
-      "Add impl From<crate::discovery::Error> for Error that converts discovery::Error to DiscoveryFailed",
-      "Run cargo build --workspace to verify compilation",
-      "Add a unit test in lint/mod.rs tests verifying the error Display output",
-      "Run cargo test --workspace to verify tests pass"
+      "Add use clap_verbosity_flag::{Verbosity, WarnLevel}; to crates/aipm/src/main.rs",
+      "Add #[command(flatten)] verbose: Verbosity<WarnLevel> field to Cli struct",
+      "Add #[arg(long, default_value = \"text\", value_parser = [\"text\", \"json\"])] log_format: String field to Cli struct",
+      "Verify the flag mapping: -qq=OFF, -q=ERROR, none=WARN, -v=INFO, -vv=DEBUG, -vvv=TRACE",
+      "Run cargo build --workspace to verify Cli struct compiles",
+      "Run cargo clippy --workspace -- -D warnings"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Modify lint() pipeline to use recursive discovery for .claude/.github source directories",
+    "description": "Wire logging::init() into aipm run() function to activate tracing subscriber on startup",
     "steps": [
-      "Open crates/libaipm/src/lint/mod.rs and locate the lint() function",
-      "Replace the flat fs.exists() source detection block (lines 47-63) with a two-phase approach",
-      "Phase 1: Determine source patterns based on opts.source -- vec![] for .ai, vec![src] for explicit .claude/.github, vec!['.claude', '.github'] for auto-discover",
-      "Call crate::discovery::discover_source_dirs(&opts.dir, &source_patterns, opts.max_depth) when patterns are non-empty",
-      "Iterate over each DiscoveredSource, get rules via rules::for_source(&src.source_type), run rule.check(&src.source_dir, fs)",
-      "Apply config suppression, severity overrides, and ignore path filtering to diagnostics from each discovered source",
-      "Phase 2: Determine if .ai/ marketplace should be checked -- true for --source .ai or auto-discover when fs.exists(.ai/)",
-      "If checking marketplace, run rules::for_marketplace() against opts.dir.join('.ai') with same config/ignore logic as before",
-      "Deduplicate sources_scanned entries so multiple .claude/ dirs produce a single '.claude' entry",
-      "Ensure diagnostics are still sorted by file_path for consistent output",
-      "Remove the unused source_dir variable assignment (let source_dir = opts.dir.join(source_type.trim_start_matches('.'));)",
-      "Run cargo build --workspace to verify compilation",
+      "In crates/aipm/src/main.rs run() function, after Cli::parse(), extract verbosity: let verbosity = cli.verbose.tracing_level_filter();",
+      "Parse log_format: match cli.log_format.as_str() to convert to libaipm::logging::LogFormat enum",
+      "Call libaipm::logging::init(verbosity, format)? before the match on cli.command",
+      "Verify existing tracing::info! call at main.rs:327 (workspace root found) now produces output with -v flag",
+      "Run cargo build --workspace",
       "Run cargo clippy --workspace -- -D warnings",
-      "Run cargo fmt --check"
+      "Run cargo test --workspace to verify all existing tests still pass"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Update cmd_lint() CLI validation to relax --source existence check for .claude/.github",
+    "description": "Instrument silent fallback in resolve_plugins_dir (main.rs:205-215)",
     "steps": [
-      "Open crates/aipm/src/main.rs and locate the cmd_lint() function",
-      "Keep the SUPPORTED_SOURCES validation (unsupported source type check)",
-      "Change the source directory existence check: only validate root-level existence for --source .ai",
-      "For --source .claude and --source .github, remove the root-level existence check -- let discovery handle it",
-      "Run cargo build --workspace to verify compilation",
-      "Run cargo test --workspace to verify existing E2E tests still pass",
-      "Verify that aipm lint --source .ai in a dir without .ai/ still errors correctly"
+      "Refactor resolve_plugins_dir to use match on manifest::load() result instead of if let Ok",
+      "Add tracing::debug!(path = %manifest_path.display(), \"manifest has no plugins_dir, using .ai\") for the no-plugins_dir case",
+      "Add tracing::debug!(path = %manifest_path.display(), error = %e, \"could not load manifest, using .ai\") for the Err case",
+      "Run cargo clippy --workspace -- -D warnings",
+      "Run cargo test --workspace"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Unit tests for recursive discovery integration in lint pipeline",
+    "description": "Instrument silent fallback in load_lint_config (main.rs:552-619)",
     "steps": [
-      "Add test lint_discovers_nested_claude_dirs: create tempdir with packages/auth/.claude/skills/ and .ai/, run lint(), verify misplaced-features diagnostic fires for nested dir",
-      "Add test lint_discovers_nested_github_dirs: same pattern for .github/ with nested .github/skills/",
-      "Add test lint_source_filter_claude_only: create both nested .claude/ and .github/ dirs, lint with source=Some('.claude'), verify only .claude diagnostics",
-      "Add test lint_source_filter_ai_skips_discovery: lint with source=Some('.ai'), verify no discovery is run for .claude/.github",
-      "Add test lint_max_depth_limits_discovery: create root .claude/ and nested packages/auth/.claude/, lint with max_depth=Some(1), verify only root is found",
-      "Add test lint_no_sources_found_succeeds: lint an empty tempdir, verify empty outcome with no errors",
-      "Add test lint_deduplicates_sources_scanned: create multiple .claude/ dirs, verify sources_scanned contains single '.claude' entry",
-      "Run cargo test --workspace to verify all tests pass",
-      "Run cargo +nightly llvm-cov clean --workspace && cargo +nightly llvm-cov --no-report --workspace --branch && cargo +nightly llvm-cov --no-report --doc && cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs)' to verify >= 89% branch coverage"
+      "Identify where Config::default() is used as fallback when manifest parsing fails",
+      "Add tracing::warn! or tracing::debug! call logging the parse failure and fallback to default config",
+      "Include the manifest path and error details in structured tracing fields",
+      "Run cargo clippy --workspace -- -D warnings",
+      "Run cargo test --workspace"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "E2E tests for monorepo lint scenarios",
+    "description": "Instrument silent fallback in find_workspace_root (workspace/mod.rs:32-49)",
     "steps": [
-      "Open crates/aipm/tests/lint_e2e.rs",
-      "Add test lint_monorepo_finds_nested_misplaced_features: create tempdir monorepo with .ai/ at root and packages/auth/.claude/skills/, run aipm lint, verify stdout contains source/misplaced-features with nested path",
-      "Add test lint_source_claude_no_root_dir_succeeds_with_nested: create tempdir with .ai/ at root and packages/auth/.claude/skills/ but NO root .claude/, run aipm lint --source .claude, verify it succeeds and finds the nested diagnostic",
-      "Add test lint_max_depth_cli_flag: create tempdir with root .claude/skills/ and nested packages/auth/.claude/skills/ plus .ai/, run aipm lint --max-depth 1, verify only root diagnostic found",
-      "Run cargo test --workspace to verify all E2E tests pass",
-      "Run cargo +nightly llvm-cov clean --workspace && cargo +nightly llvm-cov --no-report --workspace --branch && cargo +nightly llvm-cov --no-report --doc && cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs)' to verify >= 89% branch coverage"
+      "Locate where unparseable manifests are silently skipped during workspace root walk",
+      "Add tracing::debug! call logging the skipped manifest path and parse error",
+      "Run cargo clippy --workspace -- -D warnings",
+      "Run cargo test --workspace"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Verify all existing tests pass and no regressions introduced",
+    "description": "Instrument silent fallback in build_pins (installer/pipeline.rs:638-646)",
     "steps": [
-      "Run cargo build --workspace to verify full compilation",
-      "Run cargo test --workspace to verify all tests pass (existing + new)",
-      "Run cargo clippy --workspace -- -D warnings to verify no clippy warnings",
-      "Run cargo fmt --check to verify formatting",
-      "Run cargo +nightly llvm-cov clean --workspace && cargo +nightly llvm-cov --no-report --workspace --branch && cargo +nightly llvm-cov --no-report --doc && cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs)' to verify >= 89% branch coverage",
-      "Verify existing lint_e2e.rs tests still pass (root-level directories are still discovered)",
-      "Verify existing discovery.rs tests pass in their new location",
-      "Verify existing misplaced_features.rs unit tests pass unchanged"
+      "Locate where packages with unparseable versions are silently skipped",
+      "Add tracing::warn! call logging the package name and version parse error",
+      "Run cargo clippy --workspace -- -D warnings",
+      "Run cargo test --workspace"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Instrument silent fallback in is_ignored (lint/mod.rs:22-31)",
+    "steps": [
+      "Locate where invalid glob patterns are silently skipped",
+      "Add tracing::warn!(pattern = %pat, error = %e, \"ignoring invalid glob pattern in ignore list\")",
+      "Run cargo clippy --workspace -- -D warnings",
+      "Run cargo test --workspace"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Instrument silent fallbacks in scan functions (lint/rules/scan.rs:32-131)",
+    "steps": [
+      "Locate scan_skills, scan_agents, scan_hook_files functions",
+      "Add tracing::debug! calls where unreadable directories or files are silently skipped",
+      "Include the path and error in structured tracing fields",
+      "Run cargo clippy --workspace -- -D warnings",
+      "Run cargo test --workspace"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Instrument silent fallback in store link_to (store/mod.rs:160-186) — verify existing tracing::warn! is adequate",
+    "steps": [
+      "Read store/mod.rs:160-186 to check existing tracing::warn! call for hard-link to copy fallback",
+      "Verify the existing tracing::warn! has sufficient structured fields (source, dest)",
+      "Add or improve structured fields if needed",
+      "Run cargo clippy --workspace -- -D warnings",
+      "Run cargo test --workspace"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Instrument silent fallback in copilot_extension_detector try_read_config (migrate/copilot_extension_detector.rs:60-79)",
+    "steps": [
+      "Locate where 9 candidate config filenames are tried silently",
+      "Add tracing::debug! calls logging each attempted filename and whether it was found or skipped",
+      "Run cargo clippy --workspace -- -D warnings",
+      "Run cargo test --workspace"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Instrument silent fallbacks in migrate emitter and cleanup (emitter.rs:618-626, cleanup.rs:64-71)",
+    "steps": [
+      "In migrate/emitter.rs:618-626, add tracing::warn! for files that fail to read during migration",
+      "In migrate/cleanup.rs:64-71, add tracing::warn! for directories that fail to read during pruning",
+      "Include file/directory path and error in structured tracing fields",
+      "Run cargo clippy --workspace -- -D warnings",
+      "Run cargo test --workspace"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Instrument silent fallback in fs.rs atomic write backup cleanup (fs.rs:201-205)",
+    "steps": [
+      "Locate where atomic write backup cleanup silently discards errors on Windows",
+      "Add tracing::debug! call logging the cleanup failure path and error",
+      "Run cargo clippy --workspace -- -D warnings",
+      "Run cargo test --workspace"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Unit tests for libaipm::logging module",
+    "steps": [
+      "Create test module in crates/libaipm/src/logging.rs",
+      "Test init() with LevelFilter::WARN and LogFormat::Text does not error",
+      "Test init() with LevelFilter::DEBUG and LogFormat::Json does not error",
+      "Test init() with LevelFilter::OFF and LogFormat::Text does not error",
+      "Test that LogFormat enum variants are correctly distinguishable",
+      "Note: tracing global subscriber can only be set once per process; use tracing::subscriber::with_default for test isolation or test in separate integration tests",
+      "Run cargo test --workspace",
+      "Run cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Integration tests for CLI verbosity flags and log format",
+    "steps": [
+      "Add integration test: aipm --help still works (smoke test)",
+      "Add integration test: aipm with no flags produces no tracing output on stderr for clean operations",
+      "Add integration test: aipm -v produces INFO-level output on stderr",
+      "Add integration test: aipm -q suppresses warnings on stderr",
+      "Add integration test: aipm --log-format=json produces valid JSON on stderr when combined with -v",
+      "Add integration test: AIPM_LOG=debug overrides default warn level",
+      "Add integration test: verify file log is created in temp dir after operation",
+      "Run cargo test --workspace",
+      "Run cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Coverage verification — ensure all new code meets 89% branch coverage gate",
+    "steps": [
+      "Run cargo +nightly llvm-cov clean --workspace",
+      "Run cargo +nightly llvm-cov --no-report --workspace --branch",
+      "Run cargo +nightly llvm-cov --no-report --doc",
+      "Run cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs)'",
+      "Verify TOTAL line branch column shows >= 89%",
+      "If coverage is below threshold, add additional tests for uncovered branches",
+      "Run cargo fmt --check to verify formatting"
     ],
     "passes": true
   }

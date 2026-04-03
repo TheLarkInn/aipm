@@ -62,11 +62,20 @@ pub fn remove_migrated_sources(
     sorted_dirs.sort_by_key(|p| std::cmp::Reverse(p.components().count()));
 
     for dir in sorted_dirs {
-        if let Ok(entries) = fs.read_dir(&dir) {
-            if entries.is_empty() {
-                fs.remove_dir_all(&dir)?;
-                actions.push(Action::EmptyDirPruned { path: dir });
-            }
+        match fs.read_dir(&dir) {
+            Ok(entries) => {
+                if entries.is_empty() {
+                    fs.remove_dir_all(&dir)?;
+                    actions.push(Action::EmptyDirPruned { path: dir });
+                }
+            },
+            Err(e) => {
+                tracing::debug!(
+                    dir = %dir.display(),
+                    error = %e,
+                    "could not read directory during cleanup pruning"
+                );
+            },
         }
     }
 

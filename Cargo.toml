@@ -70,7 +70,9 @@ rayon = "1"
 
 # Logging
 tracing = "0.1"
-tracing-subscriber = "0.3"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+clap-verbosity-flag = { version = "3", default-features = false, features = ["tracing"] }
 
 # Testing
 cucumber = "0.21"

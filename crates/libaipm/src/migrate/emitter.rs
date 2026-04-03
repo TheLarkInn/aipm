@@ -616,12 +616,21 @@ fn emit_extension_files(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> 
             continue;
         }
         let source = artifact.source_path.join(file);
-        if let Ok(content) = fs.read_to_string(&source) {
-            let dest = ext_dir.join(file);
-            if let Some(parent) = dest.parent() {
-                fs.create_dir_all(parent)?;
-            }
-            fs.write_file(&dest, content.as_bytes())?;
+        match fs.read_to_string(&source) {
+            Ok(content) => {
+                let dest = ext_dir.join(file);
+                if let Some(parent) = dest.parent() {
+                    fs.create_dir_all(parent)?;
+                }
+                fs.write_file(&dest, content.as_bytes())?;
+            },
+            Err(e) => {
+                tracing::warn!(
+                    path = %source.display(),
+                    error = %e,
+                    "skipping file that could not be read during migration"
+                );
+            },
         }
     }
 

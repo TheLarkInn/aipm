@@ -198,11 +198,24 @@ impl Fs for Real {
 
                 match fs::rename(&tmp_path, path) {
                     Ok(()) => {
-                        let _ = fs::remove_file(&backup_path);
+                        if let Err(e) = fs::remove_file(&backup_path) {
+                            tracing::debug!(
+                                path = %backup_path.display(),
+                                error = %e,
+                                "could not remove atomic write backup file"
+                            );
+                        }
                         Ok(())
                     },
                     Err(e) => {
-                        let _ = fs::rename(&backup_path, path);
+                        if let Err(restore_err) = fs::rename(&backup_path, path) {
+                            tracing::warn!(
+                                backup = %backup_path.display(),
+                                target = %path.display(),
+                                error = %restore_err,
+                                "could not restore backup after failed atomic write"
+                            );
+                        }
                         Err(e)
                     },
                 }

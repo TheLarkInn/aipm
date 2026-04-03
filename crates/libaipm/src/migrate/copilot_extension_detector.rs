@@ -72,9 +72,11 @@ fn try_read_config(ext_dir: &Path, fs: &dyn Fs) -> Option<String> {
     for name in &candidates {
         let path = ext_dir.join(name);
         if let Ok(content) = fs.read_to_string(&path) {
+            tracing::debug!(path = %path.display(), "found config file for copilot extension");
             return Some(content);
         }
     }
+    tracing::debug!(dir = %ext_dir.display(), "no config file found among candidates");
     None
 }
 

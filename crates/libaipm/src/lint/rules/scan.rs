@@ -32,6 +32,7 @@ pub struct FoundAgent {
 pub fn scan_skills(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<FoundSkill> {
     let mut found = Vec::new();
     let Ok(plugins) = fs.read_dir(marketplace_dir) else {
+        tracing::debug!(dir = %marketplace_dir.display(), "could not read marketplace directory for skill scan");
         return found;
     };
 
@@ -44,6 +45,7 @@ pub fn scan_skills(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<FoundSkill> {
             continue;
         }
         let Ok(skill_entries) = fs.read_dir(&skills_dir) else {
+            tracing::debug!(dir = %skills_dir.display(), "could not read skills directory");
             continue;
         };
         for skill in &skill_entries {
@@ -55,6 +57,7 @@ pub fn scan_skills(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<FoundSkill> {
                 continue;
             }
             let Ok(content) = fs.read_to_string(&skill_md) else {
+                tracing::debug!(path = %skill_md.display(), "could not read SKILL.md");
                 continue;
             };
             let frontmatter = crate::frontmatter::parse(&content).ok().flatten();
@@ -71,6 +74,7 @@ pub fn scan_skills(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<FoundSkill> {
 pub fn scan_agents(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<FoundAgent> {
     let mut found = Vec::new();
     let Ok(plugins) = fs.read_dir(marketplace_dir) else {
+        tracing::debug!(dir = %marketplace_dir.display(), "could not read marketplace directory for agent scan");
         return found;
     };
 
@@ -83,6 +87,7 @@ pub fn scan_agents(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<FoundAgent> {
             continue;
         }
         let Ok(agent_entries) = fs.read_dir(&agents_dir) else {
+            tracing::debug!(dir = %agents_dir.display(), "could not read agents directory");
             continue;
         };
         for agent in &agent_entries {
@@ -94,6 +99,7 @@ pub fn scan_agents(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<FoundAgent> {
             }
             let agent_md = agents_dir.join(&agent.name);
             let Ok(content) = fs.read_to_string(&agent_md) else {
+                tracing::debug!(path = %agent_md.display(), "could not read agent markdown file");
                 continue;
             };
             let frontmatter = crate::frontmatter::parse(&content).ok().flatten();
@@ -110,6 +116,7 @@ pub fn scan_agents(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<FoundAgent> {
 pub fn scan_hook_files(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<(PathBuf, String)> {
     let mut found = Vec::new();
     let Ok(plugins) = fs.read_dir(marketplace_dir) else {
+        tracing::debug!(dir = %marketplace_dir.display(), "could not read marketplace directory for hook scan");
         return found;
     };
 
@@ -122,6 +129,7 @@ pub fn scan_hook_files(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<(PathBuf, Str
             continue;
         }
         let Ok(content) = fs.read_to_string(&hooks_json) else {
+            tracing::debug!(path = %hooks_json.display(), "could not read hooks.json");
             continue;
         };
         found.push((hooks_json, content));
