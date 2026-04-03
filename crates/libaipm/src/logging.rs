@@ -12,7 +12,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter, Layer, Registry};
 
-/// Log output format for the stderr layer.
+/// Log output format for the stderr layer. The file layer always uses text format.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LogFormat {
     /// Human-readable text output.
@@ -73,8 +73,14 @@ pub fn init(verbosity: LevelFilter, format: LogFormat) -> Result<(), Error> {
         .build(std::env::temp_dir())
         .map_err(|e| Error::FileAppender { reason: e.to_string() })?;
 
+    // Use non-blocking writer so file I/O doesn't add latency to the CLI.
+    // The guard must be kept alive for the process lifetime; we leak it
+    // intentionally since the CLI runs to completion then exits.
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+    std::mem::forget(guard);
+
     let file_layer = fmt::layer()
-        .with_writer(file_appender)
+        .with_writer(non_blocking)
         .with_ansi(false)
         .with_target(true)
         .with_filter(LevelFilter::DEBUG);

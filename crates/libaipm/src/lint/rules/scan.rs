@@ -31,9 +31,12 @@ pub struct FoundAgent {
 /// Iterates `.ai/<plugin>/skills/<name>/SKILL.md` for each plugin directory.
 pub fn scan_skills(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<FoundSkill> {
     let mut found = Vec::new();
-    let Ok(plugins) = fs.read_dir(marketplace_dir) else {
-        tracing::debug!(dir = %marketplace_dir.display(), "could not read marketplace directory for skill scan");
-        return found;
+    let plugins = match fs.read_dir(marketplace_dir) {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::debug!(dir = %marketplace_dir.display(), error = %e, "could not read marketplace directory for skill scan");
+            return found;
+        },
     };
 
     for plugin in &plugins {
@@ -44,9 +47,12 @@ pub fn scan_skills(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<FoundSkill> {
         if !fs.exists(&skills_dir) {
             continue;
         }
-        let Ok(skill_entries) = fs.read_dir(&skills_dir) else {
-            tracing::debug!(dir = %skills_dir.display(), "could not read skills directory");
-            continue;
+        let skill_entries = match fs.read_dir(&skills_dir) {
+            Ok(e) => e,
+            Err(e) => {
+                tracing::debug!(dir = %skills_dir.display(), error = %e, "could not read skills directory");
+                continue;
+            },
         };
         for skill in &skill_entries {
             if !skill.is_dir {
@@ -56,9 +62,12 @@ pub fn scan_skills(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<FoundSkill> {
             if !fs.exists(&skill_md) {
                 continue;
             }
-            let Ok(content) = fs.read_to_string(&skill_md) else {
-                tracing::debug!(path = %skill_md.display(), "could not read SKILL.md");
-                continue;
+            let content = match fs.read_to_string(&skill_md) {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::debug!(path = %skill_md.display(), error = %e, "could not read SKILL.md");
+                    continue;
+                },
             };
             let frontmatter = crate::frontmatter::parse(&content).ok().flatten();
             found.push(FoundSkill { path: skill_md, frontmatter, content });
@@ -73,9 +82,12 @@ pub fn scan_skills(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<FoundSkill> {
 /// Iterates `.ai/<plugin>/agents/<name>.md` for each plugin directory.
 pub fn scan_agents(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<FoundAgent> {
     let mut found = Vec::new();
-    let Ok(plugins) = fs.read_dir(marketplace_dir) else {
-        tracing::debug!(dir = %marketplace_dir.display(), "could not read marketplace directory for agent scan");
-        return found;
+    let plugins = match fs.read_dir(marketplace_dir) {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::debug!(dir = %marketplace_dir.display(), error = %e, "could not read marketplace directory for agent scan");
+            return found;
+        },
     };
 
     for plugin in &plugins {
@@ -86,9 +98,12 @@ pub fn scan_agents(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<FoundAgent> {
         if !fs.exists(&agents_dir) {
             continue;
         }
-        let Ok(agent_entries) = fs.read_dir(&agents_dir) else {
-            tracing::debug!(dir = %agents_dir.display(), "could not read agents directory");
-            continue;
+        let agent_entries = match fs.read_dir(&agents_dir) {
+            Ok(e) => e,
+            Err(e) => {
+                tracing::debug!(dir = %agents_dir.display(), error = %e, "could not read agents directory");
+                continue;
+            },
         };
         for agent in &agent_entries {
             let is_md = std::path::Path::new(&agent.name)
@@ -98,9 +113,12 @@ pub fn scan_agents(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<FoundAgent> {
                 continue;
             }
             let agent_md = agents_dir.join(&agent.name);
-            let Ok(content) = fs.read_to_string(&agent_md) else {
-                tracing::debug!(path = %agent_md.display(), "could not read agent markdown file");
-                continue;
+            let content = match fs.read_to_string(&agent_md) {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::debug!(path = %agent_md.display(), error = %e, "could not read agent markdown file");
+                    continue;
+                },
             };
             let frontmatter = crate::frontmatter::parse(&content).ok().flatten();
             found.push(FoundAgent { path: agent_md, frontmatter });
@@ -115,9 +133,12 @@ pub fn scan_agents(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<FoundAgent> {
 /// Returns `(path, content)` pairs for each found hooks file.
 pub fn scan_hook_files(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<(PathBuf, String)> {
     let mut found = Vec::new();
-    let Ok(plugins) = fs.read_dir(marketplace_dir) else {
-        tracing::debug!(dir = %marketplace_dir.display(), "could not read marketplace directory for hook scan");
-        return found;
+    let plugins = match fs.read_dir(marketplace_dir) {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::debug!(dir = %marketplace_dir.display(), error = %e, "could not read marketplace directory for hook scan");
+            return found;
+        },
     };
 
     for plugin in &plugins {
@@ -128,9 +149,12 @@ pub fn scan_hook_files(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<(PathBuf, Str
         if !fs.exists(&hooks_json) {
             continue;
         }
-        let Ok(content) = fs.read_to_string(&hooks_json) else {
-            tracing::debug!(path = %hooks_json.display(), "could not read hooks.json");
-            continue;
+        let content = match fs.read_to_string(&hooks_json) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::debug!(path = %hooks_json.display(), error = %e, "could not read hooks.json");
+                continue;
+            },
         };
         found.push((hooks_json, content));
     }

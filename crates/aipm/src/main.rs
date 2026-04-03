@@ -22,7 +22,7 @@ struct Cli {
     #[command(flatten)]
     verbose: Verbosity<WarnLevel>,
 
-    /// Log output format for diagnostics on stderr.
+    /// Log output format for tracing diagnostics on stderr; top-level fatal errors are always plain text.
     #[arg(long, default_value = "text", value_parser = ["text", "json"])]
     log_format: String,
 }
@@ -566,13 +566,31 @@ fn cmd_lint(
 
 fn load_lint_config(dir: &Path) -> libaipm::lint::config::Config {
     let manifest_path = dir.join("aipm.toml");
-    let Ok(content) = std::fs::read_to_string(&manifest_path) else {
-        tracing::debug!(path = %manifest_path.display(), "no aipm.toml found, using default lint config");
-        return libaipm::lint::config::Config::default();
+    let content = match std::fs::read_to_string(&manifest_path) {
+        Ok(c) => c,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            tracing::debug!(path = %manifest_path.display(), "no aipm.toml found, using default lint config");
+            return libaipm::lint::config::Config::default();
+        },
+        Err(e) => {
+            tracing::warn!(
+                path = %manifest_path.display(),
+                error = %e,
+                "failed to read aipm.toml, using default lint config"
+            );
+            return libaipm::lint::config::Config::default();
+        },
     };
-    let Ok(manifest) = toml::from_str::<toml::Value>(&content) else {
-        tracing::warn!(path = %manifest_path.display(), "failed to parse aipm.toml, using default lint config");
-        return libaipm::lint::config::Config::default();
+    let manifest = match toml::from_str::<toml::Value>(&content) {
+        Ok(m) => m,
+        Err(e) => {
+            tracing::warn!(
+                path = %manifest_path.display(),
+                error = %e,
+                "failed to parse aipm.toml, using default lint config"
+            );
+            return libaipm::lint::config::Config::default();
+        },
     };
 
     let mut config = libaipm::lint::config::Config::default();

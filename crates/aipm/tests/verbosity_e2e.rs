@@ -115,11 +115,25 @@ fn default_verbosity_no_tracing_on_stderr() {
 #[test]
 fn quiet_suppresses_warnings() {
     let tmp = tempfile::tempdir().unwrap();
-    let output =
-        aipm().args(["-q", "list", "--dir", tmp.path().to_str().unwrap()]).output().unwrap();
 
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(!stderr.contains("WARN"), "quiet mode should suppress warnings on stderr: {stderr}");
+    // Write invalid TOML so load_lint_config emits a WARN-level tracing event
+    std::fs::write(tmp.path().join("aipm.toml"), "not valid toml = [").unwrap();
+
+    // Without -q, the warning should appear
+    let noisy = aipm().args(["lint", tmp.path().to_str().unwrap()]).output().unwrap();
+    let noisy_stderr = String::from_utf8_lossy(&noisy.stderr);
+    assert!(
+        noisy_stderr.contains("WARN"),
+        "non-quiet should emit warning for invalid config: {noisy_stderr}"
+    );
+
+    // With -q, the warning should be suppressed
+    let quiet = aipm().args(["-q", "lint", tmp.path().to_str().unwrap()]).output().unwrap();
+    let quiet_stderr = String::from_utf8_lossy(&quiet.stderr);
+    assert!(
+        !quiet_stderr.contains("WARN"),
+        "quiet mode should suppress warnings on stderr: {quiet_stderr}"
+    );
 }
 
 // =========================================================================
@@ -143,18 +157,25 @@ fn aipm_log_env_var_accepted() {
 
 #[test]
 fn file_log_created_in_temp_dir() {
-    let tmp = tempfile::tempdir().unwrap();
-    aipm().args(["-v", "list", "--dir", tmp.path().to_str().unwrap()]).assert().success();
+    let work_dir = tempfile::tempdir().unwrap();
+    let log_dir = tempfile::tempdir().unwrap();
 
-    // Check that at least one aipm*.log file exists in the system temp dir
-    let temp_dir = std::env::temp_dir();
-    let has_log = std::fs::read_dir(&temp_dir).unwrap().filter_map(|e| e.ok()).any(|entry| {
+    // Point TMPDIR at an isolated directory so we can deterministically check
+    aipm()
+        .env("TMPDIR", log_dir.path())
+        .env("TEMP", log_dir.path())
+        .env("TMP", log_dir.path())
+        .args(["-v", "list", "--dir", work_dir.path().to_str().unwrap()])
+        .assert()
+        .success();
+
+    let has_log = std::fs::read_dir(log_dir.path()).unwrap().filter_map(|e| e.ok()).any(|entry| {
         let name = entry.file_name();
         let name = name.to_string_lossy();
         name.starts_with("aipm") && name.ends_with(".log")
     });
 
-    assert!(has_log, "expected aipm*.log file in {}", temp_dir.display());
+    assert!(has_log, "expected aipm*.log file in {}", log_dir.path().display());
 }
 
 // =========================================================================
@@ -164,22 +185,28 @@ fn file_log_created_in_temp_dir() {
 #[test]
 fn json_format_produces_json_on_stderr_with_verbose() {
     let tmp = tempfile::tempdir().unwrap();
-    // Use -v to ensure at least some tracing output
+
+    // Write invalid TOML to trigger a WARN event so we guarantee JSON output
+    std::fs::write(tmp.path().join("aipm.toml"), "not valid toml = [").unwrap();
+
     let output = aipm()
-        .args(["--log-format", "json", "-v", "list", "--dir", tmp.path().to_str().unwrap()])
+        .args(["--log-format", "json", "-v", "lint", tmp.path().to_str().unwrap()])
         .output()
         .unwrap();
 
     let stderr = String::from_utf8_lossy(&output.stderr);
-    // If there's any output, each line should be valid JSON
-    for line in stderr.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
+    let non_empty_lines: Vec<&str> =
+        stderr.lines().map(str::trim).filter(|line| !line.is_empty()).collect();
+
+    assert!(
+        !non_empty_lines.is_empty(),
+        "expected at least one JSON log line on stderr, got empty stderr"
+    );
+
+    for line in non_empty_lines {
         assert!(
-            serde_json::from_str::<serde_json::Value>(trimmed).is_ok(),
-            "stderr line should be valid JSON: {trimmed}"
+            serde_json::from_str::<serde_json::Value>(line).is_ok(),
+            "stderr line should be valid JSON: {line}"
         );
     }
 }
