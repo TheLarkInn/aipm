@@ -412,4 +412,13 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
     }
+
+    #[test]
+    fn reconcile_propagates_read_dir_error() {
+        // MockFs with no directories configured — read_dir returns NotFound,
+        // covering the ? error paths in collect_all_files / collect_files_recursive.
+        let fs = MockFs::new();
+        let result = reconcile(Path::new("/src"), &[], &fs);
+        assert!(result.is_err(), "reconcile should propagate read_dir failure");
+    }
 }

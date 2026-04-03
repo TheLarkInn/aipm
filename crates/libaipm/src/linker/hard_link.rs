@@ -145,4 +145,20 @@ mod tests {
         assert!(result.is_ok());
         assert!(target.join("a/b/c/d/file.txt").exists());
     }
+
+    #[test]
+    fn assemble_missing_hash_returns_error() {
+        // A valid-format hash that was never stored — link_to returns NotFound,
+        // covering the map_err closure on the store.link_to call (lines 51-54).
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+
+        let ghost_hash = "a".repeat(128); // valid format, but never stored
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("ghost.txt"), ghost_hash);
+
+        let target = tmp.path().join("links").join("ghost-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(result.is_err(), "assemble should fail when hash is not in the store");
+    }
 }
