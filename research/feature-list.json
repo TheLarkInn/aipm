@@ -153,7 +153,7 @@
   },
   {
     "category": "functional",
-    "description": "Extend Json reporter with col, end_line, end_col, help_url, help_text, and severity_code fields",
+    "description": "Extend Json reporter with col, end_line, end_col, help_url, help_text, and severity_code fields [DONE]",
     "steps": [
       "Open crates/libaipm/src/lint/reporter.rs (or the new reporter module)",
       "In the Json reporter's report() method, find the diagnostic JSON object construction (around lines 67-78)",
@@ -174,11 +174,11 @@
       "Run cargo test --workspace",
       "Run cargo clippy --workspace -- -D warnings"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
-    "description": "Implement ci-github reporter emitting GitHub Actions annotation format",
+    "description": "Implement ci-github reporter emitting GitHub Actions annotation format [DONE]",
     "steps": [
       "Create the CiGitHub struct (zero-sized unit struct) in the reporter module",
       "Implement Reporter trait for CiGitHub",
@@ -195,11 +195,11 @@
       "Run cargo test --workspace",
       "Run cargo clippy --workspace -- -D warnings"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
-    "description": "Implement ci-azure reporter emitting Azure DevOps ##vso[task.logissue] format",
+    "description": "Implement ci-azure reporter emitting Azure DevOps ##vso[task.logissue] format [DONE]",
     "steps": [
       "Create the CiAzure struct (zero-sized unit struct) in the reporter module",
       "Implement Reporter trait for CiAzure",
@@ -216,7 +216,7 @@
       "Run cargo test --workspace",
       "Run cargo clippy --workspace -- -D warnings"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

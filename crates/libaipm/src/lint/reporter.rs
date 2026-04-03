@@ -251,17 +251,36 @@ impl Reporter for Json {
 
         for (i, d) in outcome.diagnostics.iter().enumerate() {
             let comma = if i + 1 < outcome.diagnostics.len() { "," } else { "" };
-            let line_str = d.line.map_or_else(|| "null".to_string(), |l| l.to_string());
+            let to_json_opt =
+                |v: Option<usize>| v.map_or_else(|| "null".to_string(), |n| n.to_string());
+            let severity_code = match d.severity {
+                Severity::Error => 1,
+                Severity::Warning => 2,
+            };
+            let help_url_json = d.help_url.as_ref().map_or_else(
+                || "null".to_string(),
+                |u| format!("\"{}\"", escape_json_string(u)),
+            );
+            let help_text_json = d.help_text.as_ref().map_or_else(
+                || "null".to_string(),
+                |t| format!("\"{}\"", escape_json_string(t)),
+            );
             writeln!(writer, "    {{")?;
             writeln!(writer, "      \"rule_id\": \"{}\",", d.rule_id)?;
             writeln!(writer, "      \"severity\": \"{}\",", d.severity)?;
+            writeln!(writer, "      \"severity_code\": {severity_code},")?;
             writeln!(writer, "      \"message\": \"{}\",", escape_json_string(&d.message))?;
             writeln!(
                 writer,
                 "      \"file_path\": \"{}\",",
                 escape_json_string(&d.file_path.display().to_string())
             )?;
-            writeln!(writer, "      \"line\": {line_str},")?;
+            writeln!(writer, "      \"line\": {},", to_json_opt(d.line))?;
+            writeln!(writer, "      \"col\": {},", to_json_opt(d.col))?;
+            writeln!(writer, "      \"end_line\": {},", to_json_opt(d.end_line))?;
+            writeln!(writer, "      \"end_col\": {},", to_json_opt(d.end_col))?;
+            writeln!(writer, "      \"help_url\": {help_url_json},")?;
+            writeln!(writer, "      \"help_text\": {help_text_json},")?;
             writeln!(writer, "      \"source_type\": \"{}\"", d.source_type)?;
             writeln!(writer, "    }}{comma}")?;
         }
@@ -283,6 +302,60 @@ impl Reporter for Json {
         writeln!(writer, "  }}")?;
         writeln!(writer, "}}")?;
 
+        Ok(())
+    }
+}
+
+/// GitHub Actions annotation reporter.
+///
+/// Emits `::error` and `::warning` workflow commands that GitHub renders
+/// as inline PR annotations.
+pub struct CiGitHub;
+
+impl Reporter for CiGitHub {
+    fn report(&self, outcome: &Outcome, writer: &mut dyn Write) -> std::io::Result<()> {
+        for d in &outcome.diagnostics {
+            let severity = match d.severity {
+                Severity::Error => "error",
+                Severity::Warning => "warning",
+            };
+            let line = d.line.unwrap_or(1);
+            let col = d.col.unwrap_or(1);
+            writeln!(
+                writer,
+                "::{severity} file={},line={line},col={col}::{}: {}",
+                d.file_path.display(),
+                d.rule_id,
+                d.message,
+            )?;
+        }
+        Ok(())
+    }
+}
+
+/// Azure DevOps annotation reporter.
+///
+/// Emits `##vso[task.logissue]` logging commands that Azure DevOps
+/// renders as pipeline annotations.
+pub struct CiAzure;
+
+impl Reporter for CiAzure {
+    fn report(&self, outcome: &Outcome, writer: &mut dyn Write) -> std::io::Result<()> {
+        for d in &outcome.diagnostics {
+            let severity = match d.severity {
+                Severity::Error => "error",
+                Severity::Warning => "warning",
+            };
+            let line = d.line.unwrap_or(1);
+            let col = d.col.unwrap_or(1);
+            writeln!(
+                writer,
+                "##vso[task.logissue type={severity};sourcepath={};linenumber={line};columnnumber={col}]{}: {}",
+                d.file_path.display(),
+                d.rule_id,
+                d.message,
+            )?;
+        }
         Ok(())
     }
 }
@@ -376,6 +449,51 @@ mod tests {
     }
 
     #[test]
+    fn json_reporter_includes_new_fields() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Error,
+                message: "test".into(),
+                file_path: PathBuf::from("test.md"),
+                line: Some(3),
+                col: Some(5),
+                end_line: Some(3),
+                end_col: Some(10),
+                source_type: ".ai".into(),
+                help_text: Some("fix it".into()),
+                help_url: Some("https://example.com".into()),
+            }],
+            error_count: 1,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        Json.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("\"severity_code\": 1"));
+        assert!(output.contains("\"col\": 5"));
+        assert!(output.contains("\"end_line\": 3"));
+        assert!(output.contains("\"end_col\": 10"));
+        assert!(output.contains("\"help_url\": \"https://example.com\""));
+        assert!(output.contains("\"help_text\": \"fix it\""));
+    }
+
+    #[test]
+    fn json_reporter_null_optional_fields() {
+        let outcome = sample_outcome();
+        let mut buf = Vec::new();
+        Json.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("\"col\": null"));
+        assert!(output.contains("\"end_line\": null"));
+        assert!(output.contains("\"end_col\": null"));
+        assert!(output.contains("\"help_url\": null"));
+        assert!(output.contains("\"help_text\": null"));
+        assert!(output.contains("\"severity_code\": 2")); // warning
+    }
+
+    #[test]
     fn json_reporter_empty() {
         let outcome = Outcome {
             diagnostics: vec![],
@@ -405,6 +523,116 @@ mod tests {
         assert_eq!(escape_json_string("hello \"world\""), "hello \\\"world\\\"");
         assert_eq!(escape_json_string("line1\nline2"), "line1\\nline2");
         assert_eq!(escape_json_string("path\\to\\file"), "path\\\\to\\\\file");
+    }
+
+    // --- Human reporter tests ---
+
+    // --- CI GitHub reporter tests ---
+
+    #[test]
+    fn ci_github_error_format() {
+        let outcome = sample_outcome();
+        let mut buf = Vec::new();
+        CiGitHub.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains(
+            "::warning file=.ai/my-plugin/skills/default/SKILL.md,line=1,col=1::skill/missing-description"
+        ));
+        assert!(output.contains(
+            "::error file=.ai/my-plugin/hooks/hooks.json,line=5,col=1::hook/unknown-event"
+        ));
+    }
+
+    #[test]
+    fn ci_github_empty_diagnostics() {
+        let outcome = Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiGitHub.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn ci_github_defaults_line_col() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Warning,
+                message: "msg".into(),
+                file_path: PathBuf::from("dir/"),
+                line: None,
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiGitHub.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("line=1,col=1"));
+    }
+
+    // --- CI Azure reporter tests ---
+
+    #[test]
+    fn ci_azure_error_format() {
+        let outcome = sample_outcome();
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("##vso[task.logissue type=warning;sourcepath=.ai/my-plugin/skills/default/SKILL.md;linenumber=1;columnnumber=1]skill/missing-description"));
+        assert!(output.contains("##vso[task.logissue type=error;sourcepath=.ai/my-plugin/hooks/hooks.json;linenumber=5;columnnumber=1]hook/unknown-event"));
+    }
+
+    #[test]
+    fn ci_azure_empty_diagnostics() {
+        let outcome = Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.is_empty());
+    }
+
+    #[test]
+    fn ci_azure_defaults_line_col() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Warning,
+                message: "msg".into(),
+                file_path: PathBuf::from("dir/"),
+                line: None,
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("linenumber=1;columnnumber=1"));
     }
 
     // --- Human reporter tests ---

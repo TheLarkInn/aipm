@@ -101,3 +101,44 @@ Changes:
 Verification:
 - cargo build --workspace: OK (annotate-snippets 0.11.5 compiled)
 - cargo clippy --workspace -- -D warnings: clean
+
+## 2026-04-03 — Feature 8: Extend Json reporter with new fields
+
+Status: COMPLETE
+
+Changes:
+- Extended Json reporter output with severity_code (1=error, 2=warning), col, end_line, end_col, help_url, help_text
+- All new fields serialized as JSON number/string/null as appropriate
+- Added 2 unit tests for new Json fields
+
+Verification:
+- cargo test --workspace: 1124 tests pass
+- cargo clippy --workspace -- -D warnings: clean
+
+## 2026-04-03 — Feature 9: Implement ci-github reporter
+
+Status: COMPLETE
+
+Changes:
+- Created CiGitHub struct implementing Reporter trait
+- Emits `::error file=...,line=...,col=...::rule_id: message` per diagnostic
+- Defaults line=1, col=1 when None
+- Added 3 unit tests
+
+Verification:
+- cargo test --workspace: 1124 tests pass
+- cargo clippy --workspace -- -D warnings: clean
+
+## 2026-04-03 — Feature 10: Implement ci-azure reporter
+
+Status: COMPLETE
+
+Changes:
+- Created CiAzure struct implementing Reporter trait
+- Emits `##vso[task.logissue type=...;sourcepath=...;linenumber=...;columnnumber=...]rule_id: message` per diagnostic
+- Defaults linenumber=1, columnnumber=1 when None
+- Added 3 unit tests
+
+Verification:
+- cargo test --workspace: 1124 tests pass
+- cargo clippy --workspace -- -D warnings: clean
