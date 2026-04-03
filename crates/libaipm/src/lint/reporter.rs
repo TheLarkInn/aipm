@@ -82,8 +82,9 @@ impl ColorChoice {
                 if std::env::var("CLICOLOR").ok().as_deref() == Some("0") {
                     return false;
                 }
-                // Check if stdout is a TTY
-                anstyle_query::is_ci() || anstyle_query::term_supports_ansi_color()
+                // Check terminal color support (do NOT force color on CI — that
+                // would inject ANSI escape codes into non-TTY CI log streams)
+                anstyle_query::term_supports_ansi_color()
             },
         }
     }
@@ -203,33 +204,28 @@ impl Human<'_> {
         // Build the annotate-snippets Message
         let mut message = level.title(&d.message).id(&d.rule_id);
 
-        // Add snippet if we have pre-computed data
+        // Add snippet if we have pre-computed data; always attach origin for
+        // location context even when source cannot be read or line is out of range.
         if let Some((ref snippet_source, start_idx, span_start, span_end)) = snippet_data {
             let snippet = Snippet::source(snippet_source)
                 .line_start(start_idx + 1) // 1-based
                 .origin(&origin)
                 .annotation(level.span(span_start..span_end));
             message = message.snippet(snippet);
-        } else if d.line.is_none() {
-            // Directory-level diagnostic — show origin without snippet
+        } else {
+            // Directory-level or unreadable file — show origin without snippet
             let snippet = Snippet::source("").origin(&origin);
             message = message.snippet(snippet);
         }
 
-        // Add help text and help URL as footers
+        // Add help text and help URL as footers, then render once
         if let Some(ref help_text) = d.help_text {
             message = message.footer(Level::Help.title(help_text));
         }
+        let link_msg;
         if let Some(ref help_url) = d.help_url {
-            let link_msg = format!("for further information visit {help_url}");
-            // We need to render the link message inline since footer takes &str
-            // but we have a String. Use a two-step approach.
-            let msg_output = renderer.render(message);
-            write!(writer, "{msg_output}")?;
-            let footer = Level::Help.title(&link_msg);
-            let footer_output = renderer.render(footer);
-            writeln!(writer, "{footer_output}")?;
-            return Ok(());
+            link_msg = format!("for further information visit {help_url}");
+            message = message.footer(Level::Help.title(&link_msg));
         }
 
         let msg_output = renderer.render(message);
@@ -321,12 +317,13 @@ impl Reporter for CiGitHub {
             };
             let line = d.line.unwrap_or(1);
             let col = d.col.unwrap_or(1);
+            // GitHub Actions workflow command escaping (properties and message)
+            let file = escape_github_prop(&d.file_path.display().to_string());
+            let rule_id = escape_github_message(&d.rule_id);
+            let message = escape_github_message(&d.message);
             writeln!(
                 writer,
-                "::{severity} file={},line={line},col={col}::{}: {}",
-                d.file_path.display(),
-                d.rule_id,
-                d.message,
+                "::{severity} file={file},line={line},col={col}::{rule_id}: {message}",
             )?;
         }
         Ok(())
@@ -348,16 +345,40 @@ impl Reporter for CiAzure {
             };
             let line = d.line.unwrap_or(1);
             let col = d.col.unwrap_or(1);
+            // Azure DevOps log-command escaping for property block and message
+            let sourcepath = escape_azure_log_command(&d.file_path.display().to_string());
+            let rule_id = escape_azure_log_command(&d.rule_id);
+            let message = escape_azure_log_command(&d.message);
             writeln!(
                 writer,
-                "##vso[task.logissue type={severity};sourcepath={};linenumber={line};columnnumber={col}]{}: {}",
-                d.file_path.display(),
-                d.rule_id,
-                d.message,
+                "##vso[task.logissue type={severity};sourcepath={sourcepath};linenumber={line};columnnumber={col}]{rule_id}: {message}",
             )?;
         }
         Ok(())
     }
+}
+
+/// Escape a string for use in GitHub Actions workflow command properties.
+fn escape_github_prop(s: &str) -> String {
+    s.replace('%', "%25")
+        .replace('\r', "%0D")
+        .replace('\n', "%0A")
+        .replace(':', "%3A")
+        .replace(',', "%2C")
+}
+
+/// Escape a string for use in GitHub Actions workflow command message bodies.
+fn escape_github_message(s: &str) -> String {
+    s.replace('%', "%25").replace('\r', "%0D").replace('\n', "%0A")
+}
+
+/// Escape a string for use in Azure DevOps `##vso[...]` log commands.
+fn escape_azure_log_command(s: &str) -> String {
+    s.replace('%', "%AZP25")
+        .replace('\r', "%0D")
+        .replace('\n', "%0A")
+        .replace(';', "%3B")
+        .replace(']', "%5D")
 }
 
 fn escape_json_string(s: &str) -> String {

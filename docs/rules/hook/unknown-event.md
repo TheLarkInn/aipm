@@ -1,6 +1,6 @@
 # hook/unknown-event
 
-**Severity:** warning
+**Severity:** error
 **Fixable:** No
 
 Checks that every event name declared in a `hooks.json` file is a recognised aipm hook event. Unknown event names are silently ignored at runtime, meaning the hook will never fire.

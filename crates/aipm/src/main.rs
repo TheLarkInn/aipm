@@ -138,7 +138,7 @@ enum Commands {
         color: String,
 
         /// Deprecated alias for --reporter (hidden).
-        #[arg(long, hide = true)]
+        #[arg(long, hide = true, value_parser = ["human", "json", "ci-github", "ci-azure", "text"])]
         format: Option<String>,
 
         /// Maximum directory traversal depth.
@@ -556,6 +556,14 @@ fn cmd_lint(
         "text" => "human",
         other => other,
     };
+
+    // Reject any unrecognised reporter value (belt-and-suspenders after mapping)
+    if !["human", "json", "ci-github", "ci-azure"].contains(&effective_reporter) {
+        return Err(format!(
+            "unknown reporter '{effective_reporter}'. Valid values: human, json, ci-github, ci-azure"
+        )
+        .into());
+    }
 
     // Resolve color choice
     let color_choice = match color {

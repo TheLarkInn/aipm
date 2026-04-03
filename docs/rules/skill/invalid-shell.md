@@ -1,6 +1,6 @@
 # skill/invalid-shell
 
-**Severity:** warning
+**Severity:** error
 **Fixable:** No
 
 Checks that the `shell` field in SKILL.md frontmatter, when present, contains a recognised shell identifier. Unsupported shell values may cause the skill to fail at runtime.

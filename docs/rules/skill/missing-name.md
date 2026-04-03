@@ -1,6 +1,6 @@
 # skill/missing-name
 
-**Severity:** error
+**Severity:** warning
 **Fixable:** No
 
 Checks that every SKILL.md file includes a `name` field in the YAML frontmatter. The name is required to identify and reference the skill within the plugin manifest.
