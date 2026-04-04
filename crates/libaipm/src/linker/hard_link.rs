@@ -145,4 +145,24 @@ mod tests {
         assert!(result.is_ok());
         assert!(target.join("a/b/c/d/file.txt").exists());
     }
+
+    #[test]
+    fn assemble_missing_hash_returns_error() {
+        // A valid-format hash that was never stored — link_to returns NotFound,
+        // covering the error mapping on the store.link_to call.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+
+        let ghost_hash = "a".repeat(128); // valid format, but never stored
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("ghost.txt"), ghost_hash);
+
+        let target = tmp.path().join("links").join("ghost-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt")),
+            "assemble should fail with Io error for ghost.txt, got: {:?}",
+            result
+        );
+    }
 }

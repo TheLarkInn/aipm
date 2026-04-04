@@ -612,6 +612,35 @@ mod tests {
     }
 
     #[test]
+    fn recursive_report_rename_loop_skips_already_used_name() {
+        // When *both* "auth" and "auth-renamed-1" already exist, the rename loop
+        // must iterate a second time, covering the case where a generated rename
+        // candidate is already used and the loop must continue searching.
+        let discovered = vec![DiscoveredSource {
+            source_dir: PathBuf::from("/project/packages/auth/.claude"),
+            source_type: ".claude".to_string(),
+            package_name: Some("auth".to_string()),
+            relative_path: PathBuf::from("packages/auth"),
+        }];
+
+        let plugin_plans = vec![PluginPlan {
+            name: "auth".to_string(),
+            artifacts: vec![make_artifact("deploy", ArtifactKind::Skill)],
+            is_package_scoped: true,
+            source_dir: PathBuf::from("/project/packages/auth/.claude"),
+            other_files: Vec::new(),
+        }];
+
+        let mut existing = HashSet::new();
+        existing.insert("auth".to_string());
+        existing.insert("auth-renamed-1".to_string()); // first rename also taken
+        let report = generate_recursive_report(&discovered, &plugin_plans, &existing, false);
+
+        // The loop must increment the counter twice and land on -renamed-2
+        assert!(report.contains("auth-renamed-2"), "expected auth-renamed-2, got:\n{report}");
+    }
+
+    #[test]
     fn recursive_report_empty_discovery() {
         let discovered: Vec<DiscoveredSource> = Vec::new();
         let plugin_plans: Vec<PluginPlan> = Vec::new();

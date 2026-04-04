@@ -505,6 +505,18 @@ type = "lsp"
     }
 
     #[test]
+    fn load_invalid_content_returns_parse_error() {
+        // File exists and is readable, but content fails parse_and_validate,
+        // covering the error branch returned by parse_and_validate in load().
+        let tmp_dir = tempfile::tempdir().expect("failed to create temporary directory");
+        let manifest_path = tmp_dir.path().join("aipm.toml");
+        std::fs::write(&manifest_path, "not valid toml [[[")
+            .expect("failed to write manifest file");
+        let result = load(&manifest_path);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn load_nonexistent_file_returns_io_error() {
         let tmp_dir = tempfile::tempdir().expect("failed to create temporary directory");
         let nonexistent_path = tmp_dir.path().join("nonexistent").join("aipm.toml");
