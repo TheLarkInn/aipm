@@ -193,4 +193,21 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
     }
+
+    #[test]
+    fn multiline_json_reports_correct_line_number() {
+        // Multi-line JSON exercises the False branch of line.contains(&needle)
+        // on all lines preceding the one that contains the key.
+        let mut fs = MockFs::new();
+        let json = "{\n  \"Stop\": []\n}";
+        fs.add_hooks("p", json);
+
+        let result = LegacyEventName.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        // Key is on line 2 — verify line number is reported correctly.
+        assert_eq!(diags[0].line, Some(2));
+        assert!(diags[0].message.contains("agentStop"));
+    }
 }
