@@ -1,6 +1,8 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.17.1] - 2026-04-04
+
 ## [0.17.0] - 2026-04-03
 
 ### Features
