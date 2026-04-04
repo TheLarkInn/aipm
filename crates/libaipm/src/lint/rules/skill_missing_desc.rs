@@ -74,6 +74,43 @@ impl Rule for MissingDescription {
 
         Ok(diagnostics)
     }
+
+    fn check_file(&self, file_path: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
+        let source_type = scan::source_type_from_path(file_path).to_string();
+        let Some(skill) = scan::read_skill(file_path, fs) else {
+            return Ok(vec![]);
+        };
+        let diag = match skill.frontmatter {
+            Some(ref fm) if fm.fields.contains_key("description") => return Ok(vec![]),
+            Some(ref fm) => Diagnostic {
+                rule_id: self.id().to_string(),
+                severity: self.default_severity(),
+                message: "SKILL.md missing required field: description".to_string(),
+                file_path: skill.path,
+                line: Some(fm.start_line),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type,
+                help_text: None,
+                help_url: None,
+            },
+            None => Diagnostic {
+                rule_id: self.id().to_string(),
+                severity: self.default_severity(),
+                message: "SKILL.md has no frontmatter".to_string(),
+                file_path: skill.path,
+                line: Some(1),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type,
+                help_text: None,
+                help_url: None,
+            },
+        };
+        Ok(vec![diag])
+    }
 }
 
 #[cfg(test)]
@@ -109,6 +146,42 @@ mod tests {
         fs.add_skill("p", "s", "just text");
 
         let result = MissingDescription.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].rule_id, "skill/missing-description");
+    }
+
+    // --- check_file() tests ---
+
+    #[test]
+    fn check_file_no_file_returns_empty() {
+        let fs = MockFs::new();
+        let result = MissingDescription.check_file(Path::new(".ai/p/skills/s/SKILL.md"), &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn check_file_description_present_no_diagnostic() {
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/skills/s/SKILL.md");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), "---\nname: s\ndescription: test\n---\nbody".to_string());
+
+        let result = MissingDescription.check_file(&path, &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn check_file_description_absent_diagnostic() {
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/skills/s/SKILL.md");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), "---\nname: s\n---\nbody".to_string());
+
+        let result = MissingDescription.check_file(&path, &fs);
         assert!(result.is_ok());
         let diags = result.ok().unwrap_or_default();
         assert_eq!(diags.len(), 1);

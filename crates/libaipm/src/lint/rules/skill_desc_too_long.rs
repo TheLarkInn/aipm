@@ -71,6 +71,35 @@ impl Rule for DescriptionTooLong {
 
         Ok(diagnostics)
     }
+
+    fn check_file(&self, file_path: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
+        let source_type = scan::source_type_from_path(file_path).to_string();
+        let Some(skill) = scan::read_skill(file_path, fs) else {
+            return Ok(vec![]);
+        };
+        let Some(ref fm) = skill.frontmatter else { return Ok(vec![]) };
+        let Some(desc) = fm.fields.get("description") else { return Ok(vec![]) };
+        if desc.len() <= MAX_DESCRIPTION_LENGTH {
+            return Ok(vec![]);
+        }
+        Ok(vec![Diagnostic {
+            rule_id: self.id().to_string(),
+            severity: self.default_severity(),
+            message: format!(
+                "skill description exceeds {} characters ({} chars, Copilot CLI limit)",
+                MAX_DESCRIPTION_LENGTH,
+                desc.len()
+            ),
+            file_path: skill.path,
+            line: fm.field_lines.get("description").copied(),
+            col: None,
+            end_line: None,
+            end_col: None,
+            source_type,
+            help_text: None,
+            help_url: None,
+        }])
+    }
 }
 
 #[cfg(test)]
@@ -130,6 +159,44 @@ mod tests {
         fs.add_skill("p", "s", "no frontmatter here");
 
         let result = DescriptionTooLong.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    // --- check_file() tests ---
+
+    #[test]
+    fn check_file_no_file_returns_empty() {
+        let fs = MockFs::new();
+        let result = DescriptionTooLong.check_file(Path::new(".ai/p/skills/s/SKILL.md"), &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn check_file_exceeds_limit_produces_diagnostic() {
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/skills/s/SKILL.md");
+        let desc = "x".repeat(1025);
+        let content = format!("---\nname: s\ndescription: {desc}\n---\nbody");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), content);
+
+        let result = DescriptionTooLong.check_file(&path, &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].rule_id, "skill/description-too-long");
+    }
+
+    #[test]
+    fn check_file_no_description_no_diagnostic() {
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/skills/s/SKILL.md");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), "---\nname: s\n---\nbody".to_string());
+
+        let result = DescriptionTooLong.check_file(&path, &fs);
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
     }

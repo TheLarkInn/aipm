@@ -162,6 +162,67 @@ pub fn scan_hook_files(marketplace_dir: &Path, fs: &dyn Fs) -> Vec<(PathBuf, Str
     found
 }
 
+/// Derive the source type string from a file path by scanning its components.
+///
+/// Returns `".ai"`, `".claude"`, `".github"`, or `"other"` depending on which
+/// recognized source directory ancestor the file lives under.
+pub fn source_type_from_path(file_path: &Path) -> &'static str {
+    for component in file_path.components() {
+        let name = component.as_os_str().to_string_lossy();
+        match name.as_ref() {
+            ".ai" => return ".ai",
+            ".claude" => return ".claude",
+            ".github" => return ".github",
+            _ => {},
+        }
+    }
+    "other"
+}
+
+/// Read and parse a single `SKILL.md` file by absolute path.
+///
+/// Returns `None` if the file cannot be read.
+pub fn read_skill(path: &Path, fs: &dyn Fs) -> Option<FoundSkill> {
+    let content = match fs.read_to_string(path) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::debug!(path = %path.display(), error = %e, "could not read SKILL.md");
+            return None;
+        },
+    };
+    let frontmatter = crate::frontmatter::parse(&content).ok().flatten();
+    Some(FoundSkill { path: path.to_path_buf(), frontmatter, content })
+}
+
+/// Read and parse a single agent `.md` file by absolute path.
+///
+/// Returns `None` if the file cannot be read.
+pub fn read_agent(path: &Path, fs: &dyn Fs) -> Option<FoundAgent> {
+    let content = match fs.read_to_string(path) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::debug!(path = %path.display(), error = %e, "could not read agent markdown file");
+            return None;
+        },
+    };
+    let frontmatter = crate::frontmatter::parse(&content).ok().flatten();
+    Some(FoundAgent { path: path.to_path_buf(), frontmatter })
+}
+
+/// Read a single `hooks.json` file by absolute path.
+///
+/// Returns `None` if the file cannot be read.
+pub fn read_hook(path: &Path, fs: &dyn Fs) -> Option<(PathBuf, String)> {
+    let content = match fs.read_to_string(path) {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::debug!(path = %path.display(), error = %e, "could not read hooks.json");
+            return None;
+        },
+    };
+    Some((path.to_path_buf(), content))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

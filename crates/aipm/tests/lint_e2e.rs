@@ -294,15 +294,16 @@ fn lint_unsupported_source_errors() {
 // =========================================================================
 
 #[test]
-fn lint_nonexistent_ai_source_dir_errors() {
+fn lint_nonexistent_ai_source_dir_succeeds() {
     let tmp = tempfile::tempdir().unwrap();
 
-    // .ai requires root-level existence check
+    // Unified discovery: --source .ai with no .ai/ dir succeeds with no findings,
+    // consistent with .claude and .github behaviour.
     aipm()
         .args(["lint", "--source", ".ai", tmp.path().to_str().unwrap()])
         .assert()
-        .failure()
-        .stderr(predicate::str::contains("not found"));
+        .success()
+        .stdout(predicate::str::contains("no issues found"));
 }
 
 #[test]
@@ -430,9 +431,15 @@ fn lint_monorepo_finds_nested_misplaced_features() {
 
     // Create .ai/ marketplace at root
     std::fs::create_dir_all(tmp.path().join(".ai")).unwrap();
-    // Create nested .claude/skills/ (misplaced feature in a package)
-    let nested = tmp.path().join("packages").join("auth").join(".claude").join("skills");
+    // Create nested .claude/skills/default/SKILL.md (misplaced feature in a package)
+    let nested =
+        tmp.path().join("packages").join("auth").join(".claude").join("skills").join("default");
     std::fs::create_dir_all(&nested).unwrap();
+    std::fs::write(
+        nested.join("SKILL.md"),
+        "---\nname: nested-skill\ndescription: test\n---\nbody\n",
+    )
+    .unwrap();
 
     aipm()
         .args(["lint", tmp.path().to_str().unwrap()])
@@ -451,9 +458,15 @@ fn lint_source_claude_no_root_dir_succeeds_with_nested() {
 
     // Create .ai/ marketplace at root
     std::fs::create_dir_all(tmp.path().join(".ai")).unwrap();
-    // No root .claude/ — only nested
-    let nested = tmp.path().join("packages").join("auth").join(".claude").join("skills");
+    // No root .claude/ — only nested with an actual SKILL.md
+    let nested =
+        tmp.path().join("packages").join("auth").join(".claude").join("skills").join("default");
     std::fs::create_dir_all(&nested).unwrap();
+    std::fs::write(
+        nested.join("SKILL.md"),
+        "---\nname: nested-skill\ndescription: test\n---\nbody\n",
+    )
+    .unwrap();
 
     aipm()
         .args(["lint", "--source", ".claude", tmp.path().to_str().unwrap()])
@@ -472,21 +485,163 @@ fn lint_max_depth_cli_flag() {
 
     // Create .ai/ marketplace at root
     std::fs::create_dir_all(tmp.path().join(".ai")).unwrap();
-    // Root .claude/skills at depth 1
-    std::fs::create_dir_all(tmp.path().join(".claude").join("skills")).unwrap();
-    // Nested .claude/skills at depth 3
-    let nested = tmp.path().join("packages").join("auth").join(".claude").join("skills");
-    std::fs::create_dir_all(&nested).unwrap();
 
-    // --max-depth 1 should only find root .claude (not nested)
+    // Root SKILL.md at .claude/skills/default/SKILL.md (depth 4 from project root)
+    let root_skill = tmp.path().join(".claude").join("skills").join("default");
+    std::fs::create_dir_all(&root_skill).unwrap();
+    std::fs::write(
+        root_skill.join("SKILL.md"),
+        "---\nname: root-skill\ndescription: test\n---\nbody\n",
+    )
+    .unwrap();
+
+    // Nested SKILL.md at packages/auth/.claude/skills/default/SKILL.md (depth 6)
+    let nested =
+        tmp.path().join("packages").join("auth").join(".claude").join("skills").join("default");
+    std::fs::create_dir_all(&nested).unwrap();
+    std::fs::write(
+        nested.join("SKILL.md"),
+        "---\nname: nested-skill\ndescription: test\n---\nbody\n",
+    )
+    .unwrap();
+
+    // --max-depth 5 finds depth-4 SKILL.md (root) but not depth-6 (nested)
     let output = aipm()
-        .args(["lint", "--max-depth", "1", tmp.path().to_str().unwrap()])
+        .args(["lint", "--max-depth", "5", tmp.path().to_str().unwrap()])
         .output()
         .expect("command should run");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    // Should find misplaced features (root .claude/skills)
+    // Should find misplaced features (root .claude/skills/default/SKILL.md)
     assert!(stdout.contains("source/misplaced-features"));
     // The nested path should NOT appear in output
     assert!(!stdout.contains("auth"));
+}
+
+// =========================================================================
+// .github/ source: misplaced-features without .ai/
+// =========================================================================
+
+#[test]
+fn lint_github_skills_without_marketplace_warns_misplaced() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    // .github/skills/default/SKILL.md — no .ai/ marketplace
+    let skills_dir = tmp.path().join(".github").join("skills").join("default");
+    std::fs::create_dir_all(&skills_dir).unwrap();
+    std::fs::write(
+        skills_dir.join("SKILL.md"),
+        "---\nname: gh-skill\ndescription: test\n---\nbody\n",
+    )
+    .unwrap();
+
+    aipm()
+        .args(["lint", tmp.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("source/misplaced-features"));
+}
+
+#[test]
+fn lint_github_agents_without_marketplace_warns_misplaced() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    // .github/agents/reviewer.md — no .ai/ marketplace
+    let agents_dir = tmp.path().join(".github").join("agents");
+    std::fs::create_dir_all(&agents_dir).unwrap();
+    std::fs::write(
+        agents_dir.join("reviewer.md"),
+        "---\nname: reviewer\ntools: Read\n---\nprompt\n",
+    )
+    .unwrap();
+
+    aipm()
+        .args(["lint", tmp.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("source/misplaced-features"));
+}
+
+// =========================================================================
+// .github/ source: quality rules also fire on misplaced features
+// =========================================================================
+
+#[test]
+fn lint_github_skill_missing_name_and_misplaced() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    // .github/skills/default/SKILL.md missing name — should get both rules
+    let skills_dir = tmp.path().join(".github").join("skills").join("default");
+    std::fs::create_dir_all(&skills_dir).unwrap();
+    std::fs::write(skills_dir.join("SKILL.md"), "---\ndescription: no name here\n---\nbody\n")
+        .unwrap();
+
+    let output =
+        aipm().args(["lint", tmp.path().to_str().unwrap()]).output().expect("command should run");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("source/misplaced-features"), "expected misplaced-features");
+    assert!(stdout.contains("skill/missing-name"), "expected missing-name");
+}
+
+// =========================================================================
+// .claude/ without .ai/: help text mentions 'aipm init'
+// =========================================================================
+
+#[test]
+fn lint_claude_without_marketplace_suggests_init() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    // .claude/skills/default/SKILL.md — no .ai/ marketplace
+    let skills_dir = tmp.path().join(".claude").join("skills").join("default");
+    std::fs::create_dir_all(&skills_dir).unwrap();
+    std::fs::write(
+        skills_dir.join("SKILL.md"),
+        "---\nname: claude-skill\ndescription: test\n---\nbody\n",
+    )
+    .unwrap();
+
+    aipm()
+        .args(["lint", tmp.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("source/misplaced-features"))
+        .stdout(predicate::str::contains("aipm init"));
+}
+
+// =========================================================================
+// --source .github filters to only .github features
+// =========================================================================
+
+#[test]
+fn lint_source_github_filters_to_github_only() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    // Both .claude and .github have skills
+    let claude_skills = tmp.path().join(".claude").join("skills").join("default");
+    std::fs::create_dir_all(&claude_skills).unwrap();
+    std::fs::write(
+        claude_skills.join("SKILL.md"),
+        "---\nname: claude-skill\ndescription: test\n---\nbody\n",
+    )
+    .unwrap();
+
+    let github_skills = tmp.path().join(".github").join("skills").join("default");
+    std::fs::create_dir_all(&github_skills).unwrap();
+    std::fs::write(
+        github_skills.join("SKILL.md"),
+        "---\nname: github-skill\ndescription: test\n---\nbody\n",
+    )
+    .unwrap();
+
+    let output = aipm()
+        .args(["lint", "--source", ".github", tmp.path().to_str().unwrap()])
+        .output()
+        .expect("command should run");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    // .github skill should appear
+    assert!(stdout.contains(".github"), "expected .github path in output");
+    // .claude skill should NOT appear (filtered out)
+    assert!(!stdout.contains(".claude"), "unexpected .claude path in output");
 }

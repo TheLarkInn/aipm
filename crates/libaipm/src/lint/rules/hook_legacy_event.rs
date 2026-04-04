@@ -85,6 +85,53 @@ impl Rule for LegacyEventName {
 
         Ok(diagnostics)
     }
+
+    fn check_file(&self, file_path: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
+        let source_type = scan::source_type_from_path(file_path).to_string();
+        let Some((_path, content)) = scan::read_hook(file_path, fs) else {
+            return Ok(vec![]);
+        };
+        let mut diagnostics = Vec::new();
+        let parsed: serde_json::Value = match serde_json::from_str(&content) {
+            Ok(v) => v,
+            Err(_) => return Ok(vec![]),
+        };
+        let hooks_obj = parsed
+            .get("hooks")
+            .and_then(serde_json::Value::as_object)
+            .or_else(|| parsed.as_object());
+        let Some(hooks) = hooks_obj else {
+            return Ok(vec![]);
+        };
+        for key in hooks.keys() {
+            if let Some(canonical) = known_events::suggest_canonical(key) {
+                let line_num = content.lines().enumerate().find_map(|(i, line)| {
+                    let needle = format!("\"{key}\"");
+                    if line.contains(&needle) {
+                        Some(i + 1)
+                    } else {
+                        None
+                    }
+                });
+                diagnostics.push(Diagnostic {
+                    rule_id: self.id().to_string(),
+                    severity: self.default_severity(),
+                    message: format!(
+                        "\"{key}\" is a legacy event name, use \"{canonical}\" instead"
+                    ),
+                    file_path: file_path.to_path_buf(),
+                    line: line_num,
+                    col: None,
+                    end_line: None,
+                    end_col: None,
+                    source_type: source_type.clone(),
+                    help_text: None,
+                    help_url: None,
+                });
+            }
+        }
+        Ok(diagnostics)
+    }
 }
 
 #[cfg(test)]
@@ -190,6 +237,55 @@ mod tests {
         fs.add_hooks("p", r#"["not", "an", "object"]"#);
 
         let result = LegacyEventName.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    // --- check_file() tests ---
+
+    #[test]
+    fn check_file_no_file_returns_empty() {
+        let fs = MockFs::new();
+        let result = LegacyEventName.check_file(Path::new(".ai/p/hooks/hooks.json"), &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn check_file_canonical_names_no_diagnostic() {
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/hooks/hooks.json");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), r#"{"preToolUse": []}"#.to_string());
+
+        let result = LegacyEventName.check_file(&path, &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn check_file_legacy_event_diagnostic() {
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/hooks/hooks.json");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), r#"{"Stop": []}"#.to_string());
+
+        let result = LegacyEventName.check_file(&path, &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].rule_id, "hook/legacy-event-name");
+        assert!(diags[0].message.contains("agentStop"));
+    }
+
+    #[test]
+    fn check_file_non_object_json_skipped() {
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/hooks/hooks.json");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), r#"["not", "an", "object"]"#.to_string());
+
+        let result = LegacyEventName.check_file(&path, &fs);
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
     }

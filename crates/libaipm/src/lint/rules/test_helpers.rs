@@ -160,6 +160,39 @@ mod tests {
         let plugin_count = entries.iter().filter(|e| e.name == "p").count();
         assert_eq!(plugin_count, 1);
     }
+
+    #[test]
+    fn mock_fs_add_skill_no_duplicate_skill_entries() {
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "s", "v1");
+        fs.add_skill("p", "s", "v2");
+        // Skill "s" should only appear once in skills dir
+        let entries = fs.read_dir(Path::new(".ai/p/skills")).unwrap_or_default();
+        let skill_count = entries.iter().filter(|e| e.name == "s").count();
+        assert_eq!(skill_count, 1);
+    }
+
+    #[test]
+    fn mock_fs_add_agent_no_duplicate_entries() {
+        let mut fs = MockFs::new();
+        fs.add_agent("p", "reviewer", "v1");
+        fs.add_agent("p", "reviewer", "v2");
+        // Plugin "p" and agent "reviewer.md" should each appear once
+        let ai_entries = fs.read_dir(Path::new(".ai")).unwrap_or_default();
+        assert_eq!(ai_entries.iter().filter(|e| e.name == "p").count(), 1);
+        let agent_entries = fs.read_dir(Path::new(".ai/p/agents")).unwrap_or_default();
+        assert_eq!(agent_entries.iter().filter(|e| e.name == "reviewer.md").count(), 1);
+    }
+
+    #[test]
+    fn mock_fs_add_hooks_no_duplicate_entries() {
+        let mut fs = MockFs::new();
+        fs.add_hooks("p", r#"{"hooks":[]}"#);
+        fs.add_hooks("p", r#"{"hooks":[]}"#);
+        // Plugin "p" should only appear once in .ai dir listing
+        let entries = fs.read_dir(Path::new(".ai")).unwrap_or_default();
+        assert_eq!(entries.iter().filter(|e| e.name == "p").count(), 1);
+    }
 }
 
 impl Fs for MockFs {
