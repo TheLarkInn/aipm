@@ -347,4 +347,19 @@ mod tests {
         assert_eq!(deps[1].req, "^3.0");
         assert_eq!(deps[2].req, "^1.0"); // unchanged
     }
+
+    #[test]
+    fn parse_replacement_without_at_sign_falls_back_to_global() {
+        // "aipm:lib-no-version" lacks a '@' — parse_replacement_value returns None,
+        // covering the second ? in parse_replacement_value. The entry falls back
+        // to a Global override; verify by applying it.
+        let mut overrides_map = BTreeMap::new();
+        overrides_map.insert("my-dep".to_string(), "aipm:lib-no-version".to_string());
+        let parsed = parse(&overrides_map).unwrap();
+        assert_eq!(parsed.len(), 1);
+        // Apply as a global — the req should be updated to the raw value.
+        let mut deps = vec![make_dep("my-dep", "^1.0", "root")];
+        apply(&mut deps, &parsed);
+        assert_eq!(deps[0].req, "aipm:lib-no-version");
+    }
 }
