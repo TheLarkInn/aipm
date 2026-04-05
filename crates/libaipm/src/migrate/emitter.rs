@@ -1624,6 +1624,34 @@ mod tests {
     }
 
     #[test]
+    fn emit_command_copies_referenced_scripts_from_parent_dir() {
+        // Command artifact: source_path has an extension (".md"), so copy_referenced_scripts
+        // resolves the script relative to the parent directory of the source file.
+        // Covers the `artifact.source_path.extension().is_some()` branch.
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/commands/review.md"), "Review the code".to_string());
+        fs.files.insert(
+            PathBuf::from("/src/commands/scripts/run.sh"),
+            "#!/bin/bash\necho run".to_string(),
+        );
+        fs.exists.insert(PathBuf::from("/src/commands/scripts/run.sh"));
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let mut artifact = make_command_artifact();
+        artifact.referenced_scripts = vec![PathBuf::from("scripts/run.sh")];
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok());
+
+        let script_content = fs.get_written(Path::new("/ai/review/scripts/run.sh"));
+        assert!(script_content.is_some(), "script should be copied to plugin scripts/ dir");
+        assert!(
+            script_content.as_deref().unwrap_or("").contains("echo run"),
+            "script content should be preserved"
+        );
+    }
+
+    #[test]
     fn convert_hooks_indented_line_without_key() {
         // Indented line before any key is set — should be ignored
         let result = convert_hooks_yaml_to_json("  indented_no_key\nKey: value");
