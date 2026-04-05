@@ -47,7 +47,7 @@ pub(crate) fn quality_rules_for_kind(kind: &FeatureKind) -> Vec<Box<dyn Rule>> {
             Box::new(hook_unknown_event::UnknownEvent),
             Box::new(hook_legacy_event::LegacyEventName),
         ],
-        FeatureKind::Plugin => vec![],
+        FeatureKind::Plugin => vec![Box::new(broken_paths::BrokenPaths)],
     }
 }
 
@@ -85,8 +85,9 @@ mod tests {
     }
 
     #[test]
-    fn quality_rules_for_plugin_kind_is_empty() {
+    fn quality_rules_for_plugin_kind_includes_broken_paths() {
         let rules = quality_rules_for_kind(&FeatureKind::Plugin);
-        assert!(rules.is_empty());
+        assert!(!rules.is_empty());
+        assert!(rules.iter().any(|r| r.id() == "plugin/broken-paths"));
     }
 }

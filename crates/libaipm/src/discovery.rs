@@ -294,9 +294,9 @@ pub fn discover_features(
         } else if file_name == "hooks.json" && parent_name == "hooks" {
             Some(FeatureKind::Hook)
         } else if file_name == "aipm.toml" {
-            // Only treat as Plugin manifest if directly inside .ai/<plugin>/
-            let context = classify_source_context(file_path, project_root);
-            if context.as_ref().is_some_and(|ctx| ctx.source_type == ".ai") {
+            // Only treat as Plugin manifest if at exactly .ai/<plugin>/aipm.toml:
+            // parent must be the plugin dir and grandparent must be ".ai".
+            if grandparent_name == ".ai" {
                 Some(FeatureKind::Plugin)
             } else {
                 None
@@ -778,5 +778,31 @@ mod tests {
         let features = discover_features(&root, None).expect("discover_features");
         assert_eq!(features.len(), 1);
         assert!(features[0].file_path.starts_with(&real));
+    }
+
+    #[test]
+    fn discover_features_plugin_manifest_at_correct_depth_is_classified() {
+        let (_tmp, root) = make_tmp();
+        // Valid: .ai/<plugin>/aipm.toml — grandparent is ".ai"
+        let plugin_dir = root.join(".ai").join("my-plugin");
+        assert!(std::fs::create_dir_all(&plugin_dir).is_ok());
+        assert!(std::fs::write(plugin_dir.join("aipm.toml"), "[package]\nname = \"my-plugin\"\n")
+            .is_ok());
+
+        let features = discover_features(&root, None).expect("discover_features");
+        assert_eq!(features.len(), 1);
+        assert_eq!(features[0].kind, FeatureKind::Plugin);
+    }
+
+    #[test]
+    fn discover_features_plugin_manifest_nested_too_deep_is_ignored() {
+        let (_tmp, root) = make_tmp();
+        // Invalid: .ai/<plugin>/nested/aipm.toml — grandparent is "nested", not ".ai"
+        let nested_dir = root.join(".ai").join("my-plugin").join("nested");
+        assert!(std::fs::create_dir_all(&nested_dir).is_ok());
+        assert!(std::fs::write(nested_dir.join("aipm.toml"), "[package]\nname = \"bad\"\n").is_ok());
+
+        let features = discover_features(&root, None).expect("discover_features");
+        assert!(features.is_empty(), "nested aipm.toml should not be classified as Plugin");
     }
 }

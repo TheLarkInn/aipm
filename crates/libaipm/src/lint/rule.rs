@@ -93,11 +93,10 @@ mod tests {
     fn default_check_file_no_parent_returns_empty() {
         let rule = AlwaysEmptyRule;
         let fs = crate::fs::Real;
-        // Root path "/" has no parent — returns empty without calling check()
-        // Use a path with no parent component
-        let result = rule.check_file(std::path::Path::new("SKILL.md"), &fs);
-        // "SKILL.md" has parent "" (empty) which is Some(""), so it calls check()
-        // On real fs, check() returns Ok(vec![]) since AlwaysEmptyRule always returns empty
+        // Use a platform root so parent() is None — the map_or_else short-circuits to Ok(vec![]).
+        let root = std::path::Path::new(if cfg!(windows) { r"\" } else { "/" });
+        let result = rule.check_file(root, &fs);
         assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
     }
 }
