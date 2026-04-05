@@ -41,11 +41,8 @@ safe-outputs:
     target: "*"
     title-prefix: "[coverage-improver]"
     if-no-changes: ignore
-  mark-pull-request-as-ready-for-review:
-    max: 1
-    target: "*"
-    required-title-prefix: "[coverage-improver]"
   noop:
+    report-as-issue: false
 ---
 
 # Coverage Improver
@@ -123,17 +120,13 @@ For each unresolved review comment that requests a code change:
 After pushing, **stop** — the CI pipeline will re-run and Copilot will
 re-review if needed. The next scheduled run will pick up any new comments.
 
-### 4 — Queue the build and enable auto-merge
+### 4 — Confirm the PR is ready
 
 If there are no actionable review comments on the existing PR:
 
-1. Use the `mark-pull-request-as-ready-for-review` safe output to move the PR
-   out of draft status. This queues the CI build and allows auto-merge to
-   trigger once all checks pass (auto-merge was enabled when the PR was
-   originally created).
-2. Call the `noop` safe output with a message such as:
-   > "No outstanding review comments found on PR #N. Marked as ready for
-   > review — auto-merge will trigger once all checks pass."
+1. Call the `noop` safe output with a message such as:
+   > "No outstanding review comments found on PR #N. Auto-merge will trigger once
+   > all checks pass."
 
 **Stop** — do not run coverage analysis or create a new PR.
 
@@ -202,7 +195,8 @@ Compare the before/after branch percentages.
 
 ### 11 — Open a Pull Request
 
-Use the `create-pull-request` safe output to open a PR with:
+Use the `create-pull-request` safe output to open a **non-draft** PR (set
+`draft: false`) with:
 
 - **Title**: `[coverage-improver] Cover <function/branch description>`
 - **Branch name**: `coverage-improver/<short-description>`
