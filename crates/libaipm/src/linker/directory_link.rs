@@ -208,4 +208,17 @@ mod tests {
         assert!(result.is_ok(), "should create parent dirs: {result:?}");
         assert!(is_link(&target));
     }
+
+    #[test]
+    fn create_with_parentless_target_skips_parent_mkdir() {
+        // Path::new("").parent() returns None, which covers the None arm of
+        // `if let Some(parent) = target.parent()` in create().
+        // symlink_metadata("") fails (ENOENT), so we skip the target-exists check.
+        // create_platform_link then fails on the empty path, but the None branch is hit.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let source = tmp.path().join("source_dir");
+        std::fs::create_dir_all(&source).expect("create source");
+        let result = create(&source, Path::new(""));
+        assert!(result.is_err(), "expected error for empty target path");
+    }
 }
