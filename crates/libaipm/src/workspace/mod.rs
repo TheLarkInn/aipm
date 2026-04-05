@@ -169,10 +169,7 @@ mod tests {
         std::fs::create_dir_all(&subdir).unwrap();
 
         let result = find_workspace_root(&subdir);
-        // Should not match the non-workspace manifest at root
-        if let Some(ref found) = result {
-            assert_ne!(found.as_path(), root, "should not match non-workspace manifest");
-        }
+        assert!(result.is_none(), "should not match non-workspace manifest, got: {result:?}");
     }
 
     #[test]
@@ -298,9 +295,7 @@ mod tests {
         std::fs::create_dir_all(&subdir).unwrap();
 
         let result = find_workspace_root(&subdir);
-        if let Some(ref found) = result {
-            assert_ne!(found.as_path(), root, "should skip invalid TOML");
-        }
+        assert!(result.is_none(), "should skip invalid TOML, got: {result:?}");
     }
 
     #[test]
