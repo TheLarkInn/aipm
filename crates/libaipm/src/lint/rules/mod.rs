@@ -1,7 +1,8 @@
 //! Lint rule implementations and factory functions.
 //!
-//! Each source type has a factory function that returns its rule set,
-//! following the same adapter pattern as migrate detectors.
+//! The primary entry points are [`quality_rules_for_kind()`] (kind-based dispatch
+//! for the unified discovery pipeline) and [`misplaced_features_rule()`] (produces
+//! a per-feature `source/misplaced-features` rule instance).
 
 pub mod agent_missing_tools;
 pub mod broken_paths;
@@ -20,56 +21,42 @@ pub mod skill_oversized;
 #[cfg(test)]
 pub(crate) mod test_helpers;
 
-use std::path::Path;
+use crate::discovery::{DiscoveredFeature, FeatureKind};
+use misplaced_features::MisplacedFeatures;
 
 use super::rule::Rule;
 
-/// Rules for validating `.claude/` source directories.
-pub(crate) fn for_claude(project_root: &Path) -> Vec<Box<dyn Rule>> {
-    vec![Box::new(misplaced_features::MisplacedFeatures {
-        source_type: ".claude",
-        project_root: project_root.to_path_buf(),
-    })]
-}
-
-/// Rules for validating `.github/` source directories.
-pub(crate) fn for_copilot(project_root: &Path) -> Vec<Box<dyn Rule>> {
-    vec![Box::new(misplaced_features::MisplacedFeatures {
-        source_type: ".github",
-        project_root: project_root.to_path_buf(),
-    })]
-}
-
-/// Rules for validating `.ai/` marketplace plugins.
-pub(crate) fn for_marketplace() -> Vec<Box<dyn Rule>> {
-    vec![
-        // Core rules (from BDD spec + issue #110)
-        Box::new(skill_missing_name::MissingName),
-        Box::new(skill_missing_desc::MissingDescription),
-        Box::new(skill_oversized::Oversized),
-        Box::new(agent_missing_tools::MissingTools),
-        Box::new(hook_unknown_event::UnknownEvent),
-        Box::new(broken_paths::BrokenPaths),
-        // Cross-tool compatibility rules (from binary analysis)
-        Box::new(skill_name_too_long::NameTooLong),
-        Box::new(skill_name_invalid::NameInvalidChars),
-        Box::new(skill_desc_too_long::DescriptionTooLong),
-        Box::new(skill_invalid_shell::InvalidShell),
-        Box::new(hook_legacy_event::LegacyEventName),
-    ]
-}
-
-/// Dispatch: source type string -> rule set.
+/// Get quality rules applicable to a feature kind.
 ///
-/// For `.claude` and `.github`, `project_root` is used to locate the `.ai/`
-/// marketplace directory. For `.ai` and unknown sources, it is ignored.
-pub(crate) fn for_source(source: &str, project_root: &Path) -> Vec<Box<dyn Rule>> {
-    match source {
-        ".claude" => for_claude(project_root),
-        ".github" => for_copilot(project_root),
-        ".ai" => for_marketplace(),
-        _ => vec![],
+/// These rules validate individual feature files without regard to which
+/// source directory the feature came from.
+pub(crate) fn quality_rules_for_kind(kind: &FeatureKind) -> Vec<Box<dyn Rule>> {
+    match kind {
+        FeatureKind::Skill => vec![
+            Box::new(skill_missing_name::MissingName),
+            Box::new(skill_missing_desc::MissingDescription),
+            Box::new(skill_oversized::Oversized),
+            Box::new(skill_name_too_long::NameTooLong),
+            Box::new(skill_name_invalid::NameInvalidChars),
+            Box::new(skill_desc_too_long::DescriptionTooLong),
+            Box::new(skill_invalid_shell::InvalidShell),
+            Box::new(broken_paths::BrokenPaths),
+        ],
+        FeatureKind::Agent => vec![Box::new(agent_missing_tools::MissingTools)],
+        FeatureKind::Hook => vec![
+            Box::new(hook_unknown_event::UnknownEvent),
+            Box::new(hook_legacy_event::LegacyEventName),
+        ],
+        FeatureKind::Plugin => vec![Box::new(broken_paths::BrokenPaths)],
     }
+}
+
+/// Construct a `MisplacedFeatures` rule instance for a discovered feature.
+pub(crate) const fn misplaced_features_rule(
+    feature: &DiscoveredFeature,
+    ai_exists: bool,
+) -> MisplacedFeatures {
+    misplaced_features::misplaced_features_rule(feature, ai_exists)
 }
 
 #[cfg(test)]
@@ -77,13 +64,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn unknown_source_returns_empty() {
-        assert!(for_source(".unknown", std::path::Path::new(".")).is_empty());
+    fn quality_rules_for_skill_kind() {
+        let rules = quality_rules_for_kind(&FeatureKind::Skill);
+        assert!(!rules.is_empty());
+        assert!(rules.iter().any(|r| r.id() == "skill/missing-name"));
     }
 
     #[test]
-    fn claude_returns_rules() {
-        let rules = for_source(".claude", std::path::Path::new("."));
-        let _ = rules;
+    fn quality_rules_for_agent_kind() {
+        let rules = quality_rules_for_kind(&FeatureKind::Agent);
+        assert!(!rules.is_empty());
+        assert!(rules.iter().any(|r| r.id() == "agent/missing-tools"));
+    }
+
+    #[test]
+    fn quality_rules_for_hook_kind() {
+        let rules = quality_rules_for_kind(&FeatureKind::Hook);
+        assert!(!rules.is_empty());
+        assert!(rules.iter().any(|r| r.id() == "hook/unknown-event"));
+    }
+
+    #[test]
+    fn quality_rules_for_plugin_kind_includes_broken_paths() {
+        let rules = quality_rules_for_kind(&FeatureKind::Plugin);
+        assert!(!rules.is_empty());
+        assert!(rules.iter().any(|r| r.id() == "plugin/broken-paths"));
     }
 }

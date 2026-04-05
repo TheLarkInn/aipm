@@ -537,15 +537,6 @@ fn cmd_lint(
             )
             .into());
         }
-        // For .ai, validate root existence. For .claude/.github, recursive discovery handles it.
-        if src == ".ai" {
-            let source_dir = dir.join(src);
-            if !source_dir.exists() {
-                return Err(
-                    format!("source directory '{}' not found in {}", src, dir.display()).into()
-                );
-            }
-        }
     }
 
     // --format is a deprecated alias for --reporter; it takes precedence when provided
