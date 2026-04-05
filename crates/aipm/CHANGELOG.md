@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.17.2] - 2026-04-05
+
+### Features
+- Unified single-pass feature discovery fixes #208 ([#211](https://github.com/TheLarkInn/aipm/pull/211)) (ec24fe7)
+
 ## [0.17.1] - 2026-04-04
 
 ## [0.17.0] - 2026-04-03
