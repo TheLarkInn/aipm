@@ -115,6 +115,9 @@ pub fn init(verbosity: LevelFilter, format: LogFormat) -> Result<(), Error> {
 mod tests {
     use super::*;
 
+    /// Shared mutex so all tests that touch `AIPM_LOG` are serialized.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn log_format_equality() {
         assert_eq!(LogFormat::Text, LogFormat::Text);
@@ -134,8 +137,6 @@ mod tests {
     /// runner executes tests in parallel.
     #[test]
     fn stderr_filter_respects_env_and_verbosity() {
-        // Use a mutex to serialize access to AIPM_LOG env var
-        static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
         let _guard = ENV_LOCK.lock();
 
         // Without AIPM_LOG: should use the verbosity level
@@ -154,8 +155,7 @@ mod tests {
 
     #[test]
     fn stderr_filter_all_verbosity_levels() {
-        static ENV_LOCK2: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        let _guard = ENV_LOCK2.lock();
+        let _guard = ENV_LOCK.lock();
         std::env::remove_var("AIPM_LOG");
 
         let levels = [
