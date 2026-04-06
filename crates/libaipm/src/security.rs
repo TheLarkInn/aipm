@@ -240,6 +240,13 @@ mod tests {
     }
 
     #[test]
+    fn glob_middle_part_absent_when_end_matches() {
+        // First part "a" and last part "m" both match, but the middle part "q"
+        // is not present — exercises the else-branch in the middle-parts loop.
+        assert!(!glob_match("a*q*m", "axyzm"));
+    }
+
+    #[test]
     fn empty_allowlist_enforced_rejects() {
         let patterns: Vec<String> = vec![];
         let result = check_source_allowed("github.com/org/repo", &patterns, true);
