@@ -1659,6 +1659,25 @@ mod tests {
     }
 
     #[test]
+    fn convert_hooks_indented_key_value_before_top_level_key() {
+        // Indented "key: value" line when current_key is None covers the
+        // inner `if let Some(pos)` branch with a non-empty value.
+        let result = convert_hooks_yaml_to_json("  nested: indented-value\nTopKey: topval");
+        assert!(result.contains("\"nested\": \"indented-value\""));
+        assert!(result.contains("\"TopKey\": \"topval\""));
+    }
+
+    #[test]
+    fn convert_hooks_indented_key_empty_value_before_top_level_key() {
+        // Indented "key:" (empty value) when current_key is None — exercises the
+        // val.is_empty() true branch in the indented-no-current-key path.
+        let result = convert_hooks_yaml_to_json("  nested:\nTopKey: topval");
+        // "nested" had no value so it is not emitted
+        assert!(!result.contains("\"nested\""));
+        assert!(result.contains("\"TopKey\": \"topval\""));
+    }
+
+    #[test]
     fn emit_rejects_unsafe_name_with_traversal() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/skills/../etc/SKILL.md"), "bad".to_string());
