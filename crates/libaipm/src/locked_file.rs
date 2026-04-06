@@ -168,6 +168,15 @@ mod tests {
         assert!(path.exists());
     }
 
+    #[test]
+    fn open_path_with_no_parent_skips_mkdir_and_fails() {
+        // Path::new("/").parent() returns None, so the `if let Some(parent)` branch
+        // is skipped entirely.  Opening "/" as a regular file then fails because it
+        // is a directory, confirming the None branch is reachable and handled.
+        let result = LockedFile::open(Path::new("/"));
+        assert!(result.is_err());
+    }
+
     /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
     fn unreachable_tempdir() -> tempfile::TempDir {
         tempfile::tempdir_in(".").unwrap_or_else(|_| {
