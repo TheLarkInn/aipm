@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.18.0] - 2026-04-06
+
+### Features
+- Plugin acquisition system with multi-source support ([#233](https://github.com/TheLarkInn/aipm/pull/233)) (379a06d)
+
+### Testing
+- Cover structural-key skips in check_file for hook/unknown-event (917f28b)
+- Cover CopilotMcpDetector root source-dir else branch (fb8c639)
+- Cover Human reporter Renderer::styled() branch (0426d35)
+- Cover all error branches in register_plugins (72112a4)
+
 ## [0.17.7] - 2026-04-06
 
 ## [0.17.6] - 2026-04-05
