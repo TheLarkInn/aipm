@@ -273,6 +273,69 @@ mod tests {
         assert!(!is_ignored("any/path", &patterns));
     }
 
+    // --- apply_rule_diagnostics unit tests ---
+
+    #[test]
+    fn apply_rule_diagnostics_rule_ignore_path_filters_diagnostic() {
+        // Covers the True branch of `is_ignored(&path_str, rule_ignores)` at the `||`
+        // expression in `apply_rule_diagnostics`: when global `ignore_paths` is empty
+        // but the per-rule ignore pattern matches the diagnostic's file path, the
+        // diagnostic must be suppressed.
+        struct StubRule;
+        impl Rule for StubRule {
+            fn id(&self) -> &'static str {
+                "stub/per-rule-ignore"
+            }
+            fn name(&self) -> &'static str {
+                "stub"
+            }
+            fn default_severity(&self) -> Severity {
+                Severity::Warning
+            }
+            fn check(
+                &self,
+                _: &std::path::Path,
+                _: &dyn crate::fs::Fs,
+            ) -> Result<Vec<Diagnostic>, Error> {
+                Ok(vec![])
+            }
+        }
+
+        let make_diag = |path: &str| Diagnostic {
+            rule_id: "stub/per-rule-ignore".into(),
+            severity: Severity::Warning,
+            message: "test".into(),
+            file_path: PathBuf::from(path),
+            line: None,
+            col: None,
+            end_line: None,
+            end_col: None,
+            source_type: ".claude".into(),
+            help_text: None,
+            help_url: None,
+        };
+
+        let mut cfg = config::Config::default();
+        cfg.rule_overrides.insert(
+            "stub/per-rule-ignore".to_string(),
+            config::RuleOverride::Detailed {
+                level: Severity::Warning,
+                ignore: vec!["vendor/**".to_string()],
+            },
+        );
+
+        let rule = StubRule;
+        let diagnostics = vec![
+            make_diag("vendor/foo/SKILL.md"), // matches rule ignore → filtered
+            make_diag("src/bar/SKILL.md"),    // does not match → kept
+        ];
+        let mut output = Vec::new();
+        apply_rule_diagnostics(&rule, diagnostics, &cfg, &mut output);
+
+        assert_eq!(output.len(), 1, "vendor diagnostic should be filtered by per-rule ignore");
+        assert_eq!(output[0].file_path, PathBuf::from("src/bar/SKILL.md"));
+    }
+
     // --- Struct and error tests ---
 
     #[test]
