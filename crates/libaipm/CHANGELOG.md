@@ -1,6 +1,13 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.18.1] - 2026-04-06
+
+### Testing
+- Cover find_map else-None branch with multi-line hook JSON (7301691)
+- Cover None branch of path.parent() in open() (f9f9de6)
+- Cover per-rule ignore path True branch in apply_rule_diagnostics (7c213d8)
+
 ## [0.18.0] - 2026-04-06
 
 ### Features
