@@ -37,6 +37,7 @@ checkout:
 safe-outputs:
   create-pull-request:
     max: 1
+    draft: false
     auto-merge: true
   push-to-pull-request-branch:
     target: "*"
