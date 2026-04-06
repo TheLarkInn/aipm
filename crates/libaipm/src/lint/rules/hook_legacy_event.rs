@@ -289,4 +289,35 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
     }
+
+    #[test]
+    fn check_file_multiline_json_line_number_found() {
+        // Multi-line JSON means the find_map closure returns None for lines that
+        // don't contain the key (the `else { None }` arm), then Some once the
+        // key line is reached. This covers the False branch of `line.contains`.
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/hooks/hooks.json");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), "{\n  \"Stop\": []\n}".to_string());
+
+        let result = LegacyEventName.check_file(&path, &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].line, Some(2)); // "Stop" is on line 2
+    }
+
+    #[test]
+    fn check_multiline_json_line_number_found() {
+        // Same for the `check` method's find_map — covers the `else { None }` arm
+        // when the key is not on the first line of a multi-line hooks file.
+        let mut fs = MockFs::new();
+        fs.add_hooks("p", "{\n  \"Stop\": []\n}");
+
+        let result = LegacyEventName.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].line, Some(2)); // "Stop" is on line 2
+    }
 }
