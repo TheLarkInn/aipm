@@ -277,4 +277,14 @@ some-dep = {}
         // Should succeed — missing version is not an error (just no version constraint)
         assert!(result.is_ok(), "dependency with no version should be valid: {result:?}");
     }
+
+    #[test]
+    fn segment_starting_with_digit_is_valid() {
+        // Covers the `b.is_ascii_digit()` branch in `is_valid_segment` —
+        // when the first byte is a digit, `is_ascii_lowercase()` is false and
+        // the `||` falls through to evaluate `is_ascii_digit()`.
+        assert!(is_valid_name("1plugin"));
+        assert!(is_valid_name("@scope/1tool"));
+        assert!(is_valid_segment("123abc"));
+    }
 }
