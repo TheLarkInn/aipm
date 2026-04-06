@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.18.0] - 2026-04-06
+
+### Features
+- Plugin acquisition system with multi-source support ([#233](https://github.com/TheLarkInn/aipm/pull/233)) (379a06d)
+
 ## [0.17.7] - 2026-04-06
 
 ## [0.17.6] - 2026-04-05
