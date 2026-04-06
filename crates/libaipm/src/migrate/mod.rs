@@ -1122,4 +1122,41 @@ mod tests {
             assert!(other_migrated > 0, "should have OtherFileMigrated actions");
         }
     }
+
+    #[test]
+    fn migrate_other_files_skipped_when_no_artifacts_detected() {
+        // Covers the `None` branch of `if let Some(first_entry) = registered_entries.first()`
+        // (line 427): when other_files is non-empty but no artifacts were detected so
+        // registered_entries is empty, the emit step is silently skipped.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.ai"));
+        fs.exists.insert(PathBuf::from("/project/.claude"));
+        // Source dir contains only a plain README — no detectable artifacts.
+        fs.dirs.insert(
+            PathBuf::from("/project/.claude"),
+            vec![crate::fs::DirEntry { name: "README.md".to_string(), is_dir: false }],
+        );
+        fs.files.insert(PathBuf::from("/project/.claude/README.md"), "# Notes".to_string());
+        // .ai directory is empty (no existing plugins).
+        fs.dirs.insert(PathBuf::from("/project/.ai"), Vec::new());
+
+        let opts = Options {
+            dir: Path::new("/project"),
+            source: Some(".claude"),
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let result = migrate(&opts, &fs);
+        assert!(result.is_ok());
+        if let Ok(outcome) = result {
+            // No plugins created and no marketplace entries because no artifacts were detected.
+            assert!(!outcome.actions.iter().any(|a| matches!(a, Action::PluginCreated { .. })));
+            assert!(!outcome
+                .actions
+                .iter()
+                .any(|a| matches!(a, Action::MarketplaceRegistered { .. })));
+        }
+    }
 }
