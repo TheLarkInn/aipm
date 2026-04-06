@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use super::Dependency;
 
 /// A parsed override rule.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Override {
     /// Replace the version requirement everywhere in the graph.
     Global {
@@ -145,8 +145,10 @@ mod tests {
 
         let parsed = parse(&overrides).unwrap();
         assert_eq!(parsed.len(), 1);
-        assert!(matches!(&parsed[0], Override::Global { name, req }
-            if name == "vulnerable-lib" && req == "^2.0.0"));
+        assert_eq!(
+            parsed[0],
+            Override::Global { name: "vulnerable-lib".to_string(), req: "^2.0.0".to_string() }
+        );
     }
 
     #[test]
@@ -156,8 +158,14 @@ mod tests {
 
         let parsed = parse(&overrides).unwrap();
         assert_eq!(parsed.len(), 1);
-        assert!(matches!(&parsed[0], Override::Scoped { parent, child, req }
-            if parent == "skill-a" && child == "common-util" && req == "=2.1.0"));
+        assert_eq!(
+            parsed[0],
+            Override::Scoped {
+                parent: "skill-a".to_string(),
+                child: "common-util".to_string(),
+                req: "=2.1.0".to_string()
+            }
+        );
     }
 
     #[test]
@@ -167,8 +175,14 @@ mod tests {
 
         let parsed = parse(&overrides).unwrap();
         assert_eq!(parsed.len(), 1);
-        assert!(matches!(&parsed[0], Override::Replacement { original, replacement, req }
-            if original == "broken-lib" && replacement == "fixed-lib" && req == "^1.0"));
+        assert_eq!(
+            parsed[0],
+            Override::Replacement {
+                original: "broken-lib".to_string(),
+                replacement: "fixed-lib".to_string(),
+                req: "^1.0".to_string()
+            }
+        );
     }
 
     #[test]
@@ -240,7 +254,11 @@ mod tests {
 
         let parsed = parse(&overrides).unwrap();
         assert_eq!(parsed.len(), 1);
-        assert!(matches!(&parsed[0], Override::Global { .. }));
+        // "aipm:nope" has no @ so it's treated as global with name="pkg", req="aipm:nope"
+        assert_eq!(
+            parsed[0],
+            Override::Global { name: "pkg".to_string(), req: "aipm:nope".to_string() }
+        );
     }
 
     #[test]

@@ -60,6 +60,29 @@ pub struct Package {
 
     /// File allowlist for transfer format.
     pub files: Option<Vec<String>>,
+
+    /// Engine compatibility list (e.g., `["claude", "copilot"]`).
+    /// `None` or empty means all engines.
+    pub engines: Option<Vec<String>>,
+
+    /// Source redirect for marketplace stubs.
+    pub source: Option<SourceRedirect>,
+}
+
+/// A source redirect declared in `[package.source]`.
+///
+/// Indicates this plugin is a stub whose actual code lives in an external
+/// repository.  The CLI follows this redirect (max 1 level) to fetch the
+/// real plugin content.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SourceRedirect {
+    /// Source type (e.g., `"git"`).
+    #[serde(rename = "type")]
+    pub redirect_type: Option<String>,
+    /// Git clone URL.
+    pub url: String,
+    /// Optional subdirectory within the repository.
+    pub path: Option<String>,
 }
 
 /// `[workspace]` section — monorepo configuration.
@@ -87,9 +110,12 @@ pub enum DependencySpec {
 }
 
 /// Detailed dependency with version, workspace ref, optional flag, features.
+///
+/// Supports both registry deps (`version`) and source deps (`git`, `github`,
+/// `path`, `marketplace`).  Source fields are mutually exclusive with `version`.
 #[derive(Debug, Clone, Deserialize)]
 pub struct DetailedDependency {
-    /// Version requirement string.
+    /// Version requirement string (registry deps).
     pub version: Option<String>,
 
     /// Workspace protocol reference (`"^"`, `"="`, `"*"`).
@@ -104,6 +130,25 @@ pub struct DetailedDependency {
 
     /// Specific features to enable.
     pub features: Option<Vec<String>>,
+
+    /// Git clone URL for source deps (e.g., `https://github.com/org/repo`).
+    pub git: Option<String>,
+
+    /// GitHub shorthand (`owner/repo`) — sugar for git.
+    pub github: Option<String>,
+
+    /// Local filesystem path for source deps.
+    pub path: Option<String>,
+
+    /// Marketplace name for marketplace source deps.
+    pub marketplace: Option<String>,
+
+    /// Plugin name within a marketplace (defaults to dep key name).
+    pub name: Option<String>,
+
+    /// Git ref (branch, tag, or commit SHA) for git/marketplace deps.
+    #[serde(rename = "ref")]
+    pub git_ref: Option<String>,
 }
 
 /// `[components]` section — declares plugin component files.
