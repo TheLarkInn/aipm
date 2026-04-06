@@ -143,7 +143,7 @@ pub struct Options<'a> {
 }
 
 /// A single action taken (or planned) during migration.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
     /// A plugin directory was created.
     PluginCreated {
