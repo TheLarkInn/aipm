@@ -32,32 +32,29 @@ use std::path::PathBuf;
 // ---------------------------------------------------------------------------
 
 /// A parsed marketplace manifest.
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Manifest {
     /// Available plugins.
     pub plugins: Vec<PluginEntry>,
     /// Optional metadata.
-    #[serde(default)]
     pub metadata: Option<Metadata>,
 }
 
 /// Optional marketplace metadata.
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Metadata {
     /// Base directory prepended to relative plugin source paths.
-    #[serde(default)]
     pub plugin_root: Option<String>,
 }
 
 /// A single plugin entry in the manifest.
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone)]
 pub struct PluginEntry {
     /// Plugin name.
     pub name: String,
     /// Plugin source.
     pub source: PluginSource,
     /// Optional description.
-    #[serde(default)]
     pub description: Option<String>,
 }
 
@@ -80,69 +77,6 @@ impl PluginSource {
             Self::Git { .. } => "git",
             Self::Unsupported { .. } => "unsupported",
         }
-    }
-}
-
-impl<'de> serde::Deserialize<'de> for PluginSource {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = serde_json::Value::deserialize(deserializer).map_err(|_| {
-            // Try TOML value instead
-            serde::de::Error::custom("invalid source value")
-        });
-
-        // First try: was already converted to serde_json::Value by toml
-        // We actually need to handle both string and table
-        // Let's use toml::Value instead
-        Err(serde::de::Error::custom("use toml_deserialize instead"))
-            .or_else(|_: D::Error| deserialize_plugin_source_inner::<D>(value))
-    }
-}
-
-fn deserialize_plugin_source_inner<'de, D: serde::Deserializer<'de>>(
-    value: Result<serde_json::Value, D::Error>,
-) -> Result<PluginSource, D::Error> {
-    match value {
-        Ok(serde_json::Value::String(s)) => Ok(PluginSource::RelativePath(s)),
-        Ok(serde_json::Value::Object(map)) => {
-            let source_type = map
-                .get("type")
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-                .unwrap_or("unknown");
-
-            let git_ref = map
-                .get("ref")
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-                .map(str::to_string);
-            let sha = map
-                .get("sha")
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-                .map(str::to_string);
-            let path = map
-                .get("path")
-                .and_then(|v| v.as_str())
-                .filter(|s| !s.is_empty())
-                .map(str::to_string);
-
-            match source_type {
-                "git" => {
-                    let url = map
-                        .get("url")
-                        .and_then(|v| v.as_str())
-                        .filter(|s| !s.is_empty())
-                        .ok_or_else(|| serde::de::Error::missing_field("url"))?
-                        .to_string();
-                    Ok(PluginSource::Git { url, path, git_ref, sha })
-                },
-                other => Ok(PluginSource::Unsupported { source_type: other.to_string() }),
-            }
-        },
-        _ => Err(serde::de::Error::custom("plugin source must be a string or table")),
     }
 }
 

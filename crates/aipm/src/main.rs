@@ -569,12 +569,11 @@ fn cmd_install_global(
 
     let added = registry.install(spec.clone(), &engines, cache_policy, None)?;
 
-    // Save
+    // Save under lock
     let json = serde_json::to_string_pretty(&registry)?;
-    if let Some(parent) = registry_path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    std::fs::write(&registry_path, json)?;
+    let mut locked = libaipm::locked_file::LockedFile::open(&registry_path)
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
+    locked.write_content(&json).map_err(|e| std::io::Error::other(e.to_string()))?;
 
     let mut stdout = std::io::stdout();
     if added {
@@ -593,7 +592,8 @@ fn cmd_uninstall_global(
     let registry_path = home_aipm_path()?.join("installed.json");
     let mut registry = load_installed_registry(&registry_path);
 
-    let spec = registry.resolve_spec(package, &[])?;
+    let engine_filter: Vec<String> = engine.iter().map(ToString::to_string).collect();
+    let spec = registry.resolve_spec(package, &engine_filter)?;
 
     let changed = if let Some(eng) = engine {
         registry.uninstall_engine(&spec, &[eng.to_string()])
@@ -606,7 +606,9 @@ fn cmd_uninstall_global(
     }
 
     let json = serde_json::to_string_pretty(&registry)?;
-    std::fs::write(&registry_path, json)?;
+    let mut locked = libaipm::locked_file::LockedFile::open(&registry_path)
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
+    locked.write_content(&json).map_err(|e| std::io::Error::other(e.to_string()))?;
 
     let mut stdout = std::io::stdout();
     if let Some(eng) = engine {

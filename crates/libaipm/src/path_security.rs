@@ -219,13 +219,14 @@ mod tests {
         assert!(matches!(result, Err(PathValidationError::PathTraversal)));
     }
 
+    #[cfg(windows)]
     #[test]
     fn validate_windows_absolute_path() {
-        // Windows-style drive letter path
         let result = validate_plugin_path("C:\\Users\\test");
         assert!(matches!(result, Err(PathValidationError::AbsolutePath)));
     }
 
+    #[cfg(windows)]
     #[test]
     fn validate_unc_path() {
         let result = validate_plugin_path("\\\\server\\share");
