@@ -16,7 +16,7 @@ All lints are configured in `Cargo.toml` under `[workspace.lints]`. The key rule
 
 6. **NEVER use `std::process::exit()`** — `deny`. Return from main instead.
 
-7. **NEVER use `.unwrap()` inside functions returning `Result`** — `forbid` via `unwrap_in_result`.
+7. **NEVER use `.unwrap()` inside functions returning `Result`** — `deny` via `unwrap_in_result`.
 
 8. **Use `.get()` instead of `[]` indexing** where possible — `indexing_slicing` is `warn`.
 
