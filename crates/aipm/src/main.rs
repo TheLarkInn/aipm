@@ -60,9 +60,9 @@ enum Commands {
         dir: PathBuf,
     },
 
-    /// Install packages from the registry.
+    /// Install packages from the registry or other sources.
     Install {
-        /// Package to install (e.g., "code-review", "@org/tool@^1.0").
+        /// Package to install (e.g., "code-review@^1.0", "github:org/repo:path@ref").
         package: Option<String>,
 
         /// CI mode: fail if lockfile doesn't match manifest.
@@ -72,6 +72,18 @@ enum Commands {
         /// Use a specific registry.
         #[arg(long)]
         registry: Option<String>,
+
+        /// Install globally (available to all projects).
+        #[arg(long)]
+        global: bool,
+
+        /// Restrict global install to a specific engine (e.g., "claude", "copilot").
+        #[arg(long)]
+        engine: Option<String>,
+
+        /// Download cache policy override.
+        #[arg(long, value_parser = ["auto", "cache-only", "skip", "force-refresh", "no-refresh"])]
+        plugin_cache: Option<String>,
 
         /// Project directory.
         #[arg(long, default_value = ".")]
@@ -98,6 +110,24 @@ enum Commands {
         dir: PathBuf,
     },
 
+    /// Uninstall or unlink a package.
+    Uninstall {
+        /// Package spec or name to uninstall.
+        package: String,
+
+        /// Uninstall from global registry.
+        #[arg(long)]
+        global: bool,
+
+        /// Remove from a specific engine only (global installs).
+        #[arg(long)]
+        engine: Option<String>,
+
+        /// Project directory (ignored when --global is set).
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+    },
+
     /// Unlink a previously linked package, restoring the registry version.
     Unlink {
         /// Package name to unlink.
@@ -113,6 +143,10 @@ enum Commands {
         /// Show only active dev link overrides.
         #[arg(long)]
         linked: bool,
+
+        /// Show globally installed plugins.
+        #[arg(long)]
+        global: bool,
 
         /// Project directory.
         #[arg(long, default_value = ".")]
@@ -518,6 +552,113 @@ fn cmd_list(linked: bool, dir: PathBuf) -> Result<(), Box<dyn std::error::Error>
     Ok(())
 }
 
+fn cmd_install_global(
+    package: Option<String>,
+    engine: Option<String>,
+    plugin_cache: Option<String>,
+    _dir: PathBuf,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let spec = package.ok_or("--global install requires a package spec")?;
+    let engines: Vec<String> = engine.into_iter().collect();
+    let cache_policy: Option<libaipm::cache::Policy> =
+        plugin_cache.map(|s| s.parse()).transpose().map_err(|e: String| e)?;
+
+    // Load or create the global installed registry
+    let registry_path = home_aipm_path()?.join("installed.json");
+    let mut registry = load_installed_registry(&registry_path);
+
+    let added = registry.install(spec.clone(), &engines, cache_policy, None)?;
+
+    // Save under lock
+    let json = serde_json::to_string_pretty(&registry)?;
+    let mut locked = libaipm::locked_file::LockedFile::open(&registry_path)
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
+    locked.write_content(&json).map_err(|e| std::io::Error::other(e.to_string()))?;
+
+    let mut stdout = std::io::stdout();
+    if added {
+        let _ = writeln!(stdout, "Installed '{spec}' globally");
+    } else {
+        let _ = writeln!(stdout, "Updated '{spec}' in global registry");
+    }
+    Ok(())
+}
+
+fn cmd_uninstall_global(
+    package: &str,
+    engine: Option<&str>,
+    _dir: PathBuf,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let registry_path = home_aipm_path()?.join("installed.json");
+    let mut registry = load_installed_registry(&registry_path);
+
+    let engine_filter: Vec<String> = engine.iter().map(ToString::to_string).collect();
+    let spec = registry.resolve_spec(package, &engine_filter)?;
+
+    let changed = if let Some(eng) = engine {
+        registry.uninstall_engine(&spec, &[eng.to_string()])
+    } else {
+        registry.uninstall(&spec)
+    };
+
+    if !changed {
+        return Err(format!("Plugin '{package}' not found in global registry").into());
+    }
+
+    let json = serde_json::to_string_pretty(&registry)?;
+    let mut locked = libaipm::locked_file::LockedFile::open(&registry_path)
+        .map_err(|e| std::io::Error::other(e.to_string()))?;
+    locked.write_content(&json).map_err(|e| std::io::Error::other(e.to_string()))?;
+
+    let mut stdout = std::io::stdout();
+    if let Some(eng) = engine {
+        let _ = writeln!(stdout, "Removed '{spec}' from {eng} engine globally");
+    } else {
+        let _ = writeln!(stdout, "Uninstalled '{spec}' globally");
+    }
+    Ok(())
+}
+
+fn cmd_list_global() -> Result<(), Box<dyn std::error::Error>> {
+    let registry_path = home_aipm_path()?.join("installed.json");
+    let registry = load_installed_registry(&registry_path);
+
+    let mut stdout = std::io::stdout();
+    if registry.plugins.is_empty() {
+        let _ = writeln!(stdout, "No globally installed plugins.");
+    } else {
+        let _ = writeln!(stdout, "Globally installed plugins:");
+        for plugin in &registry.plugins {
+            let engine_info = if plugin.engines.is_empty() {
+                "all engines".to_string()
+            } else {
+                plugin.engines.join(", ")
+            };
+            let _ = writeln!(stdout, "  {} ({engine_info})", plugin.spec);
+        }
+    }
+    Ok(())
+}
+
+/// Get the `~/.aipm/` directory path.
+fn home_aipm_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .map_err(|_| "could not determine home directory")?;
+    Ok(PathBuf::from(home).join(".aipm"))
+}
+
+/// Load the global installed registry from disk (or empty default).
+fn load_installed_registry(path: &Path) -> libaipm::installed::Registry {
+    if !path.exists() {
+        return libaipm::installed::Registry::default();
+    }
+    std::fs::read_to_string(path).map_or_else(
+        |_| libaipm::installed::Registry::default(),
+        |content| serde_json::from_str(&content).unwrap_or_default(),
+    )
+}
+
 fn cmd_lint(
     dir: PathBuf,
     source: Option<String>,
@@ -815,7 +956,15 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
             let flags = InitWizardFlags { yes, workspace, marketplace, no_starter };
             cmd_init(&flags, manifest, name.as_deref(), dir)
         },
-        Some(Commands::Install { package, locked, registry, dir }) => {
+        Some(Commands::Install {
+            package,
+            locked,
+            registry,
+            global,
+            engine,
+            plugin_cache,
+            dir,
+        }) => {
             if registry.is_some() {
                 let mut stderr = std::io::stderr();
                 let _ = writeln!(
@@ -823,12 +972,30 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                     "warning: --registry is not yet supported and will be ignored"
                 );
             }
-            cmd_install(package, locked, dir)
+            if global {
+                cmd_install_global(package, engine, plugin_cache, dir)
+            } else {
+                let _ = (engine, plugin_cache); // Consumed by global path only for now
+                cmd_install(package, locked, dir)
+            }
         },
         Some(Commands::Update { package, dir }) => cmd_update(package, dir),
         Some(Commands::Link { path, dir }) => cmd_link(path, dir),
+        Some(Commands::Uninstall { package, global, engine, dir }) => {
+            if global {
+                cmd_uninstall_global(&package, engine.as_deref(), dir)
+            } else {
+                cmd_unlink(&package, dir)
+            }
+        },
         Some(Commands::Unlink { package, dir }) => cmd_unlink(&package, dir),
-        Some(Commands::List { linked, dir }) => cmd_list(linked, dir),
+        Some(Commands::List { linked, global, dir }) => {
+            if global {
+                cmd_list_global()
+            } else {
+                cmd_list(linked, dir)
+            }
+        },
         Some(Commands::Lint { dir, source, reporter, color, format, max_depth }) => {
             cmd_lint(dir, source, &reporter, &color, format.as_deref(), max_depth)
         },

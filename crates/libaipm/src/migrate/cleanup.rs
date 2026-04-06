@@ -225,8 +225,9 @@ mod tests {
         assert!(result.is_ok());
         let actions = result.ok().unwrap_or_default();
         assert_eq!(actions.len(), 1);
-        assert!(
-            matches!(&actions[0], Action::SourceDirRemoved { path } if path == Path::new("/p/.claude/skills/deploy"))
+        assert_eq!(
+            actions[0],
+            Action::SourceDirRemoved { path: PathBuf::from("/p/.claude/skills/deploy") }
         );
 
         let removed_dirs = fs.removed_dirs.lock().unwrap_or_else(|e| e.into_inner());
@@ -256,8 +257,9 @@ mod tests {
         assert!(result.is_ok());
         let actions = result.ok().unwrap_or_default();
         assert_eq!(actions.len(), 1);
-        assert!(
-            matches!(&actions[0], Action::SourceFileRemoved { path } if path == Path::new("/p/.claude/commands/review.md"))
+        assert_eq!(
+            actions[0],
+            Action::SourceFileRemoved { path: PathBuf::from("/p/.claude/commands/review.md") }
         );
     }
 
@@ -310,12 +312,11 @@ mod tests {
         let actions = result.ok().unwrap_or_default();
         // Should have: SourceDirRemoved for deploy + EmptyDirPruned for empty skills/
         assert_eq!(actions.len(), 2);
-        assert!(
-            matches!(&actions[0], Action::SourceDirRemoved { path } if path == Path::new("/p/.claude/skills/deploy"))
+        assert_eq!(
+            actions[0],
+            Action::SourceDirRemoved { path: PathBuf::from("/p/.claude/skills/deploy") }
         );
-        assert!(
-            matches!(&actions[1], Action::EmptyDirPruned { path } if path == Path::new("/p/.claude/skills"))
-        );
+        assert_eq!(actions[1], Action::EmptyDirPruned { path: PathBuf::from("/p/.claude/skills") });
     }
 
     #[test]
@@ -338,8 +339,9 @@ mod tests {
         assert!(result.is_ok());
         let actions = result.ok().unwrap_or_default();
         assert_eq!(actions.len(), 1);
-        assert!(
-            matches!(&actions[0], Action::SourceDirRemoved { path } if path == Path::new("/p/.claude/skills/deploy"))
+        assert_eq!(
+            actions[0],
+            Action::SourceDirRemoved { path: PathBuf::from("/p/.claude/skills/deploy") }
         );
     }
 
@@ -433,8 +435,9 @@ mod tests {
         let actions = result.ok().unwrap_or_default();
         // Only the skill dir itself is removed; parent is not pruned (read_dir fails)
         assert_eq!(actions.len(), 1);
-        assert!(
-            matches!(&actions[0], Action::SourceDirRemoved { path } if path == Path::new("/p/.claude/skills/deploy"))
+        assert_eq!(
+            actions[0],
+            Action::SourceDirRemoved { path: PathBuf::from("/p/.claude/skills/deploy") }
         );
     }
 
@@ -468,9 +471,7 @@ mod tests {
         assert!(result.is_ok());
         let actions = result.ok().unwrap_or_default();
         assert_eq!(actions.len(), 1);
-        assert!(
-            matches!(&actions[0], Action::SourceFileRemoved { path } if path == Path::new("/"))
-        );
+        assert_eq!(actions[0], Action::SourceFileRemoved { path: PathBuf::from("/") });
     }
 
     #[test]

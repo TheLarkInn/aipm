@@ -10,7 +10,7 @@
 use std::collections::BTreeMap;
 
 /// Parsed frontmatter from a markdown file.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Frontmatter {
     /// Raw key-value pairs extracted from the frontmatter block.
     /// Multi-line values (like `hooks:` blocks) are joined with newlines.
@@ -597,40 +597,32 @@ mod tests {
 
     #[test]
     fn parse_leading_spaces_only() {
-        // Leading whitespace with no newlines — covers the ch != '\n' branch at line 50
         let content = "  ---\nname: test\n---\nbody";
         let result = parse(content);
-        if let Ok(Some(fm)) = result {
-            assert_eq!(fm.start_line, 1);
-            assert_eq!(fm.fields.get("name").map(|s| s.as_str()), Some("test"));
-        } else {
-            assert!(false, "expected Some(Frontmatter)");
-        }
+        assert!(result.is_ok());
+        let fm = result.unwrap_or_default().unwrap_or_default();
+        assert_eq!(fm.start_line, 1);
+        assert_eq!(fm.fields.get("name").map(|s| s.as_str()), Some("test"));
     }
 
     #[test]
     fn parse_leading_blank_lines_start_line_offset() {
         let content = "\n\n---\nname: test\n---\nbody";
         let result = parse(content);
-        if let Ok(Some(fm)) = result {
-            assert_eq!(fm.start_line, 3);
-            assert_eq!(fm.fields.get("name").map(|s| s.as_str()), Some("test"));
-        } else {
-            assert!(false, "expected Some(Frontmatter)");
-        }
+        assert!(result.is_ok());
+        let fm = result.unwrap_or_default().unwrap_or_default();
+        assert_eq!(fm.start_line, 3);
+        assert_eq!(fm.fields.get("name").map(|s| s.as_str()), Some("test"));
     }
 
     #[test]
     fn parse_tab_indented_multiline() {
         let content = "---\nhooks:\n\tPreToolUse\n\tPostToolUse\n---\nbody";
         let result = parse(content);
-        if let Ok(Some(fm)) = result {
-            let hooks = fm.fields.get("hooks").map(|s| s.as_str());
-            assert!(hooks.is_some());
-            assert!(hooks.unwrap_or("").contains("PreToolUse"));
-        } else {
-            assert!(false, "expected Some(Frontmatter)");
-        }
+        assert!(result.is_ok());
+        let fm = result.unwrap_or_default().unwrap_or_default();
+        let hooks = fm.fields.get("hooks").map(|s| s.as_str()).unwrap_or("");
+        assert!(hooks.contains("PreToolUse"));
     }
 
     #[test]
@@ -653,33 +645,27 @@ mod tests {
     fn parse_key_empty_value_no_continuation() {
         let content = "---\nempty_key:\nnext: value\n---\nbody";
         let result = parse(content);
-        if let Ok(Some(fm)) = result {
-            assert_eq!(fm.fields.get("empty_key").map(|s| s.as_str()), Some(""));
-            assert_eq!(fm.fields.get("next").map(|s| s.as_str()), Some("value"));
-        } else {
-            assert!(false, "expected Some(Frontmatter)");
-        }
+        assert!(result.is_ok());
+        let fm = result.unwrap_or_default().unwrap_or_default();
+        assert_eq!(fm.fields.get("empty_key").map(|s| s.as_str()), Some(""));
+        assert_eq!(fm.fields.get("next").map(|s| s.as_str()), Some("value"));
     }
 
     #[test]
     fn parse_final_key_empty_no_continuation() {
         let content = "---\ntrailing:\n---\nbody";
         let result = parse(content);
-        if let Ok(Some(fm)) = result {
-            assert_eq!(fm.fields.get("trailing").map(|s| s.as_str()), Some(""));
-        } else {
-            assert!(false, "expected Some(Frontmatter)");
-        }
+        assert!(result.is_ok());
+        let fm = result.unwrap_or_default().unwrap_or_default();
+        assert_eq!(fm.fields.get("trailing").map(|s| s.as_str()), Some(""));
     }
 
     #[test]
     fn parse_carriage_return_body() {
         let content = "---\nname: test\n---\r\nbody with cr";
         let result = parse(content);
-        if let Ok(Some(fm)) = result {
-            assert!(fm.body.contains("body with cr"));
-        } else {
-            assert!(false, "expected Some(Frontmatter)");
-        }
+        assert!(result.is_ok());
+        let fm = result.unwrap_or_default().unwrap_or_default();
+        assert!(fm.body.contains("body with cr"));
     }
 }

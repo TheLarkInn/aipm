@@ -53,7 +53,7 @@ pub struct Resolved {
 }
 
 /// Package source type.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Source {
     /// From a registry (git or HTTP).
     Registry {

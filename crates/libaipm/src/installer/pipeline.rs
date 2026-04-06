@@ -1241,7 +1241,7 @@ features = ["json"]
         assert_eq!(resolution.packages.len(), 2);
         assert_eq!(resolution.packages[0].name, "pkg-a");
         assert_eq!(resolution.packages[1].name, "ws-pkg");
-        assert!(matches!(resolution.packages[1].source, resolver::Source::Workspace));
+        assert_eq!(resolution.packages[1].source, resolver::Source::Workspace);
     }
 
     #[test]
@@ -1621,10 +1621,10 @@ pkg-a = "^1.0"
 
         let resolution = build_resolution_from_lockfile(&lf).unwrap();
         assert_eq!(resolution.packages.len(), 1);
-        assert!(matches!(
-            &resolution.packages[0].source,
-            resolver::Source::Path { path } if path.to_string_lossy() == "/local/plugin"
-        ));
+        assert_eq!(
+            resolution.packages[0].source,
+            resolver::Source::Path { path: std::path::PathBuf::from("/local/plugin") }
+        );
     }
 
     #[test]
@@ -1953,11 +1953,10 @@ pkg-a = "^1.0"
 
         let resolution = build_resolution_from_lockfile(&lf).unwrap();
         assert_eq!(resolution.packages.len(), 1);
-        assert!(matches!(
-            &resolution.packages[0].source,
-            resolver::Source::Registry { index_url }
-                if index_url == "https://raw.example.com/index"
-        ));
+        assert_eq!(
+            resolution.packages[0].source,
+            resolver::Source::Registry { index_url: "https://raw.example.com/index".to_string() }
+        );
     }
 
     // =========================================================================
@@ -2328,7 +2327,7 @@ b = "^2.0"
         assert_eq!(resolved.len(), 1);
         assert_eq!(resolved[0].name, "plugin-b");
         assert_eq!(format!("{}", resolved[0].version), "2.0.0");
-        assert!(matches!(resolved[0].source, resolver::Source::Workspace));
+        assert_eq!(resolved[0].source, resolver::Source::Workspace);
         assert!(resolved[0].checksum.is_empty());
     }
 
@@ -2372,10 +2371,7 @@ b = "^2.0"
         let resolved = result.unwrap();
         // Link-overridden deps stay as Source::Workspace to preserve lockfile semantics
         assert_eq!(resolved.len(), 1);
-        assert!(
-            matches!(resolved[0].source, resolver::Source::Workspace),
-            "link-overridden dep should stay Source::Workspace"
-        );
+        assert_eq!(resolved[0].source, resolver::Source::Workspace);
     }
 
     #[test]

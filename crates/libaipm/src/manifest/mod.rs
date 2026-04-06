@@ -553,4 +553,119 @@ edition = "2024"
             "expected parse error mentioning 'unknown field' and 'edition'"
         );
     }
+
+    // ---- Phase 9: New source dependency formats ----
+
+    #[test]
+    fn manifest_with_engines_field() {
+        let toml = r#"
+[package]
+name = "my-plugin"
+version = "1.0.0"
+engines = ["claude", "copilot"]
+"#;
+        let manifest = parse(toml);
+        assert!(manifest.is_ok());
+        let manifest = manifest.unwrap_or_default();
+        let engines = manifest.package.as_ref().and_then(|p| p.engines.as_ref());
+        assert_eq!(engines.map(Vec::len), Some(2));
+    }
+
+    #[test]
+    fn manifest_with_source_redirect() {
+        let toml = r#"
+[package]
+name = "stub-plugin"
+version = "0.0.0"
+
+[package.source]
+type = "git"
+url = "https://github.com/org/repo.git"
+path = "plugins/my-plugin"
+"#;
+        let manifest = parse(toml);
+        assert!(manifest.is_ok());
+        let manifest = manifest.unwrap_or_default();
+        let source = manifest.package.as_ref().and_then(|p| p.source.as_ref());
+        assert!(source.is_some());
+        assert_eq!(source.map(|s| s.url.as_str()), Some("https://github.com/org/repo.git"));
+    }
+
+    #[test]
+    fn manifest_with_git_dependency() {
+        let toml = r#"
+[package]
+name = "my-project"
+version = "1.0.0"
+
+[dependencies]
+my-git-plugin = { git = "https://github.com/org/repo", path = "plugins/foo", ref = "main" }
+"#;
+        let manifest = parse(toml);
+        assert!(manifest.is_ok());
+        let manifest = manifest.unwrap_or_default();
+        let deps = manifest.dependencies.as_ref();
+        assert!(deps.is_some());
+    }
+
+    #[test]
+    fn manifest_with_github_dependency() {
+        let toml = r#"
+[package]
+name = "my-project"
+version = "1.0.0"
+
+[dependencies]
+my-gh-plugin = { github = "org/repo", path = "plugins/bar", ref = "v2.0" }
+"#;
+        let manifest = parse(toml);
+        assert!(manifest.is_ok());
+    }
+
+    #[test]
+    fn manifest_with_local_path_dependency() {
+        let toml = r#"
+[package]
+name = "my-project"
+version = "1.0.0"
+
+[dependencies]
+my-local-plugin = { path = "../my-plugin" }
+"#;
+        let manifest = parse(toml);
+        assert!(manifest.is_ok());
+    }
+
+    #[test]
+    fn manifest_with_marketplace_dependency() {
+        let toml = r#"
+[package]
+name = "my-project"
+version = "1.0.0"
+
+[dependencies]
+my-market-plugin = { marketplace = "community", name = "hello-skills", ref = "main" }
+"#;
+        let manifest = parse(toml);
+        assert!(manifest.is_ok());
+    }
+
+    #[test]
+    fn manifest_with_mixed_registry_and_source_deps() {
+        let toml = r#"
+[package]
+name = "my-project"
+version = "1.0.0"
+
+[dependencies]
+registry-dep = "^1.0"
+git-dep = { git = "https://github.com/org/repo", ref = "main" }
+local-dep = { path = "./my-local-plugin" }
+"#;
+        let manifest = parse(toml);
+        assert!(manifest.is_ok());
+        let manifest = manifest.unwrap_or_default();
+        let deps = manifest.dependencies.as_ref();
+        assert_eq!(deps.map(|d| d.len()), Some(3));
+    }
 }

@@ -4,19 +4,29 @@
 //! and the `aipm-pack` author binary: manifest parsing, dependency resolution,
 //! content-addressable store, lockfile management, and linking.
 
+pub mod acquirer;
+pub mod cache;
 pub mod discovery;
+pub mod engine;
 pub mod frontmatter;
 pub mod fs;
 pub mod init;
+pub mod installed;
 pub mod installer;
 pub mod linker;
 pub mod lint;
+pub mod locked_file;
 pub mod lockfile;
 pub mod logging;
 pub mod manifest;
+pub mod marketplace;
 pub mod migrate;
+pub mod path_security;
+pub mod platform;
 pub mod registry;
 pub mod resolver;
+pub mod security;
+pub mod spec;
 pub mod store;
 pub mod version;
 pub mod workspace;
