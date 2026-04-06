@@ -424,4 +424,33 @@ mod tests {
             "reconcile should propagate read_dir NotFound failure"
         );
     }
+
+    #[test]
+    fn find_associated_artifact_referenced_script_true_branch() {
+        // Directly exercises the True branch of `strip_dot_slash(script) == normalized`
+        // in find_associated_artifact, which is unreachable through reconcile() because
+        // referenced_scripts are claimed before reaching the unclaimed list.
+        let mut artifact =
+            make_artifact("deployer", ArtifactKind::Agent, "/src/agents/deployer.md");
+        artifact.referenced_scripts.push(PathBuf::from("scripts/deploy.sh"));
+
+        let result = find_associated_artifact(Path::new("scripts/deploy.sh"), &[artifact]);
+        assert_eq!(result, Some("deployer".to_string()));
+    }
+
+    #[test]
+    fn find_associated_artifact_referenced_script_false_then_true_branch() {
+        // First artifact has a non-matching script → exercises the False branch of the
+        // strip_dot_slash comparison. Second artifact matches → exercises the True branch.
+        let mut artifact1 = make_artifact("builder", ArtifactKind::Agent, "/src/agents/builder.md");
+        artifact1.referenced_scripts.push(PathBuf::from("scripts/other.sh"));
+
+        let mut artifact2 =
+            make_artifact("deployer", ArtifactKind::Agent, "/src/agents/deployer.md");
+        artifact2.referenced_scripts.push(PathBuf::from("scripts/deploy.sh"));
+
+        let result =
+            find_associated_artifact(Path::new("scripts/deploy.sh"), &[artifact1, artifact2]);
+        assert_eq!(result, Some("deployer".to_string()));
+    }
 }
