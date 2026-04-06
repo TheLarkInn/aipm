@@ -61,6 +61,7 @@ mod tests {
         exists: HashSet<PathBuf>,
         files: Mutex<HashMap<PathBuf, String>>,
         written: Mutex<HashMap<PathBuf, Vec<u8>>>,
+        fail_write: Mutex<bool>,
     }
 
     impl MockFs {
@@ -69,6 +70,7 @@ mod tests {
                 exists: HashSet::new(),
                 files: Mutex::new(HashMap::new()),
                 written: Mutex::new(HashMap::new()),
+                fail_write: Mutex::new(false),
             }
         }
 
@@ -83,6 +85,10 @@ mod tests {
                 .get(path)
                 .and_then(|b| String::from_utf8(b.clone()).ok())
         }
+
+        fn set_fail_write(&self) {
+            *self.fail_write.lock().expect("MockFs::set_fail_write: mutex poisoned") = true;
+        }
     }
 
     impl crate::fs::Fs for MockFs {
@@ -95,6 +101,12 @@ mod tests {
         }
 
         fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            if *self.fail_write.lock().expect("MockFs::write_file: mutex poisoned") {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "write failed",
+                ));
+            }
             self.written
                 .lock()
                 .expect("MockFs::write_file: mutex poisoned")
@@ -272,5 +284,65 @@ mod tests {
             lint.and_then(|p| p.get("description")).and_then(serde_json::Value::as_str),
             Some("Migrated from .claude/ configuration")
         );
+    }
+
+    #[test]
+    fn register_returns_error_when_plugins_key_missing() {
+        // marketplace.json exists and is valid JSON, but has no "plugins" array.
+        // This covers the ok_or_else branch that returns Error::Io with InvalidData.
+        let fs = MockFs::new();
+        fs.set_file(marketplace_path(), r#"{"name":"my-marketplace"}"#.to_string());
+
+        let entries = vec![entry("deploy", None)];
+        let result = register_plugins(Path::new("/ai"), &entries, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn register_returns_error_when_plugins_is_not_array() {
+        // marketplace.json has "plugins" but it's a string, not an array.
+        // This also hits the ok_or_else branch (as_array_mut returns None).
+        let fs = MockFs::new();
+        fs.set_file(marketplace_path(), r#"{"plugins":"not-an-array"}"#.to_string());
+
+        let entries = vec![entry("deploy", None)];
+        let result = register_plugins(Path::new("/ai"), &entries, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn register_returns_error_when_marketplace_file_not_found() {
+        // No file is set in the mock — read_to_string returns NotFound,
+        // covering the Err branch of the `?` on the read_to_string call.
+        let fs = MockFs::new();
+
+        let entries = vec![entry("deploy", None)];
+        let result = register_plugins(Path::new("/ai"), &entries, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn register_returns_error_when_write_file_fails() {
+        // Set up valid marketplace.json but make write_file fail,
+        // covering the Err branch of the `?` on the write_file call.
+        let fs = MockFs::new();
+        fs.set_file(marketplace_path(), r#"{"plugins":[]}"#.to_string());
+        fs.set_fail_write();
+
+        let entries = vec![entry("deploy", None)];
+        let result = register_plugins(Path::new("/ai"), &entries, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn register_returns_error_when_marketplace_json_invalid() {
+        // marketplace.json content is not valid JSON, causing from_str to fail
+        // and covering the Err branch of the `?` on the serde_json::from_str call.
+        let fs = MockFs::new();
+        fs.set_file(marketplace_path(), "not valid json {{{".to_string());
+
+        let entries = vec![entry("deploy", None)];
+        let result = register_plugins(Path::new("/ai"), &entries, &fs);
+        assert!(result.is_err());
     }
 }
