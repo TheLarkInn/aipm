@@ -337,4 +337,28 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
     }
+
+    #[test]
+    fn check_file_structural_keys_are_skipped() {
+        // "version", "disableAllHooks", and "hooks" are structural keys that
+        // check_file() must skip rather than flagging as unknown events.
+        //
+        // Using "hooks": [] (array, not object) so that get("hooks").as_object()
+        // returns None, causing the parser to fall back to parsed.as_object()
+        // and iterate over all top-level keys including the structural ones.
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/hooks/hooks.json");
+        fs.exists.insert(path.clone());
+        fs.files.insert(
+            path.clone(),
+            r#"{"version": 1, "disableAllHooks": false, "hooks": []}"#.to_string(),
+        );
+
+        let result = UnknownEvent.check_file(&path, &fs);
+        assert!(result.is_ok());
+        assert!(
+            result.ok().unwrap_or_default().is_empty(),
+            "structural keys must not be flagged as unknown events"
+        );
+    }
 }
