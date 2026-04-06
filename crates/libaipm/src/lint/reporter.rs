@@ -1084,6 +1084,26 @@ mod tests {
     }
 
     #[test]
+    fn human_reporter_styled_renderer_executes() {
+        // Use ColorChoice::Always to force Renderer::styled() — the branch in
+        // `report()` that is otherwise unreachable when ColorChoice::Never is used.
+        let mut mock_fs = MockFs::new();
+        mock_fs.files.insert(
+            PathBuf::from("/project/.ai/my-plugin/skills/default/SKILL.md"),
+            "---\nname: my-skill\n---\nbody content".to_string(),
+        );
+        let reporter =
+            Human { fs: &mock_fs, color: ColorChoice::Always, base_dir: Path::new("/project") };
+        let outcome = sample_outcome();
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        // Styled renderer was used — report must succeed and emit content.
+        assert!(!output.is_empty());
+        assert!(output.contains("skill/missing-description"));
+    }
+
+    #[test]
     fn human_reporter_graceful_missing_file() {
         // File doesn't exist in mock fs — should still render without snippet
         let mock_fs = MockFs::new();
