@@ -219,6 +219,17 @@ mod tests {
     }
 
     #[test]
+    fn source_dir_root_path_returns_empty() {
+        // On Unix, Path::new("/").parent() returns None, triggering the
+        // `else { return Ok(Vec::new()); }` branch at the top of `detect`.
+        let fs = MockFs::new();
+        let detector = CopilotMcpDetector;
+        let result = detector.detect(Path::new("/"), &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
     fn project_root_derivation() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/a/b/.copilot/mcp-config.json"));
