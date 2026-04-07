@@ -1159,4 +1159,32 @@ mod tests {
                 .any(|a| matches!(a, Action::MarketplaceRegistered { .. })));
         }
     }
+
+    #[test]
+    fn migrate_unknown_source_falls_back_to_all_detectors() {
+        // Covers the `if detectors.is_empty()` True branch in `migrate_single_source`:
+        // when the source name is not ".claude" or ".github", `detectors_for_source`
+        // returns an empty Vec and the code falls back to running all detectors.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.ai"));
+        fs.exists.insert(PathBuf::from("/project/.custom"));
+        // Empty source dir — no detectable artifacts.
+        fs.dirs.insert(PathBuf::from("/project/.custom"), Vec::new());
+        fs.dirs.insert(PathBuf::from("/project/.ai"), Vec::new());
+
+        let opts = Options {
+            dir: Path::new("/project"),
+            source: Some(".custom"),
+            dry_run: true,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        // An unknown source type must succeed (falling back to all detectors)
+        // and produce a dry-run report with no detected artifacts.
+        let result = migrate(&opts, &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().map(|o| o.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, Action::DryRunReport { .. })));
+    }
 }

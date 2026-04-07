@@ -1237,4 +1237,42 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    #[test]
+    fn init_adaptor_error_propagates() {
+        // Covers the `?` error branch at the `adaptor.apply(...)? ` call in `init()`:
+        // when an adaptor returns Err, the error must propagate from `init()`.
+        struct ErrorAdaptor;
+        impl ToolAdaptor for ErrorAdaptor {
+            fn name(&self) -> &'static str {
+                "ErrorAdaptor"
+            }
+            fn apply(
+                &self,
+                _: &Path,
+                _: bool,
+                _: &str,
+                _: &dyn crate::fs::Fs,
+            ) -> Result<bool, Error> {
+                Err(Error::Io(std::io::Error::new(std::io::ErrorKind::Other, "mock adaptor error")))
+            }
+        }
+
+        let (tmp, _guard) = make_temp_dir("adaptor-error");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![Box::new(ErrorAdaptor)];
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_err());
+        let err = result.err();
+        assert!(err.is_some_and(|e| e.to_string().contains("mock adaptor error")));
+
+        cleanup(&tmp);
+    }
 }
