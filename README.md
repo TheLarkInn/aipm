@@ -212,6 +212,8 @@ aipm lint [OPTIONS] [DIR]
 
 Exits with a non-zero status code when violations are found, making it safe to use in CI pipelines. Use `--reporter ci-github` for GitHub Actions annotations or `--reporter ci-azure` for Azure Pipelines.
 
+See also: [`docs/guides/configuring-lint.md`](docs/guides/configuring-lint.md) for rule severity overrides, path ignores, and per-rule configuration.
+
 ---
 
 ## `aipm-pack` — Author CLI
@@ -339,6 +341,17 @@ plugins_dir = "plugins"
 
 [workspace.dependencies]
 common-skill = "^2.0"
+
+[workspace.lints]
+# Promote to error — fail CI if descriptions are missing
+"skill/missing-description" = "error"
+# Suppress entirely
+"skill/oversized" = "allow"
+# Per-rule ignore paths (lint ignore matching uses full file paths, so use `**/` to match anywhere)
+"source/misplaced-features" = { level = "warn", ignore = ["**/.claude/skills/legacy-*/**"] }
+
+[workspace.lints.ignore]
+paths = ["**/vendor/**", "**/third-party/**"]
 
 [overrides]
 "vulnerable-lib" = "^2.0.0"
