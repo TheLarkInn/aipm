@@ -57,6 +57,16 @@ Quality rules enforced by `aipm lint`:
 | Rule | Default | Description |
 |------|---------|-------------|
 | [broken-paths](rules/plugin/broken-paths.md) | error | Plugin manifest references a file that does not exist |
+| [missing-manifest](rules/plugin/missing-manifest.md) | error | Plugin directory is missing `.claude-plugin/plugin.json` |
+| [missing-registration](rules/plugin/missing-registration.md) | error | Plugin directory is not listed in `marketplace.json` |
+| [required-fields](rules/plugin/required-fields.md) | error | `plugin.json` is missing one or more required fields |
+
+### `marketplace/`
+
+| Rule | Default | Description |
+|------|---------|-------------|
+| [plugin-field-mismatch](rules/marketplace/plugin-field-mismatch.md) | error | `marketplace.json` entry `name`/`description` differs from `plugin.json` |
+| [source-resolve](rules/marketplace/source-resolve.md) | error | `marketplace.json` entry `source` path does not exist on disk |
 
 ### `source/`
 

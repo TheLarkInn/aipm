@@ -25,6 +25,12 @@ impl Rule for SourceResolve {
         Severity::Error
     }
 
+    fn help_url(&self) -> Option<&'static str> {
+        Some(
+            "https://github.com/TheLarkInn/aipm/blob/main/docs/rules/marketplace/source-resolve.md",
+        )
+    }
+
     fn help_text(&self) -> Option<&'static str> {
         Some("ensure the source field points to an existing plugin directory under .ai/")
     }

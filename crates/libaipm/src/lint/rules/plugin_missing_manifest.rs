@@ -26,6 +26,10 @@ impl Rule for MissingManifest {
         Severity::Error
     }
 
+    fn help_url(&self) -> Option<&'static str> {
+        Some("https://github.com/TheLarkInn/aipm/blob/main/docs/rules/plugin/missing-manifest.md")
+    }
+
     fn help_text(&self) -> Option<&'static str> {
         Some("create a .claude-plugin/plugin.json file in the plugin directory")
     }
