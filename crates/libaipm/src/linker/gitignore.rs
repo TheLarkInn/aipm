@@ -481,4 +481,14 @@ mod tests {
         // Scope directory must also be removed — no other @company packages remain.
         assert!(!entries.contains(&"@company/".to_string()));
     }
+
+    #[test]
+    fn write_gitignore_parentless_path_returns_io_error() {
+        // An empty path has no parent component, so path.parent() returns None.
+        // This covers the None branch of `if let Some(parent) = path.parent()` in
+        // write_gitignore, skipping the create_dir_all call.  The subsequent
+        // std::fs::write on an empty path fails with an I/O error.
+        let result = write_gitignore(Path::new(""), "content");
+        assert!(result.is_err());
+    }
 }
