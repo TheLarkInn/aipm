@@ -212,6 +212,8 @@ aipm lint [OPTIONS] [DIR]
 
 Exits with a non-zero status code when violations are found, making it safe to use in CI pipelines. Use `--reporter ci-github` for GitHub Actions annotations or `--reporter ci-azure` for Azure Pipelines.
 
+For a full list of rules and their explanations, see the [lint rules reference](docs/rules/).
+
 ---
 
 ## `aipm-pack` — Author CLI

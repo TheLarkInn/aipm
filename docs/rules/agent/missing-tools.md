@@ -3,7 +3,7 @@
 **Severity:** warning
 **Fixable:** No
 
-Checks that every AGENT.md file includes a `tools` field in the YAML frontmatter. Declaring required tools allows the runtime to validate availability before invoking the agent and helps users understand its dependencies.
+Checks that every agent `.md` file in the `agents/` directory includes a `tools` field in the YAML frontmatter. Declaring required tools allows the runtime to validate availability before invoking the agent and helps users understand its dependencies.
 
 ## Examples
 
