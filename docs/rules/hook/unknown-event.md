@@ -26,4 +26,37 @@ Checks that every event name declared in a `hooks.json` file is a recognised aip
 ```
 
 ## How to fix
-Replace the unknown event name with a valid hook event name. Consult the aipm documentation for the full list of supported events.
+Replace the unknown event name with a valid hook event name from the tables below.
+
+## Supported events
+
+### Claude Code (27 events, `PascalCase`)
+
+| Event | Event | Event |
+|---|---|---|
+| `PreToolUse` | `PostToolUse` | `PostToolUseFailure` |
+| `Notification` | `SessionStart` | `SessionEnd` |
+| `Stop` | `StopFailure` | `SubagentStart` |
+| `SubagentStop` | `PreCompact` | `PostCompact` |
+| `PermissionRequest` | `Setup` | `TeammateIdle` |
+| `TaskCreated` | `TaskCompleted` | `UserPromptSubmit` |
+| `ToolError` | `Elicitation` | `ElicitationResult` |
+| `ConfigChange` | `InstructionsLoaded` | `WorktreeCreate` |
+| `WorktreeRemove` | `CwdChanged` | `FileChanged` |
+
+### Copilot CLI (10 events, `camelCase`)
+
+| Event |
+|---|
+| `sessionStart` |
+| `sessionEnd` |
+| `userPromptSubmitted` |
+| `preToolUse` |
+| `postToolUse` |
+| `errorOccurred` |
+| `agentStop` |
+| `subagentStop` |
+| `subagentStart` |
+| `preCompact` |
+
+See also: [`hook/legacy-event-name`](legacy-event-name.md) for the Copilot CLI `PascalCase` → `camelCase` migration table.

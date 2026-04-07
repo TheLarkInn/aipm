@@ -3,7 +3,18 @@
 **Severity:** warning
 **Fixable:** No
 
-Checks that plugin feature files (skills, agents, hooks) are located inside the `.ai/` marketplace directory rather than in legacy locations such as `.claude/` or `.github/`. Misplaced files are not discovered by aipm and will not be installed or linked.
+Checks that plugin feature files are located inside the `.ai/` marketplace directory rather than in legacy locations such as `.claude/` or `.github/`. Misplaced files are not discovered by aipm and will not be installed or linked.
+
+The rule triggers when any of the following subdirectories are found inside `.claude/` or `.github/`:
+
+| Directory | Content |
+|---|---|
+| `skills/` | Skill definitions (`SKILL.md`) |
+| `commands/` | Slash-command prompts |
+| `agents/` | Agent definitions |
+| `hooks/` | Hook configuration (`hooks.json`) |
+| `output-styles/` | Output style definitions |
+| `extensions/` | Tool extensions |
 
 ## Examples
 
