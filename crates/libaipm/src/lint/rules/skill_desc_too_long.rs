@@ -200,4 +200,16 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
     }
+
+    #[test]
+    fn check_file_no_frontmatter_returns_empty() {
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/skills/s/SKILL.md");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), "no frontmatter here".to_string());
+
+        let result = DescriptionTooLong.check_file(&path, &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
 }
