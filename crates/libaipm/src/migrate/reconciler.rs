@@ -453,4 +453,15 @@ mod tests {
             find_associated_artifact(Path::new("scripts/deploy.sh"), &[artifact1, artifact2]);
         assert_eq!(result, Some("deployer".to_string()));
     }
+
+    #[test]
+    fn find_associated_artifact_raw_content_contains_path() {
+        // Covers the True branch of `if content.contains(path_str.as_ref())` —
+        // the artifact has no referenced_scripts but its raw_content mentions the path.
+        let mut artifact = make_artifact("config-skill", ArtifactKind::Skill, "/src/skills/cfg");
+        artifact.metadata.raw_content = Some("assets/logo.png is referenced here".to_string());
+
+        let result = find_associated_artifact(Path::new("assets/logo.png"), &[artifact]);
+        assert_eq!(result, Some("config-skill".to_string()));
+    }
 }

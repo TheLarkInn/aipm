@@ -964,4 +964,18 @@ mod tests {
         let result = cache.gc();
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn get_with_empty_index_file_returns_none() {
+        // Covers the `content.is_empty()` True branch in read_index():
+        // when the index file exists but is empty, treat it as a fresh cache.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let cache_root = temp.path().join("cache");
+        std::fs::create_dir_all(&cache_root).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "").unwrap_or_else(|_| {});
+
+        let result = cache.get("some-spec");
+        assert!(result.is_ok());
+        assert!(result.unwrap_or(Some(PathBuf::new())).is_none());
+    }
 }
