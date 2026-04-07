@@ -240,7 +240,7 @@ All available rules, grouped by category:
 | Rule | Severity | Description |
 |------|----------|-------------|
 | [`hook/legacy-event-name`](../rules/hook/legacy-event-name.md) | warning | Hook uses a deprecated event name |
-| [`hook/unknown-event`](../rules/hook/unknown-event.md) | warning | Hook uses an unrecognised event name |
+| [`hook/unknown-event`](../rules/hook/unknown-event.md) | error | Hook uses an unrecognised event name |
 
 ### `plugin/`
 
@@ -253,7 +253,7 @@ All available rules, grouped by category:
 | Rule | Severity | Description |
 |------|----------|-------------|
 | [`skill/description-too-long`](../rules/skill/description-too-long.md) | warning | `description` frontmatter value exceeds the length limit |
-| [`skill/invalid-shell`](../rules/skill/invalid-shell.md) | warning | `shell` frontmatter value is not a recognised shell |
+| [`skill/invalid-shell`](../rules/skill/invalid-shell.md) | error | `shell` frontmatter value is not a recognised shell |
 | [`skill/missing-description`](../rules/skill/missing-description.md) | warning | SKILL.md is missing a `description` field in frontmatter |
 | [`skill/missing-name`](../rules/skill/missing-name.md) | warning | SKILL.md is missing a `name` field in frontmatter |
 | [`skill/name-invalid-chars`](../rules/skill/name-invalid-chars.md) | warning | Skill `name` contains characters that are not allowed |

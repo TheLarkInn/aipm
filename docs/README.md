@@ -35,14 +35,14 @@ Quality rules enforced by `aipm lint`:
 | [name-invalid-chars](rules/skill/name-invalid-chars.md) | warn | Skill name contains disallowed characters |
 | [name-too-long](rules/skill/name-too-long.md) | warn | Skill name exceeds the maximum length |
 | [description-too-long](rules/skill/description-too-long.md) | warn | Skill description exceeds the maximum length |
-| [invalid-shell](rules/skill/invalid-shell.md) | warn | Skill references an unrecognized shell |
+| [invalid-shell](rules/skill/invalid-shell.md) | error | Skill references an unrecognized shell |
 | [oversized](rules/skill/oversized.md) | warn | Skill file exceeds the recommended size |
 
 ### `hook/`
 
 | Rule | Default | Description |
 |------|---------|-------------|
-| [unknown-event](rules/hook/unknown-event.md) | warn | Hook references an unrecognized event name |
+| [unknown-event](rules/hook/unknown-event.md) | error | Hook references an unrecognized event name |
 | [legacy-event-name](rules/hook/legacy-event-name.md) | warn | Hook uses a deprecated event name |
 
 ### `agent/`
@@ -55,7 +55,7 @@ Quality rules enforced by `aipm lint`:
 
 | Rule | Default | Description |
 |------|---------|-------------|
-| [broken-paths](rules/plugin/broken-paths.md) | warn | Plugin manifest references a file that does not exist |
+| [broken-paths](rules/plugin/broken-paths.md) | error | Plugin manifest references a file that does not exist |
 
 ### `source/`
 
