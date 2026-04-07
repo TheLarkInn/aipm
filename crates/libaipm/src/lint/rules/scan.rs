@@ -397,6 +397,19 @@ mod tests {
     // --- scan_agents tests ---
 
     #[test]
+    fn scan_agents_plugin_is_file_not_dir() {
+        // Exercises the `if !plugin.is_dir { continue; }` branch in scan_agents
+        // when the marketplace entry is a file rather than a plugin directory.
+        let mut fs = MockFs::new();
+        fs.dirs.insert(
+            PathBuf::from(".ai"),
+            vec![crate::fs::DirEntry { name: "file.txt".to_string(), is_dir: false }],
+        );
+        let agents = scan_agents(Path::new(".ai"), &fs);
+        assert!(agents.is_empty());
+    }
+
+    #[test]
     fn scan_agents_empty_marketplace() {
         let mut fs = MockFs::new();
         fs.dirs.insert(PathBuf::from(".ai"), vec![]);
