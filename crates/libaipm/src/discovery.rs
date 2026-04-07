@@ -16,6 +16,10 @@ pub enum FeatureKind {
     Hook,
     /// A plugin manifest (`aipm.toml` inside a `.ai/<plugin>/` directory).
     Plugin,
+    /// A marketplace manifest (`marketplace.json` at `.ai/.claude-plugin/marketplace.json`).
+    Marketplace,
+    /// A plugin JSON manifest (`plugin.json` at `.ai/<plugin>/.claude-plugin/plugin.json`).
+    PluginJson,
 }
 
 /// The source directory context for a discovered feature.
@@ -220,6 +224,54 @@ fn classify_source_context(file_path: &Path, project_root: &Path) -> Option<Sour
 ///
 /// # Returns
 /// A sorted `Vec<DiscoveredFeature>` (sorted by file path for deterministic output).
+/// Classify a file path into a `FeatureKind`, or `None` if it is not a recognized feature.
+fn classify_feature_kind(file_path: &Path) -> Option<FeatureKind> {
+    let file_name = file_path.file_name()?.to_string_lossy();
+
+    let parent_name = file_path
+        .parent()
+        .and_then(|p| p.file_name())
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+
+    let grandparent_name = file_path
+        .parent()
+        .and_then(|p| p.parent())
+        .and_then(|p| p.file_name())
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+
+    if file_name == "SKILL.md" {
+        // Standard: skills/<name>/SKILL.md; flat: skills/SKILL.md
+        if parent_name == "skills" || grandparent_name == "skills" {
+            return Some(FeatureKind::Skill);
+        }
+    } else if file_name.ends_with(".md") && parent_name == "agents" {
+        return Some(FeatureKind::Agent);
+    } else if file_name == "hooks.json" && parent_name == "hooks" {
+        return Some(FeatureKind::Hook);
+    } else if file_name == "aipm.toml" && grandparent_name == ".ai" {
+        return Some(FeatureKind::Plugin);
+    } else if file_name == "marketplace.json"
+        && parent_name == ".claude-plugin"
+        && grandparent_name == ".ai"
+    {
+        return Some(FeatureKind::Marketplace);
+    } else if file_name == "plugin.json" && parent_name == ".claude-plugin" {
+        let great_grandparent = file_path
+            .parent()
+            .and_then(|p| p.parent())
+            .and_then(|p| p.parent())
+            .and_then(|p| p.file_name())
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        if great_grandparent == ".ai" {
+            return Some(FeatureKind::PluginJson);
+        }
+    }
+    None
+}
+
 pub fn discover_features(
     project_root: &Path,
     max_depth: Option<usize>,
@@ -259,53 +311,8 @@ pub fn discover_features(
             continue;
         }
 
-        // Only examine files
         let file_path = entry.path();
-        let file_name = entry.file_name().to_string_lossy();
-
-        // Determine the parent directory name for context matching
-        let parent_name = file_path
-            .parent()
-            .and_then(|p| p.file_name())
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
-
-        // The grandparent directory name (two levels up from the file).
-        let grandparent_name = file_path
-            .parent()
-            .and_then(|p| p.parent())
-            .and_then(|p| p.file_name())
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
-
-        // Classify file kind: require both file name AND ancestor dir name to match,
-        // preventing false positives (e.g., docs/SKILL.md is not a skill).
-        let kind = if file_name == "SKILL.md" {
-            // SKILL.md must have "skills" as its immediate parent OR grandparent dir.
-            // Standard layout: skills/<name>/SKILL.md (grandparent == "skills")
-            // Flat layout:     skills/SKILL.md         (parent == "skills")
-            if parent_name == "skills" || grandparent_name == "skills" {
-                Some(FeatureKind::Skill)
-            } else {
-                None
-            }
-        } else if file_name.ends_with(".md") && parent_name == "agents" {
-            Some(FeatureKind::Agent)
-        } else if file_name == "hooks.json" && parent_name == "hooks" {
-            Some(FeatureKind::Hook)
-        } else if file_name == "aipm.toml" {
-            // Only treat as Plugin manifest if at exactly .ai/<plugin>/aipm.toml:
-            // parent must be the plugin dir and grandparent must be ".ai".
-            if grandparent_name == ".ai" {
-                Some(FeatureKind::Plugin)
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        let Some(kind) = kind else { continue };
+        let Some(kind) = classify_feature_kind(file_path) else { continue };
 
         let source_context = classify_source_context(file_path, project_root);
         let relative_path = file_path.strip_prefix(project_root).unwrap_or(file_path).to_path_buf();
@@ -823,5 +830,61 @@ mod tests {
             features[0].source_context.as_ref().is_some_and(|c| c.source_type == ".claude"),
             "source_type should be .claude"
         );
+    }
+
+    #[test]
+    fn discover_features_marketplace_json_classified_correctly() {
+        let (_tmp, root) = make_tmp();
+        let claude_plugin = root.join(".ai").join(".claude-plugin");
+        assert!(std::fs::create_dir_all(&claude_plugin).is_ok());
+        assert!(std::fs::write(
+            claude_plugin.join("marketplace.json"),
+            r#"{"name":"local","plugins":[]}"#
+        )
+        .is_ok());
+
+        let features = discover_features(&root, None).expect("discover_features");
+        assert_eq!(features.len(), 1);
+        assert_eq!(features[0].kind, FeatureKind::Marketplace);
+    }
+
+    #[test]
+    fn discover_features_marketplace_json_outside_ai_ignored() {
+        let (_tmp, root) = make_tmp();
+        // marketplace.json not under .ai/ — should not be classified
+        let other = root.join("other").join(".claude-plugin");
+        assert!(std::fs::create_dir_all(&other).is_ok());
+        assert!(std::fs::write(other.join("marketplace.json"), r#"{"plugins":[]}"#).is_ok());
+
+        let features = discover_features(&root, None).expect("discover_features");
+        assert!(features.is_empty());
+    }
+
+    #[test]
+    fn discover_features_plugin_json_classified_correctly() {
+        let (_tmp, root) = make_tmp();
+        let plugin_claude = root.join(".ai").join("my-plugin").join(".claude-plugin");
+        assert!(std::fs::create_dir_all(&plugin_claude).is_ok());
+        assert!(std::fs::write(
+            plugin_claude.join("plugin.json"),
+            r#"{"name":"my-plugin","version":"0.1.0"}"#
+        )
+        .is_ok());
+
+        let features = discover_features(&root, None).expect("discover_features");
+        assert_eq!(features.len(), 1);
+        assert_eq!(features[0].kind, FeatureKind::PluginJson);
+    }
+
+    #[test]
+    fn discover_features_plugin_json_outside_ai_ignored() {
+        let (_tmp, root) = make_tmp();
+        // plugin.json not under .ai/<plugin>/.claude-plugin/ — should not be classified
+        let bad_path = root.join("packages").join("my-plugin").join(".claude-plugin");
+        assert!(std::fs::create_dir_all(&bad_path).is_ok());
+        assert!(std::fs::write(bad_path.join("plugin.json"), r#"{"name":"x"}"#).is_ok());
+
+        let features = discover_features(&root, None).expect("discover_features");
+        assert!(features.is_empty());
     }
 }

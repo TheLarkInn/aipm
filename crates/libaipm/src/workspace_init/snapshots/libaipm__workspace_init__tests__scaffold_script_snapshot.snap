@@ -36,7 +36,7 @@ writeFileSync(
 
 writeFileSync(
   join(pluginDir, ".claude-plugin", "plugin.json"),
-  JSON.stringify({ name, version: "0.1.0", description: `TODO: describe ${name}` }, null, 2) + "\n"
+  JSON.stringify({ name, version: "0.1.0", description: `TODO: describe ${name}`, author: { name: "TODO", email: "TODO" } }, null, 2) + "\n"
 );
 
 // Read or create marketplace.json (hoisted for use in settings section)

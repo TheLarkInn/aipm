@@ -302,6 +302,10 @@ fn generate_plugin_json() -> String {
                 .to_string(),
         ),
     );
+    let mut author = serde_json::Map::new();
+    author.insert("name".to_string(), serde_json::Value::String("TODO".to_string()));
+    author.insert("email".to_string(), serde_json::Value::String("TODO".to_string()));
+    map.insert("author".to_string(), serde_json::Value::Object(author));
     let obj = serde_json::Value::Object(map);
     let mut output = serde_json::to_string_pretty(&obj).unwrap_or_default();
     output.push('\n');
@@ -370,7 +374,7 @@ fn generate_scaffold_script() -> String {
      \n\
      writeFileSync(\n\
      \x20 join(pluginDir, \".claude-plugin\", \"plugin.json\"),\n\
-     \x20 JSON.stringify({ name, version: \"0.1.0\", description: `TODO: describe ${name}` }, null, 2) + \"\\n\"\n\
+     \x20 JSON.stringify({ name, version: \"0.1.0\", description: `TODO: describe ${name}`, author: { name: \"TODO\", email: \"TODO\" } }, null, 2) + \"\\n\"\n\
      );\n\
      \n\
      // Read or create marketplace.json (hoisted for use in settings section)\n\
