@@ -94,6 +94,8 @@ aipm migrate [OPTIONS] [DIR]
 
 **Detected artifact types:** skills (`SKILL.md`), agents (`*.md` in `agents/`), MCP servers (`.mcp.json`), hooks (`hooks.json`), commands (`commands/*.md`), output styles.
 
+See also: [`docs/guides/migrate.md`](docs/guides/migrate.md).
+
 ### `aipm install`
 
 Install a plugin from the registry, a git repository, a GitHub shorthand, a local path, or a marketplace.
@@ -211,6 +213,8 @@ aipm lint [OPTIONS] [DIR]
 | `--max-depth <N>` | Maximum directory traversal depth |
 
 Exits with a non-zero status code when violations are found, making it safe to use in CI pipelines. Use `--reporter ci-github` for GitHub Actions annotations or `--reporter ci-azure` for Azure Pipelines.
+
+See also: [`docs/guides/lint.md`](docs/guides/lint.md).
 
 ---
 
