@@ -675,4 +675,28 @@ mod tests {
         );
         assert_eq!(registry.plugins.first().and_then(|p| p.cache_ttl_secs), Some(3600));
     }
+
+    #[test]
+    fn resolve_spec_non_shorthand_not_found() {
+        // Covers the False branch of `any(|p| p.spec == identifier)` when the
+        // full spec is not installed (non-shorthand, no `:` match found).
+        let registry = Registry::default();
+        let result = registry.resolve_spec("local:./nonexistent-plugin", &[]);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(Error::NotFound { .. })));
+    }
+
+    #[test]
+    fn resolve_spec_engine_filter_matches_all_engines_plugin() {
+        // Covers the True branch of `p.engines.is_empty()` inside the engine
+        // filter retain. A plugin installed with no engine restriction (empty
+        // engines) must still be returned when any engine filter is active.
+        let mut registry = Registry::default();
+        // Install a plugin with no engine restriction (engines = []).
+        let _ = registry.install("github:owner/repo:shared-plugin".to_string(), &[], None, None);
+        // Resolve with a specific engine filter — the all-engines plugin should match.
+        let result = registry.resolve_spec("shared-plugin", &["claude".to_string()]);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap_or_default(), "github:owner/repo:shared-plugin");
+    }
 }
