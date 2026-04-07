@@ -805,4 +805,23 @@ mod tests {
         let features = discover_features(&root, None).expect("discover_features");
         assert!(features.is_empty(), "nested aipm.toml should not be classified as Plugin");
     }
+
+    #[test]
+    fn discover_features_finds_skill_in_flat_layout() {
+        // Flat layout: .claude/skills/SKILL.md — parent is "skills" directly (no subdirectory).
+        // This covers the `parent_name == "skills"` branch in the classifier, which the standard
+        // `skills/<name>/SKILL.md` layout (grandparent == "skills") does not exercise.
+        let (_tmp, root) = make_tmp();
+        let skills_dir = root.join(".claude").join("skills");
+        assert!(std::fs::create_dir_all(&skills_dir).is_ok());
+        assert!(std::fs::write(skills_dir.join("SKILL.md"), "---\nname: flat-skill\n---\n").is_ok());
+
+        let features = discover_features(&root, None).expect("discover_features");
+        assert_eq!(features.len(), 1, "expected exactly one feature from flat layout");
+        assert_eq!(features[0].kind, FeatureKind::Skill);
+        assert!(
+            features[0].source_context.as_ref().is_some_and(|c| c.source_type == ".claude"),
+            "source_type should be .claude"
+        );
+    }
 }
