@@ -48,7 +48,14 @@ Manages AI plugin workspaces: scaffolding, installing plugins from multiple sour
 | Flag | Description |
 |------|-------------|
 | `-v, --verbose` | Increase verbosity (`-v` info, `-vv` debug, `-vvv` trace); default level is warn |
+| `-q, --quiet` | Decrease verbosity (`-q` error only, `-qq` silent) |
 | `--log-format <FMT>` | Tracing output format on stderr: `text` (default) or `json` |
+
+**Environment variable:** `AIPM_LOG` overrides CLI verbosity flags and accepts [tracing `EnvFilter`](https://docs.rs/tracing-subscriber/latest/tracing_subscriber/filter/struct.EnvFilter.html) directives (e.g., `AIPM_LOG=debug` or `AIPM_LOG=libaipm::installer=trace`).
+
+**Log file:** All runs append `DEBUG`-level diagnostics to `<system-temp>/aipm-YYYY-MM-DD.log` (daily rotation, 7-day retention) regardless of stderr verbosity.
+
+See also: [`docs/guides/verbosity-and-logging.md`](docs/guides/verbosity-and-logging.md) for CI integration, filtering examples, and log file management.
 
 ### `aipm init`
 
