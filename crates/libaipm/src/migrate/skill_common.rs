@@ -674,4 +674,22 @@ mod tests {
         assert_eq!(scripts.len(), 1);
         assert_eq!(scripts[0], PathBuf::from("script.js"));
     }
+
+    #[test]
+    fn extract_pattern2_slash_before_dot_slash_skipped() {
+        // A "./" preceded by "/" (e.g. "//./path") triggers the True branch of
+        // `if before == b'/' || before == b':'` and is skipped.
+        let content = "//./skipped/path";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
+    fn extract_pattern3_with_http_url_is_ignored() {
+        // An interpreter followed by an http:// URL (not https://) is excluded.
+        // This covers the False branch of `!path_str.starts_with("http://")`.
+        let content = "bash http://example.com/run/script.sh";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert!(scripts.is_empty());
+    }
 }
