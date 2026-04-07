@@ -16,7 +16,7 @@ shell: powershell
 ---
 ```
 
-### Correct
+### Correct — bash
 ```markdown
 ---
 name: my-skill
@@ -25,5 +25,21 @@ shell: bash
 ---
 ```
 
+### Correct — powershell
+```markdown
+---
+name: my-skill
+description: Does something useful
+shell: powershell
+---
+```
+
+## Supported values
+
+| Value | Runtime |
+|-------|---------|
+| `bash` | Bash shell (Linux, macOS) |
+| `powershell` | PowerShell (Windows) |
+
 ## How to fix
-Use a supported shell value such as `bash`, `sh`, or `zsh`. Remove the `shell` field entirely to fall back to the runtime default, or consult the aipm documentation for the full list of supported values.
+Set `shell` to `bash` or `powershell`, or remove the field entirely to fall back to the runtime default.

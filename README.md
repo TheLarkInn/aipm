@@ -216,7 +216,7 @@ aipm lint [OPTIONS] [DIR]
 
 Exits with a non-zero status code when violations are found, making it safe to use in CI pipelines. Use `--reporter ci-github` for GitHub Actions annotations or `--reporter ci-azure` for Azure Pipelines.
 
-See also: [`docs/guides/configuring-lint.md`](docs/guides/configuring-lint.md) for rule severity overrides, path ignores, and per-rule configuration.
+See also: [`docs/guides/configuring-lint.md`](docs/guides/configuring-lint.md) for rule severity overrides, path ignores, and per-rule configuration. [`docs/rules/`](docs/rules/README.md) for the full rules reference.
 
 ---
 

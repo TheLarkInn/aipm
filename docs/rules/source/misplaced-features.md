@@ -21,5 +21,18 @@ Checks that plugin feature files (skills, agents, hooks) are located inside the 
     SKILL.md      # discovered and managed by aipm
 ```
 
+## Triggered directories
+
+The rule fires when feature files are found under any of the following subdirectory names inside a non-`.ai/` source directory (e.g., `.claude/` or `.github/`):
+
+| Directory | Feature type |
+|-----------|-------------|
+| `skills/` | Skill plugins (`SKILL.md`) |
+| `commands/` | Command plugins (treated as a skill subtype) |
+| `agents/` | Agent plugins |
+| `hooks/` | Hook plugins (`hooks.json`) |
+| `output-styles/` | Output style plugins |
+| `extensions/` | Extension plugins |
+
 ## How to fix
 Run `aipm migrate` to automatically move feature files from legacy locations into the `.ai/` marketplace directory with the correct structure.
