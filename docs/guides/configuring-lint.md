@@ -30,10 +30,10 @@ Skip entire directories from **all** rules:
 
 ```toml
 [workspace.lints.ignore]
-paths = ["vendor/**", ".ai/legacy-*/**", "third-party/**"]
+paths = ["**/vendor/**", "**/.ai/legacy-*/**", "**/third-party/**"]
 ```
 
-Paths are [glob patterns](https://docs.rs/glob/latest/glob/struct.Pattern.html) matched against the relative path of each file.
+Paths are [glob patterns](https://docs.rs/glob/latest/glob/struct.Pattern.html) matched against the full file path. Use a `**/` prefix so the pattern matches at any depth — for example, `**/vendor/**` matches `vendor/` at the project root and any subdirectory.
 
 ## Ignore paths per rule
 
@@ -42,10 +42,10 @@ Combine a severity override with rule-specific ignore paths using the inline tab
 ```toml
 [workspace.lints]
 # Warn on broken paths, but skip the examples directory
-"plugin/broken-paths" = { level = "warn", ignore = ["examples/**"] }
+"plugin/broken-paths" = { level = "warn", ignore = ["**/examples/**"] }
 
 # Error on unknown hooks, but skip experimental plugins
-"hook/unknown-event" = { level = "error", ignore = [".ai/experimental/**"] }
+"hook/unknown-event" = { level = "error", ignore = ["**/.ai/experimental/**"] }
 ```
 
 Fields: `level` (required) and `ignore` (optional list of glob patterns).
@@ -66,10 +66,10 @@ plugins_dir = ".ai"
 "skill/oversized" = "allow"
 
 # Per-rule ignore
-"source/misplaced-features" = { level = "warn", ignore = [".claude/skills/legacy-*/**"] }
+"source/misplaced-features" = { level = "warn", ignore = ["**/.claude/skills/legacy-*/**"] }
 
 [workspace.lints.ignore]
-paths = ["vendor/**", "third-party/**"]
+paths = ["**/vendor/**", "**/third-party/**"]
 ```
 
 ## Severity levels

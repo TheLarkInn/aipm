@@ -94,7 +94,7 @@ aipm migrate [OPTIONS] [DIR]
 
 **Detected artifact types:** skills (`SKILL.md`), agents (`*.md` in `agents/`), MCP servers (`.mcp.json`), hooks (`hooks.json`), commands (`commands/*.md`), output styles.
 
-See also: [`docs/guides/migrate.md`](docs/guides/migrate.md).
+See also: [`docs/guides/migrate.md`](docs/guides/migrate.md) for a comprehensive reference, or [`docs/guides/migrating-existing-configs.md`](docs/guides/migrating-existing-configs.md) for a step-by-step walkthrough.
 
 ### `aipm install`
 
@@ -171,6 +171,8 @@ aipm link [OPTIONS] <PATH>
 
 The plugin at `PATH` shadows the installed version until unlinked. Changes to the local directory are reflected immediately without reinstalling.
 
+See also: [`docs/guides/local-development.md`](docs/guides/local-development.md) for a full local development workflow.
+
 ### `aipm unlink`
 
 Remove a development link override and restore the registry version.
@@ -237,6 +239,8 @@ aipm-pack init [OPTIONS] [DIR]
 | `--type <TYPE>` | Plugin type: `skill`, `agent`, `mcp`, `hook`, `lsp`, `composite` |
 
 Generates an `aipm.toml` manifest and type-appropriate directory structure.
+
+See also: [`docs/guides/creating-a-plugin.md`](docs/guides/creating-a-plugin.md) for a full authoring walkthrough.
 
 ---
 
