@@ -3116,4 +3116,38 @@ mod tests {
             plugin_created.len()
         );
     }
+
+    #[test]
+    fn emit_unassociated_collision_via_dest_exists() {
+        // A file already exists at the destination path (in fs.exists) but has NOT
+        // been seen before (used_names is empty).  This exercises the
+        // `fs.exists(&plugin_dir.join(&final_name))` True branch of the
+        // collision-avoidance while loop, which is distinct from the
+        // `used_names.contains(&final_name)` branch covered by other tests.
+        let mut fs = MockFs::new();
+        // Source file to migrate
+        fs.exists.insert(PathBuf::from("/src/config.json"));
+        fs.files.insert(PathBuf::from("/src/config.json"), r#"{"key": "value"}"#.to_string());
+        // Pre-existing file in the destination directory with the same name
+        fs.exists.insert(PathBuf::from("/ai/plugin/config.json"));
+
+        let other_files = vec![OtherFile {
+            path: PathBuf::from("/src/config.json"),
+            relative_path: PathBuf::from("config.json"),
+            associated_artifact: None,
+            is_external: false,
+        }];
+
+        let result = emit_other_files(&other_files, Path::new("/ai/plugin"), &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert_eq!(actions.len(), 1);
+        // The file must be renamed to avoid the collision with the pre-existing destination
+        assert!(
+            matches!(&actions[0], Action::OtherFileMigrated { destination, .. }
+                if destination == &PathBuf::from("/ai/plugin/config-1.json")),
+            "expected destination /ai/plugin/config-1.json, got: {:?}",
+            actions
+        );
+    }
 }
