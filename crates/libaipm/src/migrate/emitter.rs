@@ -3233,4 +3233,41 @@ mod tests {
             "hooks/hooks.json should have been written by emit_hooks_config"
         );
     }
+
+    #[test]
+    fn emit_extension_files_skips_unreadable_file_with_warning() {
+        // Extension artifact has two files: config.json (written from raw_content)
+        // and index.js (missing from fs). The missing-file Err branch in
+        // emit_extension_files should be hit and the function should still succeed.
+        let mut fs = MockFs::new();
+        // Only index.js is NOT inserted into the mock fs — simulating an unreadable file.
+        // config.json is handled via raw_content and skipped in the copy loop.
+        let artifact = Artifact {
+            kind: ArtifactKind::Extension,
+            name: "my-ext".to_string(),
+            source_path: PathBuf::from("/project/.github/extensions/my-ext"),
+            files: vec![PathBuf::from("config.json"), PathBuf::from("index.js")],
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata {
+                name: Some("my-ext".to_string()),
+                description: Some("Extension: my-ext".to_string()),
+                raw_content: Some(r#"{"name":"my-ext"}"#.to_string()),
+                ..ArtifactMetadata::default()
+            },
+        };
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        // The function succeeds even though index.js could not be read.
+        assert!(result.is_ok(), "emit_plugin should succeed despite unreadable file: {result:?}");
+
+        // config.json written from raw_content
+        let config = fs.get_written(Path::new("/ai/my-ext/extensions/my-ext/config.json"));
+        assert!(config.as_ref().is_some_and(|c| c.contains("my-ext")));
+
+        // index.js was NOT written (it was silently skipped)
+        let index = fs.get_written(Path::new("/ai/my-ext/extensions/my-ext/index.js"));
+        assert!(index.is_none(), "unreadable file should not be written");
+    }
 }

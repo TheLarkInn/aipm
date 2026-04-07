@@ -1517,4 +1517,27 @@ mod tests {
         let spec = parse("my-package@^1.0");
         assert!(spec.as_marketplace().is_none());
     }
+
+    #[test]
+    fn parse_source_spec_unknown_prefix_returns_error() {
+        // `parse_source_spec` is only reachable via `from_str` when the prefix
+        // is in SOURCE_PREFIXES, so the `_ =>` arm (line 308) is unreachable
+        // through the public API.  Call it directly to cover that branch.
+        let result = parse_source_spec("bogus", "identifier");
+        assert!(result.is_err());
+        assert!(matches!(result, Err(Error::UnknownSource(_))));
+    }
+
+    #[test]
+    fn validate_github_owner_empty_returns_error() {
+        // `parse_github_spec` guards empty-owner before calling
+        // `validate_github_owner`, so the `owner.is_empty()` branch inside
+        // `validate_github_owner` is never reached via the public API.
+        // Call it directly to cover that branch.
+        let result = validate_github_owner("");
+        assert!(result.is_err());
+        if let Err(Error::GitHub { ref reason }) = result {
+            assert!(reason.contains("owner cannot be empty"), "got: {reason}");
+        }
+    }
 }
