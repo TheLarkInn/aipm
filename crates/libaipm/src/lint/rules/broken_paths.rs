@@ -472,4 +472,38 @@ mod tests {
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("run.sh"));
     }
+
+    #[test]
+    fn check_file_reference_terminated_by_double_quote() {
+        let mut fs = MockFs::new();
+        let path = PathBuf::from(".ai/p/skills/s/SKILL.md");
+        fs.exists.insert(path.clone());
+        fs.files.insert(
+            path.clone(),
+            "---\nname: s\n---\nRun \"${CLAUDE_SKILL_DIR}/scripts/x.sh\" here\n".to_string(),
+        );
+
+        let result = BrokenPaths.check_file(&path, &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert!(diags[0].message.contains("x.sh"));
+    }
+
+    #[test]
+    fn check_file_reference_terminated_by_single_quote() {
+        let mut fs = MockFs::new();
+        let path = PathBuf::from(".ai/p/skills/s/SKILL.md");
+        fs.exists.insert(path.clone());
+        fs.files.insert(
+            path.clone(),
+            "---\nname: s\n---\nRun '${CLAUDE_SKILL_DIR}/scripts/x.sh' here\n".to_string(),
+        );
+
+        let result = BrokenPaths.check_file(&path, &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert!(diags[0].message.contains("x.sh"));
+    }
 }
