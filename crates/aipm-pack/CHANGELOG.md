@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.19.0] - 2026-04-07
+
+### Documentation
+- Add missing guides, docs index, and fix lint path matching docs ([#268](https://github.com/TheLarkInn/aipm/pull/268)) (e55a9fb)
+- Cross-link lint.md with configuring-lint.md and README ([#272](https://github.com/TheLarkInn/aipm/pull/272)) (5ddc7c9)
+- Fix marketplace spec format and document mp: alias ([#279](https://github.com/TheLarkInn/aipm/pull/279)) (da9ec77)
+- Add verbosity & logging guide and complete global flags reference ([#300](https://github.com/TheLarkInn/aipm/pull/300)) (a949eb3)
+
 ## [0.18.3] - 2026-04-07
 
 ### Documentation

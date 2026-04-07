@@ -1,6 +1,30 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.19.0] - 2026-04-07
+
+### Bug Fixes
+- Correct help_text direction for hook/legacy-event-name rule ([#299](https://github.com/TheLarkInn/aipm/pull/299)) (33e35f0)
+
+### Documentation
+- Add missing guides, docs index, and fix lint path matching docs ([#268](https://github.com/TheLarkInn/aipm/pull/268)) (e55a9fb)
+- Cross-link lint.md with configuring-lint.md and README ([#272](https://github.com/TheLarkInn/aipm/pull/272)) (5ddc7c9)
+- Fix marketplace spec format and document mp: alias ([#279](https://github.com/TheLarkInn/aipm/pull/279)) (da9ec77)
+- Add verbosity & logging guide and complete global flags reference ([#300](https://github.com/TheLarkInn/aipm/pull/300)) (a949eb3)
+
+### Features
+- Add marketplace and plugin.json lint rules (#287, #288, #289, #290) ([#296](https://github.com/TheLarkInn/aipm/pull/296)) (bef9f3d)
+
+### Testing
+- Cover empty cache index and reconciler raw_content branches (f988cc4)
+- Cover three missed branches (b5ca98d)
+- Cover unknown-field branch in output_style_detector and read_dir error in skill_detector (581b787)
+- Cover unknown migrate source fallback and adaptor error paths (3d170a6)
+- Cover fs.exists collision branch in emit_other_files (dcd2e5a)
+- Cover hook/rewrite missed branches for 90.83% branch coverage (f1b48f8)
+- Cover quote/tab/dollar terminator branches in extract_script_references (b9aab2f)
+- Cover empty-files branch in write_artifact_section (c25a6c3)
+
 ## [0.18.3] - 2026-04-07
 
 ### Documentation
