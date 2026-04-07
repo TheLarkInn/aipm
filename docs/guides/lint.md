@@ -50,29 +50,55 @@ warning: 1 warning emitted
 
 ### `json`
 
-Machine-readable JSON array of diagnostic objects, suitable for IDE extensions or
-custom tooling:
+Machine-readable JSON object with a `diagnostics` array and a `summary`, suitable
+for IDE extensions or custom tooling:
 
 ```bash
 aipm lint --reporter json
 ```
 
 ```json
-[
-  {
-    "rule_id": "skill/missing-description",
-    "severity": "warning",
-    "message": "SKILL.md missing recommended field: description",
-    "file": ".ai/my-plugin/skills/deploy/SKILL.md",
-    "line": 1,
-    "col": null,
-    "end_line": null,
-    "end_col": null,
-    "help_url": "https://github.com/TheLarkInn/aipm/blob/main/docs/rules/skill/missing-description.md",
-    "help_text": "add a \"description\" field to the YAML frontmatter"
+{
+  "diagnostics": [
+    {
+      "rule_id": "skill/missing-description",
+      "severity": "warning",
+      "severity_code": 2,
+      "message": "SKILL.md missing recommended field: description",
+      "file_path": ".ai/my-plugin/skills/deploy/SKILL.md",
+      "line": 1,
+      "col": null,
+      "end_line": null,
+      "end_col": null,
+      "help_url": "https://github.com/TheLarkInn/aipm/blob/main/docs/rules/skill/missing-description.md",
+      "help_text": "add a \"description\" field to the YAML frontmatter",
+      "source_type": ".ai"
+    }
+  ],
+  "summary": {
+    "errors": 0,
+    "warnings": 1,
+    "sources_scanned": [".ai/my-plugin"]
   }
-]
+}
 ```
+
+Fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `rule_id` | string | Hierarchical rule identifier (e.g. `"skill/missing-description"`) |
+| `severity` | string | `"warning"` or `"error"` |
+| `severity_code` | number | `2` for warning, `1` for error |
+| `message` | string | Human-readable description of the finding |
+| `file_path` | string | Path to the file where the issue was found |
+| `line` | number\|null | 1-based line number, or `null` |
+| `col` | number\|null | 1-based column number, or `null` |
+| `end_line` | number\|null | End line for multi-line spans, or `null` |
+| `end_col` | number\|null | End column for multi-line spans, or `null` |
+| `help_url` | string\|null | Link to the rule documentation, or `null` |
+| `help_text` | string\|null | Fix suggestion, or `null` |
+| `source_type` | string | Source directory type that produced this diagnostic (e.g. `".ai"`, `".claude"`) |
 
 ### `ci-github`
 
@@ -118,7 +144,7 @@ Violations appear as inline annotations on the changed files in pull requests.
 
 ```bash
 # Exit 0 on warnings, non-zero on errors
-aipm lint --reporter json | jq 'map(select(.severity == "error")) | length' | grep -q '^0$'
+aipm lint --reporter json | jq '[.diagnostics[] | select(.severity == "error")] | length' | grep -q '^0$'
 ```
 
 ## Configuring Lint Rules

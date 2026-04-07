@@ -40,6 +40,10 @@ aipm migrate --source .claude
 
 ## Detected Artifact Types
 
+`aipm migrate` supports two source ecosystems, each with its own set of detectors.
+
+### Claude Code (`.claude/`)
+
 | Artifact | Source Location | Migrated As |
 |----------|----------------|-------------|
 | Skills | `.claude/skills/<name>/` | `skill` plugin |
@@ -48,8 +52,17 @@ aipm migrate --source .claude
 | Hooks | `hooks.json` or embedded in `.claude/settings.json` | `hook` plugin |
 | Commands | `.claude/commands/<name>.md` | `skill` plugin (commands are a skill subtype) |
 | Output styles | `.claude/output-styles/<name>.md` | `composite` plugin |
-| LSP servers | `lsp.json` | `lsp` plugin |
+
+### Copilot CLI (`.github/`)
+
+| Artifact | Source Location | Migrated As |
+|----------|----------------|-------------|
+| Skills | `.github/skills/<name>/` | `skill` plugin |
+| Agents | `.github/agents/<name>.md` or `<name>.agent.md` | `agent` plugin |
+| MCP servers | `.copilot/mcp-config.json` | `mcp` plugin |
+| Hooks | `.github/hooks.json` or `.github/hooks/hooks.json` | `hook` plugin |
 | GitHub extensions | `.github/extensions/<name>/` | `composite` plugin |
+| LSP servers | `.github/lsp.json` or `lsp.json` | `lsp` plugin |
 
 Files that are not claimed by any detector (e.g., scripts referenced from a
 skill) are also migrated and tracked.
@@ -62,7 +75,8 @@ Use `--dry-run` to preview the full migration plan before committing to it:
 aipm migrate --dry-run
 ```
 
-This writes a detailed Markdown report to `.ai/migrate-dry-run.md` listing:
+This writes a detailed Markdown report to `aipm-migrate-dryrun-report.md` in the
+project root listing:
 
 - Every plugin that would be created
 - Every file that would be moved
