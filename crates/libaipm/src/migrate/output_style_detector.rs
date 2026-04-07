@@ -297,4 +297,28 @@ mod tests {
             Some("Short outputs")
         );
     }
+
+    #[test]
+    fn detect_frontmatter_ignores_unknown_fields() {
+        // The YAML frontmatter contains a field that is neither "name:" nor
+        // "description:", exercising the False branch of the `else if
+        // strip_prefix("description:")` expression in parse_output_style_frontmatter.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/output-styles"));
+        fs.dirs.insert(PathBuf::from("/src/output-styles"), vec![de("verbose.md", false)]);
+        fs.files.insert(
+            PathBuf::from("/src/output-styles/verbose.md"),
+            "---\nname: verbose\nauthor: team\ndescription: Detailed output\n---\nBody".to_string(),
+        );
+
+        let detector = OutputStyleDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("verbose"));
+        assert_eq!(
+            artifacts.first().and_then(|a| a.metadata.description.as_deref()),
+            Some("Detailed output")
+        );
+    }
 }

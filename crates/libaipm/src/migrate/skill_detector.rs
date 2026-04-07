@@ -484,4 +484,19 @@ mod tests {
             Some("Deploy app")
         );
     }
+
+    #[test]
+    fn detect_skill_read_dir_error_propagates() {
+        // skills_dir is reported as existing by `exists()` but is absent from
+        // the `dirs` map, so `read_dir` returns an I/O error.  This exercises
+        // the `?`-propagation branch inside `detect`.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/skills"));
+        // Deliberately do NOT insert "/src/skills" into fs.dirs so that
+        // read_dir returns NotFound, exercising the error branch.
+
+        let detector = SkillDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
 }
