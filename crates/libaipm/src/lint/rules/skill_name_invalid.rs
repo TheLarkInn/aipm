@@ -223,4 +223,44 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
     }
+
+    #[test]
+    fn check_file_no_frontmatter_no_diagnostic() {
+        // Covers the `else { return Ok(vec![]) }` branch in check_file when
+        // the skill file exists but contains no YAML frontmatter.
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/skills/s/SKILL.md");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), "no frontmatter here".to_string());
+
+        let result = NameInvalidChars.check_file(&path, &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn check_empty_name_no_diagnostic() {
+        // Covers the short-circuit False branch of `!name.is_empty() && ...`
+        // in check() when the name field is an empty string.
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "s", "---\nname: \"\"\n---\nbody");
+
+        let result = NameInvalidChars.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn check_file_empty_name_no_diagnostic() {
+        // Covers the True branch of `if name.is_empty() || ...` in check_file
+        // when the name field is present but empty.
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/skills/s/SKILL.md");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), "---\nname: \"\"\n---\nbody".to_string());
+
+        let result = NameInvalidChars.check_file(&path, &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
 }
