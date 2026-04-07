@@ -1465,6 +1465,42 @@ mod tests {
     }
 
     #[test]
+    fn transitive_dep_conflict_when_both_major_versions_already_activated() {
+        // Covers the `has_same_major_conflict` True branch in `queue_transitive_dep`.
+        //
+        // Setup:
+        //   root -> a@^1.0, b@^1.0
+        //   b@1.0 -> c@^2.0
+        //   a@1.0 -> [d@^1.0, c@^1.0]  (d first so c is pushed last → popped first, LIFO)
+        //   d@1.0 -> c@^1.0
+        //   c: 1.0.0, 2.0.0
+        //
+        // Resolution order (LIFO queue):
+        //   1. activate b@1.0 → enqueue c@^2.0
+        //   2. activate c@2.0 (from queue)
+        //   3. activate a@1.0 → enqueue d@^1.0 then c@^1.0 (c is last pushed)
+        //   4. activate c@1.0 (c@^1.0 popped first, LIFO)
+        //   5. activate d@1.0 → `queue_transitive_dep` for c@^1.0:
+        //      - find_unified(c, ^1.0) = true  (c@1.0 is activated)
+        //      - c@2.0 is also activated and ^1.0 does NOT match 2.0
+        //      → has_same_major_conflict = true → returns Err(Conflict)
+        let mut reg = MockRegistry::new();
+        reg.add_package("b", vec![("1.0.0", vec![dep("c", "^2.0")])]);
+        reg.add_package("a", vec![("1.0.0", vec![dep("d", "^1.0"), dep("c", "^1.0")])]);
+        reg.add_package("d", vec![("1.0.0", vec![dep("c", "^1.0")])]);
+        reg.add_package("c", vec![("1.0.0", vec![]), ("2.0.0", vec![])]);
+
+        let deps = vec![root_dep("a", "^1.0"), root_dep("b", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg);
+
+        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(Error::Conflict(_))),
+            "expected Conflict error when same-major transitive dep conflicts with cross-major activation"
+        );
+    }
+
+    #[test]
     fn backtrack_exhausts_all_candidates() {
         // All candidates for a package fail due to same-major conflict, exercising the
         // `false` branch at line 371 where `choice.current_idx >= choice.candidates.len()`.
