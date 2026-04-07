@@ -3,12 +3,24 @@
 **Severity:** error
 **Fixable:** No
 
-Checks that every event name declared in a `hooks.json` file is a recognised hook event for the target AI tool. Unknown event names are silently ignored at runtime, meaning the hook will never fire.
+Checks that every event name declared in a `hooks.json` file is a recognised hook event for
+at least one supported AI tool. Unknown event names are silently ignored at runtime, meaning
+the hook will never fire.
 
-Event names are **case-sensitive** and depend on the tool:
+## `hooks.json` format
 
-- **Claude Code** uses `PascalCase` (e.g., `PreToolUse`, `SessionStart`)
-- **Copilot CLI** uses `camelCase` (e.g., `preToolUse`, `sessionStart`)
+Event names are **top-level object keys** (or keys inside a nested `"hooks"` object). The
+structural keys `"version"`, `"disableAllHooks"`, and `"hooks"` are never treated as event names.
+
+```json
+{ "PostToolUse": [], "SessionStart": [] }
+```
+
+or with nesting:
+
+```json
+{ "hooks": { "PostToolUse": [], "SessionStart": [] } }
+```
 
 ## Examples
 
@@ -16,33 +28,19 @@ Event names are **case-sensitive** and depend on the tool:
 
 ```json
 {
-  "PreInstall": [{ "hooks": [{ "type": "command", "command": "./setup.sh" }] }]
+  "on_install": []
 }
 ```
 
-*(`PreInstall` is not a valid event name for any supported tool)*
-
-### Correct (Claude Code)
+### Correct
 
 ```json
 {
-  "PreToolUse": [{ "hooks": [{ "type": "command", "command": "./setup.sh" }] }]
+  "PostToolUse": []
 }
 ```
 
-### Correct (Copilot CLI)
-
-```json
-{
-  "preToolUse": [{ "hooks": [{ "type": "command", "command": "./setup.sh" }] }]
-}
-```
-
-## How to fix
-
-Replace the unknown event name with a valid event name for your target tool. See the supported event lists below.
-
-## Supported events
+## Valid event names
 
 ### Claude Code (27 events, `PascalCase`)
 
@@ -57,3 +55,13 @@ Replace the unknown event name with a valid event name for your target tool. See
 
 `sessionStart` · `sessionEnd` · `userPromptSubmitted` · `preToolUse` · `postToolUse` ·
 `errorOccurred` · `agentStop` · `subagentStop` · `subagentStart` · `preCompact`
+
+> **Note:** Copilot also accepts the legacy `PascalCase` aliases listed in the
+> [hook/legacy-event-name](./legacy-event-name.md) rule reference, but these will trigger
+> a separate `hook/legacy-event-name` warning.
+
+## How to fix
+
+Replace the unknown event name with a valid hook event from the tables above.
+For `.ai/` marketplace plugins (shared across tools) any event from either tool's list is
+accepted.

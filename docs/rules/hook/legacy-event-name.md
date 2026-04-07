@@ -3,38 +3,17 @@
 **Severity:** warning
 **Fixable:** No
 
-Checks that Copilot CLI hook event names in `hooks.json` use the canonical `camelCase` naming convention rather than a legacy `PascalCase` alias. Copilot CLI normalizes these legacy names internally, but using them is discouraged and they may stop being recognized in a future release.
+Checks that Copilot CLI hook files (`hooks.json`) do not use legacy `PascalCase` event names
+that Copilot internally normalizes to `camelCase`. These legacy names still work today, but
+relying on the internal normalization is brittle — use the canonical `camelCase` names directly.
 
-This rule applies only to Copilot CLI hooks (`.github/` source). Claude Code uses `PascalCase` event names natively and is unaffected.
-
-## Examples
-
-### Incorrect
-
-```json
-{
-  "Stop": [{ "hooks": [{ "type": "command", "command": "./cleanup.sh" }] }]
-}
-```
-
-*(`Stop` is the legacy name; Copilot CLI maps it to `agentStop`)*
-
-### Correct
-
-```json
-{
-  "agentStop": [{ "hooks": [{ "type": "command", "command": "./cleanup.sh" }] }]
-}
-```
-
-## How to fix
-
-Rename the event key to its canonical `camelCase` equivalent. Run `aipm migrate` to have the migration tool update hook event names automatically.
+This rule only fires for hooks inside `.github/` or `.ai/` marketplace directories. Claude Code
+hooks (`.claude/`) use `PascalCase` natively and are **not** affected.
 
 ## Legacy-to-canonical mapping
 
 | Legacy (`PascalCase`) | Canonical (`camelCase`) |
-|-----------------------|------------------------|
+|-----------------------|-------------------------|
 | `SessionStart` | `sessionStart` |
 | `SessionEnd` | `sessionEnd` |
 | `UserPromptSubmit` | `userPromptSubmitted` |
@@ -45,3 +24,31 @@ Rename the event key to its canonical `camelCase` equivalent. Run `aipm migrate`
 | `Stop` | `agentStop` |
 | `SubagentStop` | `subagentStop` |
 | `PreCompact` | `preCompact` |
+
+## Examples
+
+### Incorrect
+
+```json
+{
+  "Stop": [],
+  "UserPromptSubmit": []
+}
+```
+
+### Correct
+
+```json
+{
+  "agentStop": [],
+  "userPromptSubmitted": []
+}
+```
+
+## How to fix
+
+Rename each legacy `PascalCase` event name to its canonical `camelCase` equivalent using the
+mapping table above (e.g. `Stop` → `agentStop`, `UserPromptSubmit` → `userPromptSubmitted`).
+
+Run `aipm migrate` on an existing `.github/` directory to have the migration tool perform these
+renames automatically.
