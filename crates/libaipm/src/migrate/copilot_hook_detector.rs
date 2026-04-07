@@ -380,4 +380,59 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
     }
+
+    #[test]
+    fn normalize_skips_merge_when_existing_is_not_array() {
+        // "PreToolUse" normalizes to canonical "preToolUse".
+        // If two keys normalize to the same canonical but the already-stored
+        // value is not an array, the tuple destructure in the merge branch
+        // fails → covers the False branch of
+        // `if let (Some(existing_arr), Some(new_arr)) = (...)`.
+        let json: serde_json::Value = serde_json::from_str(
+            r#"{"PreToolUse":"not-an-array","preToolUse":[{"type":"command","command":"echo b"}]}"#,
+        )
+        .ok()
+        .unwrap_or_default();
+        let normalized = normalize_hook_events(&json);
+        assert!(normalized.get("preToolUse").is_some());
+    }
+
+    #[test]
+    fn command_type_without_command_key_yields_no_script_refs() {
+        // A hook entry declares itself as type "command" but omits the
+        // "command" key → covers the False branch of
+        // `if let Some(cmd) = map.get("command").and_then(|v| v.as_str())`.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.github/hooks.json"));
+        fs.files.insert(
+            PathBuf::from("/project/.github/hooks.json"),
+            r#"{"PreToolUse":[{"type":"command"}]}"#.to_string(),
+        );
+
+        let detector = CopilotHookDetector;
+        let result = detector.detect(Path::new("/project/.github"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.first().map(|a| a.referenced_scripts.len()), Some(0));
+    }
+
+    #[test]
+    fn relative_script_without_dot_slash_prefix_is_extracted() {
+        // A command script that does NOT start with "./" but has a .sh
+        // extension is still recognised as a relative script via
+        // `is_relative_script` → covers the True branch of that second
+        // condition in `if script_path.starts_with("./") || is_relative_script(...)`.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.github/hooks.json"));
+        fs.files.insert(
+            PathBuf::from("/project/.github/hooks.json"),
+            r#"{"PreToolUse":[{"type":"command","command":"run.sh --arg"}]}"#.to_string(),
+        );
+
+        let detector = CopilotHookDetector;
+        let result = detector.detect(Path::new("/project/.github"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.first().map(|a| a.referenced_scripts.len()), Some(1));
+    }
 }
