@@ -32,7 +32,7 @@ impl Rule for LegacyEventName {
     }
 
     fn help_text(&self) -> Option<&'static str> {
-        Some("rename to the PascalCase event name")
+        Some("rename to the canonical camelCase event name")
     }
 
     fn check(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
