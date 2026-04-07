@@ -1,6 +1,12 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.18.3] - 2026-04-07
+
+### Documentation
+- Add lint configuration guide and workspace.lints README example ([#263](https://github.com/TheLarkInn/aipm/pull/263)) (28b77d6)
+- Add `aipm lint` and `aipm migrate` how-to guides ([#266](https://github.com/TheLarkInn/aipm/pull/266)) (d750692)
+
 ## [0.18.2] - 2026-04-07
 
 ### Documentation
