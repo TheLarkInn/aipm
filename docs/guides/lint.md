@@ -247,6 +247,16 @@ All available rules, grouped by category:
 | Rule | Severity | Description |
 |------|----------|-------------|
 | [`plugin/broken-paths`](../rules/plugin/broken-paths.md) | error | Plugin references a file path that does not exist |
+| [`plugin/missing-manifest`](../rules/plugin/missing-manifest.md) | error | Plugin directory is missing `.claude-plugin/plugin.json` |
+| [`plugin/missing-registration`](../rules/plugin/missing-registration.md) | error | Plugin directory is not listed in `marketplace.json` |
+| [`plugin/required-fields`](../rules/plugin/required-fields.md) | error | `plugin.json` is missing one or more required fields |
+
+### `marketplace/`
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| [`marketplace/plugin-field-mismatch`](../rules/marketplace/plugin-field-mismatch.md) | error | `marketplace.json` entry `name`/`description` differs from `plugin.json` |
+| [`marketplace/source-resolve`](../rules/marketplace/source-resolve.md) | error | `marketplace.json` entry `source` path does not exist on disk |
 
 ### `skill/`
 
