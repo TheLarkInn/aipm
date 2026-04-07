@@ -998,4 +998,29 @@ mod tests {
         let report = generate_report(&artifacts, &existing, ".claude", true, false, &other);
         assert!(report.contains("Other files | 1"));
     }
+
+    #[test]
+    fn dry_run_report_destructive_mixed_skipped_and_removable() {
+        // When both skippable artifacts (settings.json) and regular artifacts (skill)
+        // are present, the cleanup plan shows skipped items AND removable items.
+        // This covers the False branch of `should_skip_for_report` inside the
+        // `if has_skipped { ... }` block — reached when iterating artifacts in the
+        // second loop and encountering one whose path is NOT a shared-config file.
+        let mut hook_artifact = make_artifact("project-hooks", ArtifactKind::Hook);
+        hook_artifact.source_path = PathBuf::from(".claude/settings.json");
+        let skill_artifact = make_artifact("deploy", ArtifactKind::Skill);
+        let artifacts = vec![hook_artifact, skill_artifact];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", true, true, &[]);
+        // settings.json is skipped (shared config)
+        assert!(report.contains("Skipped (shared config)"), "expected skipped section:\n{report}");
+        assert!(report.contains("settings.json"), "expected settings.json in skipped:\n{report}");
+        // deploy skill is listed for removal (not skipped)
+        assert!(report.contains("deploy"), "expected deploy artifact:\n{report}");
+        // Both sections coexist: there IS something to remove
+        assert!(
+            !report.contains("(no files to remove)"),
+            "deploy should be in removal list:\n{report}"
+        );
+    }
 }

@@ -14,8 +14,10 @@ How-to guides for common tasks:
 | [Installing from Marketplaces](guides/install-marketplace-plugin.md) | Install plugins from curated marketplace repos |
 | [Global Plugin Installation](guides/global-plugins.md) | Install plugins globally across all projects |
 | [Local Development](guides/local-development.md) | Develop plugins locally with `aipm link` / `aipm unlink` |
-| [Migrating Existing Configurations](guides/migrating-existing-configs.md) | Convert `.claude/` configs to marketplace plugins |
+| [Migrating Existing Configurations](guides/migrate.md) | Convert `.claude/` / `.github/` configs to marketplace plugins |
+| [Migrating — Step-by-step](guides/migrating-existing-configs.md) | Dry-run, destructive cleanup, recursive discovery walkthrough |
 | [Configuring Lint](guides/configuring-lint.md) | Tune rule severity, suppress noise, exclude directories |
+| [Using `aipm lint`](guides/lint.md) | CLI flags, output formats, CI integration, rules reference |
 | [Engine & Platform Compatibility](guides/engine-platform-compatibility.md) | Declare supported AI tools and operating systems |
 | [Download Cache](guides/cache-management.md) | Cache policies, TTL, and garbage collection |
 | [Source Security](guides/source-security.md) | Source allowlists and path traversal protection |
