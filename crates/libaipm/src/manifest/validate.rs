@@ -58,8 +58,8 @@ fn is_valid_version_req(req: &str) -> bool {
         return true;
     }
 
-    // Handle catalog references
-    if req.starts_with("catalog:") || req == "catalog:" {
+    // Handle catalog references: "catalog:" prefix covers the bare "catalog:" case too.
+    if req.starts_with("catalog:") {
         return true;
     }
 
