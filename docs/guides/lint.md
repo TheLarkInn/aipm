@@ -273,3 +273,8 @@ All available rules, grouped by category:
 | `0` | No errors (warnings do not affect the exit code) |
 | `1` | One or more error-severity violations found |
 | `2` | Unexpected I/O or internal error |
+
+## See also
+
+- [Configuring the lint system](./configuring-lint.md) — rule severity overrides, per-rule path ignores, and global path excludes
+- [Lint rule reference](../rules/) — individual rule pages with severity, rationale, and fix guidance
