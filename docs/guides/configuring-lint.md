@@ -58,7 +58,7 @@ members = [".ai/*"]
 plugins_dir = ".ai"
 
 [workspace.lints]
-# Stricten
+# Tighten
 "skill/missing-description" = "error"
 "skill/missing-name"        = "error"
 
