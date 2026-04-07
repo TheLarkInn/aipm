@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.19.1] - 2026-04-07
+
+### Documentation
+- Add missing rule reference pages and help_url links ([#304](https://github.com/TheLarkInn/aipm/pull/304)) (a71962f)
+
+### Testing
+- Cover previously uncovered branches in dry_run, emitter, spec (bc71bd9)
+
 ## [0.19.0] - 2026-04-07
 
 ### Bug Fixes
