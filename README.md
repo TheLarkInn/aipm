@@ -347,11 +347,11 @@ common-skill = "^2.0"
 "skill/missing-description" = "error"
 # Suppress entirely
 "skill/oversized" = "allow"
-# Per-rule ignore paths
-"source/misplaced-features" = { level = "warn", ignore = [".claude/skills/legacy-*/**"] }
+# Per-rule ignore paths (lint ignore matching uses full file paths, so use `**/` to match anywhere)
+"source/misplaced-features" = { level = "warn", ignore = ["**/.claude/skills/legacy-*/**"] }
 
 [workspace.lints.ignore]
-paths = ["vendor/**", "third-party/**"]
+paths = ["**/vendor/**", "**/third-party/**"]
 
 [overrides]
 "vulnerable-lib" = "^2.0.0"
