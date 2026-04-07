@@ -25,6 +25,10 @@ impl Rule for FieldMismatch {
         Severity::Error
     }
 
+    fn help_url(&self) -> Option<&'static str> {
+        Some("https://github.com/TheLarkInn/aipm/blob/main/docs/rules/marketplace/plugin-field-mismatch.md")
+    }
+
     fn help_text(&self) -> Option<&'static str> {
         Some("update marketplace.json or plugin.json so the name and description fields match")
     }

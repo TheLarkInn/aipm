@@ -26,6 +26,10 @@ impl Rule for MissingRegistration {
         Severity::Error
     }
 
+    fn help_url(&self) -> Option<&'static str> {
+        Some("https://github.com/TheLarkInn/aipm/blob/main/docs/rules/plugin/missing-registration.md")
+    }
+
     fn help_text(&self) -> Option<&'static str> {
         Some("add this plugin to the plugins array in .ai/.claude-plugin/marketplace.json")
     }

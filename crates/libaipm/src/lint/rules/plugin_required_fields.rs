@@ -25,6 +25,10 @@ impl Rule for RequiredFields {
         Severity::Error
     }
 
+    fn help_url(&self) -> Option<&'static str> {
+        Some("https://github.com/TheLarkInn/aipm/blob/main/docs/rules/plugin/required-fields.md")
+    }
+
     fn help_text(&self) -> Option<&'static str> {
         Some(
             "add the missing required fields to plugin.json \
