@@ -5,6 +5,12 @@
 
 Checks that the total character count of the SKILL.md file does not exceed 15 000 characters. Oversized skill files slow down context loading and may exceed limits imposed by AI runtimes.
 
+## Why 15 000 characters?
+
+The 15 000 character budget is derived from **Copilot CLI's `SKILL_CHAR_BUDGET`** default. Copilot imposes this limit when loading skill context into the model prompt; exceeding it causes the skill to be silently truncated or rejected.
+
+Claude Code does not currently enforce a hard character limit on skill files, but AIPM uses the Copilot limit as a **tool-agnostic quality guardrail**: a skill that fits within 15 000 characters is almost certainly well-scoped and will work reliably across all supported AI runtimes. Keeping skills concise also reduces token usage and improves agent response quality.
+
 ## Examples
 
 ### Incorrect
