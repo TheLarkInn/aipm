@@ -1023,4 +1023,22 @@ mod tests {
             "deploy should be in removal list:\n{report}"
         );
     }
+
+    #[test]
+    fn dry_run_report_artifact_with_no_files_omits_files_section() {
+        // An artifact whose `files` list is empty should NOT produce a
+        // "Files to copy:" section, covering the False branch of
+        // `if !artifact.files.is_empty()` inside `write_artifact_section`.
+        let mut artifact = make_artifact("meta-only", ArtifactKind::Hook);
+        artifact.files = Vec::new();
+        let artifacts = vec![artifact];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &[]);
+
+        assert!(report.contains("### meta-only"), "artifact section should be present");
+        assert!(
+            !report.contains("**Files to copy:**"),
+            "no files section when files list is empty"
+        );
+    }
 }
