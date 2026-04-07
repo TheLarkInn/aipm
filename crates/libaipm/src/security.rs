@@ -142,6 +142,10 @@ fn glob_match(pattern: &str, text: &str) -> bool {
 mod tests {
     use super::*;
 
+    // Serialize tests that read or write `AIPM_ENFORCE_ALLOWLIST` so they
+    // don't interfere with each other when the test suite runs in parallel.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn allowed_source_matches_pattern() {
         let patterns = vec!["github.com/my-org/*".to_string()];
@@ -155,6 +159,8 @@ mod tests {
 
     #[test]
     fn unknown_source_allowed_when_not_enforced() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        std::env::remove_var(ENFORCE_ENV_VAR);
         let patterns = vec!["github.com/my-org/*".to_string()];
         let result = check_source_allowed("github.com/other-org/repo", &patterns, false);
         assert!(result.is_ok());
@@ -189,6 +195,8 @@ mod tests {
 
     #[test]
     fn empty_allowlist_no_enforcement_allows_all() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        std::env::remove_var(ENFORCE_ENV_VAR);
         let patterns: Vec<String> = vec![];
         let result = check_source_allowed("github.com/any/repo", &patterns, false);
         assert!(result.is_ok());
@@ -262,5 +270,28 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("github.com/other/repo"));
         assert!(msg.contains("trusted"));
+    }
+
+    // These tests cover the `is_env_enforced()` closure branches:
+    // `v == "1"` (True path) and `v.eq_ignore_ascii_case("true")` (True path).
+
+    #[test]
+    fn env_enforce_allowlist_numeric_one() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        std::env::set_var(ENFORCE_ENV_VAR, "1");
+        let patterns: Vec<String> = vec![];
+        let result = check_source_allowed("github.com/org/repo", &patterns, false);
+        std::env::remove_var(ENFORCE_ENV_VAR);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn env_enforce_allowlist_true_string() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        std::env::set_var(ENFORCE_ENV_VAR, "TRUE");
+        let patterns: Vec<String> = vec![];
+        let result = check_source_allowed("github.com/org/repo", &patterns, false);
+        std::env::remove_var(ENFORCE_ENV_VAR);
+        assert!(result.is_err());
     }
 }
