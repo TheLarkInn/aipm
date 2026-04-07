@@ -287,4 +287,12 @@ some-dep = {}
         assert!(is_valid_name("@scope/1tool"));
         assert!(is_valid_segment("123abc"));
     }
+
+    #[test]
+    fn is_valid_segment_empty_returns_false() {
+        // Covers the `if s.is_empty()` True branch in `is_valid_segment`.
+        // The callers in `is_valid_name` guard against empty scope/pkg before
+        // calling `is_valid_segment`, so this branch is only reachable directly.
+        assert!(!is_valid_segment(""));
+    }
 }
