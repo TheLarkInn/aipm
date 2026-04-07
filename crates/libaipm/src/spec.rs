@@ -678,6 +678,18 @@ mod tests {
         assert_eq!(spec.to_string(), "git:https://github.com/org/repo:plugins/foo@main");
     }
 
+    #[test]
+    fn parse_git_at_ref_only_is_error() {
+        // "git:@main" — split_ref("@main") returns ("", Some("main")), then
+        // split_url_and_path("") returns ("", None). The empty URL check at
+        // parse_git_spec triggers Error::Git { reason: "empty URL" }.
+        let result = "git:@main".parse::<Spec>();
+        assert!(result.is_err());
+        if let Err(Error::Git { ref reason }) = result {
+            assert!(reason.contains("empty URL"), "expected 'empty URL' in: {reason}");
+        }
+    }
+
     // ---- Marketplace specs ----
 
     #[test]
