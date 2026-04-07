@@ -3,6 +3,9 @@ name: Release
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'LICENSE'
 
 jobs:
   # Job 1: Create/update a release PR with version bumps + CHANGELOG
