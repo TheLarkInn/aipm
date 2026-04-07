@@ -89,7 +89,8 @@ All built-in rule IDs follow the `category/rule-name` hierarchy. See the individ
 | `skill/` | `missing-name`, `missing-description`, `name-invalid-chars`, `name-too-long`, `description-too-long`, `invalid-shell`, `oversized` |
 | `hook/` | `unknown-event`, `legacy-event-name` |
 | `agent/` | `missing-tools` |
-| `plugin/` | `broken-paths` |
+| `plugin/` | `broken-paths`, `missing-manifest`, `missing-registration`, `required-fields` |
+| `marketplace/` | `plugin-field-mismatch`, `source-resolve` |
 | `source/` | `misplaced-features` |
 
 ## CI usage
