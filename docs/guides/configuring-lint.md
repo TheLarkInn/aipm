@@ -111,4 +111,4 @@ aipm lint --reporter ci-azure    # Azure Pipelines annotations
 aipm lint --reporter json        # JSON for custom tooling
 ```
 
-See also: [`aipm lint`](../../README.md#aipm-lint), [lint rule reference](../rules/).
+See also: [`aipm lint` usage guide](./lint.md), [`aipm lint` README reference](../../README.md#aipm-lint), [lint rule reference](../rules/).
