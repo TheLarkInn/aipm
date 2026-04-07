@@ -8,15 +8,17 @@ Checks that the `shell` field in SKILL.md frontmatter, when present, contains a 
 ## Examples
 
 ### Incorrect
+
 ```markdown
 ---
 name: my-skill
 description: Does something useful
-shell: powershell
+shell: zsh
 ---
 ```
 
 ### Correct
+
 ```markdown
 ---
 name: my-skill
@@ -25,5 +27,21 @@ shell: bash
 ---
 ```
 
+```markdown
+---
+name: my-skill
+description: Does something useful
+shell: powershell
+---
+```
+
 ## How to fix
-Use a supported shell value such as `bash`, `sh`, or `zsh`. Remove the `shell` field entirely to fall back to the runtime default, or consult the aipm documentation for the full list of supported values.
+
+Use one of the two supported shell values: `bash` or `powershell`. Remove the `shell` field entirely to fall back to the runtime default.
+
+## Supported values
+
+| Value | Platform |
+|-------|----------|
+| `bash` | Linux / macOS |
+| `powershell` | Windows |
