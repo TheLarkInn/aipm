@@ -1,6 +1,27 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.18.2] - 2026-04-07
+
+### Documentation
+- Document install/update/uninstall/link/unlink/list/lint commands and new libaipm modules ([#244](https://github.com/TheLarkInn/aipm/pull/244)) (fa03dcf)
+
+### Testing
+- Cover None branch when no artifacts but other files present (8c8a2f0)
+- Cover glob_match middle-part-not-found else branch (2fed3ec)
+- Cover missed branches in installed::Registry::resolve_spec (28867bd)
+- Cover uncovered branches in skill_name_invalid check_file (1253abe)
+- Cover check_file no-frontmatter branch in skill rules (9f8c017)
+- Cover double-quote and single-quote terminators in check_file (e876d99)
+- Cover None branch of path.parent() in write_gitignore (875fd3e)
+- Cover empty-URL branch in parse_git_spec (5ecdf5e)
+- Cover is_env_enforced closure branches via AIPM_ENFORCE_ALLOWLIST (fe8c0e4)
+- Cover is_valid_segment empty-string guard branch (36e5d7c)
+- Cover duplicate source-path branch in emit_package_plugin (ec5ee04)
+- Cover is_local_path non-alphabetic first-char branch (940e462)
+- Cover as_git, as_marketplace, and error-path branches in spec.rs (74814cd)
+- Cover scan_agents plugin-is-file branch (a3a1ce3)
+
 ## [0.18.1] - 2026-04-06
 
 ### Testing

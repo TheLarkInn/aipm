@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.18.2] - 2026-04-07
+
+### Documentation
+- Document install/update/uninstall/link/unlink/list/lint commands and new libaipm modules ([#244](https://github.com/TheLarkInn/aipm/pull/244)) (fa03dcf)
+
 ## [0.18.1] - 2026-04-06
 
 ## [0.18.0] - 2026-04-06
