@@ -3073,4 +3073,47 @@ mod tests {
         let actions = result.ok().unwrap_or_default();
         assert!(actions.is_empty());
     }
+
+    #[test]
+    fn emit_package_plugin_deduplicates_source_paths() {
+        // Two artifacts sharing the same source_path — only one PluginCreated action
+        // should be recorded. Covers the False branch of `seen_sources.insert()` at
+        // emit_package_plugin where a duplicate source path is skipped.
+        let mut fs = MockFs::new();
+        let shared_source = PathBuf::from("/src/skills/multi");
+        fs.files.insert(shared_source.join("SKILL.md"), "# Skill A".to_string());
+        fs.files.insert(shared_source.join("extra.md"), "# Extra".to_string());
+
+        let artifact_a = Artifact {
+            kind: ArtifactKind::Skill,
+            name: "skill-a".to_string(),
+            source_path: shared_source.clone(),
+            files: vec![PathBuf::from("SKILL.md")],
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata::default(),
+        };
+        let artifact_b = Artifact {
+            kind: ArtifactKind::Skill,
+            name: "skill-b".to_string(),
+            source_path: shared_source.clone(),
+            files: vec![PathBuf::from("extra.md")],
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata::default(),
+        };
+
+        let result =
+            emit_package_plugin("multi", &[artifact_a, artifact_b], Path::new("/ai"), false, &fs);
+        assert!(result.is_ok());
+        let actions = result.unwrap();
+
+        // Only one PluginCreated action — duplicate source path must be deduplicated
+        let plugin_created: Vec<_> =
+            actions.iter().filter(|a| matches!(a, Action::PluginCreated { .. })).collect();
+        assert_eq!(
+            plugin_created.len(),
+            1,
+            "expected exactly one PluginCreated action for shared source path, got {}",
+            plugin_created.len()
+        );
+    }
 }
