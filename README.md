@@ -121,7 +121,7 @@ aipm install [OPTIONS] [PACKAGE]
 | `github:` | `github:org/repo:plugin@main` | GitHub repo shorthand |
 | `git:` | `git:https://example.com/repo.git:plugin@v1` | Arbitrary git URL |
 | `local:` | `local:./path/to/plugin` | Local filesystem path |
-| `marketplace:` | `marketplace:my-market:plugin-name` | Named marketplace |
+| `market:` / `marketplace:` | `market:plugin-name@org/marketplace-repo` | Named marketplace (`mp:` short alias also accepted) |
 
 Omit `PACKAGE` to install all dependencies from `aipm.toml`.
 

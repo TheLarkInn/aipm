@@ -8,6 +8,8 @@ A marketplace is a git repository containing a `marketplace.toml` manifest that 
 
 ## CLI Usage
 
+The `market:` prefix (aliases: `marketplace:`, `mp:`) takes the form `market:plugin-name@location[#ref]`.
+
 ```bash
 # Install from a named marketplace
 aipm install market:hello-skills@community
@@ -20,6 +22,10 @@ aipm install market:my-tool@org/marketplace-repo
 
 # Install from a local marketplace (for testing)
 aipm install market:my-plugin@./test-fixtures/marketplace
+
+# Using the marketplace: or mp: aliases (equivalent)
+aipm install marketplace:my-tool@org/marketplace-repo
+aipm install mp:my-tool@org/marketplace-repo
 ```
 
 ## Configuring Marketplaces
