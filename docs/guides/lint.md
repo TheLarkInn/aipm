@@ -242,11 +242,21 @@ All available rules, grouped by category:
 | [`hook/legacy-event-name`](../rules/hook/legacy-event-name.md) | warning | Hook uses a deprecated event name |
 | [`hook/unknown-event`](../rules/hook/unknown-event.md) | error | Hook uses an unrecognised event name |
 
+### `marketplace/`
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| [`marketplace/plugin-field-mismatch`](../rules/marketplace/plugin-field-mismatch.md) | error | `name` or `description` in `marketplace.json` differs from the plugin's own `plugin.json` |
+| [`marketplace/source-resolve`](../rules/marketplace/source-resolve.md) | error | Plugin `source` field is missing or its resolved path does not exist on disk |
+
 ### `plugin/`
 
 | Rule | Severity | Description |
 |------|----------|-------------|
 | [`plugin/broken-paths`](../rules/plugin/broken-paths.md) | error | Plugin references a file path that does not exist |
+| [`plugin/missing-manifest`](../rules/plugin/missing-manifest.md) | error | Plugin directory is missing a `.claude-plugin/plugin.json` manifest file |
+| [`plugin/missing-registration`](../rules/plugin/missing-registration.md) | error | Plugin directory is not listed in `.ai/.claude-plugin/marketplace.json` |
+| [`plugin/required-fields`](../rules/plugin/required-fields.md) | error | `plugin.json` is missing one or more required fields (`name`, `description`, `version`, `author.name`, `author.email`) |
 
 ### `skill/`
 
