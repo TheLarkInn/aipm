@@ -223,6 +223,17 @@ pub fn read_hook(path: &Path, fs: &dyn Fs) -> Option<(PathBuf, String)> {
     Some((path.to_path_buf(), content))
 }
 
+/// List plugin directory names under `.ai/`, excluding `.claude-plugin`.
+///
+/// Returns an empty `Vec` if `ai_dir` cannot be read. Skips non-directory
+/// entries and the internal `.claude-plugin` metadata directory.
+pub fn list_plugin_dirs(ai_dir: &Path, fs: &dyn Fs) -> Vec<String> {
+    let Ok(entries) = fs.read_dir(ai_dir) else {
+        return vec![];
+    };
+    entries.into_iter().filter(|e| e.is_dir && e.name != ".claude-plugin").map(|e| e.name).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -523,5 +534,48 @@ mod tests {
         );
         let hooks = scan_hook_files(Path::new(".ai"), &fs);
         assert!(hooks.is_empty());
+    }
+
+    // --- list_plugin_dirs tests ---
+
+    #[test]
+    fn list_plugin_dirs_returns_dir_names() {
+        let mut fs = MockFs::new();
+        fs.add_marketplace_json(r#"{"plugins":[]}"#);
+        fs.add_plugin_json("foo", r#"{"name":"foo"}"#);
+        fs.add_plugin_json("bar", r#"{"name":"bar"}"#);
+        let mut dirs = list_plugin_dirs(Path::new(".ai"), &fs);
+        dirs.sort();
+        assert_eq!(dirs, vec!["bar", "foo"]);
+    }
+
+    #[test]
+    fn list_plugin_dirs_excludes_claude_plugin() {
+        let mut fs = MockFs::new();
+        fs.add_marketplace_json(r#"{"plugins":[]}"#);
+        let dirs = list_plugin_dirs(Path::new(".ai"), &fs);
+        assert!(!dirs.contains(&".claude-plugin".to_string()));
+    }
+
+    #[test]
+    fn list_plugin_dirs_skips_file_entries() {
+        let mut fs = MockFs::new();
+        fs.dirs.insert(
+            PathBuf::from(".ai"),
+            vec![
+                crate::fs::DirEntry { name: "plugin".to_string(), is_dir: true },
+                crate::fs::DirEntry { name: "README.md".to_string(), is_dir: false },
+            ],
+        );
+        let dirs = list_plugin_dirs(Path::new(".ai"), &fs);
+        assert_eq!(dirs, vec!["plugin"]);
+        assert!(!dirs.contains(&"README.md".to_string()));
+    }
+
+    #[test]
+    fn list_plugin_dirs_nonexistent_dir_returns_empty() {
+        let fs = MockFs::new();
+        let dirs = list_plugin_dirs(Path::new(".ai"), &fs);
+        assert!(dirs.is_empty());
     }
 }

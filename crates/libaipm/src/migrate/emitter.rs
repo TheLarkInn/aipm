@@ -1109,6 +1109,10 @@ fn generate_plugin_json_multi(
     map.insert("name".to_string(), serde_json::Value::String(name.to_string()));
     map.insert("version".to_string(), serde_json::Value::String("0.1.0".to_string()));
     map.insert("description".to_string(), serde_json::Value::String(description.to_string()));
+    let mut author = serde_json::Map::new();
+    author.insert("name".to_string(), serde_json::Value::String("TODO".to_string()));
+    author.insert("email".to_string(), serde_json::Value::String("TODO".to_string()));
+    map.insert("author".to_string(), serde_json::Value::Object(author));
 
     let distinct: HashSet<&ArtifactKind> = kinds.iter().collect();
     if distinct.contains(&ArtifactKind::Skill) || distinct.contains(&ArtifactKind::Command) {

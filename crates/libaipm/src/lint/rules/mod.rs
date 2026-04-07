@@ -9,8 +9,13 @@ pub mod broken_paths;
 pub mod hook_legacy_event;
 pub mod hook_unknown_event;
 pub mod known_events;
+pub mod marketplace_field_mismatch;
+pub mod marketplace_source_resolve;
 pub mod misplaced_features;
-mod scan;
+pub mod plugin_missing_manifest;
+pub mod plugin_missing_registration;
+pub mod plugin_required_fields;
+pub(crate) mod scan;
 pub mod skill_desc_too_long;
 pub mod skill_invalid_shell;
 pub mod skill_missing_desc;
@@ -48,6 +53,13 @@ pub(crate) fn quality_rules_for_kind(kind: &FeatureKind) -> Vec<Box<dyn Rule>> {
             Box::new(hook_legacy_event::LegacyEventName),
         ],
         FeatureKind::Plugin => vec![Box::new(broken_paths::BrokenPaths)],
+        FeatureKind::Marketplace => vec![
+            Box::new(marketplace_source_resolve::SourceResolve),
+            Box::new(marketplace_field_mismatch::FieldMismatch),
+            Box::new(plugin_missing_registration::MissingRegistration),
+            Box::new(plugin_missing_manifest::MissingManifest),
+        ],
+        FeatureKind::PluginJson => vec![Box::new(plugin_required_fields::RequiredFields)],
     }
 }
 
@@ -89,5 +101,22 @@ mod tests {
         let rules = quality_rules_for_kind(&FeatureKind::Plugin);
         assert!(!rules.is_empty());
         assert!(rules.iter().any(|r| r.id() == "plugin/broken-paths"));
+    }
+
+    #[test]
+    fn quality_rules_for_marketplace_kind() {
+        let rules = quality_rules_for_kind(&FeatureKind::Marketplace);
+        assert!(!rules.is_empty());
+        assert!(rules.iter().any(|r| r.id() == "marketplace/source-resolve"));
+        assert!(rules.iter().any(|r| r.id() == "marketplace/plugin-field-mismatch"));
+        assert!(rules.iter().any(|r| r.id() == "plugin/missing-registration"));
+        assert!(rules.iter().any(|r| r.id() == "plugin/missing-manifest"));
+    }
+
+    #[test]
+    fn quality_rules_for_plugin_json_kind() {
+        let rules = quality_rules_for_kind(&FeatureKind::PluginJson);
+        assert!(!rules.is_empty());
+        assert!(rules.iter().any(|r| r.id() == "plugin/required-fields"));
     }
 }

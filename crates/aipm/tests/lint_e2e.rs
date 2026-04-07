@@ -645,3 +645,130 @@ fn lint_source_github_filters_to_github_only() {
     // .claude skill should NOT appear (filtered out)
     assert!(!stdout.contains(".claude"), "unexpected .claude path in output");
 }
+
+// =========================================================================
+// plugin/required-fields: missing author field
+// =========================================================================
+
+#[test]
+fn lint_plugin_json_missing_required_fields_errors() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    let pj_dir = tmp.path().join(".ai").join("my-plugin").join(".claude-plugin");
+    std::fs::create_dir_all(&pj_dir).unwrap();
+    // plugin.json is missing 'name' and 'author'
+    std::fs::write(pj_dir.join("plugin.json"), r#"{"version":"0.1.0","description":"A plugin"}"#)
+        .unwrap();
+
+    aipm()
+        .args(["lint", tmp.path().to_str().unwrap()])
+        .assert()
+        .failure() // required-fields is Error severity
+        .stdout(predicate::str::contains("plugin/required-fields"));
+}
+
+// =========================================================================
+// marketplace/source-resolve: source path does not exist
+// =========================================================================
+
+#[test]
+fn lint_marketplace_source_not_found_errors() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    let mp_dir = tmp.path().join(".ai").join(".claude-plugin");
+    std::fs::create_dir_all(&mp_dir).unwrap();
+    std::fs::write(
+        mp_dir.join("marketplace.json"),
+        r#"{"plugins":[{"name":"ghost","source":"./ghost"}]}"#,
+    )
+    .unwrap();
+    // ./ghost directory does NOT exist
+
+    aipm()
+        .args(["lint", tmp.path().to_str().unwrap()])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("marketplace/source-resolve"));
+}
+
+// =========================================================================
+// plugin/missing-registration: plugin dir not in marketplace.json
+// =========================================================================
+
+#[test]
+fn lint_plugin_missing_registration_errors() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    // Unregistered plugin dir
+    std::fs::create_dir_all(tmp.path().join(".ai").join("unregistered")).unwrap();
+    // Marketplace with empty plugins list
+    let mp_dir = tmp.path().join(".ai").join(".claude-plugin");
+    std::fs::create_dir_all(&mp_dir).unwrap();
+    std::fs::write(mp_dir.join("marketplace.json"), r#"{"plugins":[]}"#).unwrap();
+
+    aipm()
+        .args(["lint", tmp.path().to_str().unwrap()])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("plugin/missing-registration"));
+}
+
+// =========================================================================
+// plugin/missing-manifest: plugin dir exists without plugin.json
+// =========================================================================
+
+#[test]
+fn lint_plugin_missing_manifest_errors() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    // Plugin dir exists but no plugin.json
+    std::fs::create_dir_all(tmp.path().join(".ai").join("my-plugin")).unwrap();
+    let mp_dir = tmp.path().join(".ai").join(".claude-plugin");
+    std::fs::create_dir_all(&mp_dir).unwrap();
+    std::fs::write(
+        mp_dir.join("marketplace.json"),
+        r#"{"plugins":[{"name":"my-plugin","source":"./my-plugin"}]}"#,
+    )
+    .unwrap();
+
+    aipm()
+        .args(["lint", tmp.path().to_str().unwrap()])
+        .assert()
+        .failure()
+        .stdout(predicate::str::contains("plugin/missing-manifest"));
+}
+
+// =========================================================================
+// Fresh `aipm init --marketplace` workspace passes new lint rules
+// =========================================================================
+
+#[test]
+fn lint_fresh_init_marketplace_no_new_rule_errors() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    // Initialize a fresh marketplace (same as `aipm init --marketplace`)
+    Command::cargo_bin("aipm")
+        .expect("aipm binary should be built")
+        .args(["init", "--marketplace", tmp.path().to_str().unwrap()])
+        .assert()
+        .success();
+
+    // Lint the initialized workspace
+    let output =
+        aipm().args(["lint", tmp.path().to_str().unwrap()]).output().expect("lint should run");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let new_rule_ids = [
+        "marketplace/source-resolve",
+        "marketplace/plugin-field-mismatch",
+        "plugin/missing-manifest",
+        "plugin/missing-registration",
+        "plugin/required-fields",
+    ];
+    for rule_id in &new_rule_ids {
+        assert!(
+            !stdout.contains(rule_id),
+            "fresh init should not trigger {rule_id}, got:\n{stdout}"
+        );
+    }
+}

@@ -869,6 +869,189 @@ mod tests {
         );
     }
 
+    // --- Helpers for marketplace/plugin integration tests ---
+
+    fn write_marketplace_json(dir: &Path, content: &str) {
+        let mp_dir = dir.join(".ai").join(".claude-plugin");
+        std::fs::create_dir_all(&mp_dir).unwrap();
+        std::fs::write(mp_dir.join("marketplace.json"), content).unwrap();
+    }
+
+    fn write_plugin_json(dir: &Path, plugin_name: &str, content: &str) {
+        let pj_dir = dir.join(".ai").join(plugin_name).join(".claude-plugin");
+        std::fs::create_dir_all(&pj_dir).unwrap();
+        std::fs::write(pj_dir.join("plugin.json"), content).unwrap();
+    }
+
+    // --- Integration tests for marketplace/plugin rules ---
+
+    #[test]
+    fn lint_valid_marketplace_and_plugin_no_new_rule_diagnostics() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        write_marketplace_json(
+            root,
+            r#"{"plugins":[{"name":"my-plugin","source":"./my-plugin"}]}"#,
+        );
+        write_plugin_json(
+            root,
+            "my-plugin",
+            r#"{"name":"my-plugin","version":"0.1.0","description":"A plugin","author":{"name":"Dev","email":"dev@example.com"}}"#,
+        );
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let outcome = lint(&opts, &crate::fs::Real).unwrap();
+        let new_rule_ids = [
+            "marketplace/source-resolve",
+            "marketplace/plugin-field-mismatch",
+            "plugin/missing-manifest",
+            "plugin/missing-registration",
+            "plugin/required-fields",
+        ];
+        assert!(
+            !outcome.diagnostics.iter().any(|d| new_rule_ids.contains(&d.rule_id.as_str())),
+            "got unexpected diagnostics: {:?}",
+            outcome.diagnostics.iter().map(|d| &d.rule_id).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn lint_marketplace_source_not_found_emits_diagnostic() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        write_marketplace_json(
+            root,
+            r#"{"plugins":[{"name":"missing-plugin","source":"./missing-plugin"}]}"#,
+        );
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let outcome = lint(&opts, &crate::fs::Real).unwrap();
+        assert!(outcome.diagnostics.iter().any(|d| d.rule_id == "marketplace/source-resolve"));
+    }
+
+    #[test]
+    fn lint_plugin_json_missing_required_fields_emits_diagnostics() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // name is missing, author is missing
+        write_plugin_json(root, "my-plugin", r#"{"version":"0.1.0","description":"A plugin"}"#);
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let outcome = lint(&opts, &crate::fs::Real).unwrap();
+        let diags: Vec<_> =
+            outcome.diagnostics.iter().filter(|d| d.rule_id == "plugin/required-fields").collect();
+        assert!(!diags.is_empty());
+        assert!(diags.iter().any(|d| d.message.contains("name")));
+    }
+
+    #[test]
+    fn lint_plugin_missing_manifest_emits_diagnostic() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Plugin dir exists but no plugin.json inside it
+        std::fs::create_dir_all(root.join(".ai").join("my-plugin")).unwrap();
+        write_marketplace_json(
+            root,
+            r#"{"plugins":[{"name":"my-plugin","source":"./my-plugin"}]}"#,
+        );
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let outcome = lint(&opts, &crate::fs::Real).unwrap();
+        assert!(outcome.diagnostics.iter().any(|d| d.rule_id == "plugin/missing-manifest"));
+    }
+
+    #[test]
+    fn lint_plugin_missing_registration_emits_diagnostic() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Plugin dir exists but marketplace.json doesn't register it
+        std::fs::create_dir_all(root.join(".ai").join("unregistered")).unwrap();
+        write_marketplace_json(root, r#"{"plugins":[]}"#);
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let outcome = lint(&opts, &crate::fs::Real).unwrap();
+        assert!(outcome.diagnostics.iter().any(|d| d.rule_id == "plugin/missing-registration"));
+    }
+
+    #[test]
+    fn lint_marketplace_field_mismatch_emits_diagnostic() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        write_marketplace_json(
+            root,
+            r#"{"plugins":[{"name":"foo","description":"wrong","source":"./foo"}]}"#,
+        );
+        write_plugin_json(
+            root,
+            "foo",
+            r#"{"name":"foo","version":"0.1.0","description":"right","author":{"name":"Dev","email":"dev@example.com"}}"#,
+        );
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let outcome = lint(&opts, &crate::fs::Real).unwrap();
+        assert!(outcome
+            .diagnostics
+            .iter()
+            .any(|d| d.rule_id == "marketplace/plugin-field-mismatch"));
+    }
+
+    #[test]
+    fn lint_new_rules_configurable_via_allow() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // plugin.json missing required fields — would normally trigger plugin/required-fields
+        write_plugin_json(root, "my-plugin", r#"{"version":"0.1.0"}"#);
+
+        let mut config = config::Config::default();
+        config
+            .rule_overrides
+            .insert("plugin/required-fields".to_string(), config::RuleOverride::Allow);
+
+        let opts = Options { dir: root.to_path_buf(), source: None, config, max_depth: None };
+        let outcome = lint(&opts, &crate::fs::Real).unwrap();
+        assert!(
+            !outcome.diagnostics.iter().any(|d| d.rule_id == "plugin/required-fields"),
+            "plugin/required-fields should be suppressed by RuleOverride::Allow"
+        );
+    }
+
     // --- Sorting tests ---
 
     #[test]
