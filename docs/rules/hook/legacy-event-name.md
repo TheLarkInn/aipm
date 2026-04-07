@@ -26,4 +26,23 @@ Checks that hook event names in `hooks.json` use the current PascalCase naming c
 ```
 
 ## How to fix
-Rename the event value to its PascalCase equivalent (e.g. `pre_install` becomes `PreInstall`). Run `aipm migrate` to have the migration tool update hook event names automatically.
+Rename the event value to its canonical camelCase equivalent. Run `aipm migrate` to have the migration tool update hook event names automatically.
+
+## Legacy → canonical name mapping (Copilot CLI)
+
+| Legacy name (PascalCase) | Canonical name (camelCase) |
+|---|---|
+| `SessionStart` | `sessionStart` |
+| `SessionEnd` | `sessionEnd` |
+| `UserPromptSubmit` | `userPromptSubmitted` |
+| `PreToolUse` | `preToolUse` |
+| `PostToolUse` | `postToolUse` |
+| `PostToolUseFailure` | `errorOccurred` |
+| `ErrorOccurred` | `errorOccurred` |
+| `Stop` | `agentStop` |
+| `SubagentStop` | `subagentStop` |
+| `PreCompact` | `preCompact` |
+
+> **Claude Code** uses PascalCase event names natively and does not have legacy aliases. This rule applies only to Copilot CLI hooks (`.github/` source or `.ai/` marketplace hooks that use legacy names).
+
+See also: [`hook/unknown-event`](unknown-event.md) for the full list of supported event names.

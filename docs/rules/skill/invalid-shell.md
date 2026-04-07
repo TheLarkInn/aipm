@@ -5,6 +5,13 @@
 
 Checks that the `shell` field in SKILL.md frontmatter, when present, contains a recognised shell identifier. Unsupported shell values may cause the skill to fail at runtime.
 
+## Supported values
+
+| Value | Description |
+|---|---|
+| `bash` | GNU Bash (default on Linux/macOS) |
+| `powershell` | Windows PowerShell |
+
 ## Examples
 
 ### Incorrect
@@ -12,7 +19,7 @@ Checks that the `shell` field in SKILL.md frontmatter, when present, contains a 
 ---
 name: my-skill
 description: Does something useful
-shell: powershell
+shell: zsh
 ---
 ```
 
@@ -26,4 +33,4 @@ shell: bash
 ```
 
 ## How to fix
-Use a supported shell value such as `bash`, `sh`, or `zsh`. Remove the `shell` field entirely to fall back to the runtime default, or consult the aipm documentation for the full list of supported values.
+Use one of the supported shell values: `bash` or `powershell`. Remove the `shell` field entirely to fall back to the runtime default (`bash`).

@@ -30,10 +30,10 @@ Skip entire directories from **all** rules:
 
 ```toml
 [workspace.lints.ignore]
-paths = ["vendor/**", ".ai/legacy-*/**", "third-party/**"]
+paths = ["**/vendor/**", "**/.ai/legacy-*/**", "**/third-party/**"]
 ```
 
-Paths are [glob patterns](https://docs.rs/glob/latest/glob/struct.Pattern.html) matched against the relative path of each file.
+Patterns are [glob patterns](https://docs.rs/glob/latest/glob/struct.Pattern.html) matched against the **absolute path** of each file. Prefix every pattern with `**/` so it matches anywhere in the project tree (e.g., `**/vendor/**` matches `/home/user/project/vendor/foo/bar.md`).
 
 ## Ignore paths per rule
 
@@ -42,13 +42,13 @@ Combine a severity override with rule-specific ignore paths using the inline tab
 ```toml
 [workspace.lints]
 # Warn on broken paths, but skip the examples directory
-"plugin/broken-paths" = { level = "warn", ignore = ["examples/**"] }
+"plugin/broken-paths" = { level = "warn", ignore = ["**/examples/**"] }
 
 # Error on unknown hooks, but skip experimental plugins
-"hook/unknown-event" = { level = "error", ignore = [".ai/experimental/**"] }
+"hook/unknown-event" = { level = "error", ignore = ["**/.ai/experimental/**"] }
 ```
 
-Fields: `level` (required) and `ignore` (optional list of glob patterns).
+Fields: `level` (required) and `ignore` (optional list of glob patterns, matched against absolute paths — prefix with `**/` to match anywhere in the tree).
 
 ## Full configuration example
 
@@ -65,11 +65,11 @@ plugins_dir = ".ai"
 # Relax
 "skill/oversized" = "allow"
 
-# Per-rule ignore
-"source/misplaced-features" = { level = "warn", ignore = [".claude/skills/legacy-*/**"] }
+# Per-rule ignore (use **/ prefix — paths are matched against absolute file paths)
+"source/misplaced-features" = { level = "warn", ignore = ["**/.claude/skills/legacy-*/**"] }
 
 [workspace.lints.ignore]
-paths = ["vendor/**", "third-party/**"]
+paths = ["**/vendor/**", "**/third-party/**"]
 ```
 
 ## Severity levels
