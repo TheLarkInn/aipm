@@ -692,4 +692,64 @@ mod tests {
         let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
         assert!(scripts.is_empty());
     }
+
+    #[test]
+    fn extract_pattern2_terminated_by_double_quote() {
+        // Covers the True branch of `c == '"'` in the Pattern 2 end-finder:
+        // a relative path delimited by a double-quote character.
+        let content = r#"Run "./scripts/deploy.sh" to install"#;
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("./scripts/deploy.sh"));
+    }
+
+    #[test]
+    fn extract_pattern2_terminated_by_single_quote() {
+        // Covers the True branch of `c == '\''` in the Pattern 2 end-finder:
+        // a relative path delimited by a single-quote character.
+        let content = "Run './scripts/deploy.sh' to install";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("./scripts/deploy.sh"));
+    }
+
+    #[test]
+    fn extract_pattern3_tab_preceded() {
+        // Covers the True branch of `prev == b'\t'` in the valid_start check:
+        // an interpreter immediately preceded by a tab character.
+        let content = "\tbash scripts/setup.sh --config";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("scripts/setup.sh"));
+    }
+
+    #[test]
+    fn extract_pattern3_bare_dollar_preceded() {
+        // Covers the True branch of `prev == b'$'` in the valid_start check:
+        // a bare "$bash" (dollar directly before interpreter, not "$(bash").
+        let content = "run $bash scripts/check.sh --verify";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("scripts/check.sh"));
+    }
+
+    #[test]
+    fn extract_pattern3_script_terminated_by_double_quote() {
+        // Covers the True branch of `c == '"'` in the Pattern 3 end-finder:
+        // an interpreter argument terminated by a double-quote character.
+        let content = r#"bash scripts/build.sh"extra""#;
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("scripts/build.sh"));
+    }
+
+    #[test]
+    fn extract_pattern3_script_terminated_by_single_quote() {
+        // Covers the True branch of `c == '\''` in the Pattern 3 end-finder:
+        // an interpreter argument terminated by a single-quote character.
+        let content = "bash scripts/build.sh'extra'";
+        let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+        assert_eq!(scripts.len(), 1);
+        assert_eq!(scripts[0], PathBuf::from("scripts/build.sh"));
+    }
 }
