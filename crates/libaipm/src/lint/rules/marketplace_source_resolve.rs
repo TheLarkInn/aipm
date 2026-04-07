@@ -26,7 +26,9 @@ impl Rule for SourceResolve {
     }
 
     fn help_url(&self) -> Option<&'static str> {
-        Some("https://github.com/TheLarkInn/aipm/blob/main/docs/rules/marketplace/source-resolve.md")
+        Some(
+            "https://github.com/TheLarkInn/aipm/blob/main/docs/rules/marketplace/source-resolve.md",
+        )
     }
 
     fn help_text(&self) -> Option<&'static str> {
