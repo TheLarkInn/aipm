@@ -834,6 +834,44 @@ mod tests {
 
         let style = make_artifact("concise", ArtifactKind::OutputStyle);
         assert_eq!(component_path(&style), "concise.md");
+
+        let lsp = make_artifact("my-lsp", ArtifactKind::LspServer);
+        assert_eq!(component_path(&lsp), "lsp.json");
+
+        let ext = make_artifact("my-ext", ArtifactKind::Extension);
+        assert_eq!(component_path(&ext), "extensions/my-ext/");
+    }
+
+    #[test]
+    fn recursive_report_discovery_table_counts_hook_and_other_kinds() {
+        // Covers the Hook and OutputStyle|LspServer|Extension arms of the fold
+        // in write_discovery_table.
+        let source_dir = PathBuf::from("/project/.claude");
+        let discovered = vec![DiscoveredSource {
+            source_dir: source_dir.clone(),
+            source_type: ".claude".to_string(),
+            package_name: None,
+            relative_path: PathBuf::new(),
+        }];
+
+        let plugin_plans = vec![PluginPlan {
+            name: "mixed".to_string(),
+            artifacts: vec![
+                make_artifact("my-hook", ArtifactKind::Hook),
+                make_artifact("my-lsp", ArtifactKind::LspServer),
+                make_artifact("my-ext", ArtifactKind::Extension),
+                make_artifact("my-style", ArtifactKind::OutputStyle),
+            ],
+            is_package_scoped: false,
+            source_dir,
+            other_files: Vec::new(),
+        }];
+
+        let existing = HashSet::new();
+        let report = generate_recursive_report(&discovered, &plugin_plans, &existing, false);
+
+        // The table row should show 1 hook and 3 "other" (lsp + ext + style)
+        assert!(report.contains("| ./.claude | (root) | 0 | 0 | 0 | 0 | 1 | 3 |"));
     }
 
     #[test]
