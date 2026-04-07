@@ -1456,6 +1456,15 @@ mod tests {
     }
 
     #[test]
+    fn is_local_path_digit_first_not_windows_drive() {
+        // "1:path" has length >= 2 and its second char is ':', but its first char '1'
+        // is a digit, not alphabetic — so the Windows drive-letter branch returns false.
+        // This exercises the False branch of `is_ascii_alphabetic` in `is_local_path`.
+        let result = "market:hello@1:path".parse::<Spec>();
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn git_spec_url_with_empty_path_after_colon() {
         let spec = parse("git:https://github.com/org/repo:");
         assert_eq!(spec.source_name(), "git");
