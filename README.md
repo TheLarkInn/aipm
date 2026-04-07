@@ -41,7 +41,7 @@ cargo test --workspace           # run all tests
 
 ## `aipm` — Consumer CLI
 
-Initializes workspaces and migrates existing AI tool configurations into portable marketplace plugins.
+Manages AI plugin workspaces: scaffolding, installing plugins from multiple sources, migrating existing configurations, and linting for quality issues.
 
 ### Global Flags
 
@@ -94,6 +94,124 @@ aipm migrate [OPTIONS] [DIR]
 
 **Detected artifact types:** skills (`SKILL.md`), agents (`*.md` in `agents/`), MCP servers (`.mcp.json`), hooks (`hooks.json`), commands (`commands/*.md`), output styles.
 
+### `aipm install`
+
+Install a plugin from the registry, a git repository, a GitHub shorthand, a local path, or a marketplace.
+
+```
+aipm install [OPTIONS] [PACKAGE]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--locked` | CI mode: fail if lockfile doesn't match manifest |
+| `--registry <REG>` | Use a specific registry |
+| `--global` | Install globally (available to all projects) |
+| `--engine <ENGINE>` | Restrict a global install to a specific engine (e.g., `claude`, `copilot`) |
+| `--plugin-cache <POLICY>` | Download cache policy: `auto` (default), `cache-only`, `skip`, `force-refresh`, `no-refresh` |
+| `--dir <DIR>` | Project directory (default: `.`) |
+
+**Package spec formats:**
+
+| Format | Example | Description |
+|--------|---------|-------------|
+| Registry name | `code-review@^1.0` | Semver range from the default registry |
+| `github:` | `github:org/repo:plugin@main` | GitHub repo shorthand |
+| `git:` | `git:https://example.com/repo.git:plugin@v1` | Arbitrary git URL |
+| `local:` | `local:./path/to/plugin` | Local filesystem path |
+| `marketplace:` | `marketplace:my-market:plugin-name` | Named marketplace |
+
+Omit `PACKAGE` to install all dependencies from `aipm.toml`.
+
+**Global installs** write to `~/.aipm/registry/` and are available across all projects. Use `--engine` to scope a plugin to a specific AI tool.
+
+See also: [`docs/guides/global-plugins.md`](docs/guides/global-plugins.md), [`docs/guides/install-git-plugin.md`](docs/guides/install-git-plugin.md), [`docs/guides/cache-management.md`](docs/guides/cache-management.md).
+
+### `aipm update`
+
+Update packages to their latest compatible versions.
+
+```
+aipm update [OPTIONS] [PACKAGE]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--dir <DIR>` | Project directory (default: `.`) |
+
+Omit `PACKAGE` to update all dependencies. Unlike `install`, `update` resolves the latest version within the declared version range and rewrites the lockfile.
+
+### `aipm uninstall`
+
+Remove an installed plugin from the project or the global registry.
+
+```
+aipm uninstall [OPTIONS] <PACKAGE>
+```
+
+| Flag | Description |
+|------|-------------|
+| `--global` | Remove from the global registry |
+| `--engine <ENGINE>` | Remove from a specific engine only (global installs) |
+| `--dir <DIR>` | Project directory (default: `.`; ignored with `--global`) |
+
+### `aipm link`
+
+Link a local plugin directory for development, overriding the registry version.
+
+```
+aipm link [OPTIONS] <PATH>
+```
+
+| Flag | Description |
+|------|-------------|
+| `--dir <DIR>` | Project directory (default: `.`) |
+
+The plugin at `PATH` shadows the installed version until unlinked. Changes to the local directory are reflected immediately without reinstalling.
+
+### `aipm unlink`
+
+Remove a development link override and restore the registry version.
+
+```
+aipm unlink [OPTIONS] <PACKAGE>
+```
+
+| Flag | Description |
+|------|-------------|
+| `--dir <DIR>` | Project directory (default: `.`) |
+
+### `aipm list`
+
+Show installed plugins or active development link overrides.
+
+```
+aipm list [OPTIONS]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--linked` | Show only active dev link overrides |
+| `--global` | Show globally installed plugins |
+| `--dir <DIR>` | Project directory (default: `.`) |
+
+### `aipm lint`
+
+Check AI plugin configurations for quality issues across all detected source directories.
+
+```
+aipm lint [OPTIONS] [DIR]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--source <SRC>` | Limit to a specific source type (`.claude`, `.github`, `.ai`) |
+| `--reporter <FMT>` | Output format: `human` (default), `json`, `ci-github`, `ci-azure` |
+| `--color <MODE>` | Color output: `auto` (default), `always`, `never` |
+| `--max-depth <N>` | Maximum directory traversal depth |
+
+Exits with a non-zero status code when violations are found, making it safe to use in CI pipelines. Use `--reporter ci-github` for GitHub Actions annotations or `--reporter ci-azure` for Azure Pipelines.
+
 ---
 
 ## `aipm-pack` — Author CLI
@@ -142,6 +260,16 @@ Shared library powering both CLIs. All logic lives here; the binaries are thin w
 | `resolver` | Semver dependency resolution |
 | `store` | Content-addressable global package store |
 | `registry` | Registry client interface |
+| `spec` | Plugin spec parser (`name@version`, `github:`, `git:`, `local:`, `marketplace:` formats) |
+| `acquirer` | Local copy and git clone acquisition with source redirect support |
+| `cache` | Download cache with 5 policies and per-entry TTL (`~/.aipm/cache/`) |
+| `installed` | Global plugin registry with engine scoping and name conflict detection |
+| `marketplace` | TOML marketplace manifest parsing (relative, git, and unsupported source types) |
+| `engine` | Two-tier engine validation (`aipm.toml` `engines` field + marker file fallback) |
+| `platform` | Runtime OS and architecture detection and compatibility checking |
+| `path_security` | `ValidatedPath` — rejects traversal, URL-encoded, and absolute paths |
+| `locked_file` | OS-level exclusive file locking for cache and registry writes |
+| `security` | Configurable source allowlist with CI enforcement |
 | `logging` | Layered `tracing` subscriber initialization (stderr verbosity + rotating file log) |
 | `frontmatter` | YAML front-matter parsing for plugin files |
 | `fs` | Trait-based filesystem abstraction (`Real` + test mocking) |
@@ -156,11 +284,21 @@ version = "1.2.3"
 description = "CI automation skills"
 type = "composite"
 files = ["skills/", "hooks/", "README.md"]
+engines = ["claude", "copilot"]   # optional — omit to support all engines
+
+[package.source]                  # optional — marketplace stub redirect
+type = "git"
+url = "https://github.com/org/repo"
+path = "plugins/ci-tools"
 
 [dependencies]
 shared-lint = "^1.0"
 core-hooks = { workspace = "*" }
 heavy-analyzer = { version = "^1.0", optional = true }
+# Source dependency formats:
+ui-toolkit   = { github = "org/repo", path = "plugins/ui", ref = "main" }
+local-helper = { path = "../local-helper" }
+my-market-dep = { marketplace = "my-registry", name = "dep-name", ref = "v2" }
 
 [features]
 default = ["basic"]
@@ -225,7 +363,7 @@ crates/
   aipm-pack/    Author CLI binary (init)
   libaipm/      Core library (manifest, validation, migration, scaffolding, lint, install, link, resolve)
 specs/          Technical design documents
-tests/features/ Cucumber BDD feature files (220+ scenarios)
+tests/features/ Cucumber BDD feature files (31 files, 300+ scenarios)
 research/       Competitive analysis and design research
 ```
 
