@@ -94,6 +94,8 @@ aipm migrate [OPTIONS] [DIR]
 
 **Detected artifact types:** skills (`SKILL.md`), agents (`*.md` in `agents/`), MCP servers (`.mcp.json`), hooks (`hooks.json`), commands (`commands/*.md`), output styles.
 
+See also: [`docs/guides/migrate.md`](docs/guides/migrate.md).
+
 ### `aipm install`
 
 Install a plugin from the registry, a git repository, a GitHub shorthand, a local path, or a marketplace.
