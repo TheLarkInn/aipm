@@ -3150,4 +3150,83 @@ mod tests {
             actions
         );
     }
+
+    // -------------------------------------------------------------------
+    // rewrite_hook_command_paths edge cases (branch coverage)
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn rewrite_hook_command_paths_no_grandparent_skips_rewrite() {
+        // When source_path has no grandparent (e.g. bare "settings.json"),
+        // project_root resolves to None and the `if let Some(root)` branch
+        // is NOT taken — commands are left as-is.
+        let content =
+            r#"{"hooks":{"PreToolUse":[{"type":"command","command":"./scripts/run.sh"}]}}"#;
+        let result = rewrite_hook_command_paths(content, Path::new("settings.json"));
+        // Without a project root the relative path must remain unchanged.
+        assert!(
+            result.contains("./scripts/run.sh"),
+            "expected unchanged relative path, got: {result}"
+        );
+    }
+
+    #[test]
+    fn rewrite_hook_command_paths_command_type_without_command_key() {
+        // Object has "type":"command" but no "command" key — the
+        // `if let Some(cmd_val) = map.get_mut("command")` None-branch is taken.
+        let content = r#"{"hooks":{"PreToolUse":[{"type":"command","matcher":"*"}]}}"#;
+        let result =
+            rewrite_hook_command_paths(content, Path::new("/project/.claude/settings.json"));
+        // Should round-trip without panicking; "type" key must still be present.
+        assert!(result.contains("\"command\""), "expected 'type' field preserved: {result}");
+    }
+
+    #[test]
+    fn rewrite_hook_command_paths_command_value_not_a_string() {
+        // Object has "type":"command" and "command" but the value is a number,
+        // so `cmd_val.as_str()` returns None — the inner None-branch is taken.
+        let content = r#"{"hooks":{"PreToolUse":[{"type":"command","command":42}]}}"#;
+        let result =
+            rewrite_hook_command_paths(content, Path::new("/project/.claude/settings.json"));
+        // The numeric command must be preserved unchanged.
+        assert!(result.contains("42"), "expected numeric command preserved: {result}");
+    }
+
+    #[test]
+    fn hook_artifact_with_metadata_hooks_does_not_double_write_hooks_json() {
+        // A Hook artifact that also has `metadata.hooks` set.
+        // Step 3 (emit_hooks_config) writes hooks/hooks.json from raw_content.
+        // Step 5 must skip writing again because `artifact.kind == ArtifactKind::Hook`,
+        // covering the `false` branch of `if artifact.kind != ArtifactKind::Hook`.
+        let fs = MockFs::new();
+        let artifact = Artifact {
+            kind: ArtifactKind::Hook,
+            name: "my-hooks".to_string(),
+            source_path: PathBuf::from("/project/.claude/settings.json"),
+            files: Vec::new(),
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata {
+                raw_content: Some(
+                    r#"{"hooks":{"PreToolUse":[{"type":"command","command":"echo hi"}]}}"#
+                        .to_string(),
+                ),
+                // Setting hooks triggers the `if let Some(ref hooks_yaml)` guard
+                // at step 5; kind==Hook must cause the inner body to be skipped.
+                hooks: Some("PreToolUse:\n  - type: command\n    command: echo hi\n".to_string()),
+                ..ArtifactMetadata::default()
+            },
+        };
+
+        let existing = HashSet::new();
+        let mut counter = 0u32;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, false, &fs);
+        assert!(result.is_ok(), "emit_plugin should succeed: {result:?}");
+
+        // hooks/hooks.json must exist (written by step 3 via raw_content)
+        let hooks_path = Path::new("/ai/my-hooks/hooks/hooks.json");
+        assert!(
+            fs.get_written(hooks_path).is_some(),
+            "hooks/hooks.json should have been written by emit_hooks_config"
+        );
+    }
 }
