@@ -304,7 +304,7 @@ Add an `author` object with placeholder values:
 
 #### `migrate/emitter.rs:1100-1146` — `generate_plugin_json_multi()`
 
-Add an `author` object. Use `metadata.author` if available (from the migrated source), otherwise placeholder:
+Add an `author` object with placeholder values (`ArtifactMetadata` does not carry an author field, so TODO placeholders are always emitted):
 
 ```json
 {

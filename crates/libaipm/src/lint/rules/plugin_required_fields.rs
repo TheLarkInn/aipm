@@ -73,8 +73,10 @@ fn check_top_level(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for field in &["name", "description", "version"] {
-        let present =
-            parsed.get(*field).and_then(serde_json::Value::as_str).is_some_and(|v| !v.is_empty());
+        let present = parsed
+            .get(*field)
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|v| !v.trim().is_empty());
         if !present {
             diagnostics.push(diag(
                 pj_path,
@@ -103,7 +105,7 @@ fn check_author(
                     let present = author
                         .get(*sub)
                         .and_then(serde_json::Value::as_str)
-                        .is_some_and(|v| !v.is_empty());
+                        .is_some_and(|v| !v.trim().is_empty());
                     if !present {
                         diagnostics.push(diag(
                             pj_path,
@@ -259,6 +261,19 @@ mod tests {
         fs.add_plugin_json(
             "p",
             r#"{"name":"","description":"","version":"","author":{"name":"","email":""}}"#,
+        );
+        let result = RequiredFields.check_file(Path::new(".ai/p/.claude-plugin/plugin.json"), &fs);
+        assert!(result.is_ok());
+        let diags = result.unwrap();
+        assert_eq!(diags.len(), 5);
+    }
+
+    #[test]
+    fn whitespace_only_fields_treated_as_missing() {
+        let mut fs = MockFs::new();
+        fs.add_plugin_json(
+            "p",
+            r#"{"name":"  ","description":"\t","version":" ","author":{"name":" ","email":"  "}}"#,
         );
         let result = RequiredFields.check_file(Path::new(".ai/p/.claude-plugin/plugin.json"), &fs);
         assert!(result.is_ok());

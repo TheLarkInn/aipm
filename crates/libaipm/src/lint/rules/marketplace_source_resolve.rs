@@ -99,21 +99,32 @@ fn check_marketplace(mp_path: &Path, ai_dir: &Path, fs: &dyn Fs) -> Vec<Diagnost
         let plugin_name =
             entry.get("name").and_then(serde_json::Value::as_str).unwrap_or(&fallback);
 
-        match entry.get("source").and_then(serde_json::Value::as_str) {
+        match entry.get("source") {
             None => diagnostics.push(diag(
                 mp_path,
                 &source_type,
                 format!("plugin '{plugin_name}' in marketplace.json is missing a 'source' field"),
             )),
-            Some(source) => {
-                let resolved = ai_dir.join(source.trim_start_matches("./"));
-                if !fs.exists(&resolved) {
-                    diagnostics.push(diag(
-                        mp_path,
-                        &source_type,
-                        format!("plugin '{plugin_name}' source path does not resolve: {source}"),
-                    ));
-                }
+            Some(source_value) => match source_value.as_str() {
+                None => diagnostics.push(diag(
+                    mp_path,
+                    &source_type,
+                    format!(
+                        "plugin '{plugin_name}' in marketplace.json 'source' field must be a string"
+                    ),
+                )),
+                Some(source) => {
+                    let resolved = ai_dir.join(source.trim_start_matches("./"));
+                    if !fs.exists(&resolved) {
+                        diagnostics.push(diag(
+                            mp_path,
+                            &source_type,
+                            format!(
+                                "plugin '{plugin_name}' source path does not resolve: {source}"
+                            ),
+                        ));
+                    }
+                },
             },
         }
     }
@@ -280,6 +291,6 @@ mod tests {
         assert!(result.is_ok());
         let diags = result.unwrap();
         assert_eq!(diags.len(), 1);
-        assert!(diags[0].message.contains("missing a 'source' field"));
+        assert!(diags[0].message.contains("must be a string"));
     }
 }

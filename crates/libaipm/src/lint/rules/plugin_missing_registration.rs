@@ -51,52 +51,78 @@ impl Rule for MissingRegistration {
     }
 }
 
-fn registered_plugin_names(mp_path: &Path, fs: &dyn Fs) -> HashSet<String> {
-    let Ok(content) = fs.read_to_string(mp_path) else {
-        return HashSet::new();
-    };
-    let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) else {
-        return HashSet::new();
-    };
-    parsed
-        .get("plugins")
-        .and_then(serde_json::Value::as_array)
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|e| {
-                    e.get("source")
-                        .and_then(serde_json::Value::as_str)
-                        .map(|s| s.trim_start_matches("./").to_string())
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+fn diag(mp_path: &Path, source_type: &str, message: String) -> Diagnostic {
+    Diagnostic {
+        rule_id: "plugin/missing-registration".to_string(),
+        severity: Severity::Error,
+        message,
+        file_path: mp_path.to_path_buf(),
+        line: None,
+        col: None,
+        end_line: None,
+        end_col: None,
+        source_type: source_type.to_string(),
+        help_text: None,
+        help_url: None,
+    }
 }
 
 fn check_registration(mp_path: &Path, ai_dir: &Path, fs: &dyn Fs) -> Vec<Diagnostic> {
     let source_type = super::scan::source_type_from_path(mp_path).to_string();
-    let registered = registered_plugin_names(mp_path, fs);
 
-    let mut diagnostics = Vec::new();
-    for name in super::scan::list_plugin_dirs(ai_dir, fs) {
-        if !registered.contains(&name) {
-            diagnostics.push(Diagnostic {
-                rule_id: "plugin/missing-registration".to_string(),
-                severity: Severity::Error,
-                message: format!("plugin directory '{name}' is not registered in marketplace.json"),
-                file_path: mp_path.to_path_buf(),
-                line: None,
-                col: None,
-                end_line: None,
-                end_col: None,
-                source_type: source_type.clone(),
-                help_text: None,
-                help_url: None,
-            });
-        }
-    }
+    let Ok(content) = fs.read_to_string(mp_path) else {
+        // marketplace.json absent — report all plugin dirs as unregistered
+        return super::scan::list_plugin_dirs(ai_dir, fs)
+            .into_iter()
+            .map(|name| {
+                diag(
+                    mp_path,
+                    &source_type,
+                    format!("plugin directory '{name}' is not registered in marketplace.json"),
+                )
+            })
+            .collect();
+    };
 
-    diagnostics
+    let parsed: serde_json::Value = match serde_json::from_str(&content) {
+        Ok(v) => v,
+        Err(e) => {
+            return vec![diag(
+                mp_path,
+                &source_type,
+                format!("failed to parse marketplace.json: {e}"),
+            )];
+        },
+    };
+
+    let Some(plugins) = parsed.get("plugins").and_then(serde_json::Value::as_array) else {
+        return vec![diag(
+            mp_path,
+            &source_type,
+            "marketplace.json is missing a 'plugins' array".to_string(),
+        )];
+    };
+
+    let registered: HashSet<String> = plugins
+        .iter()
+        .filter_map(|e| {
+            e.get("source")
+                .and_then(serde_json::Value::as_str)
+                .map(|s| s.trim_start_matches("./").to_string())
+        })
+        .collect();
+
+    super::scan::list_plugin_dirs(ai_dir, fs)
+        .into_iter()
+        .filter(|name| !registered.contains(name))
+        .map(|name| {
+            diag(
+                mp_path,
+                &source_type,
+                format!("plugin directory '{name}' is not registered in marketplace.json"),
+            )
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -237,7 +263,7 @@ mod tests {
     }
 
     #[test]
-    fn malformed_marketplace_json_treats_all_dirs_as_unregistered() {
+    fn malformed_marketplace_json_emits_parse_diagnostic() {
         let mut fs = MockFs::new();
         fs.add_marketplace_json("{ bad json {{");
         let ai_path = PathBuf::from(".ai");
@@ -250,7 +276,7 @@ mod tests {
         assert!(result.is_ok());
         let diags = result.unwrap();
         assert_eq!(diags.len(), 1);
-        assert!(diags[0].message.contains("my-plugin"));
+        assert!(diags[0].message.contains("failed to parse"));
     }
 
     #[test]
@@ -268,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    fn no_plugins_key_treats_all_dirs_as_unregistered() {
+    fn no_plugins_key_emits_missing_array_diagnostic() {
         let mut fs = MockFs::new();
         fs.add_marketplace_json(r#"{"name":"local"}"#);
         let ai_path = PathBuf::from(".ai");
@@ -281,5 +307,6 @@ mod tests {
         assert!(result.is_ok());
         let diags = result.unwrap();
         assert_eq!(diags.len(), 1);
+        assert!(diags[0].message.contains("missing a 'plugins' array"));
     }
 }
