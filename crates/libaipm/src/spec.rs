@@ -1475,4 +1475,46 @@ mod tests {
         let spec = parse("git:https://github.com/org/repo/@main");
         assert_eq!(spec.source_name(), "git");
     }
+
+    #[test]
+    fn github_empty_owner_rejected() {
+        // "github:/repo" produces owner="" which is caught by the owner.is_empty()
+        // guard in parse_github_spec (line 368) before validate_github_owner is called.
+        let result = "github:/some-repo".parse::<Spec>();
+        assert!(result.is_err());
+        if let Err(Error::GitHub { ref reason }) = result {
+            assert!(
+                reason.contains("expected owner/repo format"),
+                "expected error mentioning format, got: {reason}"
+            );
+        }
+    }
+
+    #[test]
+    fn as_git_returns_some_for_git_spec() {
+        // Covers the `Self::Git(s) => Some(s)` arm of as_git().
+        let spec = parse("git:https://github.com/org/repo");
+        assert!(spec.as_git().is_some());
+    }
+
+    #[test]
+    fn as_git_returns_none_for_registry_spec() {
+        // Covers the `_ => None` arm of as_git().
+        let spec = parse("my-package@^1.0");
+        assert!(spec.as_git().is_none());
+    }
+
+    #[test]
+    fn as_marketplace_returns_some_for_marketplace_spec() {
+        // Covers the `Self::Marketplace(s) => Some(s)` arm of as_marketplace().
+        let spec = parse("market:hello-plugin@owner/repo");
+        assert!(spec.as_marketplace().is_some());
+    }
+
+    #[test]
+    fn as_marketplace_returns_none_for_registry_spec() {
+        // Covers the `_ => None` arm of as_marketplace().
+        let spec = parse("my-package@^1.0");
+        assert!(spec.as_marketplace().is_none());
+    }
 }

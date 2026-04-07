@@ -345,4 +345,17 @@ mod tests {
         let result = register_plugins(Path::new("/ai"), &entries, &fs);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn register_empty_entries_returns_ok_without_reading_marketplace() {
+        // Covers the `if entries.is_empty()` early-return branch.
+        // No marketplace file is set: if the function tried to read it,
+        // it would get a NotFound error. With an empty slice it must return
+        // Ok(()) immediately without touching the filesystem.
+        let fs = MockFs::new();
+        let result = register_plugins(Path::new("/ai"), &[], &fs);
+        assert!(result.is_ok());
+        // Nothing should have been written either.
+        assert!(fs.get_written(&marketplace_path()).is_none());
+    }
 }
