@@ -9,7 +9,7 @@ AIPM ships as **two Rust binaries** with **zero runtime dependencies**:
 
 | Binary | Role | Commands |
 |--------|------|----------|
-| **`aipm`** | Consumer CLI | `init`, `install`, `update`, `link`, `unlink`, `list`, `lint`, `migrate` |
+| **`aipm`** | Consumer CLI | `init`, `install`, `update`, `uninstall`, `link`, `unlink`, `list`, `lint`, `migrate` |
 | **`aipm-pack`** | Author CLI | `init` |
 
 Both work across .NET, Python, Node.js, and Rust projects with no runtime dependency.
@@ -378,7 +378,7 @@ framework = "^2.0.0-beta.1"
 
 ```
 crates/
-  aipm/         Consumer CLI binary (init, install, update, link, unlink, list, lint, migrate)
+  aipm/         Consumer CLI binary (init, install, update, uninstall, link, unlink, list, lint, migrate)
   aipm-pack/    Author CLI binary (init)
   libaipm/      Core library (manifest, validation, migration, scaffolding, lint, install, link, resolve)
 specs/          Technical design documents

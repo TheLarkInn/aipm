@@ -16,7 +16,7 @@ All lints are configured in `Cargo.toml` under `[workspace.lints]`. The key rule
 
 6. **NEVER use `std::process::exit()`** — `deny`. Return from main instead.
 
-7. **NEVER use `.unwrap()` inside functions returning `Result`** — `forbid` via `unwrap_in_result`.
+7. **NEVER use `.unwrap()` inside functions returning `Result`** — `deny` via `unwrap_in_result`.
 
 8. **Use `.get()` instead of `[]` indexing** where possible — `indexing_slicing` is `warn`.
 
@@ -81,7 +81,7 @@ cargo install cargo-llvm-cov
 - `Cargo.toml` — workspace root, lint configuration
 - `rustfmt.toml` — formatting rules (100 char width, Unix newlines)
 - `clippy.toml` — clippy thresholds (complexity, stack size, test exemptions)
-- `crates/aipm/` — consumer CLI binary (`init`, `install`, `update`, `link`, `unlink`, `list`, `lint`, `migrate`)
+- `crates/aipm/` — consumer CLI binary (`init`, `install`, `update`, `uninstall`, `link`, `unlink`, `list`, `lint`, `migrate`)
 - `crates/aipm-pack/` — author CLI binary (`init`)
 - `crates/libaipm/` — core library (manifest, validation, migration, scaffolding, lint, install, link, resolve)
 - `specs/` — technical design documents
