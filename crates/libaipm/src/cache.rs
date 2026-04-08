@@ -978,4 +978,26 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.unwrap_or(Some(PathBuf::new())).is_none());
     }
+
+    #[test]
+    #[cfg(unix)]
+    fn put_source_with_symlink_is_silently_skipped() {
+        // Covers the `else if file_type.is_file()` False branch in
+        // `copy_dir_contents` — symlinks and special files are skipped.
+        let temp = make_temp();
+        let src = temp.path().join("sym-plugin");
+        std::fs::create_dir_all(&src).unwrap_or_else(|_| {});
+        std::fs::write(src.join("plugin.json"), b"{}").unwrap_or_else(|_| {});
+
+        // Dangling symlink — neither a dir nor a regular file.
+        std::os::unix::fs::symlink(temp.path().join("nonexistent"), src.join("link.json"))
+            .unwrap_or_else(|_| {});
+
+        let cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
+        let result = cache.put("sym-spec", &src, None);
+        assert!(result.is_ok());
+        let cached = result.unwrap_or_else(|_| src.clone());
+        assert!(cached.join("plugin.json").exists(), "regular file should be copied");
+        assert!(!cached.join("link.json").exists(), "symlink should be skipped");
+    }
 }
