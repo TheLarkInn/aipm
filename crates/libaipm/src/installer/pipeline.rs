@@ -2552,6 +2552,30 @@ no-ver = { features = ["x"] }
     }
 
     // =========================================================================
+    // resolve_workspace_deps: duplicate initial names
+    // =========================================================================
+
+    #[test]
+    fn resolve_workspace_deps_skips_duplicate_names() {
+        // Passing the same dependency name twice in ws_deps exercises the
+        // `if visited.contains(&name) { continue; }` branch (line 395).
+        let mut members = BTreeMap::new();
+        let m = make_member("plugin-b", "2.0.0", "");
+        members.insert("plugin-b".to_string(), m);
+
+        // "plugin-b" appears twice — the second occurrence must be skipped.
+        let ws_deps = vec!["plugin-b".to_string(), "plugin-b".to_string()];
+        let overrides = BTreeSet::new();
+
+        let result = resolve_workspace_deps(&ws_deps, &members, &overrides);
+        assert!(result.is_ok(), "resolve should succeed: {:?}", result.err());
+        let resolved = result.unwrap();
+        // Even though the dep was listed twice, it should only appear once.
+        assert_eq!(resolved.len(), 1);
+        assert_eq!(resolved.first().map(|r| r.name.as_str()), Some("plugin-b"));
+    }
+
+    // =========================================================================
     // discover_workspace_members: manifest has [workspace] section
     // =========================================================================
 
