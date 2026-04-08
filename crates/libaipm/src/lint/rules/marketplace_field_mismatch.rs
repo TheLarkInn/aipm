@@ -314,4 +314,28 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
     }
+
+    #[test]
+    fn mp_name_empty_no_diagnostic() {
+        // marketplace entry without a "name" field → mp_name="" → condition short-circuits
+        let mut fs = MockFs::new();
+        fs.add_marketplace_json(r#"{"plugins":[{"description":"some desc","source":"./foo"}]}"#);
+        fs.add_plugin_json("foo", &make_plugin_json("foo-different", "some desc"));
+        let result =
+            FieldMismatch.check_file(Path::new(".ai/.claude-plugin/marketplace.json"), &fs);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[test]
+    fn pj_name_empty_no_diagnostic() {
+        // plugin.json without a "name" field → pj_name="" → condition short-circuits
+        let mut fs = MockFs::new();
+        fs.add_marketplace_json(&make_marketplace("foo", "some desc", "./foo"));
+        fs.add_plugin_json("foo", r#"{"description":"some desc","version":"0.1.0"}"#);
+        let result =
+            FieldMismatch.check_file(Path::new(".ai/.claude-plugin/marketplace.json"), &fs);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
 }
