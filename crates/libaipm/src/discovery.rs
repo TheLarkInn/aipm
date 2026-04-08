@@ -887,4 +887,18 @@ mod tests {
         let features = discover_features(&root, None).expect("discover_features");
         assert!(features.is_empty());
     }
+
+    #[test]
+    fn discover_features_marketplace_json_wrong_parent_ignored() {
+        // marketplace.json whose immediate parent is NOT ".claude-plugin" — covers the
+        // False branch of `&& parent_name == ".claude-plugin"` in classify_feature_kind.
+        let (_tmp, root) = make_tmp();
+        let ai_dir = root.join(".ai");
+        assert!(std::fs::create_dir_all(&ai_dir).is_ok());
+        // Place marketplace.json directly under .ai/ (parent = ".ai", not ".claude-plugin")
+        assert!(std::fs::write(ai_dir.join("marketplace.json"), r#"{"plugins":[]}"#).is_ok());
+
+        let features = discover_features(&root, None).expect("discover_features");
+        assert!(features.is_empty(), "marketplace.json with wrong parent should not be classified");
+    }
 }
