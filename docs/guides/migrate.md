@@ -201,7 +201,7 @@ When two artifacts would produce the same plugin name, aipm automatically rename
 one of them with a suffix and reports the rename:
 
 ```
-Warning: renamed 'deploy' → 'deploy-2' (name conflict with existing plugin)
+Warning: renamed 'deploy' → 'deploy-renamed-1' (plugin 'deploy' already exists in .ai/)
 ```
 
 Always review the output (or use `--dry-run` first) to verify that rename
