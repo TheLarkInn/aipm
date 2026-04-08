@@ -2291,6 +2291,21 @@ mod tests {
     }
 
     #[test]
+    fn emit_hook_artifact_with_metadata_hooks_skips_extra_hooks_json() {
+        // Covers the False branch of `if artifact.kind != ArtifactKind::Hook` (line 310):
+        // when a Hook artifact also carries `metadata.hooks` (YAML frontmatter), the
+        // emitter must NOT write an extra hooks.json — the hooks are already handled
+        // by emit_hooks_config via raw_content.
+        let fs = MockFs::new();
+        let mut artifact = make_hook_artifact();
+        artifact.metadata.hooks = Some("PreToolUse: echo check".to_string());
+        let result = emit_plugin_with_name(&artifact, "project-hooks", Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+        // hooks.json written once by emit_hooks_config (from raw_content)
+        assert!(fs.get_written(Path::new("/ai/project-hooks/hooks/hooks.json")).is_some());
+    }
+
+    #[test]
     fn emit_plugin_with_name_output_style() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/output-styles/concise.md"), "Be concise.".to_string());
