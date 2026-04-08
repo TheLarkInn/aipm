@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.19.2] - 2026-04-08
+
+### Testing
+- Cover has_same_major_conflict True branch in queue_transitive_dep (b022e8e)
+- Cover choice-point save when more candidates remain (3bde777)
+- Cover marketplace.json with wrong parent in classify_feature_kind (c717416)
+- Cover agent_md-first dedup skip branch in CopilotAgentDetector (74bccdf)
+- Cover wrong-parent branches in classify_feature_kind (68106e7)
+- Cover visited.contains branch in resolve_workspace_deps (77a2f27)
+- Cover cross-device hard-link fallback branch in link_to (194396c)
+
 ## [0.19.1] - 2026-04-07
 
 ### Documentation
