@@ -555,6 +555,19 @@ mod tests {
         assert!(check_source_redirect(&dir).is_none());
     }
 
+    /// Covers the `acquire_local` path where the source path exists on disk but
+    /// is a regular file rather than a directory (False at "not found" check,
+    /// True at "not a dir" check).
+    #[test]
+    fn acquire_local_source_is_file_not_dir() {
+        let temp = make_temp();
+        // "Cargo.toml" always exists in the crate-root CWD during `cargo test`
+        // and is a file, not a directory — so acquire_local must return an error.
+        let path = ValidatedPath::new("Cargo.toml").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(result.is_err());
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
