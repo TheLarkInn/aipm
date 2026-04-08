@@ -376,10 +376,7 @@ mod tests {
         );
         assert!(result.is_ok());
         let meta = result.ok().unwrap_or_default();
-        assert!(meta.hooks.is_some());
-        if let Some(hooks) = meta.hooks {
-            assert!(hooks.contains("PreToolUse"));
-        }
+        assert!(meta.hooks.as_deref().is_some_and(|h| h.contains("PreToolUse")));
     }
 
     #[test]
