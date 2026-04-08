@@ -110,10 +110,6 @@ mod tests {
             self.exists.contains(path)
         }
 
-        fn is_file(&self, path: &Path) -> bool {
-            !self.dirs.contains_key(path)
-        }
-
         fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
             Ok(())
         }
