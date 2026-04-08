@@ -1,6 +1,23 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.19.3] - 2026-04-08
+
+### Bug Fixes
+- Prevent EISDIR crash and add structured tracing ([#327](https://github.com/TheLarkInn/aipm/pull/327)) (6267769)
+
+### Testing
+- Cover link_overrides skip branch in link_resolved_packages (69bd146)
+- Cover symlink-skipping branch in copy_dir_contents (8face06)
+- Cover deduplication branch in make_fs_with_plugins helper (083d3ef)
+- Cover implicit else branch for unknown frontmatter fields (ba568d8)
+- Cover unknown frontmatter key branch in command_detector (b05259c)
+- Cover invalid marketplace location formats and adaptor Ok(false) branch (60a3558)
+- Cover acquire_local_from not-found error branch (be048ec)
+- Cover removed-dep reconciliation branch in resolve_registry_dependencies (d315f0d)
+- Cover acquire_local file-not-dir branch (17ce36d)
+- Cover empty mp_name/pj_name branches in FieldMismatch rule (56e6ea8)
+
 ## [0.19.2] - 2026-04-08
 
 ### Testing
