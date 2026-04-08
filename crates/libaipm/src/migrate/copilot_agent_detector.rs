@@ -390,4 +390,35 @@ mod tests {
         let artifacts = result.ok().unwrap_or_default();
         assert!(artifacts.first().and_then(|a| a.metadata.raw_content.as_ref()).is_some());
     }
+
+    #[test]
+    fn agent_md_first_in_listing_skips_plain_md() {
+        // When `foo.agent.md` appears before `foo.md` in the directory listing,
+        // `by_name` already contains the stem when `foo.md` is processed.
+        // The condition `is_agent_md || !by_name.contains_key(&stem)` evaluates to
+        // `false || !true` = false, so the plain `.md` entry is skipped.
+        // This covers the False branch at the `!by_name.contains_key` sub-expression.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(
+            PathBuf::from("/src/agents"),
+            vec![de("foo.agent.md", false), de("foo.md", false)],
+        );
+        fs.files.insert(
+            PathBuf::from("/src/agents/foo.agent.md"),
+            "---\nname: agent-foo\n---\nAgent.".to_string(),
+        );
+        fs.files.insert(
+            PathBuf::from("/src/agents/foo.md"),
+            "---\nname: plain-foo\n---\nPlain.".to_string(),
+        );
+
+        let detector = CopilotAgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        // Only one artifact — the .agent.md takes precedence
+        assert_eq!(artifacts.len(), 1);
+        assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("agent-foo"));
+    }
 }
