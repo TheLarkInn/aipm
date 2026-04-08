@@ -555,6 +555,21 @@ mod tests {
         assert!(check_source_redirect(&dir).is_none());
     }
 
+    /// Covers the `acquire_local` path where the source IS a directory (False
+    /// branch of `if !source.is_dir()`). The call proceeds past the dir-check,
+    /// copies the directory, then fails at plugin validation because `tests/`
+    /// has no plugin structure — exercising the is_dir success branch.
+    #[test]
+    fn acquire_local_source_is_directory_proceeds_to_validation() {
+        let temp = make_temp();
+        // "tests" always exists as a directory in the crate-root CWD during
+        // `cargo test` (contains a single file: bdd.rs), so the is_dir check
+        // passes and acquire_local proceeds to validate_plugin, which fails.
+        let path = ValidatedPath::new("tests").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(result.is_err());
+    }
+
     /// Covers the `acquire_local` path where the source path exists on disk but
     /// is a regular file rather than a directory (False at "not found" check,
     /// True at "not a dir" check).
