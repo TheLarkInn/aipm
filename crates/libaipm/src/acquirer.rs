@@ -363,6 +363,16 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_from_source_not_found() {
+        let temp = make_temp();
+        let nonexistent = temp.path().join("does-not-exist");
+        let dest = temp.path().join("dest");
+
+        let result = acquire_local_from(&nonexistent, &dest, Engine::Claude, "plugin");
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn acquire_local_not_directory() {
         let temp = make_temp();
         let file_path = temp.path().join("not-a-dir");
