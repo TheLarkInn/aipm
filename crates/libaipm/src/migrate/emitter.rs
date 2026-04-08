@@ -143,12 +143,23 @@ fn emit_skill_files(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Resu
         if let Some(parent) = dest.parent() {
             fs.create_dir_all(parent)?;
         }
-        let content = fs.read_to_string(&source)?;
+        if !fs.is_file(&source) {
+            tracing::warn!(
+                path = %source.display(),
+                "skipping non-regular file during skill file migration"
+            );
+            continue;
+        }
+        let content = fs.read_to_string(&source).map_err(|e| {
+            Error::Io(std::io::Error::new(e.kind(), format!("reading {}: {e}", source.display())))
+        })?;
 
         let final_content =
             if file_is_skill_md(file) { rewrite_skill_dir_paths(&content) } else { content };
 
-        fs.write_file(&dest, final_content.as_bytes())?;
+        fs.write_file(&dest, final_content.as_bytes()).map_err(|e| {
+            Error::Io(std::io::Error::new(e.kind(), format!("writing {}: {e}", dest.display())))
+        })?;
     }
     Ok(())
 }
@@ -158,7 +169,12 @@ fn emit_command_as_skill(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) ->
     let skill_md_path = plugin_dir.join("skills").join(&artifact.name).join("SKILL.md");
 
     // Read the original command content
-    let content = fs.read_to_string(&artifact.source_path)?;
+    let content = fs.read_to_string(&artifact.source_path).map_err(|e| {
+        Error::Io(std::io::Error::new(
+            e.kind(),
+            format!("reading command {}: {e}", artifact.source_path.display()),
+        ))
+    })?;
 
     // Wrap with frontmatter if not present, or add disable-model-invocation
     let skill_content = if content.trim_start().starts_with("---") {
@@ -512,10 +528,17 @@ fn emit_agent_files(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Resu
     fs.create_dir_all(&agents_dir)?;
 
     // Read from source_path (full path to the .md file)
-    let content = fs.read_to_string(&artifact.source_path)?;
+    let content = fs.read_to_string(&artifact.source_path).map_err(|e| {
+        Error::Io(std::io::Error::new(
+            e.kind(),
+            format!("reading agent {}: {e}", artifact.source_path.display()),
+        ))
+    })?;
     // Always emit as <artifact.name>.md to match manifest/component paths
     let dest = agents_dir.join(format!("{}.md", artifact.name));
-    fs.write_file(&dest, content.as_bytes())?;
+    fs.write_file(&dest, content.as_bytes()).map_err(|e| {
+        Error::Io(std::io::Error::new(e.kind(), format!("writing {}: {e}", dest.display())))
+    })?;
 
     Ok(())
 }
@@ -526,10 +549,17 @@ fn emit_agent_files(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Resu
 fn emit_mcp_config(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
     let content = match artifact.metadata.raw_content {
         Some(ref c) => c.clone(),
-        None => fs.read_to_string(&artifact.source_path)?,
+        None => fs.read_to_string(&artifact.source_path).map_err(|e| {
+            Error::Io(std::io::Error::new(
+                e.kind(),
+                format!("reading mcp config {}: {e}", artifact.source_path.display()),
+            ))
+        })?,
     };
     let dest = plugin_dir.join(".mcp.json");
-    fs.write_file(&dest, content.as_bytes())?;
+    fs.write_file(&dest, content.as_bytes()).map_err(|e| {
+        Error::Io(std::io::Error::new(e.kind(), format!("writing {}: {e}", dest.display())))
+    })?;
     Ok(())
 }
 
@@ -540,7 +570,12 @@ fn emit_mcp_config(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Resul
 fn emit_hooks_config(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
     let content = match artifact.metadata.raw_content {
         Some(ref c) => c.clone(),
-        None => fs.read_to_string(&artifact.source_path)?,
+        None => fs.read_to_string(&artifact.source_path).map_err(|e| {
+            Error::Io(std::io::Error::new(
+                e.kind(),
+                format!("reading hooks config {}: {e}", artifact.source_path.display()),
+            ))
+        })?,
     };
 
     // Rewrite relative command paths to absolute paths (Fix #6)
@@ -554,9 +589,16 @@ fn emit_hooks_config(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Res
 
 /// Copy output style `.md` file to the plugin root as `<artifact.name>.md`.
 fn emit_output_style(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
-    let content = fs.read_to_string(&artifact.source_path)?;
+    let content = fs.read_to_string(&artifact.source_path).map_err(|e| {
+        Error::Io(std::io::Error::new(
+            e.kind(),
+            format!("reading output style {}: {e}", artifact.source_path.display()),
+        ))
+    })?;
     let dest = plugin_dir.join(format!("{}.md", artifact.name));
-    fs.write_file(&dest, content.as_bytes())?;
+    fs.write_file(&dest, content.as_bytes()).map_err(|e| {
+        Error::Io(std::io::Error::new(e.kind(), format!("writing {}: {e}", dest.display())))
+    })?;
     Ok(())
 }
 
@@ -566,10 +608,17 @@ fn emit_output_style(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Res
 fn emit_lsp_config(artifact: &Artifact, plugin_dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
     let content = match artifact.metadata.raw_content {
         Some(ref c) => c.clone(),
-        None => fs.read_to_string(&artifact.source_path)?,
+        None => fs.read_to_string(&artifact.source_path).map_err(|e| {
+            Error::Io(std::io::Error::new(
+                e.kind(),
+                format!("reading lsp config {}: {e}", artifact.source_path.display()),
+            ))
+        })?,
     };
     let dest = plugin_dir.join("lsp.json");
-    fs.write_file(&dest, content.as_bytes())?;
+    fs.write_file(&dest, content.as_bytes()).map_err(|e| {
+        Error::Io(std::io::Error::new(e.kind(), format!("writing {}: {e}", dest.display())))
+    })?;
     Ok(())
 }
 
@@ -676,14 +725,28 @@ fn copy_referenced_scripts(
         };
 
         if fs.exists(&source) {
+            if !fs.is_file(&source) {
+                tracing::warn!(
+                    path = %source.display(),
+                    "skipping non-regular file during script copy"
+                );
+                continue;
+            }
             // Strip "scripts/" prefix for destination to avoid scripts/scripts/
             let relative = normalized.strip_prefix(scripts_root).unwrap_or(&normalized);
             let dest = scripts_dir.join(relative);
             if let Some(parent) = dest.parent() {
                 fs.create_dir_all(parent)?;
             }
-            let content = fs.read_to_string(&source)?;
-            fs.write_file(&dest, content.as_bytes())?;
+            let content = fs.read_to_string(&source).map_err(|e| {
+                Error::Io(std::io::Error::new(
+                    e.kind(),
+                    format!("reading {}: {e}", source.display()),
+                ))
+            })?;
+            fs.write_file(&dest, content.as_bytes()).map_err(|e| {
+                Error::Io(std::io::Error::new(e.kind(), format!("writing {}: {e}", dest.display())))
+            })?;
         }
     }
     Ok(())
@@ -701,6 +764,11 @@ pub fn emit_other_files(
     plugin_dir: &Path,
     fs: &dyn Fs,
 ) -> Result<Vec<Action>, Error> {
+    tracing::trace!(
+        count = other_files.len(),
+        plugin_dir = %plugin_dir.display(),
+        "emitting other files"
+    );
     let mut actions = Vec::new();
     let mut used_names: HashSet<String> = HashSet::new();
 
@@ -746,8 +814,23 @@ pub fn emit_other_files(
 
         // Copy the file if it exists
         if fs.exists(&file.path) {
-            let content = fs.read_to_string(&file.path)?;
-            fs.write_file(&dest, content.as_bytes())?;
+            if !fs.is_file(&file.path) {
+                tracing::warn!(
+                    path = %file.path.display(),
+                    "skipping non-regular file during other-file migration"
+                );
+                continue;
+            }
+            tracing::trace!(path = %file.path.display(), dest = %dest.display(), "copying other file");
+            let content = fs.read_to_string(&file.path).map_err(|e| {
+                Error::Io(std::io::Error::new(
+                    e.kind(),
+                    format!("reading {}: {e}", file.path.display()),
+                ))
+            })?;
+            fs.write_file(&dest, content.as_bytes()).map_err(|e| {
+                Error::Io(std::io::Error::new(e.kind(), format!("writing {}: {e}", dest.display())))
+            })?;
         }
 
         actions.push(Action::OtherFileMigrated {
@@ -1185,6 +1268,13 @@ mod tests {
     impl crate::fs::Fs for MockFs {
         fn exists(&self, path: &Path) -> bool {
             self.exists.contains(path)
+        }
+
+        fn is_file(&self, path: &Path) -> bool {
+            // A path is a "file" if it has content in the files map.
+            // This allows tests to put paths in `exists` without `files` to simulate
+            // non-regular-file entries (symlinks to dirs, etc.) for is_file() guards.
+            self.files.contains_key(path)
         }
 
         fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
@@ -3269,5 +3359,114 @@ mod tests {
         // index.js was NOT written (it was silently skipped)
         let index = fs.get_written(Path::new("/ai/my-ext/extensions/my-ext/index.js"));
         assert!(index.is_none(), "unreadable file should not be written");
+    }
+
+    #[test]
+    fn emit_other_files_skips_non_regular_file() {
+        // A file that exists (in fs.exists) but is NOT a regular file (not in fs.files)
+        // should be skipped with a warn and NOT produce an OtherFileMigrated action.
+        let mut fs = MockFs::new();
+        // Path exists on the filesystem but is a non-regular file (symlink to dir, etc.)
+        fs.exists.insert(PathBuf::from("/src/link"));
+        // Deliberately NOT inserting into fs.files — is_file() returns false
+
+        let other_files = vec![OtherFile {
+            path: PathBuf::from("/src/link"),
+            relative_path: PathBuf::from("link"),
+            associated_artifact: None,
+            is_external: false,
+        }];
+
+        let result = emit_other_files(&other_files, Path::new("/ai/plugin"), &fs);
+        assert!(result.is_ok(), "should succeed even when non-regular file is skipped");
+        let actions = result.ok().unwrap_or_default();
+        // Non-regular file is skipped — no OtherFileMigrated action emitted
+        assert!(
+            actions.is_empty(),
+            "expected no actions for skipped non-regular file, got: {actions:?}"
+        );
+        // Nothing should have been written
+        assert!(
+            fs.written.lock().expect("mutex").is_empty(),
+            "non-regular file should not be written"
+        );
+    }
+
+    #[test]
+    fn emit_skill_files_skips_non_regular_file_entry() {
+        // A skill artifact with two files: one regular (in fs.files), one non-regular
+        // (not in fs.files — is_file() returns false). The non-regular file must be
+        // skipped with a warn; the regular file must still be emitted.
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/src/skills/deploy/SKILL.md"),
+            "---\nname: deploy\ndescription: Deploy\n---\nContent".to_string(),
+        );
+        // "nonfile.bin" is intentionally NOT in fs.files → is_file() returns false
+
+        let artifact = Artifact {
+            kind: ArtifactKind::Skill,
+            name: "deploy".to_string(),
+            source_path: PathBuf::from("/src/skills/deploy"),
+            files: vec![PathBuf::from("SKILL.md"), PathBuf::from("nonfile.bin")],
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata {
+                name: Some("deploy".to_string()),
+                description: Some("Deploy".to_string()),
+                ..ArtifactMetadata::default()
+            },
+        };
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok(), "emit_plugin should succeed when non-regular file is skipped");
+        // SKILL.md was emitted
+        assert!(
+            fs.get_written(Path::new("/ai/deploy/skills/deploy/SKILL.md")).is_some(),
+            "SKILL.md should have been written"
+        );
+        // nonfile.bin was NOT written (skipped as non-regular file)
+        assert!(
+            fs.get_written(Path::new("/ai/deploy/skills/deploy/nonfile.bin")).is_none(),
+            "nonfile.bin should not be written"
+        );
+    }
+
+    #[test]
+    fn copy_referenced_scripts_skips_non_regular_file() {
+        // A script that exists (in fs.exists) but is not a regular file (not in fs.files).
+        // The script must be skipped with a warn and NOT copied to the plugin directory.
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/src/skills/deploy/SKILL.md"),
+            "---\nname: deploy\ndescription: Deploy\n---\nContent".to_string(),
+        );
+        // Script path exists on filesystem but is a non-regular file
+        fs.exists.insert(PathBuf::from("/src/skills/deploy/scripts/setup.sh"));
+        // NOT in fs.files → is_file() returns false
+
+        let artifact = Artifact {
+            kind: ArtifactKind::Skill,
+            name: "deploy".to_string(),
+            source_path: PathBuf::from("/src/skills/deploy"),
+            files: vec![PathBuf::from("SKILL.md")],
+            referenced_scripts: vec![PathBuf::from("scripts/setup.sh")],
+            metadata: ArtifactMetadata {
+                name: Some("deploy".to_string()),
+                description: Some("Deploy".to_string()),
+                ..ArtifactMetadata::default()
+            },
+        };
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok(), "emit_plugin should succeed when non-regular script is skipped");
+        // Script was NOT copied (skipped as non-regular file)
+        assert!(
+            fs.get_written(Path::new("/ai/deploy/scripts/setup.sh")).is_none(),
+            "non-regular script should not be copied"
+        );
     }
 }

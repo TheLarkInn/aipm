@@ -12,6 +12,8 @@ pub fn register_plugins(ai_dir: &Path, entries: &[PluginEntry], fs: &dyn Fs) -> 
         return Ok(());
     }
 
+    tracing::debug!(count = entries.len(), "registering plugins in marketplace.json");
+
     let marketplace_path = ai_dir.join(".claude-plugin").join("marketplace.json");
     let content = fs.read_to_string(&marketplace_path)?;
     let mut json: serde_json::Value = serde_json::from_str(&content)
@@ -93,6 +95,10 @@ mod tests {
 
     impl crate::fs::Fs for MockFs {
         fn exists(&self, path: &Path) -> bool {
+            self.exists.contains(path)
+        }
+
+        fn is_file(&self, path: &Path) -> bool {
             self.exists.contains(path)
         }
 

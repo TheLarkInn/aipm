@@ -26,8 +26,17 @@ pub fn reconcile(
     fs: &dyn Fs,
 ) -> Result<Vec<OtherFile>, Error> {
     let all_files = collect_all_files(source_dir, fs)?;
+    let total_files = all_files.len();
     let claimed = build_claimed_set(source_dir, artifacts);
+    let claimed_count = claimed.len();
     let unclaimed: Vec<PathBuf> = all_files.into_iter().filter(|f| !claimed.contains(f)).collect();
+    tracing::debug!(
+        total_files,
+        claimed = claimed_count,
+        unclaimed = unclaimed.len(),
+        source_dir = %source_dir.display(),
+        "reconciliation complete"
+    );
 
     Ok(associate_with_artifacts(source_dir, &unclaimed, artifacts))
 }
@@ -146,6 +155,12 @@ mod tests {
     impl crate::fs::Fs for MockFs {
         fn exists(&self, path: &Path) -> bool {
             self.exists.contains(path)
+        }
+
+        fn is_file(&self, path: &Path) -> bool {
+            // A path is a file if it is NOT a registered directory.
+            // Existing tests don't put file paths in `exists`, only in `dirs` as entries.
+            !self.dirs.contains_key(path)
         }
 
         fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {

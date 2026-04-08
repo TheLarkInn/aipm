@@ -182,8 +182,15 @@ pub fn collect_files_recursive(
         if entry.is_dir {
             let sub_files = collect_files_recursive(&full_path, base, fs)?;
             files.extend(sub_files);
-        } else if let Ok(relative) = full_path.strip_prefix(base) {
-            files.push(relative.to_path_buf());
+        } else if fs.is_file(&full_path) {
+            if let Ok(relative) = full_path.strip_prefix(base) {
+                files.push(relative.to_path_buf());
+            }
+        } else {
+            tracing::warn!(
+                path = %full_path.display(),
+                "skipping non-regular file during migration discovery"
+            );
         }
     }
 
@@ -201,6 +208,8 @@ mod tests {
         dirs: HashMap<PathBuf, Vec<crate::fs::DirEntry>>,
         files: HashMap<PathBuf, String>,
         written: Mutex<HashMap<PathBuf, Vec<u8>>>,
+        /// Paths that should return false from is_file() (simulates symlinks-to-dirs, etc.)
+        non_files: HashSet<PathBuf>,
     }
 
     impl MockFs {
@@ -210,6 +219,7 @@ mod tests {
                 dirs: HashMap::new(),
                 files: HashMap::new(),
                 written: Mutex::new(HashMap::new()),
+                non_files: HashSet::new(),
             }
         }
     }
@@ -217,6 +227,10 @@ mod tests {
     impl crate::fs::Fs for MockFs {
         fn exists(&self, path: &Path) -> bool {
             self.exists.contains(path)
+        }
+
+        fn is_file(&self, path: &Path) -> bool {
+            !self.non_files.contains(path)
         }
 
         fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
@@ -751,5 +765,30 @@ mod tests {
         let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
         assert_eq!(scripts.len(), 1);
         assert_eq!(scripts[0], PathBuf::from("scripts/build.sh"));
+    }
+
+    #[test]
+    fn collect_files_skips_non_regular_file_entries() {
+        // A DirEntry with is_dir=false but where is_file() returns false (simulates a
+        // symlink-to-directory, named pipe, or other non-regular-file entry).
+        // The entry must be excluded from the collected files list with a warn.
+        let mut fs = MockFs::new();
+        let link_path = PathBuf::from("/base/link");
+        fs.dirs.insert(
+            PathBuf::from("/base"),
+            vec![
+                crate::fs::DirEntry { name: "real.txt".to_string(), is_dir: false },
+                crate::fs::DirEntry { name: "link".to_string(), is_dir: false },
+            ],
+        );
+        // Mark "link" as a non-regular file (simulates symlink to directory)
+        fs.non_files.insert(link_path);
+
+        let result = collect_files_recursive(Path::new("/base"), Path::new("/base"), &fs);
+        assert!(result.is_ok());
+        let files = result.ok().unwrap_or_default();
+        // Only "real.txt" should be collected; "link" is skipped
+        assert_eq!(files.len(), 1);
+        assert_eq!(files.first(), Some(&PathBuf::from("real.txt")));
     }
 }

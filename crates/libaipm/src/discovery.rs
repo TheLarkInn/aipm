@@ -124,6 +124,8 @@ pub fn discover_source_dirs(
 
     let mut discovered = Vec::new();
 
+    tracing::trace!("starting source directory discovery");
+
     for result in builder.build() {
         let entry = result.map_err(|e| Error::WalkFailed(e.to_string()))?;
 
@@ -140,6 +142,7 @@ pub fn discover_source_dirs(
         };
 
         let source_dir = entry.path().to_path_buf();
+        tracing::trace!(dir = %source_dir.display(), source_type = source_type_str, "discovered source directory");
 
         // Derive package name and relative path
         let relative_to_root = source_dir.strip_prefix(project_root).unwrap_or(&source_dir);
@@ -159,6 +162,8 @@ pub fn discover_source_dirs(
             relative_path,
         });
     }
+
+    tracing::trace!(total = discovered.len(), "source directory discovery complete");
 
     // Sort by path for deterministic ordering
     discovered.sort_by(|a, b| a.source_dir.cmp(&b.source_dir));
