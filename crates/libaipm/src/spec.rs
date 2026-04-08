@@ -768,6 +768,22 @@ mod tests {
         assert!(spec.to_string().contains("my-plugins#beta"));
     }
 
+    #[test]
+    fn parse_marketplace_location_too_many_slashes_is_error() {
+        // location = "owner/sub/repo": split_once('/') yields repo="sub/repo",
+        // which contains '/', so the GitHub-format guard fails → Err.
+        let result = "market:hello@owner/sub/repo".parse::<Spec>();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_marketplace_location_empty_repo_is_error() {
+        // location = "owner/": split_once('/') yields owner="owner", repo="";
+        // !repo.is_empty() is false → condition fails → Err.
+        let result = "market:hello@owner/".parse::<Spec>();
+        assert!(result.is_err());
+    }
+
     // ---- Case insensitivity ----
 
     #[test]
