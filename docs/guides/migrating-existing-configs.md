@@ -26,7 +26,9 @@ The report lists every detected artifact, the plugin it will be grouped into, an
 
 ## Artifact types
 
-`aipm migrate` detects the following artifact types from `.claude/` configurations:
+`aipm migrate` detects artifacts from two source ecosystems:
+
+### Claude Code (`.claude/`)
 
 | Artifact | Source location | Plugin type |
 |----------|----------------|-------------|
@@ -37,6 +39,17 @@ The report lists every detected artifact, the plugin it will be grouped into, an
 | Hooks | `.claude/settings.json` hooks block | `hook` |
 | Output styles | `.claude/output-styles/<name>.md` | `composite` |
 | LSP servers | `lsp.json` | `lsp` |
+
+### Copilot CLI (`.github/`)
+
+| Artifact | Source location | Plugin type |
+|----------|----------------|-------------|
+| Skills | `.github/skills/<name>/` | `skill` |
+| Agents | `.github/agents/<name>.md` or `<name>.agent.md` | `agent` |
+| MCP servers | `.copilot/mcp-config.json` | `mcp` |
+| Hooks | `.github/hooks.json` or `.github/hooks/hooks.json` | `hook` |
+| GitHub extensions | `.github/extensions/<name>/` | `composite` |
+| LSP servers | `.github/lsp.json` or `lsp.json` | `lsp` |
 
 ## Common flags
 
@@ -54,14 +67,15 @@ aipm migrate [OPTIONS] [DIR]
 
 ## Recursive discovery
 
-By default, `aipm migrate` recursively discovers all `.claude/` directories under the target directory. This covers monorepos with multiple project roots.
+By default, `aipm migrate` recursively discovers all `.claude/` and `.github/` directories under the target directory. This covers monorepos with multiple project roots.
 
 ```bash
-# Migrate all .claude/ directories found anywhere under the repo
+# Migrate all .claude/ and .github/ directories found anywhere under the repo
 aipm migrate
 
 # Limit to a specific source only
 aipm migrate --source .claude
+aipm migrate --source .github
 ```
 
 Use `--max-depth` to limit how deep the recursive scan goes:
