@@ -2969,6 +2969,42 @@ mod tests {
         assert!(index.is_some());
     }
 
+    /// When `raw_content` is set but a non-config file appears *before* the config
+    /// file in `artifact.files`, the `find_map` loop must visit at least one file
+    /// whose name is NOT in `config_candidates` (False branch at line 603) before
+    /// finding the config file (True branch).  Placing `index.js` first guarantees
+    /// this ordering.
+    #[test]
+    fn emit_extension_files_non_config_before_config_covers_false_branch() {
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/project/.github/extensions/my-ext/index.js"),
+            "console.log('ext');".to_string(),
+        );
+        fs.files.insert(
+            PathBuf::from("/project/.github/extensions/my-ext/config.json"),
+            r#"{"name":"my-ext"}"#.to_string(),
+        );
+
+        // Place the non-config file first so find_map evaluates it (False) before
+        // reaching the config file (True).
+        let mut artifact = make_extension_artifact();
+        artifact.files = vec![PathBuf::from("index.js"), PathBuf::from("config.json")];
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok());
+
+        // config.json written from raw_content
+        let config = fs.get_written(Path::new("/ai/my-ext/extensions/my-ext/config.json"));
+        assert!(config.as_ref().is_some_and(|c| c.contains("my-ext")));
+
+        // index.js copied (not skipped, since it is not the config source)
+        let index = fs.get_written(Path::new("/ai/my-ext/extensions/my-ext/index.js"));
+        assert!(index.as_ref().is_some_and(|c| c.contains("console.log")));
+    }
+
     #[test]
     fn emit_plugin_with_name_lsp_server() {
         let fs = MockFs::new();
