@@ -320,6 +320,12 @@ pub struct PluginPlan {
 
 /// Run the migration pipeline.
 pub fn migrate(opts: &Options<'_>, fs: &dyn Fs) -> Result<Outcome, Error> {
+    tracing::debug!(
+        source = ?opts.source,
+        dry_run = opts.dry_run,
+        destructive = opts.destructive,
+        "starting migration"
+    );
     let ai_dir = opts.dir.join(".ai");
 
     // 1. Validate .ai/ exists
@@ -453,6 +459,10 @@ fn migrate_recursive(
 
     let discovered =
         crate::discovery::discover_source_dirs(dir, &[".claude", ".github"], max_depth)?;
+    tracing::debug!(
+        discovered = discovered.len(),
+        "discovered source directories for recursive migration"
+    );
     if discovered.is_empty() {
         return Ok(Outcome { actions: Vec::new() });
     }
@@ -509,10 +519,12 @@ fn migrate_recursive(
 
     // Filter out empty plans
     plugin_plans.retain(|p| !p.artifacts.is_empty());
+    tracing::debug!(plans = plugin_plans.len(), "detection complete");
 
     let existing_plugins = collect_existing_plugin_names(ai_dir, fs)?;
 
     if dry_run {
+        tracing::debug!("dry-run mode — generating report");
         let report = dry_run::generate_recursive_report(
             &discovered,
             &plugin_plans,
@@ -524,6 +536,7 @@ fn migrate_recursive(
         return Ok(Outcome { actions: vec![Action::DryRunReport { path: report_path }] });
     }
 
+    tracing::debug!("emitting plugins");
     emit_and_register(plugin_plans, existing_plugins, ai_dir, manifest, fs)
 }
 
@@ -552,9 +565,17 @@ fn emit_and_register(
         resolved.push((plan, final_name));
     }
 
+    tracing::debug!(plans = resolved.len(), "starting plugin emission");
+
     let emission_results: Vec<Result<_, Error>> = resolved
         .par_iter()
         .map(|(plan, final_name)| {
+            tracing::trace!(
+                plugin = final_name.as_str(),
+                artifacts = plan.artifacts.len(),
+                other_files = plan.other_files.len(),
+                "emitting plugin"
+            );
             let mut actions = Vec::new();
 
             if plan.is_package_scoped {
@@ -596,6 +617,12 @@ fn emit_and_register(
     for entry in &registered_entries {
         all_actions.push(Action::MarketplaceRegistered { name: entry.name.clone() });
     }
+
+    tracing::debug!(
+        emitted = all_actions.len(),
+        registered = registered_entries.len(),
+        "emission and registration complete"
+    );
 
     Ok(Outcome { actions: all_actions })
 }

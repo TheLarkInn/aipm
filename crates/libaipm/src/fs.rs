@@ -26,6 +26,11 @@ pub trait Fs: Send + Sync {
     /// Check if a path exists.
     fn exists(&self, path: &Path) -> bool;
 
+    /// Check if a path is a regular file (not a directory, symlink-to-directory, or special file).
+    fn is_file(&self, path: &Path) -> bool {
+        self.exists(path)
+    }
+
     /// Recursively create directories.
     fn create_dir_all(&self, path: &Path) -> std::io::Result<()>;
 
@@ -89,6 +94,10 @@ pub struct Real;
 impl Fs for Real {
     fn exists(&self, path: &Path) -> bool {
         path.exists()
+    }
+
+    fn is_file(&self, path: &Path) -> bool {
+        path.is_file()
     }
 
     fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
@@ -351,6 +360,45 @@ mod tests {
 
         assert!(Real.atomic_write(&file, b"atomic content").is_ok());
         assert_eq!(std::fs::read_to_string(&file).expect("read"), "atomic content");
+    }
+
+    #[test]
+    fn real_is_file_returns_true_for_regular_file() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let file = tmp.path().join("regular.txt");
+        std::fs::write(&file, "content").expect("write");
+        assert!(Real.is_file(&file));
+    }
+
+    #[test]
+    fn real_is_file_returns_false_for_directory() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        assert!(!Real.is_file(tmp.path()));
+    }
+
+    #[test]
+    fn real_is_file_returns_false_for_symlink_to_directory() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let target_dir = tmp.path().join("target_dir");
+        std::fs::create_dir_all(&target_dir).expect("create dir");
+        let link = tmp.path().join("link_to_dir");
+        std::os::unix::fs::symlink(&target_dir, &link).expect("symlink");
+        assert!(!Real.is_file(&link));
+    }
+
+    #[test]
+    fn real_is_file_returns_true_for_symlink_to_file() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let target_file = tmp.path().join("target.txt");
+        std::fs::write(&target_file, "content").expect("write");
+        let link = tmp.path().join("link_to_file");
+        std::os::unix::fs::symlink(&target_file, &link).expect("symlink");
+        assert!(Real.is_file(&link));
+    }
+
+    #[test]
+    fn real_is_file_returns_false_for_nonexistent() {
+        assert!(!Real.is_file(Path::new("/nonexistent/path/that/does/not/exist")));
     }
 
     #[test]
