@@ -541,6 +541,39 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// On Linux the store lives in `/dev/shm` (tmpfs) while the target lives
+    /// in `/tmp` (ext4). A hard-link across those two filesystems fails with
+    /// EXDEV (raw OS error 18), which triggers the copy-fallback path in
+    /// `link_to`.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn link_to_falls_back_to_copy_on_cross_device() {
+        use std::path::PathBuf;
+
+        // Build a store rooted inside /dev/shm (tmpfs)
+        let shm_dir = PathBuf::from("/dev/shm");
+        let store_path = shm_dir.join(format!("aipm-test-store-{}", std::process::id()));
+        std::fs::create_dir_all(&store_path).unwrap();
+        let store = Store::new(store_path.clone());
+
+        let content = b"cross-device fallback test content";
+        let hash = store.store_file(content).unwrap();
+
+        // Target on /tmp (ext4) — different device from /dev/shm (tmpfs)
+        let target_dir = tempfile::tempdir().unwrap();
+        let target = target_dir.path().join("linked-file");
+
+        // link_to must succeed by falling back to copy
+        let result = store.link_to(&hash, &target);
+
+        // Clean up the store directory we created manually
+        let _ = std::fs::remove_dir_all(&store_path);
+
+        assert!(result.is_ok(), "expected copy-fallback to succeed: {result:?}");
+        let written = std::fs::read(&target).unwrap();
+        assert_eq!(written, content);
+    }
+
     #[cfg(unix)]
     #[test]
     fn store_package_skips_symlinks() {
