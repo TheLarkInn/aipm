@@ -2422,6 +2422,77 @@ ws-b = { workspace = "*" }
         assert!(reg_deps.is_empty());
     }
 
+    // =========================================================================
+    // resolve_registry_deps: lockfile has removed dep (L618 branch 3)
+    // =========================================================================
+
+    #[test]
+    fn resolve_registry_deps_with_removed_dep_falls_through_to_resolution() {
+        // Exercises L618 branch 3: needs_resolution.is_empty() is True but
+        // removed.is_empty() is False — a dep was removed from the manifest
+        // but no new deps were added.  The code should NOT take the early
+        // return and instead fall through to build_pins + resolve.
+        let toml_str = r#"
+[package]
+name = "test"
+version = "0.1.0"
+
+[dependencies]
+pkg-a = "^1.0"
+"#;
+        let m = manifest::parse(toml_str).unwrap();
+
+        // manifest_deps only has pkg-a; lockfile has pkg-a AND pkg-b
+        let mut manifest_deps = BTreeSet::new();
+        manifest_deps.insert("pkg-a".to_string());
+
+        // Lockfile carries both pkg-a and pkg-b (pkg-b will be "removed")
+        let existing_lf = lockfile::types::Lockfile {
+            metadata: lockfile::types::Metadata {
+                lockfile_version: 1,
+                generated_by: "test".to_string(),
+            },
+            packages: vec![
+                lockfile::types::Package {
+                    name: "pkg-a".to_string(),
+                    version: "1.0.0".to_string(),
+                    source: "git+https://example.com".to_string(),
+                    checksum: "sha512-pkg-a-1.0.0".to_string(),
+                    dependencies: vec![],
+                },
+                lockfile::types::Package {
+                    name: "pkg-b".to_string(),
+                    version: "2.0.0".to_string(),
+                    source: "git+https://example.com".to_string(),
+                    checksum: "sha512-pkg-b-2.0.0".to_string(),
+                    dependencies: vec![],
+                },
+            ],
+        };
+
+        let registry = make_registry();
+        let root_deps = manifest_to_resolver_deps(&m);
+
+        // needs_resolution is empty (pkg-a already pinned), removed is non-empty
+        // (pkg-b removed) → must NOT early-return; must resolve pkg-a via registry
+        let result = resolve_registry_dependencies(
+            &root_deps,
+            &m,
+            &manifest_deps,
+            Some(&existing_lf),
+            false,
+            &registry,
+        );
+        assert!(result.is_ok(), "should succeed when dep removed from manifest: {result:?}");
+        let resolution = result.unwrap();
+        // pkg-a should be in the resolution; pkg-b should not
+        assert!(resolution.packages.iter().any(|p| p.name == "pkg-a"), "pkg-a should be resolved");
+        assert!(
+            !resolution.packages.iter().any(|p| p.name == "pkg-b"),
+            "pkg-b should not be in resolution after removal"
+        );
+    }
+
     #[test]
     fn resolve_registry_deps_empty() {
         let toml_str = "[package]\nname = \"test\"\nversion = \"0.1.0\"\n";
