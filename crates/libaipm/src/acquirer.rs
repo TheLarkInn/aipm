@@ -442,6 +442,28 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
+    fn copy_dir_recursive_skips_symlinks() {
+        // Covers the `else if ft.is_file()` false branch (line 306): when a
+        // directory entry is a symlink, `ft.is_file()` returns false and the
+        // entry is silently skipped.
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        std::fs::create_dir_all(&src).unwrap_or_else(|_| {});
+        std::fs::write(src.join("regular.txt"), "content").unwrap();
+        // A symlink: is_file() returns false for the link itself.
+        std::os::unix::fs::symlink(src.join("regular.txt"), src.join("link.txt")).unwrap();
+
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(&dst).unwrap_or_else(|_| {});
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(result.is_ok());
+        assert!(dst.join("regular.txt").exists(), "regular file should be copied");
+        assert!(!dst.join("link.txt").exists(), "symlink should be silently skipped");
+    }
+
+    #[test]
     fn source_redirect_parses_from_aipm_toml() {
         let temp = make_temp();
         let dir = temp.path().join("stub-plugin");
