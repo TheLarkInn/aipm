@@ -1501,6 +1501,41 @@ mod tests {
     }
 
     #[test]
+    fn backtrack_saves_choice_point_when_more_candidates_remain() {
+        // Exercises the `true` branch of `choice.current_idx + 1 < choice.candidates.len()`
+        // in `backtrack_and_retry`. When a package has three candidates and the first two
+        // each produce a conflict, the resolver backtracks twice:
+        //   1st backtrack: idx=0→1, candidates.len()=3 → 1+1=2 < 3 → saves choice point
+        //   2nd backtrack: idx=1→2, candidates.len()=3 → 2+1=3 < 3 → does not save
+        //
+        // Setup: root -> lib =1.0.0, root -> app ^1.0
+        //   lib: [1.0.0]
+        //   app: [1.2.0 → lib=1.3.0, 1.1.0 → lib=1.2.0, 1.0.0 → (no deps)]
+        //
+        // lib =1.0.0 activates lib@1.0.0 first. app@1.2.0 wants lib=1.3.0 → conflict.
+        // 1st backtrack: saves choice(idx=1), activates app@1.1.0 → lib=1.2.0 → conflict.
+        // 2nd backtrack: no save, activates app@1.0.0 → succeeds.
+        let mut reg = MockRegistry::new();
+        reg.add_package(
+            "app",
+            vec![
+                ("1.2.0", vec![dep("lib", "=1.3.0")]),
+                ("1.1.0", vec![dep("lib", "=1.2.0")]),
+                ("1.0.0", vec![]),
+            ],
+        );
+        reg.add_package("lib", vec![("1.0.0", vec![]), ("1.2.0", vec![]), ("1.3.0", vec![])]);
+
+        let deps = vec![root_dep("lib", "=1.0.0"), root_dep("app", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg).unwrap();
+
+        let app = result.packages.iter().find(|p| p.name == "app").unwrap();
+        assert_eq!(app.version.to_string(), "1.0.0");
+        let lib = result.packages.iter().find(|p| p.name == "lib").unwrap();
+        assert_eq!(lib.version.to_string(), "1.0.0");
+    }
+
+    #[test]
     fn backtrack_exhausts_all_candidates() {
         // All candidates for a package fail due to same-major conflict, exercising the
         // `false` branch at line 371 where `choice.current_idx >= choice.candidates.len()`.
