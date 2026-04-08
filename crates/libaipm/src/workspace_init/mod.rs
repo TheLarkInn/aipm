@@ -1243,6 +1243,47 @@ mod tests {
     }
 
     #[test]
+    fn init_adaptor_returns_false_no_tool_configured_action() {
+        // Covers the False branch of `if adaptor.apply(...)? { ... }` in `init()`:
+        // when an adaptor returns Ok(false) (already configured, no changes needed),
+        // the ToolConfigured action must NOT be pushed.
+        struct NoOpAdaptor;
+        impl ToolAdaptor for NoOpAdaptor {
+            fn name(&self) -> &'static str {
+                "NoOpAdaptor"
+            }
+            fn apply(
+                &self,
+                _: &Path,
+                _: bool,
+                _: &str,
+                _: &dyn crate::fs::Fs,
+            ) -> Result<bool, Error> {
+                Ok(false)
+            }
+        }
+
+        let (tmp, _guard) = make_temp_dir("adaptor-noop");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![Box::new(NoOpAdaptor)];
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        // MarketplaceCreated should be present; ToolConfigured must NOT be present
+        assert!(actions.iter().any(|a| matches!(a, InitAction::MarketplaceCreated)));
+        assert!(!actions.iter().any(|a| matches!(a, InitAction::ToolConfigured(_))));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_adaptor_error_propagates() {
         // Covers the `?` error branch at the `adaptor.apply(...)? ` call in `init()`:
         // when an adaptor returns Err, the error must propagate from `init()`.
