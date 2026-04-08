@@ -901,4 +901,32 @@ mod tests {
         let features = discover_features(&root, None).expect("discover_features");
         assert!(features.is_empty(), "marketplace.json with wrong parent should not be classified");
     }
+
+    #[test]
+    fn discover_features_hooks_json_wrong_parent_ignored() {
+        // hooks.json whose immediate parent is NOT "hooks" — covers the False branch of
+        // `&& parent_name == "hooks"` in classify_feature_kind.
+        let (_tmp, root) = make_tmp();
+        let config_dir = root.join("config");
+        assert!(std::fs::create_dir_all(&config_dir).is_ok());
+        // Place hooks.json under "config" (parent = "config", not "hooks")
+        assert!(std::fs::write(config_dir.join("hooks.json"), r#"{"hooks":{}}"#).is_ok());
+
+        let features = discover_features(&root, None).expect("discover_features");
+        assert!(features.is_empty(), "hooks.json with wrong parent should not be classified");
+    }
+
+    #[test]
+    fn discover_features_plugin_json_wrong_parent_ignored() {
+        // plugin.json whose immediate parent is NOT ".claude-plugin" — covers the False branch of
+        // `&& parent_name == ".claude-plugin"` in classify_feature_kind.
+        let (_tmp, root) = make_tmp();
+        let plugin_dir = root.join(".ai").join("my-plugin");
+        assert!(std::fs::create_dir_all(&plugin_dir).is_ok());
+        // Place plugin.json directly under .ai/my-plugin/ (parent = "my-plugin", not ".claude-plugin")
+        assert!(std::fs::write(plugin_dir.join("plugin.json"), r#"{"name":"my-plugin"}"#).is_ok());
+
+        let features = discover_features(&root, None).expect("discover_features");
+        assert!(features.is_empty(), "plugin.json with wrong parent should not be classified");
+    }
 }
