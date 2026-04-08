@@ -269,4 +269,29 @@ mod tests {
             Some("Code review")
         );
     }
+
+    #[test]
+    fn detect_command_ignores_unknown_frontmatter_keys() {
+        // A command file with an unrecognised YAML key exercises the else-if
+        // False branch in parse_command_frontmatter (the key matches neither
+        // "name:" nor "description:").
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/commands"));
+        fs.dirs.insert(PathBuf::from("/src/commands"), vec![de("review.md", false)]);
+        fs.files.insert(
+            PathBuf::from("/src/commands/review.md"),
+            "---\nname: review\ndescription: Review code\nmodel: claude-opus-4\n---\nBody"
+                .to_string(),
+        );
+
+        let detector = CommandDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.len(), 1);
+        assert_eq!(artifacts.first().and_then(|a| a.metadata.name.as_deref()), Some("review"));
+        assert_eq!(
+            artifacts.first().and_then(|a| a.metadata.description.as_deref()),
+            Some("Review code")
+        );
+    }
 }
