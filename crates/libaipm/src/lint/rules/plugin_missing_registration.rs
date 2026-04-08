@@ -313,4 +313,19 @@ mod tests {
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("missing a 'plugins' array"));
     }
+
+    #[test]
+    fn duplicate_plugin_names_in_helper_are_deduplicated() {
+        // Passing the same name twice to make_fs_with_plugins exercises the
+        // deduplication branch: the second "foo" finds `any()` returning true
+        // and skips the push, leaving only one "foo" dir in the mock filesystem.
+        let fs = make_fs_with_plugins(&["foo", "foo"], &[]);
+        let result =
+            MissingRegistration.check_file(Path::new(".ai/.claude-plugin/marketplace.json"), &fs);
+        assert!(result.is_ok());
+        let diags = result.unwrap();
+        // Only one "foo" entry exists (deduplicated), and it is not registered.
+        assert_eq!(diags.len(), 1);
+        assert!(diags[0].message.contains("foo"));
+    }
 }
