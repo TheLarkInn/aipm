@@ -222,6 +222,15 @@ Common skip reasons:
 | Source directory is empty | No files found in the artifact directory |
 | External reference only | The file is referenced by another plugin; it will be migrated with that plugin |
 | Already migrated | A plugin with the same name already exists in `.ai/` |
+| Non-regular file | A symlink-to-directory, named pipe, or other special filesystem entry was encountered inside a skill, script, or other-file list; the entry is skipped and a `WARN`-level message is logged |
+
+Non-regular file warnings are visible at the default verbosity level. To see the full path in a machine-readable format, run with `--log-format json`:
+
+```bash
+aipm migrate --log-format json 2>&1 | grep "non-regular"
+```
+
+If you see these warnings, inspect the flagged paths before re-running. Symlinks that point to a regular file (not a directory) are safe to leave in place — the migration skips only entries where `is_file()` returns false.
 
 ## External References
 

@@ -67,6 +67,9 @@ AIPM_LOG=libaipm::installer=trace aipm install github:org/repo:plugin@main
 
 # Enable debug for the whole library, warn for everything else
 AIPM_LOG=libaipm=debug,warn aipm migrate --dry-run
+
+# Trace only the migration pipeline (discovery → emit → reconcile)
+AIPM_LOG=libaipm::migrate=trace aipm migrate --dry-run
 ```
 
 This is especially useful for narrowing down a specific subsystem without the
