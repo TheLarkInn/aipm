@@ -3026,6 +3026,58 @@ plugin-b = { workspace = "*" }
         assert!(root.join("plugins/plugin-a").exists());
     }
 
+    // =========================================================================
+    // link_resolved_packages: package skipped when link override is active
+    // =========================================================================
+
+    #[test]
+    fn link_resolved_packages_skips_link_override() {
+        // Covers the True branch of `if link_overrides.contains(pkg_name)` (line 225).
+        // When a package is in the link_overrides set, link_resolved_packages must
+        // skip it entirely rather than attempting to fetch/link it.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let config = InstallConfig {
+            manifest_path: root.join("aipm.toml"),
+            lockfile_path: root.join("aipm.lock"),
+            store_path: root.join(".aipm/store"),
+            links_dir: root.join(".aipm/links"),
+            plugins_dir: root.join("plugins"),
+            gitignore_path: root.join("plugins/.gitignore"),
+            link_state_path: root.join(".aipm/links.toml"),
+            workspace_root: None,
+            locked: false,
+            add_package: None,
+            generated_by: "test".to_string(),
+        };
+
+        let resolution = resolver::Resolution {
+            packages: vec![resolver::Resolved {
+                name: "linked-pkg".to_string(),
+                version: Version::parse("1.0.0").unwrap(),
+                // Use Registry source so without the override this would attempt a
+                // download via StubRegistry and fail — proving the override causes the skip.
+                source: resolver::Source::Registry { index_url: String::new() },
+                checksum: String::new(),
+                dependencies: vec![],
+                features: BTreeSet::new(),
+            }],
+        };
+
+        let members = BTreeMap::new();
+        let mut link_overrides = BTreeSet::new();
+        link_overrides.insert("linked-pkg".to_string());
+
+        let stub = StubRegistry;
+        let result =
+            link_resolved_packages(&config, &resolution, &members, &link_overrides, None, &stub);
+        assert!(result.is_ok(), "link override should cause the package to be skipped: {result:?}");
+        let (installed, up_to_date) = result.unwrap();
+        assert_eq!(installed, 0, "link-overridden package must not be installed");
+        assert_eq!(up_to_date, 0, "link-overridden package must not count as up-to-date");
+    }
+
     #[test]
     fn collect_transitive_skips_missing_member() {
         // Workspace-resolved package NOT in members map → should be skipped
