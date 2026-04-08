@@ -366,4 +366,24 @@ mod tests {
             Some("Reviews code")
         );
     }
+
+    #[test]
+    fn frontmatter_unknown_fields_are_ignored() {
+        // Frontmatter lines that match neither "name:" nor "description:" must be
+        // silently ignored — this exercises the implicit `else` branch in
+        // `parse_agent_frontmatter` (the False arm of the `else if strip_prefix("description:")
+        // check at line 90).
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(PathBuf::from("/src/agents"), vec![de("agent.md", false)]);
+        fs.files.insert(
+            PathBuf::from("/src/agents/agent.md"),
+            "---\nname: my-agent\nversion: 1.0\nauthor: tester\n---\nAgent body.".to_string(),
+        );
+
+        let detector = AgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("my-agent"));
+    }
 }
