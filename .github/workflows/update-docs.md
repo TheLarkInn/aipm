@@ -20,6 +20,8 @@ safe-outputs:
     draft: true
     protected-files: fallback-to-issue
     labels: [automation, documentation]
+  noop:
+    report-as-issue: false
 
 tools:
   github:
