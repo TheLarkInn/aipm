@@ -1079,4 +1079,20 @@ mod tests {
             "no files section when files list is empty"
         );
     }
+
+    #[test]
+    fn cleanup_plan_skipped_other_kind_shows_shared_configuration_reason() {
+        // An artifact whose source_path filename is "settings.json"
+        // (→ should_skip_for_report returns true) but whose kind is Agent
+        // (not Hook or McpServer) exercises the wildcard arm
+        // `_ => "shared configuration"` inside write_cleanup_plan.
+        let mut artifact = make_artifact("settings", ArtifactKind::Agent);
+        artifact.source_path = PathBuf::from(".claude/settings.json");
+        let artifacts = vec![artifact];
+        let existing = HashSet::new();
+        // destructive=true causes write_cleanup_plan to be called
+        let report = generate_report(&artifacts, &existing, ".claude", false, true, &[]);
+        assert!(report.contains("shared configuration"));
+        assert!(report.contains("settings.json"));
+    }
 }
