@@ -225,8 +225,10 @@ Common skip reasons:
 
 | Reason | Explanation |
 |--------|-------------|
-| Source directory is empty | No files found in the artifact directory; nothing is emitted |
-| Unsafe artifact name | The artifact or plugin name contains path separators or `..` (path traversal prevention) |
+| Source directory is empty | No files found in the artifact directory |
+| External reference only | The file is referenced by another plugin; it will be migrated with that plugin |
+| Already migrated | A plugin with the same name already exists in `.ai/` |
+| Non-regular file | The path is a symlink to a directory, a device file, or another special file; only regular files are copied. A warning is emitted at `-v` verbosity |
 
 ## External References
 

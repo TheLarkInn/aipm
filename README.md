@@ -85,7 +85,7 @@ When run on a TTY without `--yes`, launches an interactive wizard.
 
 ### `aipm migrate`
 
-Migrate existing `.claude/` configurations into marketplace plugins. Detects skills, agents, MCP servers, hooks, commands, and output styles.
+Migrate existing AI tool configurations into marketplace plugins. Supports two source ecosystems: Claude Code (`.claude/`) and Copilot CLI (`.github/`). Detects skills, agents, MCP servers, hooks, commands, output styles, extensions, and LSP servers.
 
 ```
 aipm migrate [OPTIONS] [DIR]
@@ -99,7 +99,9 @@ aipm migrate [OPTIONS] [DIR]
 | `--max-depth <N>` | Maximum depth for recursive discovery |
 | `--manifest` | Generate `aipm.toml` manifests for migrated plugins |
 
-**Detected artifact types:** skills (`SKILL.md`), agents (`*.md` in `agents/`), MCP servers (`.mcp.json`), hooks (`hooks.json`), commands (`commands/*.md`), output styles.
+**Claude Code (`.claude/`) artifact types:** skills (`SKILL.md`), agents (`agents/*.md`), MCP servers (`.mcp.json`), hooks (`hooks.json`), commands (`commands/*.md`), output styles, LSP servers (`lsp.json`).
+
+**Copilot CLI (`.github/`) artifact types:** skills (`.github/skills/<name>/`), agents (`.github/agents/<name>.md` or `<name>.agent.md`), MCP servers (`.copilot/mcp-config.json`), hooks (`.github/hooks.json`), GitHub extensions (`.github/extensions/<name>/`), LSP servers (`.github/lsp.json`).
 
 See also: [`docs/guides/migrate.md`](docs/guides/migrate.md) for a comprehensive reference, or [`docs/guides/migrating-existing-configs.md`](docs/guides/migrating-existing-configs.md) for a step-by-step walkthrough.
 
