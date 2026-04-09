@@ -29,6 +29,21 @@ aipm lint --source .github
 | `--color <MODE>` | Color output: `auto` (default), `always`, `never` |
 | `--max-depth <N>` | Maximum directory traversal depth |
 
+> **Deprecated flag:** `--format` is a hidden alias for `--reporter` kept for backward
+> compatibility. Prefer `--reporter` in all new scripts and CI configurations.
+
+### Color auto-detection
+
+When `--color auto` (the default) is in effect, `aipm lint` disables ANSI color if
+any of the following conditions hold:
+
+- The `NO_COLOR` environment variable is set (any value) — see <https://no-color.org/>
+- `CLICOLOR=0` is set
+- stdout is not attached to a TTY (e.g., output is piped or redirected)
+
+Force color on even when redirected with `--color always`; suppress it entirely with
+`--color never`.
+
 ## Output Formats
 
 ### `human` (default)

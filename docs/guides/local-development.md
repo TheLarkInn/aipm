@@ -87,7 +87,7 @@ aipm install my-plugin@^1.0
 Active links are recorded in `.aipm/links.toml` at the project root:
 
 ```toml
-[[links]]
+[[link]]
 name = "my-plugin"
 path = "/absolute/path/to/my-plugin"
 linked_at = "2026-01-15T10:30:00Z"
