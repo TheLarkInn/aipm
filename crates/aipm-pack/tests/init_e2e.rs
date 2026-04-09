@@ -316,3 +316,30 @@ fn yes_flag_with_type_override() {
     let content = std::fs::read_to_string(dir.join("aipm.toml")).unwrap();
     assert!(content.contains("type = \"skill\""));
 }
+
+// =========================================================================
+// Scenario: Init with default "." directory resolves to current_dir
+// =========================================================================
+
+#[test]
+fn init_defaults_to_current_directory() {
+    // Run `aipm-pack init` without specifying a directory. Clap defaults to
+    // "."; main.rs detects `dir.as_os_str() == "."` and substitutes
+    // `std::env::current_dir()`. Setting `current_dir` on the subprocess
+    // exercises that branch.
+    let tmp = tempfile::TempDir::new().unwrap();
+    let plugin_dir = tmp.path().join("my-dot-plugin");
+    std::fs::create_dir_all(&plugin_dir).unwrap();
+
+    aipm_pack()
+        .current_dir(&plugin_dir)
+        .args(["init"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Initialized"));
+
+    assert!(plugin_dir.join("aipm.toml").exists(), "aipm.toml should be created in cwd");
+
+    let content = std::fs::read_to_string(plugin_dir.join("aipm.toml")).unwrap();
+    assert!(content.contains("name = \"my-dot-plugin\""), "name should come from directory name");
+}
