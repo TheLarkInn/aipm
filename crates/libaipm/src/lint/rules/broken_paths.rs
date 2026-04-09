@@ -506,4 +506,17 @@ mod tests {
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("x.sh"));
     }
+
+    #[test]
+    fn check_file_root_path_no_parent_returns_empty() {
+        // `Path::new("/").parent()` returns `None` on Unix, exercising the
+        // `else` branch of `let Some(skill_dir) = skill.path.parent()` in
+        // `check_file` when `read_skill` succeeds but the skill path has no parent.
+        let mut fs = MockFs::new();
+        fs.files
+            .insert(PathBuf::from("/"), "---\nname: root-skill\n---\nSome content\n".to_string());
+        let result = BrokenPaths.check_file(Path::new("/"), &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
 }
