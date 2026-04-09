@@ -2091,6 +2091,28 @@ mod tests {
     }
 
     #[test]
+    fn emit_package_plugin_hook_artifact_suppresses_inline_hooks_entry() {
+        // Covers the `has_hooks_yaml && hook_paths.is_empty()` False branch in
+        // `generate_package_manifest`: when a Hook artifact is present (hook_paths is
+        // non-empty), the inline hooks from a skill's frontmatter must NOT add a second
+        // hooks entry to the manifest.
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
+
+        let mut skill = make_skill_artifact();
+        skill.metadata.hooks = Some("PreToolUse: check_deploy".to_string());
+        let hook = make_hook_artifact();
+
+        let result = emit_package_plugin("auth", &[skill, hook], Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+
+        let toml = fs.get_written(Path::new("/ai/auth/aipm.toml"));
+        // Manifest must reference hooks exactly once (from the Hook artifact)
+        let hooks_entry_count = toml.as_ref().map_or(0, |c| c.matches("hooks/hooks.json").count());
+        assert_eq!(hooks_entry_count, 1, "hooks entry should not be duplicated");
+    }
+
+    #[test]
     fn emit_package_plugin_with_scripts() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
