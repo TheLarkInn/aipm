@@ -1163,6 +1163,9 @@ mod tests {
             PathBuf::from("/project/.claude"),
             vec![crate::fs::DirEntry { name: "README.md".to_string(), is_dir: false }],
         );
+        // README.md must be in fs.exists so that is_file() returns true and
+        // collect_files_recursive includes it in other_files.
+        fs.exists.insert(PathBuf::from("/project/.claude/README.md"));
         fs.files.insert(PathBuf::from("/project/.claude/README.md"), "# Notes".to_string());
         // .ai directory is empty (no existing plugins).
         fs.dirs.insert(PathBuf::from("/project/.ai"), Vec::new());
