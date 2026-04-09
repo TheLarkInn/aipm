@@ -106,21 +106,21 @@ fn glob_match(pattern: &str, text: &str) -> bool {
 
     let mut pos = 0;
 
-    // First part must match at the start
-    if let Some(first) = parts.first() {
-        if !first.is_empty() {
-            if !text.starts_with(*first) {
-                return false;
-            }
-            pos = first.len();
-        }
-    }
-
-    // Last part must match at the end
-    if let Some(last) = parts.last() {
-        if !last.is_empty() && !text.ends_with(*last) {
+    // First part must match at the start.
+    // parts.len() >= 2 is guaranteed above, so first() is always Some.
+    let first = parts.first().copied().unwrap_or_default();
+    if !first.is_empty() {
+        if !text.starts_with(first) {
             return false;
         }
+        pos = first.len();
+    }
+
+    // Last part must match at the end.
+    // parts.len() >= 2 is guaranteed above, so last() is always Some.
+    let last = parts.last().copied().unwrap_or_default();
+    if !last.is_empty() && !text.ends_with(last) {
+        return false;
     }
 
     // Middle parts must appear in order
