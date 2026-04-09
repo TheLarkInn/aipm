@@ -3,7 +3,7 @@
 **Severity:** warning
 **Fixable:** No
 
-Checks that the `description` field in SKILL.md frontmatter is no longer than 200 characters. Long descriptions are truncated in `aipm list` output and plugin marketplace listings.
+Checks that the `description` field in SKILL.md frontmatter is no longer than 1 024 characters. This limit is derived from the Copilot CLI Zod schema (`z.string().max(1024)`). Very long descriptions are truncated in `aipm list` output and plugin marketplace listings.
 
 ## Examples
 
@@ -11,7 +11,7 @@ Checks that the `description` field in SKILL.md frontmatter is no longer than 20
 ```markdown
 ---
 name: my-skill
-description: This description is far too verbose and goes well beyond the two-hundred character limit that is enforced by this rule, causing it to be truncated in listings.
+description: [a description exceeding 1 024 characters]
 ---
 ```
 
@@ -19,9 +19,9 @@ description: This description is far too verbose and goes well beyond the two-hu
 ```markdown
 ---
 name: my-skill
-description: Does something useful in under 200 characters.
+description: Does something useful in a single, concise sentence.
 ---
 ```
 
 ## How to fix
-Shorten the description to 200 characters or fewer. Keep it to one concise sentence that captures the core purpose of the skill.
+Shorten the description to 1 024 characters or fewer. Keep it to one or two sentences that capture the core purpose of the skill.

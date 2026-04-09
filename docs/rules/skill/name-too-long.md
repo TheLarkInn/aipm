@@ -3,14 +3,14 @@
 **Severity:** warning
 **Fixable:** No
 
-Checks that the `name` field in SKILL.md frontmatter is no longer than 60 characters. Long names are harder to read in CLI output and may be truncated in some UI contexts.
+Checks that the `name` field in SKILL.md frontmatter is no longer than 64 characters. This limit is derived from the Copilot CLI Zod schema (`z.string().max(64)`). Long names are harder to read in CLI output and may be truncated in some UI contexts.
 
 ## Examples
 
 ### Incorrect
 ```markdown
 ---
-name: this-skill-name-is-far-too-long-and-exceeds-the-sixty-character-limit
+name: this-skill-name-is-far-too-long-and-exceeds-the-sixty-four-char-limit
 description: Does something useful
 ---
 ```
@@ -24,4 +24,4 @@ description: Does something useful
 ```
 
 ## How to fix
-Shorten the name to 60 characters or fewer. Use a concise, descriptive identifier that clearly conveys the skill's purpose.
+Shorten the name to 64 characters or fewer. Use a concise, descriptive identifier that clearly conveys the skill's purpose.

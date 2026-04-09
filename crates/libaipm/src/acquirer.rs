@@ -442,6 +442,28 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
+    fn copy_dir_recursive_skips_symlinks() {
+        // Covers the `else if ft.is_file()` false branch (line 306): when a
+        // directory entry is a symlink, `ft.is_file()` returns false and the
+        // entry is silently skipped.
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        std::fs::create_dir_all(&src).unwrap_or_else(|_| {});
+        std::fs::write(src.join("regular.txt"), "content").unwrap();
+        // A symlink: is_file() returns false for the link itself.
+        std::os::unix::fs::symlink(src.join("regular.txt"), src.join("link.txt")).unwrap();
+
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(&dst).unwrap_or_else(|_| {});
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(result.is_ok());
+        assert!(dst.join("regular.txt").exists(), "regular file should be copied");
+        assert!(!dst.join("link.txt").exists(), "symlink should be silently skipped");
+    }
+
+    #[test]
     fn source_redirect_parses_from_aipm_toml() {
         let temp = make_temp();
         let dir = temp.path().join("stub-plugin");
@@ -553,6 +575,21 @@ mod tests {
         std::fs::write(dir.join("aipm.toml"), "[dependencies]\nfoo = \"1.0\"\n")
             .unwrap_or_else(|_| {});
         assert!(check_source_redirect(&dir).is_none());
+    }
+
+    /// Covers the `acquire_local` path where the source IS a directory (False
+    /// branch of `if !source.is_dir()`). The call proceeds past the dir-check,
+    /// copies the directory, then fails at plugin validation because `tests/`
+    /// has no plugin structure — exercising the is_dir success branch.
+    #[test]
+    fn acquire_local_source_is_directory_proceeds_to_validation() {
+        let temp = make_temp();
+        // "tests" always exists as a directory in the crate-root CWD during
+        // `cargo test` (contains a single file: bdd.rs), so the is_dir check
+        // passes and acquire_local proceeds to validate_plugin, which fails.
+        let path = ValidatedPath::new("tests").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(result.is_err());
     }
 
     /// Covers the `acquire_local` path where the source path exists on disk but

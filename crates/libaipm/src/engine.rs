@@ -309,4 +309,10 @@ mod tests {
 
         assert!(validate_plugin(&plugin_dir, Engine::Claude).is_ok());
     }
+
+    #[test]
+    fn marketplace_manifest_path_returns_correct_path() {
+        assert_eq!(Engine::Claude.marketplace_manifest_path(), ".claude-plugin/marketplace.toml");
+        assert_eq!(Engine::Copilot.marketplace_manifest_path(), ".github/plugin/marketplace.toml");
+    }
 }

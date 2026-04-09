@@ -1000,4 +1000,36 @@ mod tests {
         assert!(cached.join("plugin.json").exists(), "regular file should be copied");
         assert!(!cached.join("link.json").exists(), "symlink should be skipped");
     }
+
+    #[test]
+    fn put_handles_already_removed_old_entry_dir() {
+        // Covers the `if old_dir.exists()` False branch in put():
+        // Store a first entry, then manually remove its directory to simulate
+        // an external cleanup or race condition. A second put for the same key
+        // should succeed even though the old directory is already gone.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let spec = "already-removed-old-dir";
+
+        let src1 = temp.path().join("src-removed-1");
+        std::fs::create_dir_all(&src1).unwrap();
+        std::fs::write(src1.join("v1.txt"), "v1").unwrap();
+        let dir1 = cache.put(spec, &src1, None).unwrap();
+        assert!(dir1.exists());
+
+        // Simulate the old cache directory being removed externally.
+        std::fs::remove_dir_all(&dir1).unwrap();
+        assert!(!dir1.exists(), "precondition: old dir is gone");
+
+        // A second put for the same key: the cleanup code encounters
+        // `old_dir.exists() == false` and must skip silently.
+        let src2 = temp.path().join("src-removed-2");
+        std::fs::create_dir_all(&src2).unwrap();
+        std::fs::write(src2.join("v2.txt"), "v2").unwrap();
+        let dir2 = cache.put(spec, &src2, None).unwrap();
+
+        assert!(dir2.exists(), "new cache dir should exist");
+        assert_ne!(dir1, dir2, "new dir must differ from the removed old one");
+        let content = std::fs::read_to_string(dir2.join("v2.txt")).unwrap();
+        assert_eq!(content, "v2");
+    }
 }

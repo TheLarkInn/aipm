@@ -197,12 +197,18 @@ aipm migrate --manifest       # apply it with manifest generation
 
 ## Naming Conflicts
 
-When two artifacts would produce the same plugin name, aipm automatically renames
-one of them with a suffix and reports the rename:
+When two artifacts would produce the same plugin name — whether from separate source
+directories or when an artifact's name matches an existing `.ai/` directory — aipm
+automatically renames one of them with a numeric suffix and reports the rename:
 
 ```
 Warning: renamed 'deploy' → 'deploy-renamed-1' (plugin 'deploy' already exists in .ai/)
 ```
+
+This also applies when re-running `aipm migrate`: any artifact whose name collides with
+an already-migrated `.ai/` directory is renamed rather than skipped. See
+[issue #314](https://github.com/TheLarkInn/aipm/issues/314) for the planned idempotent
+behavior.
 
 Always review the output (or use `--dry-run` first) to verify that rename
 decisions are acceptable before committing.
@@ -212,7 +218,7 @@ decisions are acceptable before committing.
 Artifacts that cannot be safely migrated are skipped with an explanation:
 
 ```
-Skipped 'my-tool': source directory is empty
+Skipped 'my/../tool': unsafe artifact name 'my/../tool': must be a single path segment without separators or '..'
 ```
 
 Common skip reasons:
