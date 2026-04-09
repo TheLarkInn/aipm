@@ -176,6 +176,7 @@ fn create_skill_template(dir: &Path, fs: &dyn Fs) -> Result<(), std::io::Error> 
     fs.write_file(
         &skill_dir.join("SKILL.md"),
         b"---\n\
+        name: default\n\
         description: A starter skill template\n\
         ---\n\n\
         # Default Skill\n\n\

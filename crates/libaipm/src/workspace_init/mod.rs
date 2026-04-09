@@ -314,6 +314,7 @@ fn generate_plugin_json() -> String {
 
 fn generate_skill_template() -> String {
     "---\n\
+     name: scaffold-plugin\n\
      description: Scaffold a new AI plugin in the .ai/ marketplace directory. Use when the user wants to create a new plugin, skill, agent, or hook package.\n\
      ---\n\
      \n\
@@ -773,8 +774,9 @@ mod tests {
     #[test]
     fn skill_template_has_frontmatter() {
         let content = generate_skill_template();
-        assert!(content.contains("description:"));
         assert!(content.starts_with("---\n"));
+        assert!(content.contains("name:"));
+        assert!(content.contains("description:"));
     }
 
     #[test]
