@@ -587,4 +587,19 @@ mod tests {
     fn resolve_migrate_cleanup_answer_empty() {
         assert!(!resolve_migrate_cleanup_answer(&[]));
     }
+
+    #[test]
+    fn format_steps_text_validate_false_and_no_help() {
+        // Covers: `if *validate` false branch (Text step with validate=false)
+        // and `if let Some(help)` None branch (step without help).
+        let steps = vec![PromptStep {
+            label: "test step",
+            kind: PromptKind::Text { placeholder: "placeholder".to_string(), validate: false },
+            help: None,
+        }];
+        let output = format_steps(&steps);
+        assert!(!output.contains("Validate: marketplace-name"));
+        assert!(!output.contains("Help:"));
+        assert!(output.contains("placeholder: \"placeholder\""));
+    }
 }
