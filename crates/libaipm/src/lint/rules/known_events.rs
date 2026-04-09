@@ -152,4 +152,13 @@ mod tests {
         assert_eq!(suggest_canonical("preToolUse"), None);
         assert_eq!(suggest_canonical("InvalidEvent"), None);
     }
+
+    #[test]
+    fn is_valid_event_unknown_tool_falls_back_to_any() {
+        // The `_ =>` arm delegates to `is_valid_for_any_tool`.
+        assert!(is_valid_event("PreToolUse", ".ai"));
+        assert!(is_valid_event("preToolUse", ".ai"));
+        assert!(is_valid_event("Stop", ".ai")); // legacy Copilot name
+        assert!(!is_valid_event("TotallyInvalid", ".ai"));
+    }
 }
