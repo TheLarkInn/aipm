@@ -47,6 +47,13 @@ impl Rule for DescriptionTooLong {
             if let Some(ref fm) = skill.frontmatter {
                 if let Some(desc) = fm.fields.get("description") {
                     if desc.len() > MAX_DESCRIPTION_LENGTH {
+                        let desc_line = fm.field_lines.get("description").copied();
+                        let (col, end_col) = desc_line
+                            .and_then(|n| skill.content.lines().nth(n - 1))
+                            .and_then(|line| {
+                                crate::frontmatter::field_value_range(line, "description")
+                            })
+                            .unzip();
                         diagnostics.push(Diagnostic {
                             rule_id: self.id().to_string(),
                             severity: self.default_severity(),
@@ -56,10 +63,10 @@ impl Rule for DescriptionTooLong {
                                 desc.len()
                             ),
                             file_path: skill.path,
-                            line: fm.field_lines.get("description").copied(),
-                            col: None,
-                            end_line: None,
-                            end_col: None,
+                            line: desc_line,
+                            col,
+                            end_line: desc_line,
+                            end_col,
                             source_type: ".ai".to_string(),
                             help_text: None,
                             help_url: None,
@@ -82,6 +89,11 @@ impl Rule for DescriptionTooLong {
         if desc.len() <= MAX_DESCRIPTION_LENGTH {
             return Ok(vec![]);
         }
+        let desc_line = fm.field_lines.get("description").copied();
+        let (col, end_col) = desc_line
+            .and_then(|n| skill.content.lines().nth(n - 1))
+            .and_then(|line| crate::frontmatter::field_value_range(line, "description"))
+            .unzip();
         Ok(vec![Diagnostic {
             rule_id: self.id().to_string(),
             severity: self.default_severity(),
@@ -91,10 +103,10 @@ impl Rule for DescriptionTooLong {
                 desc.len()
             ),
             file_path: skill.path,
-            line: fm.field_lines.get("description").copied(),
-            col: None,
-            end_line: None,
-            end_col: None,
+            line: desc_line,
+            col,
+            end_line: desc_line,
+            end_col,
             source_type,
             help_text: None,
             help_url: None,
@@ -199,6 +211,37 @@ mod tests {
         let result = DescriptionTooLong.check_file(&path, &fs);
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn check_populates_col_and_end_col() {
+        // "description: " is 13 chars → value starts at col 14; 1025 'x's → end_col 1039
+        let mut fs = MockFs::new();
+        let desc = "x".repeat(1025);
+        let content = format!("---\nname: s\ndescription: {desc}\n---\nbody");
+        fs.add_skill("p", "s", &content);
+
+        let diags = DescriptionTooLong.check(Path::new(".ai"), &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].col, Some(14));
+        assert_eq!(diags[0].end_line, diags[0].line);
+        assert_eq!(diags[0].end_col, Some(1039));
+    }
+
+    #[test]
+    fn check_file_populates_col_and_end_col() {
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/skills/s/SKILL.md");
+        let desc = "x".repeat(1025);
+        let content = format!("---\nname: s\ndescription: {desc}\n---\nbody");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), content);
+
+        let diags = DescriptionTooLong.check_file(&path, &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].col, Some(14));
+        assert_eq!(diags[0].end_line, diags[0].line);
+        assert_eq!(diags[0].end_col, Some(1039));
     }
 
     #[test]

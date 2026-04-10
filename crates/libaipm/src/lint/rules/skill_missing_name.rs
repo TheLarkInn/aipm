@@ -46,9 +46,9 @@ impl Rule for MissingName {
                         message: "SKILL.md missing required field: name".to_string(),
                         file_path: skill.path,
                         line: Some(fm.start_line),
-                        col: None,
-                        end_line: None,
-                        end_col: None,
+                        col: Some(1),
+                        end_line: Some(fm.start_line),
+                        end_col: Some(4),
                         source_type: ".ai".to_string(),
                         help_text: None,
                         help_url: None,
@@ -61,9 +61,9 @@ impl Rule for MissingName {
                         message: "SKILL.md has no frontmatter".to_string(),
                         file_path: skill.path,
                         line: Some(1),
-                        col: None,
-                        end_line: None,
-                        end_col: None,
+                        col: Some(1),
+                        end_line: Some(1),
+                        end_col: Some(4),
                         source_type: ".ai".to_string(),
                         help_text: None,
                         help_url: None,
@@ -90,9 +90,9 @@ impl Rule for MissingName {
                 message: "SKILL.md missing required field: name".to_string(),
                 file_path: skill.path,
                 line: Some(fm.start_line),
-                col: None,
-                end_line: None,
-                end_col: None,
+                col: Some(1),
+                end_line: Some(fm.start_line),
+                end_col: Some(4),
                 source_type,
                 help_text: None,
                 help_url: None,
@@ -103,9 +103,9 @@ impl Rule for MissingName {
                 message: "SKILL.md has no frontmatter".to_string(),
                 file_path: skill.path,
                 line: Some(1),
-                col: None,
-                end_line: None,
-                end_col: None,
+                col: Some(1),
+                end_line: Some(1),
+                end_col: Some(4),
                 source_type,
                 help_text: None,
                 help_url: None,
@@ -288,6 +288,31 @@ mod tests {
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].rule_id, "skill/missing-name");
         assert_eq!(diags[0].line, Some(1));
+    }
+
+    #[test]
+    fn missing_name_points_to_frontmatter_opener() {
+        let mut fs = MockFs::new();
+        setup_skill(&mut fs, "my-plugin", "default", "---\ndescription: test\n---\nbody");
+        let diags = MissingName.check(Path::new(".ai"), &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        // Points to the --- opener on line 1
+        assert_eq!(diags[0].line, Some(1));
+        assert_eq!(diags[0].col, Some(1));
+        assert_eq!(diags[0].end_line, Some(1));
+        assert_eq!(diags[0].end_col, Some(4));
+    }
+
+    #[test]
+    fn no_frontmatter_points_to_line_one() {
+        let mut fs = MockFs::new();
+        setup_skill(&mut fs, "my-plugin", "default", "just plain text");
+        let diags = MissingName.check(Path::new(".ai"), &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].line, Some(1));
+        assert_eq!(diags[0].col, Some(1));
+        assert_eq!(diags[0].end_line, Some(1));
+        assert_eq!(diags[0].end_col, Some(4));
     }
 
     #[test]

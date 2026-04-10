@@ -77,8 +77,8 @@ impl Rule for BrokenPaths {
                                     file_path: skill.path.clone(),
                                     line: Some(line_num + 1),
                                     col: Some(col_offset + pos + 1),
-                                    end_line: None,
-                                    end_col: None,
+                                    end_line: Some(line_num + 1),
+                                    end_col: Some(col_offset + pos + prefix.len() + end + 1),
                                     source_type: ".ai".to_string(),
                                     help_text: None,
                                     help_url: None,
@@ -132,8 +132,8 @@ impl Rule for BrokenPaths {
                                 file_path: skill.path.clone(),
                                 line: Some(line_num + 1),
                                 col: Some(col_offset + pos + 1),
-                                end_line: None,
-                                end_col: None,
+                                end_line: Some(line_num + 1),
+                                end_col: Some(col_offset + pos + prefix.len() + end + 1),
                                 source_type: source_type.clone(),
                                 help_text: None,
                                 help_url: None,
@@ -349,6 +349,23 @@ mod tests {
         assert_eq!(diags.len(), 1);
         // The reference is on line 6
         assert_eq!(diags[0].line, Some(6));
+    }
+
+    #[test]
+    fn finding_has_end_col_populated() {
+        // "${CLAUDE_SKILL_DIR}/scripts/deploy.sh" — prefix is 19 chars, "scripts/deploy.sh" is 17
+        // Reference starts at col 2 (backtick then ref), end_col = 1 + 19 + 17 = 37
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "s", "---\nname: s\n---\n`${CLAUDE_SKILL_DIR}/scripts/deploy.sh`");
+
+        let diags = BrokenPaths.check(Path::new(".ai"), &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        let d = &diags[0];
+        assert!(d.col.is_some(), "col should be populated");
+        assert_eq!(d.end_line, d.line, "end_line should match line");
+        assert!(d.end_col.is_some(), "end_col should be populated");
+        // end_col > col (the reference has length)
+        assert!(d.end_col.unwrap_or(0) > d.col.unwrap_or(0));
     }
 
     // --- check_file() tests ---

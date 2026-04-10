@@ -144,6 +144,46 @@ pub fn parse(content: &str) -> Result<Option<Frontmatter>, String> {
     Ok(Some(Frontmatter { fields, field_lines, start_line, end_line, body: body.to_string() }))
 }
 
+/// Compute the 1-based `(col, end_col)` for the value portion of a frontmatter field line.
+///
+/// Given a line like `"name: my-skill"` and key `"name"`, returns `(7, 15)` — the
+/// 1-based start column (inclusive) and end column (exclusive) of the value `"my-skill"`.
+///
+/// Both column numbers are 1-based. `end_col` is exclusive (one past the last character),
+/// consistent with the `Diagnostic` range convention used by the human reporter and LSP.
+///
+/// Returns `None` if:
+/// - The `"key:"` prefix is not found in the line
+/// - There is no non-whitespace content after the colon
+///
+/// # Examples
+///
+/// ```
+/// # use libaipm::frontmatter::field_value_range;
+/// assert_eq!(field_value_range("name: my-skill", "name"), Some((7, 15)));
+/// assert_eq!(field_value_range("name:  spaced", "name"), Some((8, 14)));
+/// assert_eq!(field_value_range("description: ", "description"), None);
+/// assert_eq!(field_value_range("name: my-skill", "shell"), None);
+/// ```
+pub fn field_value_range(line_content: &str, key: &str) -> Option<(usize, usize)> {
+    let prefix = format!("{key}:");
+    let key_pos = line_content.find(prefix.as_str())?;
+    let after_colon = key_pos + prefix.len();
+    let value_part = line_content.get(after_colon..)?;
+
+    // Find the start of the value by skipping leading whitespace after the colon
+    let leading_ws = value_part.len() - value_part.trim_start().len();
+    let value_start = after_colon + leading_ws;
+
+    let value = line_content.get(value_start..)?.trim_end();
+    if value.is_empty() {
+        return None;
+    }
+
+    // 1-based start column (inclusive), 1-based end column (exclusive)
+    Some((value_start + 1, value_start + value.len() + 1))
+}
+
 /// Strip matching surrounding YAML quote delimiters from a scalar value.
 ///
 /// Handles both double-quoted (`"..."`) and single-quoted (`'...'`) YAML scalars.
@@ -667,5 +707,45 @@ mod tests {
         assert!(result.is_ok());
         let fm = result.unwrap_or_default().unwrap_or_default();
         assert!(fm.body.contains("body with cr"));
+    }
+
+    #[test]
+    fn field_value_range_exact_match() {
+        // "name: my-skill" — value starts at col 7 (1-based), ends at 15 (exclusive)
+        assert_eq!(field_value_range("name: my-skill", "name"), Some((7, 15)));
+    }
+
+    #[test]
+    fn field_value_range_extra_spaces() {
+        // "name:  my-skill" — two spaces after colon, value starts at col 8
+        assert_eq!(field_value_range("name:  my-skill", "name"), Some((8, 16)));
+    }
+
+    #[test]
+    fn field_value_range_wrong_key_returns_none() {
+        assert_eq!(field_value_range("name: my-skill", "shell"), None);
+    }
+
+    #[test]
+    fn field_value_range_empty_value_returns_none() {
+        // Trailing space only — value trims to empty
+        assert_eq!(field_value_range("name: ", "name"), None);
+        // No space after colon at all
+        assert_eq!(field_value_range("name:", "name"), None);
+    }
+
+    #[test]
+    fn field_value_range_trailing_spaces_trim() {
+        // Trailing spaces should not extend end_col
+        assert_eq!(field_value_range("name: my-skill   ", "name"), Some((7, 15)));
+    }
+
+    #[test]
+    fn field_value_range_description_field() {
+        // Longer key prefix
+        assert_eq!(
+            field_value_range("description: A short description", "description"),
+            Some((14, 33))
+        );
     }
 }

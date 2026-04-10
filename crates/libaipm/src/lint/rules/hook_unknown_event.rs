@@ -12,6 +12,22 @@ use crate::lint::Error;
 
 use super::{known_events, scan};
 
+/// Return `(line_num, col, end_col)` for a JSON key in a string of JSON content.
+///
+/// Searches for the first line containing `"key"` and returns:
+/// - `line_num`: 1-based line number
+/// - `col`: 1-based column of the opening `"`
+/// - `end_col`: 1-based exclusive column past the closing `"`
+fn locate_json_key(content: &str, key: &str) -> Option<(usize, usize, usize)> {
+    let needle = format!("\"{key}\"");
+    for (i, line) in content.lines().enumerate() {
+        if let Some(pos) = line.find(&needle) {
+            return Some((i + 1, pos + 1, pos + needle.len() + 1));
+        }
+    }
+    None
+}
+
 /// Checks that hook event names are valid.
 pub struct UnknownEvent;
 
@@ -78,15 +94,18 @@ impl Rule for UnknownEvent {
                     continue;
                 }
                 if !known_events::is_valid_for_any_tool(key) {
+                    let (line, col, end_col) =
+                        locate_json_key(&content, key)
+                            .map_or((None, None, None), |(l, c, e)| (Some(l), Some(c), Some(e)));
                     diagnostics.push(Diagnostic {
                         rule_id: self.id().to_string(),
                         severity: self.default_severity(),
                         message: format!("unknown hook event: {key}"),
                         file_path: path.clone(),
-                        line: None,
-                        col: None,
-                        end_line: None,
-                        end_col: None,
+                        line,
+                        col,
+                        end_line: line,
+                        end_col,
                         source_type: ".ai".to_string(),
                         help_text: None,
                         help_url: None,
@@ -134,15 +153,18 @@ impl Rule for UnknownEvent {
                 continue;
             }
             if !known_events::is_valid_for_any_tool(key) {
+                let (line, col, end_col) =
+                    locate_json_key(&content, key)
+                        .map_or((None, None, None), |(l, c, e)| (Some(l), Some(c), Some(e)));
                 diagnostics.push(Diagnostic {
                     rule_id: self.id().to_string(),
                     severity: self.default_severity(),
                     message: format!("unknown hook event: {key}"),
                     file_path: file_path.to_path_buf(),
-                    line: None,
-                    col: None,
-                    end_line: None,
-                    end_col: None,
+                    line,
+                    col,
+                    end_line: line,
+                    end_col,
                     source_type: source_type.clone(),
                     help_text: None,
                     help_url: None,
@@ -274,6 +296,21 @@ mod tests {
         assert!(result.is_ok());
         // A JSON string is not an object — no events to check
         assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn unknown_event_has_col_and_end_col() {
+        // Single-line JSON: `{ "InvalidEvent": [] }` — "InvalidEvent" is at col 3
+        // needle = `"InvalidEvent"` (14 chars) → col=3, end_col=17
+        let mut fs = MockFs::new();
+        fs.add_hooks("p", r#"{ "InvalidEvent": [] }"#);
+
+        let diags = UnknownEvent.check(Path::new(".ai"), &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].line, Some(1));
+        assert_eq!(diags[0].col, Some(3));
+        assert_eq!(diags[0].end_line, Some(1));
+        assert_eq!(diags[0].end_col, Some(17));
     }
 
     // --- check_file() tests ---
