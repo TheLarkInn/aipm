@@ -366,6 +366,33 @@ mod tests {
     }
 
     #[test]
+    fn remove_file_succeeds_when_fail_path_differs() {
+        // Covers the false branch of `if path == fail_path` in MockFs::remove_file:
+        // fail_remove_file is set to a *different* path than the one being removed,
+        // so remove_file should succeed.
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/p/.claude/commands/other.md"));
+        *fs.fail_remove_file.lock().unwrap_or_else(|e| e.into_inner()) =
+            Some(PathBuf::from("/p/.claude/commands/review.md")); // != other.md
+
+        let outcome = make_outcome(vec![plugin_created(
+            "other",
+            "/p/.claude/commands/other.md",
+            "skill",
+            false,
+        )]);
+
+        let result = remove_migrated_sources(&outcome, &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert_eq!(actions.len(), 1);
+        assert_eq!(
+            actions[0],
+            Action::SourceFileRemoved { path: PathBuf::from("/p/.claude/commands/other.md") }
+        );
+    }
+
+    #[test]
     fn mixed_artifacts_with_skip() {
         let mut fs = MockFs::new();
         // Skill dir
