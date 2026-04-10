@@ -472,6 +472,14 @@ In short: `apm` is a useful prototype that proves the problem space. AIPM is des
 
 Contributions and suggestions are welcome! Please open an issue or pull request on [GitHub](https://github.com/thelarkinn/aipm).
 
+Before contributing code, read [`CLAUDE.md`](CLAUDE.md) for the full contributor guide. It covers:
+
+- **Lint rules** — enforced at compile time; inline suppressions are rejected by CI
+- **Build & test commands** — `cargo build`, `cargo test`, `cargo clippy`, `cargo fmt`
+- **Coverage gate** — 89% branch coverage required; instructions for running `cargo-llvm-cov`
+- **Agentic workflows** — five automated workflows that run on a schedule (coverage, QA, docs, build timings); all require `timeout-minutes: 45`
+- **Project structure** — crate layout for `aipm`, `aipm-pack`, and `libaipm`
+
 ## License
 
 This project is licensed under the [MIT License](LICENSE).

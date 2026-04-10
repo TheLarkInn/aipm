@@ -79,3 +79,4 @@ Quality rules enforced by `aipm lint`:
 - [README](../README.md) — full command reference for `aipm` and `aipm-pack`
 - [Manifest format](../README.md#manifest-format-aipmtoml) — `aipm.toml` schema
 - [Workspace lints](../README.md#workspace-root-manifest) — `[workspace.lints]` configuration
+- [CLAUDE.md](../CLAUDE.md) — contributor guide: lint policy, build/test/coverage commands, agentic workflows, and project structure
