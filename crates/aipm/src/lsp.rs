@@ -82,10 +82,9 @@ impl Backend {
             tracing::warn!(uri = %uri, "LSP URI is not a file path — skipping lint");
             return;
         };
-        let diagnostics =
-            tokio::task::spawn_blocking(move || lint_file_diagnostics(&path))
-                .await
-                .unwrap_or_default();
+        let diagnostics = tokio::task::spawn_blocking(move || lint_file_diagnostics(&path))
+            .await
+            .unwrap_or_default();
         self.client.publish_diagnostics(uri, diagnostics, None).await;
     }
 
@@ -113,10 +112,9 @@ impl Backend {
                 tracing::warn!(uri = %uri_clone, "LSP URI is not a file path — skipping lint");
                 return;
             };
-            let diagnostics =
-                tokio::task::spawn_blocking(move || lint_file_diagnostics(&path))
-                    .await
-                    .unwrap_or_default();
+            let diagnostics = tokio::task::spawn_blocking(move || lint_file_diagnostics(&path))
+                .await
+                .unwrap_or_default();
             client.publish_diagnostics(uri_clone, diagnostics, None).await;
         });
 
@@ -276,7 +274,10 @@ impl LanguageServer for Backend {
         }
 
         Ok(Some(Hover {
-            contents: HoverContents::Markup(MarkupContent { kind: MarkupKind::Markdown, value: md }),
+            contents: HoverContents::Markup(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: md,
+            }),
             range: None,
         }))
     }
@@ -364,7 +365,11 @@ fn extract_rule_id_at(text: &str, line: u32, character: u32) -> Option<String> {
     }
 
     let word: String = chars.get(start..=end)?.iter().collect();
-    if word.is_empty() { None } else { Some(word) }
+    if word.is_empty() {
+        None
+    } else {
+        Some(word)
+    }
 }
 
 // ── Lint helper ───────────────────────────────────────────────────────────────
@@ -434,8 +439,7 @@ fn to_lsp_diagnostic(d: &libaipm::lint::Diagnostic) -> LspDiagnostic {
 fn lint_file_diagnostics(file_path: &Path) -> Vec<LspDiagnostic> {
     let workspace_dir = find_workspace_dir(file_path);
     let config = crate::load_lint_config(&workspace_dir);
-    let opts =
-        libaipm::lint::Options { dir: workspace_dir, source: None, config, max_depth: None };
+    let opts = libaipm::lint::Options { dir: workspace_dir, source: None, config, max_depth: None };
 
     match libaipm::lint::lint(&opts, &libaipm::fs::Real) {
         Ok(outcome) => outcome
@@ -693,10 +697,7 @@ mod tests {
 
     /// Build a minimal workspace with `.ai/` marker and one feature file.
     /// Returns `(TempDir, absolute_path_to_feature_file)`.
-    fn make_workspace(
-        rel_path: &str,
-        content: &str,
-    ) -> (tempfile::TempDir, std::path::PathBuf) {
+    fn make_workspace(rel_path: &str, content: &str) -> (tempfile::TempDir, std::path::PathBuf) {
         let dir = tempfile::tempdir().expect("tempdir");
         let file = dir.path().join(rel_path);
         std::fs::create_dir_all(file.parent().expect("parent")).expect("mkdir");
@@ -714,46 +715,48 @@ mod tests {
         );
         let diags = lint_file_diagnostics(&file);
         assert!(
-            diags.iter().any(|d| d.code == Some(NumberOrString::String("skill/name-invalid-chars".to_string()))),
+            diags
+                .iter()
+                .any(|d| d.code
+                    == Some(NumberOrString::String("skill/name-invalid-chars".to_string()))),
             "expected skill/name-invalid-chars diagnostic, got: {diags:?}",
         );
     }
 
     #[test]
     fn lint_diagnostics_agent_missing_tools() {
-        let (_dir, file) = make_workspace(
-            ".ai/p/agents/reviewer.md",
-            "---\n---\n",
-        );
+        let (_dir, file) = make_workspace(".ai/p/agents/reviewer.md", "---\n---\n");
         let diags = lint_file_diagnostics(&file);
         assert!(
-            diags.iter().any(|d| d.code == Some(NumberOrString::String("agent/missing-tools".to_string()))),
+            diags
+                .iter()
+                .any(|d| d.code == Some(NumberOrString::String("agent/missing-tools".to_string()))),
             "expected agent/missing-tools diagnostic, got: {diags:?}",
         );
     }
 
     #[test]
     fn lint_diagnostics_hook_unknown_event() {
-        let (_dir, file) = make_workspace(
-            ".ai/p/hooks/hooks.json",
-            r#"{"UnknownEvent": []}"#,
-        );
+        let (_dir, file) = make_workspace(".ai/p/hooks/hooks.json", r#"{"UnknownEvent": []}"#);
         let diags = lint_file_diagnostics(&file);
         assert!(
-            diags.iter().any(|d| d.code == Some(NumberOrString::String("hook/unknown-event".to_string()))),
+            diags
+                .iter()
+                .any(|d| d.code == Some(NumberOrString::String("hook/unknown-event".to_string()))),
             "expected hook/unknown-event diagnostic, got: {diags:?}",
         );
     }
 
     #[test]
     fn lint_diagnostics_plugin_json_missing_required_field() {
-        let (_dir, file) = make_workspace(
-            ".ai/p/.claude-plugin/plugin.json",
-            r#"{"name": "test-plugin"}"#,
-        );
+        let (_dir, file) =
+            make_workspace(".ai/p/.claude-plugin/plugin.json", r#"{"name": "test-plugin"}"#);
         let diags = lint_file_diagnostics(&file);
         assert!(
-            diags.iter().any(|d| d.code == Some(NumberOrString::String("plugin/required-fields".to_string()))),
+            diags
+                .iter()
+                .any(|d| d.code
+                    == Some(NumberOrString::String("plugin/required-fields".to_string()))),
             "expected plugin/required-fields diagnostic, got: {diags:?}",
         );
     }
@@ -765,20 +768,14 @@ mod tests {
             "---\nname: my-skill\ndescription: A valid description\n---\nBody\n",
         );
         let diags = lint_file_diagnostics(&file);
-        assert!(
-            diags.is_empty(),
-            "expected no diagnostics for clean skill, got: {diags:?}",
-        );
+        assert!(diags.is_empty(), "expected no diagnostics for clean skill, got: {diags:?}",);
     }
 
     #[test]
     fn lint_diagnostics_stale_clearing_clean_file_returns_empty() {
         // Simulates the "stale clearing" scenario: a file that was fixed should
         // produce empty diagnostics (which clears the VS Code markers).
-        let (_dir, file) = make_workspace(
-            ".ai/p/agents/coder.md",
-            "---\ntools: All\n---\n",
-        );
+        let (_dir, file) = make_workspace(".ai/p/agents/coder.md", "---\ntools: All\n---\n");
         let diags = lint_file_diagnostics(&file);
         assert!(diags.is_empty(), "clean agent file should have no diagnostics");
     }

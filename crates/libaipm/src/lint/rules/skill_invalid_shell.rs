@@ -49,9 +49,7 @@ impl Rule for InvalidShell {
                         let shell_line = fm.field_lines.get("shell").copied();
                         let (col, end_col) = shell_line
                             .and_then(|n| skill.content.lines().nth(n - 1))
-                            .and_then(|line| {
-                                crate::frontmatter::field_value_range(line, "shell")
-                            })
+                            .and_then(|line| crate::frontmatter::field_value_range(line, "shell"))
                             .unzip();
                         diagnostics.push(Diagnostic {
                             rule_id: self.id().to_string(),

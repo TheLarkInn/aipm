@@ -66,9 +66,8 @@ impl Rule for LegacyEventName {
 
             for key in hooks.keys() {
                 if let Some(canonical) = known_events::suggest_canonical(key) {
-                    let (line, col, end_col) =
-                        locate_json_key(&content, key)
-                            .map_or((None, None, None), |(l, c, e)| (Some(l), Some(c), Some(e)));
+                    let (line, col, end_col) = locate_json_key(&content, key)
+                        .map_or((None, None, None), |(l, c, e)| (Some(l), Some(c), Some(e)));
                     diagnostics.push(Diagnostic {
                         rule_id: self.id().to_string(),
                         severity: self.default_severity(),
@@ -110,9 +109,8 @@ impl Rule for LegacyEventName {
         };
         for key in hooks.keys() {
             if let Some(canonical) = known_events::suggest_canonical(key) {
-                let (line, col, end_col) =
-                    locate_json_key(&content, key)
-                        .map_or((None, None, None), |(l, c, e)| (Some(l), Some(c), Some(e)));
+                let (line, col, end_col) = locate_json_key(&content, key)
+                    .map_or((None, None, None), |(l, c, e)| (Some(l), Some(c), Some(e)));
                 diagnostics.push(Diagnostic {
                     rule_id: self.id().to_string(),
                     severity: self.default_severity(),
