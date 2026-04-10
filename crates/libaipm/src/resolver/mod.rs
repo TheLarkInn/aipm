@@ -1563,4 +1563,26 @@ mod tests {
 
         assert!(result.is_err());
     }
+
+    #[test]
+    fn backtrack_detects_conflict_with_lockfile_pin() {
+        // Covers the `if let Some(existing)` True branch in `backtrack_and_retry` (L391):
+        // all backtracking candidates share the same major as a lockfile pin that does
+        // not satisfy the requirement, so every candidate triggers the conflict check
+        // and the resolver exhausts all options.
+        let mut reg = MockRegistry::new();
+        reg.add_package("skill-a", vec![("1.2.0", vec![]), ("1.1.0", vec![])]);
+
+        // Lockfile pins skill-a at 1.0.0, which does not satisfy ^1.1.
+        let mut pins = BTreeMap::new();
+        pins.insert("skill-a".to_string(), Version::parse("1.0.0").unwrap());
+
+        let deps = vec![root_dep("skill-a", "^1.1")];
+        let result = resolve(&deps, &pins, &reg);
+
+        // Candidates 1.2.0 and 1.1.0 both share major=1 with the pin (1.0.0).
+        // Each backtrack iteration hits L391 True (existing pin found), checks whether
+        // the pin satisfies ^1.1 (it doesn't), and continues — exhausting all choices.
+        assert!(matches!(result, Err(Error::Conflict(_))));
+    }
 }
