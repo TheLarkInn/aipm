@@ -289,4 +289,22 @@ mod tests {
         assert_eq!(diags[0].rule_id, "skill/missing-name");
         assert_eq!(diags[0].line, Some(1));
     }
+
+    #[test]
+    fn setup_skill_deduplicates_skill_dir_entries() {
+        // Cover the False branch of `if !skill_entries.iter().any(|e| e.name == skill)`
+        // in `setup_skill`: calling with the same plugin+skill twice must not add a duplicate.
+        let mut fs = MockFs::new();
+        setup_skill(&mut fs, "my-plugin", "my-skill", "---\nname: my-skill\n---\nbody");
+        // Second call with same plugin/skill — the skill dir entry already exists.
+        setup_skill(&mut fs, "my-plugin", "my-skill", "---\nname: my-skill\n---\nupdated body");
+
+        let skills_dir = PathBuf::from(".ai/my-plugin/skills");
+        let entry_count = fs.dirs.get(&skills_dir).map(Vec::len).unwrap_or(0);
+        assert_eq!(entry_count, 1, "skill dir entry should not be duplicated");
+
+        let result = MissingName.check(Path::new(".ai"), &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
 }
