@@ -345,6 +345,25 @@ mod tests {
     }
 
     #[test]
+    fn make_temp_dir_removes_existing_dir() {
+        // Pre-create the temp dir so that `if tmp.exists()` at line 140 takes the True branch.
+        let name = "pre-existing";
+        let tmp_path = std::env::temp_dir().join(format!("aipm-test-claude-{name}"));
+        std::fs::create_dir_all(&tmp_path).ok();
+        // Write a sentinel file; make_temp_dir must remove it when cleaning up.
+        std::fs::write(tmp_path.join("sentinel.txt"), b"old").ok();
+
+        let tmp = make_temp_dir(name);
+        assert!(tmp.exists(), "make_temp_dir should recreate the directory");
+        assert!(
+            !tmp.join("sentinel.txt").exists(),
+            "old contents should be removed by make_temp_dir"
+        );
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn claude_settings_no_starter_merge_adds_marketplace_only() {
         // no_starter=true + no marketplace yet → add marketplace but skip enabledPlugins (line 123)
         let tmp = make_temp_dir("no-starter-add");
