@@ -76,6 +76,38 @@ rustup component add llvm-tools-preview --toolchain nightly
 cargo install cargo-llvm-cov
 ```
 
+## Agentic Workflows
+
+The repository uses [GitHub Agentic Workflows](https://githubnext.com/projects/agentics) (`.github/workflows/*.md` compiled via `gh aw compile`) for automated maintenance tasks. All workflows are set to `timeout-minutes: 45`.
+
+| Workflow file | Schedule | Purpose |
+|---|---|---|
+| `improve-coverage.md` | Every 15 min | Finds uncovered branches, writes tests, opens PRs |
+| `daily-qa.md` | Every 3 h | Validates build, tests, and documentation health |
+| `docs-updater.md` | Weekdays daily | Syncs docs with recent code changes |
+| `update-docs.md` | On push to `main` | Updates docs on every merge |
+| `build-timings.md` | Weekdays daily | Analyzes compilation bottlenecks |
+
+### Why 45 minutes?
+
+The full agent cycle (Rust nightly toolchain install → build → test → coverage instrumentation → analysis → PR creation) consistently exceeded shorter timeouts. Specifically:
+
+- `improve-coverage` was killed at 30 min with 29+ repeated failures ([issue #367](https://github.com/TheLarkInn/aipm/issues/367))
+- `daily-qa` was killed at 15 min
+- `docs-updater` was killed at the default 20 min
+
+**Do not lower these timeouts.** If a workflow still times out, investigate the agent logic — do not reduce the limit.
+
+### Modifying workflow files
+
+After editing any `.github/workflows/<name>.md`, recompile its lock file:
+
+```bash
+gh aw compile <name>   # e.g. gh aw compile improve-coverage
+```
+
+Commit both the `.md` source and the regenerated `.lock.yml` together. The compiled lock file is the canonical version GitHub Actions runs.
+
 ## Project Structure
 
 - `Cargo.toml` — workspace root, lint configuration
