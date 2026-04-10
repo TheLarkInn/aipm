@@ -430,4 +430,15 @@ mod tests {
         assert_eq!(plugin_type_from_index(4), Some(PluginType::Hook));
         assert_eq!(plugin_type_from_index(5), Some(PluginType::Lsp));
     }
+
+    // =========================================================================
+    // format_steps edge-case: empty step list
+    // =========================================================================
+
+    #[test]
+    fn format_steps_empty_input_returns_no_prompts_label() {
+        // Covers the `if steps.is_empty()` True branch in the format_steps helper.
+        let result = format_steps(&[]);
+        assert_eq!(result, "(no prompts)\n");
+    }
 }
