@@ -330,4 +330,24 @@ mod tests {
         assert!(v.is_ok());
         assert!(v.ok().is_some_and(|v| !v.is_prerelease()));
     }
+
+    #[test]
+    fn version_inner_returns_semver_version() {
+        let v = Version::parse("2.3.4").unwrap();
+        let inner = v.inner();
+        assert_eq!(inner.major, 2);
+        assert_eq!(inner.minor, 3);
+        assert_eq!(inner.patch, 4);
+    }
+
+    #[test]
+    fn requirement_inner_returns_semver_version_req() {
+        let r = Requirement::parse("^1.5.0").unwrap();
+        let inner = r.inner();
+        // The inner VersionReq should match 1.5.0 and above in the same major
+        let v_ok = semver::Version::new(1, 6, 0);
+        let v_fail = semver::Version::new(2, 0, 0);
+        assert!(inner.matches(&v_ok));
+        assert!(!inner.matches(&v_fail));
+    }
 }
