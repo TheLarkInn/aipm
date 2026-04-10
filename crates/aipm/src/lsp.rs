@@ -65,7 +65,8 @@ pub struct Backend {
     rule_index: HashMap<String, RuleInfo>,
     /// Pending debounce tasks keyed by URI string.
     /// Cancels the previous handle when a new save arrives for the same file.
-    debounce_handles: tokio::sync::Mutex<HashMap<String, tokio::task::JoinHandle<()>>>,
+    /// Wrapped in Arc so the spawned task can remove its own entry after completion.
+    debounce_handles: std::sync::Arc<tokio::sync::Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
 }
 
 impl Backend {
@@ -73,7 +74,7 @@ impl Backend {
         Self {
             client,
             rule_index: build_rule_index(),
-            debounce_handles: tokio::sync::Mutex::new(HashMap::new()),
+            debounce_handles: std::sync::Arc::new(tokio::sync::Mutex::new(HashMap::new())),
         }
     }
 
@@ -106,17 +107,22 @@ impl Backend {
 
         let client = self.client.clone();
         let uri_clone = uri.clone();
+        let handles_arc = std::sync::Arc::clone(&self.debounce_handles);
+        let key_clone = key.clone();
 
         let handle = tokio::spawn(async move {
             tokio::time::sleep(DEBOUNCE_DELAY).await;
             let Ok(path) = uri_clone.to_file_path() else {
                 tracing::warn!(uri = %uri_clone, "LSP URI is not a file path — skipping lint");
+                handles_arc.lock().await.remove(&key_clone);
                 return;
             };
             let diagnostics = tokio::task::spawn_blocking(move || lint_file_diagnostics(&path))
                 .await
                 .unwrap_or_default();
             client.publish_diagnostics(uri_clone, diagnostics, None).await;
+            // Remove completed handle to prevent unbounded map growth.
+            handles_arc.lock().await.remove(&key_clone);
         });
 
         let mut handles = self.debounce_handles.lock().await;
@@ -167,7 +173,14 @@ impl LanguageServer for Backend {
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
-        self.client.publish_diagnostics(params.text_document.uri, vec![], None).await;
+        let uri = params.text_document.uri;
+        // Cancel any pending debounce so it doesn't publish stale diagnostics
+        // after the editor has already cleared the document.
+        let pending = self.debounce_handles.lock().await.remove(&uri.to_string());
+        if let Some(handle) = pending {
+            handle.abort();
+        }
+        self.client.publish_diagnostics(uri, vec![], None).await;
     }
 
     async fn completion(

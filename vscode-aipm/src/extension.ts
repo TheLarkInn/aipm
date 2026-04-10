@@ -6,7 +6,7 @@ import {
   TransportKind,
 } from 'vscode-languageclient/node';
 
-let client: LanguageClient;
+let client: LanguageClient | undefined;
 
 export function activate(context: ExtensionContext): void {
   const config = workspace.getConfiguration('aipm');
@@ -22,6 +22,8 @@ export function activate(context: ExtensionContext): void {
 
   const clientOptions: LanguageClientOptions = {
     documentSelector: [
+      // Workspace manifest — completions and hover for [workspace.lints]
+      { scheme: 'file', pattern: '**/aipm.toml' },
       // Skill files — flat layout (.claude/skills/SKILL.md)
       { scheme: 'file', pattern: '**/skills/SKILL.md' },
       // Skill files — nested layout (.claude/skills/default/SKILL.md)

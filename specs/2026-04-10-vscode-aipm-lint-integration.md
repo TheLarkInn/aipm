@@ -22,7 +22,7 @@ This RFC proposes full VS Code integration for `aipm lint` through four delivera
 
 ### 2.1 Current State
 
-`aipm lint` is a mature 19-rule linting system with config-driven severity overrides, ignore paths, and four output reporters (human, JSON, GitHub Actions, Azure DevOps). The `Diagnostic` struct ([`lint/diagnostic.rs:39-63`](../crates/libaipm/src/lint/diagnostic.rs#L39-L63)) carries `line`/`col`/`end_line`/`end_col` fields, but **`end_line` and `end_col` are always `None`** in all rule implementations. Only `plugin/broken-paths` populates `col`; all other rules either set `line: Some(field_line)` with `col: None` or `line: None` entirely.
+`aipm lint` is a mature 17-rule linting system with config-driven severity overrides, ignore paths, and four output reporters (human, JSON, GitHub Actions, Azure DevOps). The `Diagnostic` struct ([`lint/diagnostic.rs:39-63`](../crates/libaipm/src/lint/diagnostic.rs#L39-L63)) carries `line`/`col`/`end_line`/`end_col` fields, but **`end_line` and `end_col` are always `None`** in all rule implementations. Only `plugin/broken-paths` populates `col`; all other rules either set `line: Some(field_line)` with `col: None` or `line: None` entirely.
 
 The `aipm.toml` manifest is parsed via `toml::from_str::<Manifest>()` with `#[serde(deny_unknown_fields)]` ([`manifest/mod.rs:21`](../crates/libaipm/src/manifest/mod.rs#L21)), and the `[workspace.lints]` section is parsed separately via raw `toml::Value` navigation ([`main.rs:744-832`](../crates/aipm/src/main.rs#L744-L832)).
 
@@ -37,7 +37,7 @@ The `aipm.toml` manifest is parsed via `toml::from_str::<Manifest>()` with `#[se
 
 ### 2.3 Why Now
 
-The lint system has stabilized at 19 rules across 6 feature kinds with a well-defined config format. The `Diagnostic` struct already has range fields — they just need to be populated. The research ([`research/docs/2026-04-10-377-vscode-support-aipm-lint.md`](../research/docs/2026-04-10-377-vscode-support-aipm-lint.md)) confirms that Taplo's `tomlValidation` contribution point enables a declarative extension with minimal code, and that `libaipm::lint` is already decoupled from the CLI (filesystem-abstracted, structured output) — making an LSP wrapper straightforward.
+The lint system has stabilized at 17 rules across 6 feature kinds with a well-defined config format. The `Diagnostic` struct already has range fields — they just need to be populated. The research ([`research/docs/2026-04-10-377-vscode-support-aipm-lint.md`](../research/docs/2026-04-10-377-vscode-support-aipm-lint.md)) confirms that Taplo's `tomlValidation` contribution point enables a declarative extension with minimal code, and that `libaipm::lint` is already decoupled from the CLI (filesystem-abstracted, structured output) — making an LSP wrapper straightforward.
 
 ---
 
@@ -45,7 +45,7 @@ The lint system has stabilized at 19 rules across 6 feature kinds with a well-de
 
 ### 3.1 Functional Goals
 
-- [ ] **G1**: Hand-written JSON Schema for `[workspace.lints]` in `aipm.toml` with autocomplete for all 19 rule IDs and severity/ignore config
+- [ ] **G1**: Hand-written JSON Schema for `[workspace.lints]` in `aipm.toml` with autocomplete for all 17 rule IDs and severity/ignore config
 - [ ] **G2**: SchemaStore.org submission so any Taplo/Tombi user gets validation and autocomplete with zero install
 - [ ] **G3**: `vscode-aipm` VS Code extension that registers the schema via Taplo's `tomlValidation` contribution and publishes `aipm lint` diagnostics to the Problems panel
 - [ ] **G4**: Populate `end_line`/`end_col` in frontmatter-based and line-scanning lint rules for precise error ranges
@@ -104,7 +104,7 @@ flowchart TB
     subgraph AipmBinary["aipm binary"]
         direction TB
         LspServer["aipm lsp<br>(LSP Server on stdio)"]:::lsp
-        LintLib["libaipm::lint::lint()<br>19 rules + ranges"]:::existing
+        LintLib["libaipm::lint::lint()<br>17 rules + ranges"]:::existing
     end
 
     Schema["schemas/aipm.toml.schema.json<br>(hand-written, lints only)"]:::schema
@@ -303,7 +303,7 @@ The schema deliberately covers ONLY the `[workspace.lints]` section. All other t
 
 2. **`additionalProperties: false`** on `lints` — catches typos in rule IDs. A mistyped `"skill/mising-name"` would produce a schema validation error in Taplo.
 
-3. **`patternProperties` with explicit rule ID regex** — enumerates all 19 rule IDs so Taplo can offer autocomplete when typing inside `[workspace.lints]`. The regex is verbose but explicit; as rules are added, this list is updated.
+3. **`patternProperties` with explicit rule ID regex** — enumerates all 17 rule IDs so Taplo can offer autocomplete when typing inside `[workspace.lints]`. The regex is verbose but explicit; as rules are added, this list is updated.
 
 4. **`oneOf` for rule values** — supports both simple string overrides (`"allow"`, `"error"`) and detailed objects (`{ level = "warn", ignore = ["legacy/**"] }`).
 
@@ -342,7 +342,7 @@ Once merged, Taplo and Tombi auto-discover the schema for any file named `aipm.t
 
 ### 5.4 Range Population in Lint Rules
 
-Currently `end_line` and `end_col` are `None` in all 19 rules. Populating them enables precise character-level highlighting in VS Code (and the human reporter's `annotate-snippets` rendering).
+Currently `end_line` and `end_col` are `None` in all 17 rules. Populating them enables precise character-level highlighting in VS Code (and the human reporter's `annotate-snippets` rendering).
 
 #### 5.4.1 Range Sources by Rule Category
 
@@ -519,7 +519,7 @@ When `line` is `None` (directory-level diagnostics), the diagnostic maps to `Ran
 
 Completions fire inside `aipm.toml` files within the `[workspace.lints]` section:
 
-1. **Rule ID completions**: When the cursor is at a key position under `[workspace.lints]`, offer all 19 rule IDs with descriptions:
+1. **Rule ID completions**: When the cursor is at a key position under `[workspace.lints]`, offer all 17 rule IDs with descriptions:
    ```
    "skill/missing-name"        # SKILL.md lacks name frontmatter
    "skill/missing-description"  # SKILL.md lacks description frontmatter
@@ -818,7 +818,7 @@ The LSP publishes diagnostics for **all 6 feature kinds** whenever a matching do
   - [ ] LSP server — PluginJson: open a `plugin.json` missing `version`, assert `plugin/required-fields` file-level diagnostic
   - [ ] LSP server — Marketplace: open `marketplace.json` with a missing source path, assert `marketplace/source-resolve` diagnostic
   - [ ] LSP server — Stale clearing: resolve all issues in a file, assert subsequent `publishDiagnostics` sends empty `[]` for that URI
-  - [ ] LSP completions: send `textDocument/completion` at various cursor positions in `aipm.toml`, assert all 19 rule IDs and severity values appear
+  - [ ] LSP completions: send `textDocument/completion` at various cursor positions in `aipm.toml`, assert all 17 rule IDs and severity values appear
   - [ ] LSP hover: send `textDocument/hover` over a rule ID in `aipm.toml`, assert markdown content with rule name, severity, and help link
 
 - **End-to-End Tests:**

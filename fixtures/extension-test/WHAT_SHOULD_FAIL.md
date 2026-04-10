@@ -15,7 +15,7 @@ You need the Even Better TOML extension + the bundled schema to see them.
 | Line | Violation | Expected |
 |------|-----------|----------|
 | `"skill/not-a-real-rule" = "allow"` | Unknown rule ID | Schema error: `additionalProperties: false` rejects any key not in the rule ID pattern |
-| `"skill/missing-name" = "sometimes"` | Invalid severity value | Schema error: `"sometimes"` is not in `["allow", "warn", "error"]` |
+| `"skill/missing-name" = "sometimes"` | Invalid severity value | Schema error: `"sometimes"` is not in `["allow", "warn", "warning", "error", "deny"]` |
 
 ---
 
