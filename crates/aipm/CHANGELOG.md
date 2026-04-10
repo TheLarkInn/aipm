@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.19.4] - 2026-04-10
+
+### Testing
+- Cover wizard Text validate=false/no-help branches and engine marketplace_manifest_path (f764d63)
+
 ## [0.19.3] - 2026-04-08
 
 ## [0.19.2] - 2026-04-08

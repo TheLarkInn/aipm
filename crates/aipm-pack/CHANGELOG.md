@@ -1,6 +1,12 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.19.4] - 2026-04-10
+
+### Testing
+- Cover dot-directory branch in init command (b71b223)
+- Cover format_steps empty-input branch in aipm-pack wizard (59ce63b)
+
 ## [0.19.3] - 2026-04-08
 
 ## [0.19.2] - 2026-04-08
