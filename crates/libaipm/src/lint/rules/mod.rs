@@ -63,10 +63,11 @@ pub(crate) fn quality_rules_for_kind(kind: &FeatureKind) -> Vec<Box<dyn Rule>> {
     }
 }
 
-/// Returns every quality rule across all feature kinds.
+/// Returns every lint rule, including `source/misplaced-features`.
 ///
 /// Useful for tools that need a rule registry (e.g., LSP completions, hover).
-/// `source/misplaced-features` is excluded because it is per-feature.
+/// `source/misplaced-features` uses `ai_exists: false` as a metadata placeholder
+/// — it is included so the LSP can offer completions and hover for the rule.
 pub fn catalog() -> Vec<Box<dyn Rule>> {
     vec![
         Box::new(skill_missing_name::MissingName),
@@ -85,6 +86,7 @@ pub fn catalog() -> Vec<Box<dyn Rule>> {
         Box::new(plugin_missing_registration::MissingRegistration),
         Box::new(plugin_missing_manifest::MissingManifest),
         Box::new(plugin_required_fields::RequiredFields),
+        Box::new(MisplacedFeatures { ai_exists: false }),
     ]
 }
 

@@ -1,5 +1,7 @@
 import { workspace, window, ExtensionContext } from 'vscode';
 import {
+  CloseAction,
+  ErrorAction,
   LanguageClient,
   LanguageClientOptions,
   ServerOptions,
@@ -40,12 +42,12 @@ export function activate(context: ExtensionContext): void {
       { scheme: 'file', pattern: '**/.ai/.claude-plugin/marketplace.json' },
     ],
     errorHandler: {
-      error: () => ({ action: 1 /* Continue */ }),
+      error: () => ({ action: ErrorAction.Continue }),
       closed: () => {
         void window.showErrorMessage(
           'aipm language server stopped. Check that the `aipm` binary is installed and accessible via PATH (or set `aipm.path`).',
         );
-        return { action: 2 /* DoNotRestart */ };
+        return { action: CloseAction.DoNotRestart };
       },
     },
   };

@@ -163,7 +163,8 @@ pub(super) fn to_lsp_diagnostic(d: &libaipm::lint::Diagnostic) -> LspDiagnostic 
     let start_line = d.line.map_or(0, |l| l.saturating_sub(1));
     let start_char = d.col.map_or(0, |c| c.saturating_sub(1));
     let end_line = d.end_line.map_or(start_line, |l| l.saturating_sub(1));
-    // end_col is exclusive in aipm; LSP end character is also exclusive — no adjustment needed.
+    // end_col is exclusive in aipm and LSP end character is also exclusive, but aipm
+    // columns are 1-based while LSP characters are 0-based, so subtract 1 to convert.
     let end_char = d.end_col.map_or_else(|| start_char.saturating_add(1), |c| c.saturating_sub(1));
 
     let range = Range {
@@ -475,8 +476,9 @@ mod tests {
         assert!(index.contains_key("hook/unknown-event"));
         assert!(index.contains_key("agent/missing-tools"));
         assert!(index.contains_key("plugin/missing-manifest"));
-        // 16 quality rules total
-        assert_eq!(index.len(), 16);
+        assert!(index.contains_key("source/misplaced-features"));
+        // 17 rules total (16 quality rules + source/misplaced-features)
+        assert_eq!(index.len(), 17);
     }
 
     #[test]

@@ -43,7 +43,11 @@ use libaipm::lint::Severity;
 /// Debounce delay before triggering a re-lint on save.
 const DEBOUNCE_DELAY: Duration = Duration::from_millis(300);
 
-type DebounceMap = std::sync::Arc<tokio::sync::Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>;
+/// Each entry pairs a monotonically increasing generation counter with the task handle.
+/// The counter lets the spawned task verify it still owns the slot before removing it —
+/// preventing an old (aborted) task from evicting a newer task's handle.
+type DebounceEntry = (u64, tokio::task::JoinHandle<()>);
+type DebounceMap = std::sync::Arc<tokio::sync::Mutex<HashMap<String, DebounceEntry>>>;
 
 /// LSP backend — one instance shared across all requests.
 pub struct Backend {
@@ -84,23 +88,27 @@ impl Backend {
     async fn lint_and_publish_debounced(&self, uri: Url) {
         let key = uri.to_string();
 
-        // Cancel any in-flight debounce for this URI.
-        {
+        // Cancel any in-flight debounce for this URI and compute the next generation.
+        let gen = {
             let mut handles = self.debounce_handles.lock().await;
-            if let Some(old) = handles.remove(&key) {
+            let next_gen = handles.get(&key).map_or(0, |(g, _)| g.saturating_add(1));
+            if let Some((_, old)) = handles.remove(&key) {
                 old.abort();
             }
-        }
+            drop(handles);
+            next_gen
+        };
 
         let handle = tokio::spawn(debounce_lint_task(
             self.client.clone(),
             uri,
             std::sync::Arc::clone(&self.debounce_handles),
             key.clone(),
+            gen,
         ));
 
         let mut handles = self.debounce_handles.lock().await;
-        handles.insert(key, handle);
+        handles.insert(key, (gen, handle));
     }
 }
 
@@ -111,18 +119,31 @@ impl Backend {
 /// Using a named free function (rather than `async move { ... }`) keeps the async
 /// state machine well-defined.  See the module-level coverage note for why this
 /// file is excluded from `llvm-cov` reporting.
-async fn debounce_lint_task(client: Client, uri: Url, handles: DebounceMap, key: String) {
+///
+/// `gen` is the generation counter assigned when this task was spawned.  The task
+/// only removes its own map entry if the stored generation still matches — this
+/// prevents a stale (aborted) task from evicting a newer task's handle.
+async fn debounce_lint_task(client: Client, uri: Url, handles: DebounceMap, key: String, gen: u64) {
     tokio::time::sleep(DEBOUNCE_DELAY).await;
     let Ok(path) = uri.to_file_path() else {
         tracing::warn!(uri = %uri, "LSP URI is not a file path — skipping lint");
-        handles.lock().await.remove(&key);
+        remove_if_current(&handles, &key, gen).await;
         return;
     };
     let diagnostics =
         tokio::task::spawn_blocking(move || lint_file_diagnostics(&path)).await.unwrap_or_default();
     client.publish_diagnostics(uri, diagnostics, None).await;
-    // Remove completed handle to prevent unbounded map growth.
-    handles.lock().await.remove(&key);
+    // Remove our own entry to prevent unbounded map growth — but only if we are
+    // still the current task (i.e., no newer save has replaced us in the map).
+    remove_if_current(&handles, &key, gen).await;
+}
+
+/// Remove the debounce map entry for `key` only if its generation equals `gen`.
+async fn remove_if_current(handles: &DebounceMap, key: &str, gen: u64) {
+    let mut map = handles.lock().await;
+    if map.get(key).is_some_and(|(g, _)| *g == gen) {
+        map.remove(key);
+    }
 }
 
 // ── LanguageServer impl ───────────────────────────────────────────────────────
@@ -172,7 +193,7 @@ impl LanguageServer for Backend {
         // Cancel any pending debounce so it doesn't publish stale diagnostics
         // after the editor has already cleared the document.
         let pending = self.debounce_handles.lock().await.remove(&uri.to_string());
-        if let Some(handle) = pending {
+        if let Some((_, handle)) = pending {
             handle.abort();
         }
         self.client.publish_diagnostics(uri, vec![], None).await;
