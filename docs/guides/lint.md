@@ -5,6 +5,10 @@ single unified, gitignore-aware walk of the project tree, applies quality rules 
 every discovered feature file, and exits with a non-zero status when any violations
 are found — making it safe to drop into CI pipelines.
 
+> **VS Code users:** Install the `vscode-aipm` extension to see lint diagnostics
+> inline as squiggly underlines — no terminal required. See
+> [VS Code Integration](./vscode-integration.md) for setup.
+
 ## Basic Usage
 
 ```bash
@@ -302,4 +306,5 @@ All available rules, grouped by category:
 ## See also
 
 - [Configuring the lint system](./configuring-lint.md) — rule severity overrides, per-rule path ignores, and global path excludes
+- [VS Code Integration](./vscode-integration.md) — live diagnostics, autocomplete, and hover docs in VS Code
 - [Lint rule reference](../rules/) — individual rule pages with severity, rationale, and fix guidance

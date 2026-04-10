@@ -225,7 +225,27 @@ aipm lint [OPTIONS] [DIR]
 
 Exits with a non-zero status code when violations are found, making it safe to use in CI pipelines. Use `--reporter ci-github` for GitHub Actions annotations or `--reporter ci-azure` for Azure Pipelines.
 
-See also: [`docs/guides/lint.md`](docs/guides/lint.md) for full CLI usage, output formats, and CI integration; [`docs/guides/configuring-lint.md`](docs/guides/configuring-lint.md) for rule severity overrides, path ignores, and per-rule configuration.
+See also: [`docs/guides/lint.md`](docs/guides/lint.md) for full CLI usage, output formats, and CI integration; [`docs/guides/configuring-lint.md`](docs/guides/configuring-lint.md) for rule severity overrides, path ignores, and per-rule configuration; [`docs/guides/vscode-integration.md`](docs/guides/vscode-integration.md) for live diagnostics in VS Code.
+
+---
+
+### `aipm lsp`
+
+Start the Language Server Protocol (LSP) server over stdio. This is the backend
+used by the `vscode-aipm` VS Code extension to publish live lint diagnostics,
+provide autocomplete for rule IDs and severity values in `aipm.toml`, and display
+hover documentation for lint rules.
+
+```
+aipm lsp
+```
+
+The server is designed to be launched by an LSP client (such as the VS Code
+extension), not run directly. It reads and writes JSON-RPC messages on
+stdin/stdout.
+
+See [`docs/guides/vscode-integration.md`](docs/guides/vscode-integration.md) for
+setup instructions, configuration options, and development guidance.
 
 ---
 
