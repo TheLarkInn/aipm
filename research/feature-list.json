@@ -4,34 +4,28 @@
     "description": "Hand-written JSON Schema for [workspace.lints] in aipm.toml (Phase 1 — G1)",
     "steps": [
       "Create schemas/ directory at the repository root",
-      "Create schemas/aipm.toml.schema.json using JSON Schema Draft 4 ($schema: http://json-schema.org/draft-04/schema#)",
-      "Set root type to object with additionalProperties: true (hides package/workspace/dependencies sections)",
+      "Create schemas/aipm.toml.schema.json using JSON Schema Draft 4",
+      "Set root type to object with additionalProperties: true",
       "Define workspace.lints as nested object under properties.workspace.properties.lints",
-      "Add ignore.paths as an array of strings under workspace.lints.properties.ignore with additionalProperties: false",
-      "Add patternProperties regex matching all 19 rule IDs (skill/missing-name, skill/missing-description, skill/oversized, skill/name-too-long, skill/name-invalid-chars, skill/description-too-long, skill/invalid-shell, plugin/broken-paths, agent/missing-tools, hook/unknown-event, hook/legacy-event-name, source/misplaced-features, marketplace/source-resolve, marketplace/plugin-field-mismatch, plugin/missing-registration, plugin/missing-manifest, plugin/required-fields)",
-      "Define oneOf for rule values: string enum [allow, warn, warning, error, deny] OR object with level (required string enum) and ignore (optional array of strings)",
-      "Set additionalProperties: false on lints object to catch typos in rule IDs",
-      "Add x-taplo annotations with initKeys: [workspace.lints] for auto-generation hints",
-      "Add description fields for all properties to enable hover documentation in Taplo",
-      "Validate the schema by testing against existing fixture aipm.toml files (fixtures/standalone-plugin/aipm.toml, fixtures/workspace-no-deps/aipm.toml)",
-      "Verify a mistyped rule ID (e.g., skill/mising-name) produces a validation error",
-      "Verify valid [workspace.lints] config passes schema validation",
-      "Verify non-lints sections (package, dependencies) are allowed without validation errors (additionalProperties: true)"
+      "Add ignore.paths as an array of strings",
+      "Add patternProperties regex matching all rule IDs",
+      "Define oneOf for rule values: string enum OR object with level and ignore",
+      "Set additionalProperties: false on lints object to catch typos",
+      "Add x-taplo annotations with initKeys: [workspace.lints]",
+      "Add description fields for all properties"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "SchemaStore.org submission for zero-install schema discovery (Phase 1 — G2)",
     "steps": [
       "Fork the SchemaStore/schemastore repository on GitHub",
-      "Copy schemas/aipm.toml.schema.json to src/schemas/json/aipm.toml.json in the SchemaStore fork",
-      "Add catalog entry to src/api/json/catalog.json: { name: aipm.toml, description: AI Package Manager configuration, fileMatch: [aipm.toml], url: https://json.schemastore.org/aipm.toml.json }",
-      "Create positive test file at src/test/aipm.toml/valid.toml with a valid [workspace.lints] section containing rule overrides",
-      "Create negative test file at src/test/aipm.toml/invalid.toml with an unknown rule ID to verify schema rejects it",
-      "Run SchemaStore's test suite to verify the schema passes",
-      "Submit PR to SchemaStore/schemastore with the schema, catalog entry, and test files",
-      "Verify that after merge, Taplo auto-discovers the schema for any file named aipm.toml"
+      "Copy schemas/aipm.toml.schema.json to src/schemas/json/aipm.toml.json",
+      "Add catalog entry to src/api/json/catalog.json",
+      "Create positive and negative test fixtures",
+      "Run SchemaStore's test suite",
+      "Submit PR to SchemaStore/schemastore"
     ],
     "passes": false
   },
@@ -39,359 +33,264 @@
     "category": "functional",
     "description": "Add field_value_range() shared helper for frontmatter range computation (Phase 2 — G4 prerequisite)",
     "steps": [
-      "Add a pub fn field_value_range(line_content: &str, key: &str) -> Option<(usize, usize)> to the frontmatter module (crates/libaipm/src/frontmatter.rs)",
-      "The function takes a line like 'name: my-skill' and returns the 1-based (col, end_col) for the value portion after the colon",
-      "Handle whitespace between colon and value (e.g., 'name:  my-skill' should still work)",
-      "Handle values with trailing whitespace — trim_end before computing end_col",
-      "Return None if the key prefix is not found in the line",
-      "Write unit tests: exact match 'name: my-skill' returns (7, 15)",
-      "Write unit tests: extra spaces 'name:  my-skill' returns (8, 16)",
-      "Write unit tests: no match for wrong key returns None",
-      "Write unit tests: empty value after colon 'name: ' returns None or appropriate range",
-      "Run cargo clippy --workspace -- -D warnings to verify no lint violations",
-      "Run cargo test --workspace to verify all tests pass"
+      "Add pub fn field_value_range(line_content: &str, key: &str) -> Option<(usize, usize)> to frontmatter module",
+      "Returns 1-based (col, end_col) for the value portion after the colon",
+      "Handle whitespace between colon and value",
+      "Handle values with trailing whitespace via trim_end",
+      "Return None if key prefix not found",
+      "Write unit tests for exact match, extra spaces, wrong key, empty value",
+      "Run cargo clippy --workspace -- -D warnings",
+      "Run cargo test --workspace"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Populate end_line/end_col in skill/missing-name rule (Phase 2 — G4)",
     "steps": [
-      "Read crates/libaipm/src/lint/rules/skill_missing_name.rs",
-      "When field is absent: set line to Frontmatter.end_line (closing ---), col to 1, end_line to same, end_col to 4",
-      "When field exists but is empty: use field_value_range() to compute col/end_col for the name field on its line",
-      "Update the Diagnostic construction to populate end_line and end_col with computed values",
-      "Add unit test: missing name field produces diagnostic with end_line = closing --- line, end_col = 4",
-      "Add unit test: empty name field produces diagnostic with correct col/end_col range",
-      "Run cargo test --workspace to verify no regressions"
+      "When field is absent: set line to closing ---, col=1, end_line=same, end_col=4",
+      "Use field_value_range() to compute col/end_col for existing name field",
+      "Add unit tests for missing field and populated range"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Populate end_line/end_col in skill/missing-description rule (Phase 2 — G4)",
     "steps": [
-      "Read crates/libaipm/src/lint/rules/skill_missing_desc.rs",
-      "When field is absent: set line to Frontmatter.end_line (closing ---), col to 1, end_line to same, end_col to 4",
-      "When field exists but is empty: use field_value_range() to compute col/end_col for the description field",
-      "Update the Diagnostic construction to populate end_line and end_col",
-      "Add unit test: missing description field produces correct range pointing to closing delimiter",
-      "Add unit test: empty description field produces correct col/end_col range",
-      "Run cargo test --workspace to verify no regressions"
+      "When field is absent: set line to closing ---, col=1, end_line=same, end_col=4",
+      "Use field_value_range() to compute col/end_col for description field",
+      "Add unit tests"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Populate end_line/end_col in skill/name-too-long rule (Phase 2 — G4)",
     "steps": [
-      "Read crates/libaipm/src/lint/rules/skill_name_too_long.rs",
-      "Use field_value_range() to compute col/end_col for the name field value on its frontmatter line",
-      "Set end_line equal to line (single-line frontmatter values)",
-      "Update the Diagnostic construction to populate all range fields",
-      "Add unit test: name exceeding 64 chars produces diagnostic with col pointing to value start and end_col pointing to value end",
-      "Run cargo test --workspace to verify no regressions"
+      "Use field_value_range() to compute col/end_col for the name field value",
+      "Set end_line equal to line",
+      "Add unit test: name exceeding 64 chars produces diagnostic with correct range"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Populate end_line/end_col in skill/name-invalid-chars rule (Phase 2 — G4)",
     "steps": [
-      "Read crates/libaipm/src/lint/rules/skill_name_invalid.rs",
       "Use field_value_range() to compute col/end_col for the name field value",
-      "Set end_line equal to line (single-line value)",
-      "Update the Diagnostic construction",
-      "Add unit test: 'name: inv@lid!' produces diagnostic with col/end_col spanning 'inv@lid!'",
-      "Run cargo test --workspace"
+      "Set end_line equal to line",
+      "Add unit test: invalid chars produce diagnostic with correct col/end_col"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Populate end_line/end_col in skill/description-too-long rule (Phase 2 — G4)",
     "steps": [
-      "Read crates/libaipm/src/lint/rules/skill_desc_too_long.rs",
       "Use field_value_range() to compute col/end_col for the description field value",
       "Set end_line equal to line",
-      "Update the Diagnostic construction",
-      "Add unit test: description exceeding 1024 chars produces diagnostic with correct range",
-      "Run cargo test --workspace"
+      "Add unit test"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Populate end_line/end_col in skill/invalid-shell rule (Phase 2 — G4)",
     "steps": [
-      "Read crates/libaipm/src/lint/rules/skill_invalid_shell.rs",
       "Use field_value_range() to compute col/end_col for the shell field value",
       "Set end_line equal to line",
-      "Update the Diagnostic construction",
-      "Add unit test: 'shell: zsh' produces diagnostic with col/end_col spanning 'zsh'",
-      "Run cargo test --workspace"
+      "Add unit test: 'shell: zsh' produces diagnostic with col/end_col spanning 'zsh'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Populate end_line/end_col in agent/missing-tools rule (Phase 2 — G4)",
     "steps": [
-      "Read crates/libaipm/src/lint/rules/agent_missing_tools.rs",
-      "When tools field is absent: set line to Frontmatter.end_line (closing ---), col to 1, end_line to same, end_col to 4",
-      "When tools field exists but is empty: use field_value_range() for the tools field",
-      "Update the Diagnostic construction",
-      "Add unit test: missing tools field in agents/reviewer.md produces diagnostic at closing --- delimiter",
-      "Run cargo test --workspace"
+      "When tools field is absent: set line to closing ---, col=1, end_line=same, end_col=4",
+      "Add unit test: missing tools field produces diagnostic at closing --- delimiter"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Populate end_col in plugin/broken-paths rule (Phase 2 — G4)",
     "steps": [
-      "Read crates/libaipm/src/lint/rules/broken_paths.rs",
-      "Identify the two diagnostic sites (around lines 79 and 134) where col is already set",
-      "Add end_col: Some(col_offset + pos + 1 + matched_ref.len()) where matched_ref is the ${CLAUDE_SKILL_DIR}/path string",
-      "Set end_line equal to line (same line)",
-      "Add unit test: broken path reference produces diagnostic with col and end_col spanning the full ${CLAUDE_SKILL_DIR}/path string",
-      "Run cargo test --workspace"
+      "Add end_col spanning the full ${CLAUDE_SKILL_DIR}/path string",
+      "Set end_line equal to line",
+      "Add unit test: broken path produces diagnostic with col and end_col"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Populate line/col/end_col in hook/unknown-event rule (Phase 2 — G4)",
     "steps": [
-      "Read crates/libaipm/src/lint/rules/hook_unknown_event.rs",
-      "For each unknown event string, scan the JSON content line-by-line to find the line containing the event",
-      "Set line to the 1-based line number where the event string appears",
-      "Set col to the 1-based position of the event string on that line",
-      "Set end_col to col + event_string.len()",
+      "Add locate_json_key() helper to find key position in JSON content",
+      "Set line, col, end_col on diagnostics via the helper",
       "Set end_line equal to line",
-      "Add unit test: hooks.json with unknown event 'PreToolUse' produces diagnostic with line/col pointing to the event string",
-      "Verify existing tests still pass with the updated range information",
-      "Run cargo test --workspace"
+      "Add unit test: unknown event produces diagnostic with line/col/end_col"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Populate col/end_col in hook/legacy-event-name rule (Phase 2 — G4)",
     "steps": [
-      "Read crates/libaipm/src/lint/rules/hook_legacy_event.rs",
-      "The rule already computes line via content.lines().enumerate() scanning — extend to also find col position",
-      "Set col to the 1-based position of the legacy event string on the found line",
-      "Set end_col to col + legacy_event.len()",
+      "Add locate_json_key() helper to find key position in JSON content",
+      "Set col, end_col on diagnostics via the helper",
       "Set end_line equal to line",
-      "Add unit test: hooks.json with PascalCase event produces diagnostic with col/end_col spanning the event name",
-      "Run cargo test --workspace"
+      "Add unit test: legacy event produces diagnostic with col/end_col"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Verify human reporter renders populated ranges correctly (Phase 2 verification)",
     "steps": [
-      "Read crates/libaipm/src/lint/reporter.rs around lines 179-190 where the human reporter computes byte-offset spans",
-      "Verify the existing logic handles the new case where both col and end_col are populated (not just col alone)",
-      "Run the existing reporter snapshot tests to confirm no regressions",
-      "Add a snapshot test with a diagnostic that has col=7, end_col=15 to verify the annotate-snippets underline matches the value span",
-      "Run cargo test --workspace"
+      "Verify the existing reporter logic handles col and end_col populated together",
+      "Run existing reporter snapshot tests to confirm no regressions",
+      "All 1751+ tests pass"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Add aipm lsp CLI subcommand with stdio transport (Phase 3 — G5)",
     "steps": [
-      "Add tower-lsp = '0.20' and tokio = { version = '1', features = ['io-std', 'macros', 'rt-multi-thread'] } to crates/aipm/Cargo.toml dependencies",
-      "Add a Commands::Lsp variant to the clap CLI definition in crates/aipm/src/main.rs",
-      "Create a new module crates/aipm/src/lsp.rs (or crates/aipm/src/lsp/mod.rs) for the LSP server implementation",
-      "Implement the tower_lsp::LanguageServer trait with initialize, initialized, shutdown, did_open, did_save, did_close handlers",
-      "In initialize response, advertise capabilities: textDocumentSync (openClose: true, change: Full, save: true), diagnosticProvider (interFileDependencies: true)",
-      "Implement workspace root detection: walk up from opened file to find directory containing aipm.toml",
-      "In did_open and did_save handlers: load lint config from aipm.toml, call libaipm::lint::lint(), group diagnostics by file_path",
-      "Implement to_lsp_range() conversion function: convert 1-based Diagnostic ranges to 0-based lsp_types::Range",
-      "Handle None line/col gracefully: line=None maps to Range(0,0)-(0,0) for file-level diagnostics",
-      "Map Diagnostic.severity to DiagnosticSeverity::Error or Warning",
-      "Map rule_id to diagnostic code (NumberOrString::String), help_url to code_description.href",
-      "Set diagnostic source to 'aipm'",
-      "Publish diagnostics via client.publish_diagnostics() for each file with findings",
-      "Publish empty diagnostics for files that previously had diagnostics but now have none (clears stale markers)",
-      "Add debounce logic (300ms delay) to avoid redundant lint passes on rapid saves",
-      "Wire the Lsp command in main.rs to start the server on stdio using tower_lsp::Server::new(stdin, stdout)",
-      "Verify cargo build --workspace compiles without errors",
-      "Run cargo clippy --workspace -- -D warnings"
+      "Add tower-lsp and tokio to workspace and aipm crate Cargo.toml",
+      "Add Commands::Lsp variant to clap CLI in main.rs",
+      "Create crates/aipm/src/lsp.rs with Backend struct",
+      "Implement LanguageServer trait: initialize, shutdown, did_open, did_save, did_close",
+      "Implement find_workspace_dir() for workspace root detection",
+      "Implement to_lsp_diagnostic() for 1-based to 0-based range conversion",
+      "Implement lint_file_diagnostics() wrapping libaipm::lint::lint()",
+      "Wire Lsp command in main.rs to lsp::run()"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "LSP textDocument/completion for aipm.toml rule IDs and severity values (Phase 3 — G6)",
     "steps": [
-      "Implement the completion handler in the LSP server (tower_lsp::LanguageServer::completion method)",
-      "Build a static rule lookup table at server startup by instantiating all rules and collecting id(), name(), default_severity()",
-      "Detect cursor context: determine if the cursor is inside [workspace.lints] in aipm.toml",
-      "At key position (typing a new rule override): offer all 19 rule IDs as CompletionItems with detail showing the rule name and default severity",
-      "At value position (after = sign): offer severity strings 'allow', 'warn', 'error', 'deny', 'warning' as CompletionItems",
-      "After typing { for detailed object: offer 'level' and 'ignore' keys",
-      "Set CompletionItem.kind to CompletionItemKind::Property for rule IDs and CompletionItemKind::Value for severity strings",
-      "Add integration test: send textDocument/completion at key position, assert all 19 rule IDs appear",
-      "Add integration test: send textDocument/completion at value position, assert severity strings appear",
-      "Run cargo test --workspace"
+      "Build rule index at Backend::new() via libaipm::lint::rules::catalog()",
+      "Implement completion() handler in LanguageServer impl",
+      "Detect cursor context: inside [workspace.lints] section via detect_completion_context()",
+      "Return rule ID completions at key positions, severity completions at value positions",
+      "Return level/ignore object key completions at key positions",
+      "Add unit tests for detect_completion_context() and severity_completions()"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "LSP textDocument/hover for rule ID documentation (Phase 3 — G7)",
     "steps": [
-      "Implement the hover handler in the LSP server (tower_lsp::LanguageServer::hover method)",
-      "Use the static rule lookup table (built for completions) to resolve rule ID strings to Rule trait data",
-      "When hovering over a quoted rule ID string in [workspace.lints], return markdown content: **rule_id** (default_severity) + help_text + help_url link",
-      "Return None for hover outside [workspace.lints] or over non-rule-ID text",
-      "Add integration test: send textDocument/hover over 'skill/missing-name', assert markdown contains rule name, Warning severity, and help URL",
-      "Add integration test: send textDocument/hover over a non-rule string, assert no hover",
-      "Run cargo test --workspace"
+      "Implement hover() handler in LanguageServer impl",
+      "Use extract_rule_id_at() to find rule ID at cursor position",
+      "Look up rule in rule_index, return markdown with name, severity, help_text, help_url",
+      "Return None for non-rule-ID positions",
+      "Add unit tests for extract_rule_id_at()"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "LSP server integration tests for all 6 feature kinds (Phase 3 testing)",
     "steps": [
-      "Create test fixtures directory for LSP integration tests (crates/aipm/tests/lsp/ or similar)",
-      "Create fixture: SKILL.md with invalid name chars in skills/default/ dir",
-      "Create fixture: agents/reviewer.md missing tools frontmatter",
-      "Create fixture: hooks/hooks.json with unknown event 'InvalidEvent'",
-      "Create fixture: .ai/test-plugin/aipm.toml with broken ${CLAUDE_SKILL_DIR}/ reference",
-      "Create fixture: .ai/test-plugin/.claude-plugin/plugin.json missing version field",
-      "Create fixture: .ai/.claude-plugin/marketplace.json with nonexistent source path",
-      "Write integration test: spawn aipm lsp, send initialize, send textDocument/didOpen for each fixture, assert publishDiagnostics response contains expected rule_id, severity, and range",
-      "Write integration test for stale clearing: open file with errors, fix content, save, verify diagnostics clear",
-      "Write unit test for to_lsp_range(): line=1,col=1 maps to Position(0,0); line=None maps to Range(0,0)-(0,0); end_col=None falls back to end-of-line",
-      "Run cargo test --workspace"
+      "Create fixture files for each of the 6 feature kinds with known lint errors",
+      "Write integration tests that spawn aipm lsp and send LSP protocol messages",
+      "Assert publishDiagnostics response contains expected rule_id, severity, and range for each kind",
+      "Test stale diagnostic clearing: save fixed file, verify empty diagnostics published"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "VS Code extension scaffold with package.json and tomlValidation (Phase 4 — G3)",
     "steps": [
-      "Create vscode-aipm/ directory at the repository root",
-      "Create vscode-aipm/package.json with: name vscode-aipm, displayName aipm — AI Package Manager, activationEvents [workspaceContains:**/aipm.toml]",
-      "Add extensionDependencies: [tamasfe.even-better-toml] to require Taplo",
-      "Add contributes.tomlValidation: [{ fileMatch: aipm.toml, url: ./schemas/aipm.toml.schema.json }]",
-      "Add contributes.configuration with aipm.lint.enable (boolean, default true) and aipm.path (string, default aipm)",
-      "Add dependencies: { vscode-languageclient: ^9.0.0 }",
-      "Copy schemas/aipm.toml.schema.json to vscode-aipm/schemas/aipm.toml.schema.json",
-      "Create vscode-aipm/tsconfig.json with standard VS Code extension TypeScript config",
-      "Create vscode-aipm/.vscodeignore to exclude source files from packaged extension",
-      "Run npm install in vscode-aipm/ to install dependencies",
-      "Verify package.json is valid by running vsce ls (or npx @vscode/vsce ls)"
+      "Create vscode-aipm/ directory with package.json, tsconfig.json, .vscodeignore",
+      "Add tomlValidation contribution pointing to bundled schema",
+      "Add aipm.lint.enable and aipm.path configuration properties",
+      "Copy schemas/aipm.toml.schema.json to vscode-aipm/schemas/"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "VS Code extension activation and LSP client connection (Phase 4 — G3)",
     "steps": [
-      "Create vscode-aipm/src/extension.ts",
-      "Import workspace, ExtensionContext from vscode and LanguageClient, LanguageClientOptions, ServerOptions, TransportKind from vscode-languageclient/node",
-      "In activate(): read aipm.lint.enable config — return early if disabled",
-      "Read aipm.path config (default: 'aipm') for the binary location",
-      "Define serverOptions: { command: aipmPath, args: ['lsp', '--stdio'], transport: TransportKind.stdio }",
-      "Define documentSelector with precise patterns for all 6 feature kinds: **/skills/SKILL.md, **/skills/*/SKILL.md (skills), **/agents/*.md (agents — NOT AGENT.md), **/hooks/hooks.json (hooks), **/.ai/*/aipm.toml (plugin manifests), **/.claude-plugin/plugin.json (pluginJson), **/.ai/.claude-plugin/marketplace.json (marketplace)",
-      "Create LanguageClient instance and call client.start()",
-      "In deactivate(): call client?.stop()",
-      "Handle LSP spawn failure: catch error from client.start(), show VS Code notification 'aipm binary not found — install aipm or set aipm.path in settings'",
-      "Add context.subscriptions.push(client) for proper cleanup",
-      "Build the extension: npx tsc -p vscode-aipm/tsconfig.json",
-      "Verify the compiled output exists at vscode-aipm/out/extension.js"
+      "Create vscode-aipm/src/extension.ts with activate() and deactivate()",
+      "Configure ServerOptions to spawn aipm lsp via stdio",
+      "Configure documentSelector for all 6 feature kinds",
+      "Add error handler to show notification when binary is not found",
+      "Push client to context.subscriptions for cleanup"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "LSP workspace detection for multi-root and nested projects (Phase 3 infrastructure)",
     "steps": [
-      "Implement workspace root detection in the LSP server: given a file URI, walk up parent directories until aipm.toml is found",
-      "Cache workspace roots to avoid repeated filesystem walks",
-      "Handle multi-root VS Code workspaces: each root with an aipm.toml gets its own lint context",
-      "Handle case where no aipm.toml exists: publish empty diagnostics, log trace-level message",
-      "Add unit test: file at /project/.ai/plugin/skills/default/SKILL.md finds root at /project/ containing aipm.toml",
-      "Add unit test: file outside any workspace with aipm.toml returns no root",
-      "Add unit test: nested project with own aipm.toml uses the nearest root, not a parent one",
-      "Run cargo test --workspace"
+      "Implement find_workspace_dir(): walk up parent dirs until aipm.toml or .ai/ found",
+      "Fall back to file's parent when no marker found",
+      "Add unit tests: with aipm.toml marker, with .ai/ marker, fallback to parent"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "LSP graceful error handling for missing binary and missing config (Phase 3/4)",
     "steps": [
-      "In the LSP server: handle libaipm::lint::lint() returning errors gracefully — log the error, publish empty diagnostics, do not crash",
-      "Handle aipm.toml parse errors: if [workspace.lints] section is malformed, log a warning and use default config",
-      "In the VS Code extension: detect if aipm lsp process exits unexpectedly and show a user notification",
-      "In the VS Code extension: detect if aipm binary is not found on PATH and show actionable notification with link to install docs",
-      "Add integration test: LSP server handles workspace with no aipm.toml without crashing",
-      "Add integration test: LSP server handles malformed [workspace.lints] section without crashing"
+      "lint_file_diagnostics() logs warning and returns empty vec on lint error",
+      "load_lint_config() returns default config when aipm.toml is missing or malformed",
+      "VS Code extension errorHandler shows notification on unexpected server close"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "performance",
     "description": "LSP debounce and startup performance (Phase 3 — 7.1)",
     "steps": [
-      "Add debounce logic in the LSP server: buffer rapid textDocument/didSave notifications with a 300ms delay before triggering re-lint",
-      "Verify LSP server initialize response completes in <100ms by measuring in integration tests",
-      "Verify full lint pass on a typical fixture project (dozen features) completes in <500ms",
-      "Build the rule lookup table (for completions/hover) once at initialize, not on each request",
-      "Add tracing spans around lint execution to measure performance in production"
+      "Add 300ms debounce using tokio::time::sleep before triggering re-lint on save",
+      "Verify initialize response completes in <100ms",
+      "Verify full lint pass completes in <500ms on typical project",
+      "Add tracing spans around lint execution"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "JSON Schema positive/negative test fixtures for schema validation (Phase 1 testing)",
     "steps": [
-      "Create schemas/tests/ directory (or similar) for schema test fixtures",
-      "Create valid.toml: aipm.toml with [workspace.lints] containing 'skill/missing-name' = 'allow', 'hook/unknown-event' = { level = 'warn', ignore = ['legacy/**'] }, and [workspace.lints.ignore] paths = ['vendor/**']",
-      "Create valid-with-other-sections.toml: aipm.toml with [package], [workspace], [dependencies] sections alongside [workspace.lints] — must pass since additionalProperties: true",
-      "Create invalid-unknown-rule.toml: aipm.toml with [workspace.lints] containing 'skill/mising-name' (typo) — must fail since additionalProperties: false on lints",
-      "Create invalid-wrong-type.toml: aipm.toml with 'skill/missing-name' = 42 (number instead of string/object) — must fail",
-      "Write a test script or CI step that validates these fixtures against the schema"
+      "Create schemas/tests/valid.toml with valid [workspace.lints] section",
+      "Create schemas/tests/valid-with-other-sections.toml with non-lints sections",
+      "Create schemas/tests/invalid-unknown-rule.toml with typo in rule ID",
+      "Create schemas/tests/invalid-wrong-type.toml with number value instead of string"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Range population unit tests for all modified rules (Phase 2 testing)",
     "steps": [
-      "For each modified rule (skill/missing-name, skill/missing-description, skill/name-too-long, skill/name-invalid-chars, skill/description-too-long, skill/invalid-shell, agent/missing-tools, plugin/broken-paths, hook/unknown-event, hook/legacy-event-name):",
-      "Write unit test asserting end_line and end_col are populated (not None) for diagnostics where a specific field/value is found",
-      "Write unit test asserting col is populated correctly (1-based column number)",
-      "Write unit test asserting end_line equals line for single-line values",
-      "Write unit test for the missing-field case: end_line/end_col point to closing --- delimiter (col=1, end_col=4)",
-      "Write unit test for broken_paths: end_col = col + matched_ref.len()",
-      "Write unit test for hook rules: col and end_col span the event string within the JSON content",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Run cargo test --workspace",
-      "Run cargo +nightly llvm-cov to verify branch coverage >= 89%"
+      "Unit tests asserting end_line/end_col populated for all modified rules",
+      "Tests asserting col is correct (1-based)",
+      "Tests for missing-field case: end_line/end_col point to closing ---",
+      "Tests for hook rules: col and end_col span the event string"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "LSP coordinate conversion unit tests (Phase 3 testing)",
     "steps": [
-      "Write unit test for to_lsp_range: Diagnostic with line=1, col=1, end_line=1, end_col=10 maps to Range { start: Position(0,0), end: Position(0,9) }",
-      "Write unit test: Diagnostic with line=None, col=None maps to Range { start: Position(0,0), end: Position(0,0) } (file-level)",
-      "Write unit test: Diagnostic with line=5, col=3, end_line=None, end_col=None maps to Range { start: Position(4,2), end: Position(4, u32::MAX-1) } (full-line fallback)",
-      "Write unit test: Diagnostic with line=1, col=None (no column) maps to Range { start: Position(0,0), end: Position(0, u32::MAX-1) }",
-      "Run cargo test --workspace"
+      "Unit test: line=1,col=1,end_line=1,end_col=4 -> Range{start:Position(0,0),end:Position(0,3)}",
+      "Unit test: line=None,col=None -> Range{start:Position(0,0),end:Position(0,1)} (default)",
+      "Unit test: warning severity maps to DiagnosticSeverity::WARNING",
+      "Unit test: rule_id set as code field"
     ],
-    "passes": false
+    "passes": true
   }
 ]

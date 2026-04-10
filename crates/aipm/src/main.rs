@@ -1,7 +1,8 @@
 //! `aipm` — consumer CLI for AI plugin management.
 //!
-//! Commands: init, install, update, link, unlink, list, lint, migrate.
+//! Commands: init, install, update, link, unlink, list, lint, migrate, lsp.
 
+mod lsp;
 mod wizard;
 mod wizard_tty;
 
@@ -209,6 +210,9 @@ enum Commands {
         #[arg(default_value = ".")]
         dir: PathBuf,
     },
+
+    /// Start the Language Server Protocol server (for VS Code / IDE integration).
+    Lsp,
 }
 
 // =========================================================================
@@ -741,7 +745,7 @@ fn cmd_lint(
     Ok(())
 }
 
-fn load_lint_config(dir: &Path) -> libaipm::lint::config::Config {
+pub(crate) fn load_lint_config(dir: &Path) -> libaipm::lint::config::Config {
     let manifest_path = dir.join("aipm.toml");
     let content = match std::fs::read_to_string(&manifest_path) {
         Ok(c) => c,
@@ -1002,6 +1006,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         Some(Commands::Migrate { dry_run, destructive, source, max_depth, manifest, dir }) => {
             cmd_migrate(dry_run, destructive, source.as_deref(), max_depth, manifest, dir)
         },
+        Some(Commands::Lsp) => lsp::run(),
         None => {
             let mut stdout = std::io::stdout();
             let _ = writeln!(stdout, "aipm {}", libaipm::version());

@@ -63,6 +63,31 @@ pub(crate) fn quality_rules_for_kind(kind: &FeatureKind) -> Vec<Box<dyn Rule>> {
     }
 }
 
+/// Returns every quality rule across all feature kinds.
+///
+/// Useful for tools that need a rule registry (e.g., LSP completions, hover).
+/// `source/misplaced-features` is excluded because it is per-feature.
+pub fn catalog() -> Vec<Box<dyn Rule>> {
+    vec![
+        Box::new(skill_missing_name::MissingName),
+        Box::new(skill_missing_desc::MissingDescription),
+        Box::new(skill_oversized::Oversized),
+        Box::new(skill_name_too_long::NameTooLong),
+        Box::new(skill_name_invalid::NameInvalidChars),
+        Box::new(skill_desc_too_long::DescriptionTooLong),
+        Box::new(skill_invalid_shell::InvalidShell),
+        Box::new(broken_paths::BrokenPaths),
+        Box::new(agent_missing_tools::MissingTools),
+        Box::new(hook_unknown_event::UnknownEvent),
+        Box::new(hook_legacy_event::LegacyEventName),
+        Box::new(marketplace_source_resolve::SourceResolve),
+        Box::new(marketplace_field_mismatch::FieldMismatch),
+        Box::new(plugin_missing_registration::MissingRegistration),
+        Box::new(plugin_missing_manifest::MissingManifest),
+        Box::new(plugin_required_fields::RequiredFields),
+    ]
+}
+
 /// Construct a `MisplacedFeatures` rule instance for a discovered feature.
 pub(crate) const fn misplaced_features_rule(
     feature: &DiscoveredFeature,

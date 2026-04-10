@@ -59,6 +59,12 @@ tar = "0.4"
 # Filesystem (Windows junctions)
 junction = "1"
 
+# Async runtime (used by aipm lsp subcommand only)
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "macros", "io-std", "sync", "time"] }
+
+# Language Server Protocol
+tower-lsp = { version = "0.20", features = [] }
+
 # Recursive directory walking (gitignore-aware)
 ignore = "0.4"
 

@@ -1,0 +1,18 @@
+# Valid aipm.toml with [workspace.lints] configuration.
+# Used to validate the JSON Schema accepts correct lint config.
+
+[workspace]
+members = [".ai/*"]
+plugins_dir = ".ai"
+
+[workspace.lints]
+# Simple severity overrides
+"skill/missing-name" = "allow"
+"skill/oversized" = "error"
+"hook/unknown-event" = "warn"
+
+# Detailed override with per-rule ignore paths
+"plugin/broken-paths" = { level = "warn", ignore = ["vendor/**", "third_party/**"] }
+
+[workspace.lints.ignore]
+paths = ["vendor/**", "third_party/**"]

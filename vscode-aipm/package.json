@@ -1,0 +1,50 @@
+{
+  "name": "vscode-aipm",
+  "displayName": "aipm — AI Package Manager",
+  "description": "Lint diagnostics, autocomplete, and validation for aipm projects",
+  "version": "0.1.0",
+  "publisher": "thelarkin",
+  "license": "MIT",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Linters", "Programming Languages"],
+  "activationEvents": [
+    "workspaceContains:**/aipm.toml"
+  ],
+  "extensionDependencies": [
+    "tamasfe.even-better-toml"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "tomlValidation": [{
+      "fileMatch": "aipm.toml",
+      "url": "./schemas/aipm.toml.schema.json"
+    }],
+    "configuration": {
+      "title": "aipm",
+      "properties": {
+        "aipm.lint.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable aipm lint diagnostics"
+        },
+        "aipm.path": {
+          "type": "string",
+          "default": "aipm",
+          "description": "Path to the aipm binary"
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  }
+}
