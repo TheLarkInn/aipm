@@ -18,6 +18,7 @@ How-to guides for common tasks:
 | [Migrating — Step-by-step](guides/migrating-existing-configs.md) | Dry-run, destructive cleanup, recursive discovery walkthrough |
 | [Configuring Lint](guides/configuring-lint.md) | Tune rule severity, suppress noise, exclude directories |
 | [Using `aipm lint`](guides/lint.md) | CLI flags, output formats, CI integration, rules reference |
+| [VS Code Integration](guides/vscode-integration.md) | Inline diagnostics, autocomplete, and hover in VS Code via `aipm lsp` |
 | [Verbosity & Logging](guides/verbosity-and-logging.md) | Verbosity flags, `AIPM_LOG`, log file, CI recommendations |
 | [Engine & Platform Compatibility](guides/engine-platform-compatibility.md) | Declare supported AI tools and operating systems |
 | [Download Cache](guides/cache-management.md) | Cache policies, TTL, and garbage collection |

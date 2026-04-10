@@ -302,4 +302,5 @@ All available rules, grouped by category:
 ## See also
 
 - [Configuring the lint system](./configuring-lint.md) — rule severity overrides, per-rule path ignores, and global path excludes
+- [VS Code Integration](./vscode-integration.md) — inline diagnostics, autocomplete, and hover documentation in VS Code via `aipm lsp`
 - [Lint rule reference](../rules/) — individual rule pages with severity, rationale, and fix guidance

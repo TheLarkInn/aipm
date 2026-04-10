@@ -9,7 +9,7 @@ AIPM ships as **two Rust binaries** with **zero runtime dependencies**:
 
 | Binary | Role | Commands |
 |--------|------|----------|
-| **`aipm`** | Consumer CLI | `init`, `install`, `update`, `uninstall`, `link`, `unlink`, `list`, `lint`, `migrate` |
+| **`aipm`** | Consumer CLI | `init`, `install`, `update`, `uninstall`, `link`, `unlink`, `list`, `lint`, `migrate`, `lsp` |
 | **`aipm-pack`** | Author CLI | `init` |
 
 Both work across .NET, Python, Node.js, and Rust projects with no runtime dependency.
@@ -226,6 +226,27 @@ aipm lint [OPTIONS] [DIR]
 Exits with a non-zero status code when violations are found, making it safe to use in CI pipelines. Use `--reporter ci-github` for GitHub Actions annotations or `--reporter ci-azure` for Azure Pipelines.
 
 See also: [`docs/guides/lint.md`](docs/guides/lint.md) for full CLI usage, output formats, and CI integration; [`docs/guides/configuring-lint.md`](docs/guides/configuring-lint.md) for rule severity overrides, path ignores, and per-rule configuration.
+
+---
+
+### `aipm lsp`
+
+Start the Language Server Protocol server for IDE integration.
+
+```bash
+aipm lsp
+```
+
+Uses stdio transport. The companion VS Code extension (`vscode-aipm`) launches this
+server automatically when a workspace contains an `aipm.toml` or `.ai/` directory. It
+provides:
+
+- **Inline lint diagnostics** on open/save for `aipm.toml`, `SKILL.md`, agent
+  markdown files, `hooks.json`, `plugin.json`, and `marketplace.json`.
+- **Autocomplete** for rule IDs and severity values inside `[workspace.lints]`.
+- **Hover documentation** for lint rule IDs.
+
+See also: [`docs/guides/vscode-integration.md`](docs/guides/vscode-integration.md) for installation, configuration, and troubleshooting.
 
 ---
 
