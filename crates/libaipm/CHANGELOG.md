@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.19.5] - 2026-04-10
+
+### Features
+- VS Code integration for aipm lint ([#377](https://github.com/TheLarkInn/aipm/pull/377)) ([#384](https://github.com/TheLarkInn/aipm/pull/384)) (2a5103b)
+
 ## [0.19.4] - 2026-04-10
 
 ### Bug Fixes
