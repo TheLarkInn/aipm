@@ -135,13 +135,13 @@ pub(super) fn extract_rule_id_at(text: &str, line: u32, character: u32) -> Optio
 
 // ── Lint helper ───────────────────────────────────────────────────────────────
 
-/// Walk up from `path` looking for a workspace root marker (`aipm.toml` or `.ai/`).
+/// Walk up from `path`'s parent directory (when available) looking for a
+/// workspace root marker (`aipm.toml` or `.ai/`).
+///
+/// Always starts from the parent so that new or unsaved files (where
+/// `path.is_file()` would be `false`) are still resolved correctly.
 pub(super) fn find_workspace_dir(path: &Path) -> PathBuf {
-    let start = if path.is_file() {
-        path.parent().map_or_else(|| path.to_path_buf(), Path::to_path_buf)
-    } else {
-        path.to_path_buf()
-    };
+    let start = path.parent().map_or_else(|| path.to_path_buf(), Path::to_path_buf);
 
     let mut dir = start.clone();
     loop {

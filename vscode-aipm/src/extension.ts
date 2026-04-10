@@ -37,7 +37,7 @@ export function activate(context: ExtensionContext): void {
       // Plugin manifests — aipm.toml directly under .ai/<plugin>/
       { scheme: 'file', pattern: '**/.ai/*/aipm.toml' },
       // Plugin JSON manifests — .ai/<plugin>/.claude-plugin/plugin.json
-      { scheme: 'file', pattern: '**/.claude-plugin/plugin.json' },
+      { scheme: 'file', pattern: '**/.ai/*/.claude-plugin/plugin.json' },
       // Marketplace manifest — .ai/.claude-plugin/marketplace.json
       { scheme: 'file', pattern: '**/.ai/.claude-plugin/marketplace.json' },
     ],
