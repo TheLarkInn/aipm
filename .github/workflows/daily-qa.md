@@ -9,7 +9,7 @@ on:
   schedule: every 3h
   workflow_dispatch:
 
-timeout-minutes: 15
+timeout-minutes: 45
 
 permissions: read-all
 

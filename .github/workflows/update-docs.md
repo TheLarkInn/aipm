@@ -30,7 +30,7 @@ tools:
   # By default this workflow allows all bash commands within the confine of Github Actions VM 
   bash: true
 
-timeout-minutes: 15
+timeout-minutes: 45
 source: githubnext/agentics/workflows/update-docs.md@7c7feb61a52b662eb2089aa2945588b7a200d404
 engine: copilot
 ---
