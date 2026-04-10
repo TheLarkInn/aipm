@@ -34,3 +34,7 @@ lcov.info
 
 # aipm
 .ai/.tool-usage.log
+
+# Node Stuff (from aipm-vscode)
+node_modules/
+out/

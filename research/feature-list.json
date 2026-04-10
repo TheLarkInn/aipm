@@ -27,7 +27,7 @@
       "Run SchemaStore's test suite",
       "Submit PR to SchemaStore/schemastore"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

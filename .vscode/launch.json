@@ -28,7 +28,7 @@
       "request": "launch",
       "args": [
         "--extensionDevelopmentPath=${workspaceFolder}/vscode-aipm",
-        "${workspaceFolder}/tests/fixtures"
+        "${workspaceFolder}/fixtures/extension-test"
       ],
       "outFiles": [
         "${workspaceFolder}/vscode-aipm/out/**/*.js"
