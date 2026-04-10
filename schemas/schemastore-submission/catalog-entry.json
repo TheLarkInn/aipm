@@ -1,0 +1,8 @@
+{
+  "name": "aipm.toml",
+  "description": "AI Package Manager configuration",
+  "fileMatch": [
+    "aipm.toml"
+  ],
+  "url": "https://json.schemastore.org/aipm.toml.json"
+}
