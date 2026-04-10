@@ -391,7 +391,7 @@ crates/
   aipm-pack/    Author CLI binary (init)
   libaipm/      Core library (manifest, validation, migration, scaffolding, lint, install, link, resolve)
 specs/          Technical design documents
-tests/features/ Cucumber BDD feature files (31 files, 300+ scenarios)
+tests/features/ Cucumber BDD feature files (31 files, 134 scenarios)
 research/       Competitive analysis and design research
 ```
 
