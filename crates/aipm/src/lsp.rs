@@ -14,12 +14,13 @@ use std::time::Duration;
 
 use tower_lsp::jsonrpc;
 use tower_lsp::lsp_types::{
-    CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams, CompletionResponse,
-    Diagnostic as LspDiagnostic, DiagnosticSeverity, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DidSaveTextDocumentParams, Documentation, Hover, HoverContents,
-    HoverParams, HoverProviderCapability, InitializeParams, InitializeResult, MarkupContent,
-    MarkupKind, NumberOrString, Position, Range, ServerCapabilities, TextDocumentSyncCapability,
-    TextDocumentSyncKind, TextDocumentSyncOptions, TextDocumentSyncSaveOptions, Url,
+    CodeDescription, CompletionItem, CompletionItemKind, CompletionOptions, CompletionParams,
+    CompletionResponse, Diagnostic as LspDiagnostic, DiagnosticSeverity,
+    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
+    Documentation, Hover, HoverContents, HoverParams, HoverProviderCapability, InitializeParams,
+    InitializeResult, MarkupContent, MarkupKind, NumberOrString, Position, Range,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    TextDocumentSyncSaveOptions, Url,
 };
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
@@ -427,7 +428,10 @@ fn to_lsp_diagnostic(d: &libaipm::lint::Diagnostic) -> LspDiagnostic {
         code: Some(NumberOrString::String(d.rule_id.clone())),
         source: Some("aipm".to_string()),
         message: d.message.clone(),
-        code_description: None,
+        code_description: d
+            .help_url
+            .as_deref()
+            .and_then(|u| Url::parse(u).ok().map(|href| CodeDescription { href })),
         related_information: None,
         tags: None,
         data: None,
@@ -590,6 +594,45 @@ mod tests {
         let lsp = to_lsp_diagnostic(&d);
         assert_eq!(lsp.code, Some(NumberOrString::String("skill/name-too-long".to_string())));
         assert_eq!(lsp.source, Some("aipm".to_string()));
+    }
+
+    #[test]
+    fn lsp_diag_help_url_populates_code_description() {
+        let d = libaipm::lint::Diagnostic {
+            rule_id: "skill/name-invalid-chars".to_string(),
+            message: "invalid chars".to_string(),
+            severity: Severity::Error,
+            file_path: std::path::PathBuf::new(),
+            line: Some(3),
+            col: Some(8),
+            end_line: Some(3),
+            end_col: Some(14),
+            source_type: ".claude".to_string(),
+            help_text: None,
+            help_url: Some("https://example.com/rules/skill-name-invalid-chars".to_string()),
+        };
+        let lsp = to_lsp_diagnostic(&d);
+        let desc = lsp.code_description.expect("code_description should be set");
+        assert_eq!(desc.href.as_str(), "https://example.com/rules/skill-name-invalid-chars");
+    }
+
+    #[test]
+    fn lsp_diag_no_help_url_leaves_code_description_none() {
+        let d = libaipm::lint::Diagnostic {
+            rule_id: "skill/oversized".to_string(),
+            message: "too big".to_string(),
+            severity: Severity::Warning,
+            file_path: std::path::PathBuf::new(),
+            line: None,
+            col: None,
+            end_line: None,
+            end_col: None,
+            source_type: ".claude".to_string(),
+            help_text: None,
+            help_url: None,
+        };
+        let lsp = to_lsp_diagnostic(&d);
+        assert!(lsp.code_description.is_none());
     }
 
     // ── detect_completion_context ─────────────────────────────────────────────
