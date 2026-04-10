@@ -2059,6 +2059,52 @@ pkg-b = "^2.0"
     }
 
     // =========================================================================
+    // update: assembled dir exists but checksum changed — False branch of L907
+    // =========================================================================
+
+    #[test]
+    fn update_with_stale_checksum_in_lockfile_reinstalls() {
+        // Covers the False branch of:
+        //   `if assembled_dir.exists() && !needs_update(resolved, existing_lockfile.as_ref())`
+        // by ensuring assembled_dir exists (from a prior install) but the stored
+        // lockfile checksum does not match the registry's checksum — so needs_update
+        // returns true and the package is re-downloaded.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let registry = make_registry();
+
+        // Step 1: install to create the assembled dir and a correct lockfile
+        let install_config = setup_project(tmp.path());
+        let r1 = install(&install_config, &registry);
+        assert!(r1.is_ok(), "initial install: {r1:?}");
+        assert!(install_config.lockfile_path.exists(), "lockfile must exist after install");
+        assert!(
+            tmp.path().join(".aipm/links/pkg-a").exists(),
+            "assembled dir must exist after install"
+        );
+
+        // Step 2: read the real lockfile and tamper with the checksum so that
+        // needs_update will return true even though the version matches
+        let mut lf =
+            lockfile::read(&install_config.lockfile_path).expect("lockfile must be readable");
+        for pkg in &mut lf.packages {
+            if pkg.name == "pkg-a" {
+                pkg.checksum = "sha512-tampered-checksum".to_string();
+            }
+        }
+        lockfile::write(&install_config.lockfile_path, &lf).expect("lockfile must be writable");
+
+        // Step 3: run update — assembled_dir exists but checksum mismatch means
+        // needs_update returns true, so the condition at L907 is false and the
+        // package is re-fetched (covering the previously-missed False branch).
+        let config = make_update_config(tmp.path());
+        let result = update(&config, &registry);
+        assert!(result.is_ok(), "update with stale checksum: {result:?}");
+        let stats = result.unwrap();
+        assert_eq!(stats.installed, 1, "package with stale checksum must be re-installed");
+        assert_eq!(stats.up_to_date, 0, "no packages should be counted as up-to-date");
+    }
+
+    // =========================================================================
     // needs_update: version matches but we also test the ||  checksum path
     // =========================================================================
 
