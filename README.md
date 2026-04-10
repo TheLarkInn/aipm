@@ -134,6 +134,8 @@ aipm install [OPTIONS] [PACKAGE]
 
 Omit `PACKAGE` to install all dependencies from `aipm.toml`.
 
+> **⚠️ Registry status:** The bare registry-name format (`code-review@^1.0`) is fully parsed and stored in the manifest, but the registry download step is not yet connected to the CLI binary. Using this format will produce an error today. The `local:`, `git:`, `github:`, and `marketplace:` formats all work end-to-end. Track progress at [#5](https://github.com/TheLarkInn/aipm/issues/5).
+
 **Global installs** write to `~/.aipm/registry/` and are available across all projects. Use `--engine` to scope a plugin to a specific AI tool.
 
 See also: [`docs/guides/global-plugins.md`](docs/guides/global-plugins.md), [`docs/guides/install-git-plugin.md`](docs/guides/install-git-plugin.md), [`docs/guides/cache-management.md`](docs/guides/cache-management.md).
@@ -250,6 +252,8 @@ aipm-pack init [OPTIONS] [DIR]
 Generates an `aipm.toml` manifest and type-appropriate directory structure.
 
 See also: [`docs/guides/creating-a-plugin.md`](docs/guides/creating-a-plugin.md) for a full authoring walkthrough.
+
+> **ℹ️ Planned commands:** `aipm-pack pack`, `aipm-pack publish`, `aipm-pack yank`, and `aipm-pack login` are defined in the roadmap but not yet implemented. The `aipm-pack init` command is the only one available today. Track at [#6](https://github.com/TheLarkInn/aipm/issues/6) and [#8](https://github.com/TheLarkInn/aipm/issues/8).
 
 ---
 
@@ -399,38 +403,42 @@ research/       Competitive analysis and design research
 
 ## Roadmap
 
-The following features are defined as BDD scenarios and tracked as open issues. They represent the full planned scope beyond what is currently implemented.
+The following features are defined as BDD scenarios and tracked as open issues. Status markers reflect the current implementation:
+
+- ✅ **Working** — available end-to-end today
+- 🔨 **Partial** — library implemented and tested, CLI integration incomplete
+- 📋 **Planned** — spec and BDD scenarios written, implementation not started
 
 ### Dependencies
 
-- **Resolution** — semver solver with backtracking, version unification, conflict reporting, overrides ([#1](https://github.com/TheLarkInn/aipm/issues/1))
-- **Lockfile** — deterministic `aipm.lock` creation, drift detection, `--locked` CI mode ([#2](https://github.com/TheLarkInn/aipm/issues/2))
-- **Features** — default features, opt-out, additive feature unification across the graph ([#3](https://github.com/TheLarkInn/aipm/issues/3))
-- **Patching** — `aipm patch` workflow for editing transitive deps without forking ([#4](https://github.com/TheLarkInn/aipm/issues/4))
+- 🔨 **Resolution** — library complete (69 resolver tests, backtracking, overrides); not yet fully exposed through `aipm install` ([#1](https://github.com/TheLarkInn/aipm/issues/1))
+- 🔨 **Lockfile** — library complete (31 tests); `--locked` CI mode works in `aipm install`; full drift-detection UI pending ([#2](https://github.com/TheLarkInn/aipm/issues/2))
+- 🔨 **Features** — library complete (default features, additive unification in resolver); not yet wired to CLI ([#3](https://github.com/TheLarkInn/aipm/issues/3))
+- 📋 **Patching** — `aipm patch` workflow for editing transitive deps without forking ([#4](https://github.com/TheLarkInn/aipm/issues/4))
 
 ### Registry
 
-- **Install** — `aipm install` with semver resolution, content-addressable store, integrity verification, strict isolation ([#5](https://github.com/TheLarkInn/aipm/issues/5))
-- **Publish** — `aipm-pack pack` / `publish` with `.aipm` archives, dry-run, file allowlist, size limits ([#6](https://github.com/TheLarkInn/aipm/issues/6))
-- **Security** — checksums, tamper detection, `aipm audit`, auth, scoped org permissions ([#7](https://github.com/TheLarkInn/aipm/issues/7))
-- **Yank** — `aipm-pack yank` / un-yank, deprecation messages ([#8](https://github.com/TheLarkInn/aipm/issues/8))
-- **Link** — `aipm link` / `unlink` for local dev overrides ([#9](https://github.com/TheLarkInn/aipm/issues/9))
-- **Local + Registry Coexistence** — directory links, gitignore management, vendoring ([#10](https://github.com/TheLarkInn/aipm/issues/10))
+- 🔨 **Install** — local, git, github, and marketplace sources work end-to-end; bare registry-name resolution is blocked pending registry wiring ([#5](https://github.com/TheLarkInn/aipm/issues/5))
+- 📋 **Publish** — `aipm-pack pack` / `publish` with `.aipm` archives, dry-run, file allowlist, size limits ([#6](https://github.com/TheLarkInn/aipm/issues/6))
+- 🔨 **Security** — source allowlist and path traversal protection ship today (see [`docs/guides/source-security.md`](docs/guides/source-security.md)); `aipm audit` and advisory checks are not yet implemented ([#7](https://github.com/TheLarkInn/aipm/issues/7))
+- 📋 **Yank** — `aipm-pack yank` / un-yank, deprecation messages ([#8](https://github.com/TheLarkInn/aipm/issues/8))
+- ✅ **Link** — `aipm link` / `unlink` for local dev overrides are fully functional today ([#9](https://github.com/TheLarkInn/aipm/issues/9))
+- 🔨 **Local + Registry Coexistence** — directory links, gitignore management work; registry download integration pending ([#10](https://github.com/TheLarkInn/aipm/issues/10))
 
 ### Monorepo
 
-- **Orchestration** — workspace protocol, catalogs, filtering by name/path/changed/dependents, Rush/Turborepo integration ([#11](https://github.com/TheLarkInn/aipm/issues/11))
+- 📋 **Orchestration** — workspace protocol, catalogs, filtering by name/path/changed/dependents, Rush/Turborepo integration ([#11](https://github.com/TheLarkInn/aipm/issues/11))
 
 ### Environment
 
-- **Dependencies** — declare required tools, env vars, platforms, MCP runtimes; `aipm doctor` ([#12](https://github.com/TheLarkInn/aipm/issues/12))
-- **Host Versioning** — `[environment.hosts]` section for Claude/Copilot/Cursor version constraints ([#54](https://github.com/TheLarkInn/aipm/issues/54))
+- 📋 **Dependencies** — declare required tools, env vars, platforms, MCP runtimes; `aipm doctor` ([#12](https://github.com/TheLarkInn/aipm/issues/12))
+- 📋 **Host Versioning** — `[environment.hosts]` section for Claude/Copilot/Cursor version constraints ([#54](https://github.com/TheLarkInn/aipm/issues/54))
 
 ### Quality & Portability
 
-- **Guardrails** — `aipm lint`, auto-fix, quality scoring on publish ([#13](https://github.com/TheLarkInn/aipm/issues/13))
-- **Compositional Reuse** — publish/consume standalone skills, agents, MCP configs, hooks as packages ([#14](https://github.com/TheLarkInn/aipm/issues/14))
-- **Cross-Stack** — verified portability across Node.js, .NET, Python, Rust, CMake; offline resolution ([#15](https://github.com/TheLarkInn/aipm/issues/15))
+- 🔨 **Guardrails** — `aipm lint` with 14 rules and 4 reporters ships today (see [`docs/guides/lint.md`](docs/guides/lint.md)); auto-fix and quality scoring on publish are not yet implemented ([#13](https://github.com/TheLarkInn/aipm/issues/13))
+- 🔨 **Compositional Reuse** — spec, acquirer, and marketplace modules ship; full publish/consume workflow for standalone primitives pending ([#14](https://github.com/TheLarkInn/aipm/issues/14))
+- 🔨 **Cross-Stack** — Claude Code and Copilot CLI adaptors ship today; Cursor and OpenCode adaptors planned ([#15](https://github.com/TheLarkInn/aipm/issues/15))
 
 ---
 
