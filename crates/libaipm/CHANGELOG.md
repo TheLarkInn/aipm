@@ -1,6 +1,27 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.19.4] - 2026-04-10
+
+### Bug Fixes
+- Eliminate unreachable None branches in glob_match (04ab684)
+
+### Testing
+- Cover is_dir True branch in acquire_local (70d6f20)
+- Eliminate uncovered if-let branch in hooks test (db46338)
+- Cover symlink-skipping branch in copy_dir_recursive (b4690f5)
+- Fix MockFs setup to cover registered_entries None branch (e7905ef)
+- Cover wizard Text validate=false/no-help branches and engine marketplace_manifest_path (f764d63)
+- Cover put() when old entry dir is already removed (7f571a6)
+- Cover BrokenPaths::check_file root-path no-parent branch (2cafaaf)
+- Cover has_hooks_yaml and non-empty hook_paths branch (5223f6e)
+- Cover wildcard arm in write_cleanup_plan match (081283b)
+- Cover the `_ =>` fallback branch in `is_valid_event` (09c6f01)
+- Cover setup_skill dedup False branch in skill_missing_name (345aac6)
+- Cover update() false-branch when assembled dir exists but checksum stale (8dcc49d)
+- Cover make_temp_dir existing-dir cleanup branch in claude adaptor (7762175)
+- Cover lockfile-pin conflict in backtrack_and_retry (5e08e40)
+
 ## [0.19.3] - 2026-04-08
 
 ### Bug Fixes
