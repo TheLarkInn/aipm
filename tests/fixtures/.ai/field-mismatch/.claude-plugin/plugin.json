@@ -1,0 +1,9 @@
+{
+  "name": "completely-different-name",
+  "description": "This description intentionally differs from the marketplace entry",
+  "version": "0.1.0",
+  "author": {
+    "name": "Test Author",
+    "email": "test@example.com"
+  }
+}

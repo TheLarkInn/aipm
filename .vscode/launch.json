@@ -1,0 +1,45 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // Launches a new Extension Development Host window with vscode-aipm loaded.
+      // Prerequisites (run once): cd vscode-aipm && npm install
+      // The Extension Development Host inherits PATH from your shell, so either:
+      //   (a) run `cargo build -p aipm` and add ./target/debug to PATH, or
+      //   (b) open a fixture folder in the host and set "aipm.path" in that
+      //       workspace's settings.json to the absolute path of ./target/debug/aipm
+      "name": "Launch Extension (Extension Development Host)",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/vscode-aipm"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/vscode-aipm/out/**/*.js"
+      ],
+      "preLaunchTask": "compile-extension",
+      "sourceMaps": true
+    },
+    {
+      // Same as above but also opens a fixture folder in the Extension Development Host.
+      // Set FIXTURE_PATH to a directory that contains aipm.toml + .ai/ or .claude/ features.
+      "name": "Launch Extension with Fixture Folder",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/vscode-aipm",
+        "${workspaceFolder}/tests/fixtures"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/vscode-aipm/out/**/*.js"
+      ],
+      "preLaunchTask": "build-and-compile",
+      "sourceMaps": true,
+      "env": {
+        // Ensures the extension host finds the debug binary without PATH changes.
+        // Remove this if you add ./target/debug to your shell PATH instead.
+        "AIPM_PATH": "${workspaceFolder}/target/debug/aipm"
+      }
+    }
+  ]
+}

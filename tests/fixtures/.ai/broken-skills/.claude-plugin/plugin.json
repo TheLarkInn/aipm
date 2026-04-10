@@ -1,0 +1,9 @@
+{
+  "name": "broken-skills",
+  "description": "Plugin with intentionally broken skills for LSP testing",
+  "version": "0.1.0",
+  "author": {
+    "name": "Test Author",
+    "email": "test@example.com"
+  }
+}

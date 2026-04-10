@@ -12,7 +12,7 @@ export function activate(context: ExtensionContext): void {
   const config = workspace.getConfiguration('aipm');
   if (!config.get<boolean>('lint.enable', true)) return;
 
-  const aipmPath = config.get<string>('path', 'aipm');
+  const aipmPath = process.env['AIPM_PATH'] ?? config.get<string>('path', 'aipm');
 
   const serverOptions: ServerOptions = {
     command: aipmPath,

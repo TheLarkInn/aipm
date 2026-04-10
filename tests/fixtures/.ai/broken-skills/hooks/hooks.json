@@ -1,0 +1,14 @@
+{
+  "InvalidEvent": [
+    {
+      "type": "command",
+      "command": "echo 'this event does not exist'"
+    }
+  ],
+  "Stop": [
+    {
+      "type": "command",
+      "command": "echo 'Stop is a legacy PascalCase name for agentStop'"
+    }
+  ]
+}
