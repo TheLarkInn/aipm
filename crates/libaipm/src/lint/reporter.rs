@@ -159,7 +159,7 @@ impl Human<'_> {
             let start_idx = target_idx.saturating_sub(1);
             let end_idx = (target_idx + 2).min(total_lines);
 
-            if start_idx < total_lines && start_idx < end_idx {
+            if start_idx < total_lines {
                 let context_lines: Vec<&str> =
                     lines.get(start_idx..end_idx).unwrap_or(&[]).to_vec();
                 let snippet_source = context_lines.join("\n");
@@ -1132,5 +1132,40 @@ mod tests {
         // Should still render the diagnostic header even without file
         assert!(output.contains("test/rule"));
         assert!(output.contains("test error"));
+    }
+
+    #[test]
+    fn human_reporter_empty_file_with_line_number() {
+        // Source file exists but is empty (0 lines). A diagnostic with a line
+        // number pointing into it triggers the `start_idx < total_lines` false
+        // branch in `write_rich_diagnostic`, returning None for the snippet and
+        // falling back to a no-snippet rendering.
+        let mut mock_fs = MockFs::new();
+        mock_fs.files.insert(PathBuf::from("/project/empty.md"), String::new());
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/empty-file".into(),
+                severity: Severity::Warning,
+                message: "diagnostic on empty file".into(),
+                file_path: PathBuf::from("empty.md"),
+                line: Some(1),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        // Diagnostic header should still appear even though the snippet is absent
+        assert!(output.contains("test/empty-file"));
+        assert!(output.contains("diagnostic on empty file"));
     }
 }
