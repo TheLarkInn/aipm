@@ -15,7 +15,7 @@ plugins_dir = ".ai"
 #    so any unrecognized key is a schema error.
 #
 # 2. "skill/missing-name" = "sometimes" is an invalid severity value.
-#    Valid values are "allow", "warn", "error" (or an object with level/ignore).
+#    Valid values are "allow", "warn", "warning", "error", "deny" (or an object with level/ignore).
 #    "sometimes" does not match the oneOf constraint.
 # ──────────────────────────────────────────────────────────────────────────────
 [workspace.lints]
