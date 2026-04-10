@@ -41,6 +41,11 @@
       "label": "build-aipm-debug",
       "type": "shell",
       "command": "cargo build -p aipm",
+      "options": {
+        "env": {
+          "PATH": "${env:HOME}/.cargo/bin:${env:PATH}"
+        }
+      },
       "group": "build",
       "presentation": {
         "reveal": "silent",
