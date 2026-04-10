@@ -12,6 +12,7 @@ permissions:
   contents: read
   issues: read
   pull-requests: read
+timeout-minutes: 45
 tools:
   github:
     toolsets: [default]
