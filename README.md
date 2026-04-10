@@ -9,7 +9,7 @@ AIPM ships as **two Rust binaries** with **zero runtime dependencies**:
 
 | Binary | Role | Commands |
 |--------|------|----------|
-| **`aipm`** | Consumer CLI | `init`, `install`, `update`, `uninstall`, `link`, `unlink`, `list`, `lint`, `migrate` |
+| **`aipm`** | Consumer CLI | `init`, `install`, `update`, `uninstall`, `link`, `unlink`, `list`, `lint`, `migrate`, `lsp` |
 | **`aipm-pack`** | Author CLI | `init` |
 
 Both work across .NET, Python, Node.js, and Rust projects with no runtime dependency.
