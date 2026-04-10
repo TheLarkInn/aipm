@@ -1,0 +1,6 @@
+# INVALID aipm.toml — typo in rule ID.
+# "skill/mising-name" is not a known rule ID.
+# Schema must reject this due to additionalProperties: false on [workspace.lints].
+
+[workspace.lints]
+"skill/mising-name" = "allow"

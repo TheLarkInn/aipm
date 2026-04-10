@@ -11,6 +11,17 @@ use crate::lint::Error;
 
 use super::{known_events, scan};
 
+/// Return `(line_num, col, end_col)` for a JSON key in a string of JSON content.
+fn locate_json_key(content: &str, key: &str) -> Option<(usize, usize, usize)> {
+    let needle = format!("\"{key}\"");
+    for (i, line) in content.lines().enumerate() {
+        if let Some(pos) = line.find(&needle) {
+            return Some((i + 1, pos + 1, pos + needle.len() + 1));
+        }
+    }
+    None
+}
+
 /// Warns about legacy `PascalCase` hook event names.
 pub struct LegacyEventName;
 
@@ -55,15 +66,8 @@ impl Rule for LegacyEventName {
 
             for key in hooks.keys() {
                 if let Some(canonical) = known_events::suggest_canonical(key) {
-                    // Try to find the line number by searching raw content
-                    let line_num = content.lines().enumerate().find_map(|(i, line)| {
-                        let needle = format!("\"{key}\"");
-                        if line.contains(&needle) {
-                            Some(i + 1)
-                        } else {
-                            None
-                        }
-                    });
+                    let (line, col, end_col) = locate_json_key(&content, key)
+                        .map_or((None, None, None), |(l, c, e)| (Some(l), Some(c), Some(e)));
                     diagnostics.push(Diagnostic {
                         rule_id: self.id().to_string(),
                         severity: self.default_severity(),
@@ -71,10 +75,10 @@ impl Rule for LegacyEventName {
                             "\"{key}\" is a legacy event name, use \"{canonical}\" instead"
                         ),
                         file_path: path.clone(),
-                        line: line_num,
-                        col: None,
-                        end_line: None,
-                        end_col: None,
+                        line,
+                        col,
+                        end_line: line,
+                        end_col,
                         source_type: ".ai".to_string(),
                         help_text: None,
                         help_url: None,
@@ -105,14 +109,8 @@ impl Rule for LegacyEventName {
         };
         for key in hooks.keys() {
             if let Some(canonical) = known_events::suggest_canonical(key) {
-                let line_num = content.lines().enumerate().find_map(|(i, line)| {
-                    let needle = format!("\"{key}\"");
-                    if line.contains(&needle) {
-                        Some(i + 1)
-                    } else {
-                        None
-                    }
-                });
+                let (line, col, end_col) = locate_json_key(&content, key)
+                    .map_or((None, None, None), |(l, c, e)| (Some(l), Some(c), Some(e)));
                 diagnostics.push(Diagnostic {
                     rule_id: self.id().to_string(),
                     severity: self.default_severity(),
@@ -120,10 +118,10 @@ impl Rule for LegacyEventName {
                         "\"{key}\" is a legacy event name, use \"{canonical}\" instead"
                     ),
                     file_path: file_path.to_path_buf(),
-                    line: line_num,
-                    col: None,
-                    end_line: None,
-                    end_col: None,
+                    line,
+                    col,
+                    end_line: line,
+                    end_col,
                     source_type: source_type.clone(),
                     help_text: None,
                     help_url: None,
@@ -239,6 +237,20 @@ mod tests {
         let result = LegacyEventName.check(Path::new(".ai"), &fs);
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn legacy_event_has_col_and_end_col() {
+        // Single-line: `{ "Stop": [] }` — "Stop" at col 3, needle `"Stop"` is 6 chars → end_col 9
+        let mut fs = MockFs::new();
+        fs.add_hooks("p", r#"{ "Stop": [] }"#);
+
+        let diags = LegacyEventName.check(Path::new(".ai"), &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].line, Some(1));
+        assert_eq!(diags[0].col, Some(3));
+        assert_eq!(diags[0].end_line, Some(1));
+        assert_eq!(diags[0].end_col, Some(9));
     }
 
     // --- check_file() tests ---

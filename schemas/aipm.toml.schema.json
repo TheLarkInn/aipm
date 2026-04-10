@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "$id": "https://raw.githubusercontent.com/TheLarkInn/aipm/main/schemas/aipm.toml.schema.json",
+  "title": "aipm.toml",
+  "description": "AI Package Manager configuration file. Only the [workspace.lints] section is validated; all other sections are intentionally unconstrained.",
+  "type": "object",
+  "additionalProperties": true,
+  "x-taplo": {
+    "initKeys": ["workspace.lints"]
+  },
+  "properties": {
+    "workspace": {
+      "type": "object",
+      "description": "Workspace configuration for multi-package aipm projects.",
+      "additionalProperties": true,
+      "properties": {
+        "lints": {
+          "type": "object",
+          "description": "Lint rule configuration. Keys are rule IDs; values are severity overrides or detailed config objects. Unknown rule IDs are rejected.",
+          "additionalProperties": false,
+          "properties": {
+            "ignore": {
+              "type": "object",
+              "description": "Global ignore configuration applied to all lint rules.",
+              "additionalProperties": false,
+              "properties": {
+                "paths": {
+                  "type": "array",
+                  "description": "Glob patterns for files or directories to exclude from all lint rules (e.g. \"vendor/**\", \"third_party/**\").",
+                  "items": {
+                    "type": "string",
+                    "description": "A glob pattern relative to the workspace root."
+                  }
+                }
+              }
+            }
+          },
+          "patternProperties": {
+            "^(skill/missing-name|skill/missing-description|skill/oversized|skill/name-too-long|skill/name-invalid-chars|skill/description-too-long|skill/invalid-shell|plugin/broken-paths|agent/missing-tools|hook/unknown-event|hook/legacy-event-name|source/misplaced-features|marketplace/source-resolve|marketplace/plugin-field-mismatch|plugin/missing-registration|plugin/missing-manifest|plugin/required-fields)$": {
+              "description": "Override the severity of a lint rule, or suppress it entirely.",
+              "oneOf": [
+                {
+                  "type": "string",
+                  "enum": ["allow", "warn", "warning", "error", "deny"],
+                  "description": "Simple severity override. \"allow\" suppresses the rule; \"warn\"/\"warning\" makes it advisory (exit 0); \"error\"/\"deny\" makes it blocking (exit 1)."
+                },
+                {
+                  "type": "object",
+                  "description": "Detailed rule override: change severity and/or provide per-rule ignore paths.",
+                  "required": ["level"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "level": {
+                      "type": "string",
+                      "enum": ["allow", "warn", "warning", "error", "deny"],
+                      "description": "Severity level for this rule."
+                    },
+                    "ignore": {
+                      "type": "array",
+                      "description": "Glob patterns to exclude from this specific rule only.",
+                      "items": {
+                        "type": "string",
+                        "description": "A glob pattern relative to the workspace root."
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "unregistered",
+  "description": "This plugin is not listed in marketplace.json — triggers plugin/missing-registration",
+  "version": "0.1.0",
+  "author": {
+    "name": "Test Author",
+    "email": "test@example.com"
+  }
+}

@@ -46,9 +46,9 @@ impl Rule for MissingDescription {
                         message: "SKILL.md missing required field: description".to_string(),
                         file_path: skill.path,
                         line: Some(fm.start_line),
-                        col: None,
-                        end_line: None,
-                        end_col: None,
+                        col: Some(1),
+                        end_line: Some(fm.start_line),
+                        end_col: Some(4),
                         source_type: ".ai".to_string(),
                         help_text: None,
                         help_url: None,
@@ -61,9 +61,9 @@ impl Rule for MissingDescription {
                         message: "SKILL.md has no frontmatter".to_string(),
                         file_path: skill.path,
                         line: Some(1),
-                        col: None,
-                        end_line: None,
-                        end_col: None,
+                        col: Some(1),
+                        end_line: Some(1),
+                        end_col: Some(4),
                         source_type: ".ai".to_string(),
                         help_text: None,
                         help_url: None,
@@ -88,9 +88,9 @@ impl Rule for MissingDescription {
                 message: "SKILL.md missing required field: description".to_string(),
                 file_path: skill.path,
                 line: Some(fm.start_line),
-                col: None,
-                end_line: None,
-                end_col: None,
+                col: Some(1),
+                end_line: Some(fm.start_line),
+                end_col: Some(4),
                 source_type,
                 help_text: None,
                 help_url: None,
@@ -101,9 +101,9 @@ impl Rule for MissingDescription {
                 message: "SKILL.md has no frontmatter".to_string(),
                 file_path: skill.path,
                 line: Some(1),
-                col: None,
-                end_line: None,
-                end_col: None,
+                col: Some(1),
+                end_line: Some(1),
+                end_col: Some(4),
                 source_type,
                 help_text: None,
                 help_url: None,
@@ -150,6 +150,19 @@ mod tests {
         let diags = result.ok().unwrap_or_default();
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].rule_id, "skill/missing-description");
+    }
+
+    #[test]
+    fn missing_description_points_to_frontmatter_opener() {
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "s", "---\nname: s\n---\nbody");
+
+        let diags = MissingDescription.check(Path::new(".ai"), &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].line, Some(1));
+        assert_eq!(diags[0].col, Some(1));
+        assert_eq!(diags[0].end_line, Some(1));
+        assert_eq!(diags[0].end_col, Some(4));
     }
 
     // --- check_file() tests ---

@@ -1,0 +1,12 @@
+[workspace]
+members = [".ai/*"]
+plugins_dir = ".ai"
+
+[workspace.lints]
+"skill/missing-name" = "allow"
+"skill/oversized" = "error"
+"hook/unknown-event" = "warn"
+"plugin/broken-paths" = { level = "warn", ignore = ["vendor/**", "third_party/**"] }
+
+[workspace.lints.ignore]
+paths = ["vendor/**", "third_party/**"]

@@ -1,0 +1,23 @@
+[package]
+name = "lint-fixtures"
+version = "0.1.0"
+description = "Fixture workspace for testing aipm LSP diagnostics"
+
+[workspace]
+members = [".ai/*"]
+plugins_dir = ".ai"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# INTENTIONAL SCHEMA VIOLATIONS — Taplo (via tomlValidation) should flag these:
+#
+# 1. "skill/not-a-real-rule" is not a known rule ID.
+#    The JSON Schema uses `additionalProperties: false` on [workspace.lints],
+#    so any unrecognized key is a schema error.
+#
+# 2. "skill/missing-name" = "sometimes" is an invalid severity value.
+#    Valid values are "allow", "warn", "warning", "error", "deny" (or an object with level/ignore).
+#    "sometimes" does not match the oneOf constraint.
+# ──────────────────────────────────────────────────────────────────────────────
+[workspace.lints]
+"skill/not-a-real-rule" = "allow"
+"skill/missing-name" = "sometimes"

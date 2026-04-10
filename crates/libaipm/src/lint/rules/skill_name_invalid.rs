@@ -56,6 +56,11 @@ impl Rule for NameInvalidChars {
             if let Some(ref fm) = skill.frontmatter {
                 if let Some(name) = fm.fields.get("name") {
                     if !name.is_empty() && !is_valid_copilot_name(name) {
+                        let name_line = fm.field_lines.get("name").copied();
+                        let (col, end_col) = name_line
+                            .and_then(|n| skill.content.lines().nth(n - 1))
+                            .and_then(|line| crate::frontmatter::field_value_range(line, "name"))
+                            .unzip();
                         diagnostics.push(Diagnostic {
                             rule_id: self.id().to_string(),
                             severity: self.default_severity(),
@@ -63,10 +68,10 @@ impl Rule for NameInvalidChars {
                                 "skill name \"{name}\" contains characters not allowed by Copilot CLI (must match /^[a-zA-Z0-9][a-zA-Z0-9._\\- ]*$/)"
                             ),
                             file_path: skill.path,
-                            line: fm.field_lines.get("name").copied(),
-                            col: None,
-                            end_line: None,
-                            end_col: None,
+                            line: name_line,
+                            col,
+                            end_line: name_line,
+                            end_col,
                             source_type: ".ai".to_string(),
                             help_text: None,
                             help_url: None,
@@ -89,6 +94,11 @@ impl Rule for NameInvalidChars {
         if name.is_empty() || is_valid_copilot_name(name) {
             return Ok(vec![]);
         }
+        let name_line = fm.field_lines.get("name").copied();
+        let (col, end_col) = name_line
+            .and_then(|n| skill.content.lines().nth(n - 1))
+            .and_then(|line| crate::frontmatter::field_value_range(line, "name"))
+            .unzip();
         Ok(vec![Diagnostic {
             rule_id: self.id().to_string(),
             severity: self.default_severity(),
@@ -96,10 +106,10 @@ impl Rule for NameInvalidChars {
                 "skill name \"{name}\" contains characters not allowed by Copilot CLI (must match /^[a-zA-Z0-9][a-zA-Z0-9._\\- ]*$/)"
             ),
             file_path: skill.path,
-            line: fm.field_lines.get("name").copied(),
-            col: None,
-            end_line: None,
-            end_col: None,
+            line: name_line,
+            col,
+            end_line: name_line,
+            end_col,
             source_type,
             help_text: None,
             help_url: None,
@@ -248,6 +258,33 @@ mod tests {
         let result = NameInvalidChars.check(Path::new(".ai"), &fs);
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn check_populates_col_and_end_col() {
+        // "name: has@special" — value starts at col 7, "has@special" is 11 chars → end_col 18
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "bad-name", "---\nname: has@special\n---\nbody");
+
+        let diags = NameInvalidChars.check(Path::new(".ai"), &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].col, Some(7));
+        assert_eq!(diags[0].end_line, diags[0].line);
+        assert_eq!(diags[0].end_col, Some(18));
+    }
+
+    #[test]
+    fn check_file_populates_col_and_end_col() {
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/skills/s/SKILL.md");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), "---\nname: has@special\n---\nbody".to_string());
+
+        let diags = NameInvalidChars.check_file(&path, &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].col, Some(7));
+        assert_eq!(diags[0].end_line, diags[0].line);
+        assert_eq!(diags[0].end_col, Some(18));
     }
 
     #[test]

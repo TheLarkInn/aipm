@@ -1,0 +1,29 @@
+{
+  "plugins": [
+    {
+      "name": "broken-skills",
+      "description": "Plugin with intentionally broken skills for LSP testing",
+      "source": "./broken-skills"
+    },
+    {
+      "name": "field-mismatch-marketplace",
+      "description": "Marketplace description that deliberately differs from plugin.json",
+      "source": "./field-mismatch"
+    },
+    {
+      "name": "bad-fields",
+      "description": "Plugin whose plugin.json is missing required fields",
+      "source": "./bad-fields"
+    },
+    {
+      "name": "no-manifest",
+      "description": "Plugin directory exists but has no .claude-plugin/plugin.json",
+      "source": "./no-manifest"
+    },
+    {
+      "name": "ghost-plugin",
+      "description": "Source path points to a directory that does not exist on disk",
+      "source": "./ghost-source"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+# Valid aipm.toml with [package] section only (no [workspace.lints]).
+# Verifies additionalProperties: true — non-lints sections must not cause errors.
+
+[package]
+name = "my-standalone-skill"
+version = "1.0.0"
+type = "skill"
+description = "A standalone skill with no workspace."

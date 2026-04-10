@@ -1,0 +1,5 @@
+# INVALID aipm.toml — rule value is a number instead of string or object.
+# Schema must reject this: rule values must be string enum or { level, ignore } object.
+
+[workspace.lints]
+"skill/missing-name" = 42

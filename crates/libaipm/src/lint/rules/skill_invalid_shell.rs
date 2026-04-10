@@ -46,6 +46,11 @@ impl Rule for InvalidShell {
                 if let Some(shell) = fm.fields.get("shell") {
                     let normalized = shell.trim().to_lowercase();
                     if !VALID_SHELLS.contains(&normalized.as_str()) {
+                        let shell_line = fm.field_lines.get("shell").copied();
+                        let (col, end_col) = shell_line
+                            .and_then(|n| skill.content.lines().nth(n - 1))
+                            .and_then(|line| crate::frontmatter::field_value_range(line, "shell"))
+                            .unzip();
                         diagnostics.push(Diagnostic {
                             rule_id: self.id().to_string(),
                             severity: self.default_severity(),
@@ -53,10 +58,10 @@ impl Rule for InvalidShell {
                                 "invalid shell value \"{shell}\", must be \"bash\" or \"powershell\""
                             ),
                             file_path: skill.path,
-                            line: fm.field_lines.get("shell").copied(),
-                            col: None,
-                            end_line: None,
-                            end_col: None,
+                            line: shell_line,
+                            col,
+                            end_line: shell_line,
+                            end_col,
                             source_type: ".ai".to_string(),
                             help_text: None,
                             help_url: None,
@@ -80,15 +85,20 @@ impl Rule for InvalidShell {
         if VALID_SHELLS.contains(&normalized.as_str()) {
             return Ok(vec![]);
         }
+        let shell_line = fm.field_lines.get("shell").copied();
+        let (col, end_col) = shell_line
+            .and_then(|n| skill.content.lines().nth(n - 1))
+            .and_then(|line| crate::frontmatter::field_value_range(line, "shell"))
+            .unzip();
         Ok(vec![Diagnostic {
             rule_id: self.id().to_string(),
             severity: self.default_severity(),
             message: format!("invalid shell value \"{shell}\", must be \"bash\" or \"powershell\""),
             file_path: skill.path,
-            line: fm.field_lines.get("shell").copied(),
-            col: None,
-            end_line: None,
-            end_col: None,
+            line: shell_line,
+            col,
+            end_line: shell_line,
+            end_col,
             source_type,
             help_text: None,
             help_url: None,
@@ -211,6 +221,33 @@ mod tests {
         let result = InvalidShell.check_file(&path, &fs);
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn check_populates_col_and_end_col() {
+        // "shell: zsh" — "shell: " is 7 chars → col 8; "zsh" is 3 chars → end_col 11
+        let mut fs = MockFs::new();
+        fs.add_skill("p", "s", "---\nname: s\nshell: zsh\n---\nbody");
+
+        let diags = InvalidShell.check(Path::new(".ai"), &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].col, Some(8));
+        assert_eq!(diags[0].end_line, diags[0].line);
+        assert_eq!(diags[0].end_col, Some(11));
+    }
+
+    #[test]
+    fn check_file_populates_col_and_end_col() {
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/skills/s/SKILL.md");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), "---\nname: s\nshell: zsh\n---\nbody".to_string());
+
+        let diags = InvalidShell.check_file(&path, &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].col, Some(8));
+        assert_eq!(diags[0].end_line, diags[0].line);
+        assert_eq!(diags[0].end_col, Some(11));
     }
 
     #[test]

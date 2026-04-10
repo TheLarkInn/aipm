@@ -1,0 +1,2 @@
+[workspace.lints]
+"skill/mising-name" = "allow"

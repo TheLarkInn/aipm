@@ -46,9 +46,9 @@ impl Rule for MissingTools {
                         message: "agent definition missing tools declaration".to_string(),
                         file_path: agent.path,
                         line: Some(fm.start_line),
-                        col: None,
-                        end_line: None,
-                        end_col: None,
+                        col: Some(1),
+                        end_line: Some(fm.start_line),
+                        end_col: Some(4),
                         source_type: ".ai".to_string(),
                         help_text: None,
                         help_url: None,
@@ -61,9 +61,9 @@ impl Rule for MissingTools {
                         message: "agent definition missing tools declaration".to_string(),
                         file_path: agent.path,
                         line: Some(1),
-                        col: None,
-                        end_line: None,
-                        end_col: None,
+                        col: Some(1),
+                        end_line: Some(1),
+                        end_col: Some(4),
                         source_type: ".ai".to_string(),
                         help_text: None,
                         help_url: None,
@@ -88,9 +88,9 @@ impl Rule for MissingTools {
                 message: "agent definition missing tools declaration".to_string(),
                 file_path: agent.path,
                 line: Some(fm.start_line),
-                col: None,
-                end_line: None,
-                end_col: None,
+                col: Some(1),
+                end_line: Some(fm.start_line),
+                end_col: Some(4),
                 source_type,
                 help_text: None,
                 help_url: None,
@@ -101,9 +101,9 @@ impl Rule for MissingTools {
                 message: "agent definition missing tools declaration".to_string(),
                 file_path: agent.path,
                 line: Some(1),
-                col: None,
-                end_line: None,
-                end_col: None,
+                col: Some(1),
+                end_line: Some(1),
+                end_col: Some(4),
                 source_type,
                 help_text: None,
                 help_url: None,
@@ -160,6 +160,19 @@ mod tests {
         let result = MissingTools.check(Path::new(".ai"), &fs);
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn missing_tools_points_to_frontmatter_opener() {
+        let mut fs = MockFs::new();
+        fs.add_agent("p", "reviewer", "---\nname: reviewer\ndescription: test\n---\nPrompt");
+
+        let diags = MissingTools.check(Path::new(".ai"), &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].line, Some(1));
+        assert_eq!(diags[0].col, Some(1));
+        assert_eq!(diags[0].end_line, Some(1));
+        assert_eq!(diags[0].end_col, Some(4));
     }
 
     // --- check_file() tests ---
