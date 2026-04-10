@@ -396,4 +396,19 @@ mod tests {
             "structural keys must not be flagged as unknown events"
         );
     }
+
+    #[test]
+    fn unknown_event_on_non_first_line_reports_correct_line() {
+        // Multi-line hooks.json: "InvalidEvent" appears on line 2, not line 1.
+        // locate_json_key must iterate past line 1 (False branch) before finding
+        // the key on line 2 (True branch), exercising the loop-continue path.
+        let mut fs = MockFs::new();
+        fs.add_hooks("p", "{\n  \"InvalidEvent\": []\n}");
+
+        let diags = UnknownEvent.check(Path::new(".ai"), &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert!(diags[0].message.contains("InvalidEvent"));
+        assert_eq!(diags[0].line, Some(2));
+        assert_eq!(diags[0].col, Some(3));
+    }
 }
