@@ -1,6 +1,20 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.19.7] - 2026-04-11
+
+### Bug Fixes
+- Scan .github/copilot/ for skills (default copilot-cli path) ([#415](https://github.com/TheLarkInn/aipm/pull/415)) (44687f9)
+
+### Documentation
+- Add VS Code extension guide and aipm lsp command reference ([#411](https://github.com/TheLarkInn/aipm/pull/411)) (8dfd32f)
+- Add VS Code extension setup guide and fix project structure ([#412](https://github.com/TheLarkInn/aipm/pull/412)) (9582f5a)
+- Add editor schema support section to README ([#419](https://github.com/TheLarkInn/aipm/pull/419)) (d333739)
+
+### Testing
+- Cover FailFs::write_file false branch in init (f2b23fe)
+- Add test for marketplace spec with no slash in location (f11a292)
+
 ## [0.19.6] - 2026-04-11
 
 ### Testing

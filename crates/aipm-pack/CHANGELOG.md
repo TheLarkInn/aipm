@@ -1,6 +1,13 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.19.7] - 2026-04-11
+
+### Documentation
+- Add VS Code extension guide and aipm lsp command reference ([#411](https://github.com/TheLarkInn/aipm/pull/411)) (8dfd32f)
+- Add VS Code extension setup guide and fix project structure ([#412](https://github.com/TheLarkInn/aipm/pull/412)) (9582f5a)
+- Add editor schema support section to README ([#419](https://github.com/TheLarkInn/aipm/pull/419)) (d333739)
+
 ## [0.19.6] - 2026-04-11
 
 ## [0.19.5] - 2026-04-10
