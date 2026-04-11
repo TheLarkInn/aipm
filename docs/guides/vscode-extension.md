@@ -111,7 +111,7 @@ This error appears if the `aipm` binary cannot be found or crashes on startup. S
 
 ### Schema validation not working
 
-Schema validation for `aipm.toml` fields requires the **Even Better TOML** extension. Install it from the Marketplace and reload VS Code.
+Schema validation for `aipm.toml` fields works best with the [**Even Better TOML**](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml) extension installed. The `vscode-aipm` extension no longer lists it as a hard dependency, so VS Code will not auto-install it — you must install it manually from the Marketplace and reload VS Code.
 
 If you prefer not to install Even Better TOML, or if you use a different editor, you can configure Taplo directly with a `.taplo.toml` file — see [Editor schema support](./configuring-lint.md#editor-schema-support) in the lint configuration guide.
 
