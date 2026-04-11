@@ -20,6 +20,9 @@ pub enum FeatureKind {
     Marketplace,
     /// A plugin JSON manifest (`plugin.json` at `.ai/<plugin>/.claude-plugin/plugin.json`).
     PluginJson,
+    /// An instruction file (CLAUDE.md, AGENTS.md, COPILOT.md, INSTRUCTIONS.md, GEMINI.md, or
+    /// `*.instructions.md`) anywhere in the project tree.
+    Instructions,
 }
 
 /// The source directory context for a discovered feature.
@@ -175,6 +178,13 @@ pub fn discover_source_dirs(
 const SKIP_DIRS: &[&str] =
     &["node_modules", "target", ".git", "vendor", "__pycache__", "dist", "build"];
 
+/// Lowercase filenames that are classified as instruction files.
+///
+/// Checked case-insensitively before other classification rules so that files
+/// like `agents/AGENTS.md` are correctly tagged as `Instructions`, not `Agent`.
+const INSTRUCTION_FILENAMES: &[&str] =
+    &["claude.md", "agents.md", "copilot.md", "instructions.md", "gemini.md"];
+
 /// Classify the source context of a file path by inspecting its ancestor components.
 ///
 /// Returns `Some(SourceContext)` if the path contains a recognized source directory
@@ -245,6 +255,15 @@ fn classify_feature_kind(file_path: &Path) -> Option<FeatureKind> {
         .and_then(|p| p.file_name())
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
+
+    // Instruction file check — must come BEFORE the agents check so that
+    // `agents/AGENTS.md` is classified as Instructions, not Agent.
+    let file_name_lower = file_name.to_ascii_lowercase();
+    if INSTRUCTION_FILENAMES.contains(&file_name_lower.as_ref())
+        || file_name_lower.ends_with(".instructions.md")
+    {
+        return Some(FeatureKind::Instructions);
+    }
 
     if file_name == "SKILL.md" {
         // Standard: skills/<name>/SKILL.md; flat: skills/SKILL.md
@@ -933,5 +952,68 @@ mod tests {
 
         let features = discover_features(&root, None).expect("discover_features");
         assert!(features.is_empty(), "plugin.json with wrong parent should not be classified");
+    }
+
+    // --- FeatureKind::Instructions classification tests ---
+
+    fn classify(path: &str) -> Option<FeatureKind> {
+        classify_feature_kind(Path::new(path))
+    }
+
+    #[test]
+    fn classify_claude_md() {
+        assert_eq!(classify("CLAUDE.md"), Some(FeatureKind::Instructions));
+    }
+
+    #[test]
+    fn classify_claude_md_lowercase() {
+        assert_eq!(classify("claude.md"), Some(FeatureKind::Instructions));
+    }
+
+    #[test]
+    fn classify_agents_md_in_agents_dir_is_instructions_not_agent() {
+        // AGENTS.md inside agents/ must be Instructions, not Agent
+        assert_eq!(classify("agents/AGENTS.md"), Some(FeatureKind::Instructions));
+    }
+
+    #[test]
+    fn classify_instructions_md_suffix() {
+        assert_eq!(classify("frontend.instructions.md"), Some(FeatureKind::Instructions));
+    }
+
+    #[test]
+    fn classify_instructions_md_suffix_in_subdir() {
+        assert_eq!(classify("packages/auth/api.instructions.md"), Some(FeatureKind::Instructions));
+    }
+
+    #[test]
+    fn classify_regular_agent_unchanged() {
+        // A normal agent file in agents/ is still Agent
+        assert_eq!(classify("agents/security-reviewer.md"), Some(FeatureKind::Agent));
+    }
+
+    #[test]
+    fn classify_gemini_md() {
+        assert_eq!(classify("GEMINI.md"), Some(FeatureKind::Instructions));
+    }
+
+    #[test]
+    fn classify_copilot_md() {
+        assert_eq!(classify("COPILOT.md"), Some(FeatureKind::Instructions));
+    }
+
+    #[test]
+    fn classify_instructions_md() {
+        assert_eq!(classify("INSTRUCTIONS.md"), Some(FeatureKind::Instructions));
+    }
+
+    #[test]
+    fn classify_agents_md_alone() {
+        assert_eq!(classify("AGENTS.md"), Some(FeatureKind::Instructions));
+    }
+
+    #[test]
+    fn classify_claude_md_in_subdir() {
+        assert_eq!(classify("packages/auth/CLAUDE.md"), Some(FeatureKind::Instructions));
     }
 }

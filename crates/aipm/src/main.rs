@@ -824,9 +824,14 @@ pub(crate) fn load_lint_config(dir: &Path) -> libaipm::lint::config::Config {
                 .unwrap_or_default();
 
             if let Some(lvl) = level {
+                let options: std::collections::BTreeMap<String, toml::Value> = table
+                    .iter()
+                    .filter(|(k, _)| *k != "level" && *k != "ignore")
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect();
                 config.rule_overrides.insert(
                     key.clone(),
-                    libaipm::lint::config::RuleOverride::Detailed { level: lvl, ignore },
+                    libaipm::lint::config::RuleOverride::Detailed { level: lvl, ignore, options },
                 );
             }
         }
@@ -1082,6 +1087,47 @@ mod tests {
         let result = cmd_lint(tmp.path().to_path_buf(), None, "not-a-reporter", "auto", None, None);
         let err = result.unwrap_err().to_string();
         assert!(err.contains("unknown reporter"), "unexpected error: {err}");
+    }
+
+    /// `load_lint_config` forwards unknown TOML keys (beyond level/ignore) into
+    /// the `options` map of `RuleOverride::Detailed`.
+    #[test]
+    fn load_lint_config_custom_keys_forwarded_to_options() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("aipm.toml"),
+            "[workspace.lints.\"instructions/oversized\"]\nlevel = \"warn\"\nlines = 200\ncharacters = 20000\nresolve-imports = true\n",
+        )
+        .unwrap();
+
+        let config = load_lint_config(tmp.path());
+        let opts = config.rule_options("instructions/oversized");
+        assert_eq!(opts.get("lines"), Some(&toml::Value::Integer(200)));
+        assert_eq!(opts.get("characters"), Some(&toml::Value::Integer(20_000)));
+        assert_eq!(opts.get("resolve-imports"), Some(&toml::Value::Boolean(true)));
+        // level and ignore must NOT appear in options
+        assert!(!opts.contains_key("level"));
+        assert!(!opts.contains_key("ignore"));
+    }
+
+    /// Existing aipm.toml files with only level/ignore continue to work; the
+    /// `options` BTreeMap in `RuleOverride::Detailed` is empty but not absent.
+    #[test]
+    fn load_lint_config_backward_compatible_level_ignore_only() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("aipm.toml"),
+            "[workspace.lints.\"skill/oversized\"]\nlevel = \"error\"\nignore = [\"examples/**\"]\n",
+        )
+        .unwrap();
+
+        let config = load_lint_config(tmp.path());
+        let opts = config.rule_options("skill/oversized");
+        assert!(opts.is_empty(), "options must be empty for level/ignore-only config");
+        assert_eq!(
+            config.severity_override("skill/oversized"),
+            Some(libaipm::lint::Severity::Error)
+        );
     }
 
     /// `resolve_plugins_dir` falls back to `.ai` when the manifest has a

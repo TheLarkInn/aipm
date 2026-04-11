@@ -1,295 +1,224 @@
 [
   {
     "category": "functional",
-    "description": "Hand-written JSON Schema for [workspace.lints] in aipm.toml (Phase 1 — G1)",
+    "description": "Add FeatureKind::Instructions variant to discovery.rs enum and extend classify_feature_kind() with case-insensitive matching for CLAUDE.md, AGENTS.md, COPILOT.md, INSTRUCTIONS.md, GEMINI.md, and *.instructions.md at any depth",
     "steps": [
-      "Create schemas/ directory at the repository root",
-      "Create schemas/aipm.toml.schema.json using JSON Schema Draft 4",
-      "Set root type to object with additionalProperties: true",
-      "Define workspace.lints as nested object under properties.workspace.properties.lints",
-      "Add ignore.paths as an array of strings",
-      "Add patternProperties regex matching all rule IDs",
-      "Define oneOf for rule values: string enum OR object with level and ignore",
-      "Set additionalProperties: false on lints object to catch typos",
-      "Add x-taplo annotations with initKeys: [workspace.lints]",
-      "Add description fields for all properties"
+      "Add Instructions variant to FeatureKind enum in crates/libaipm/src/discovery.rs",
+      "Add INSTRUCTION_FILENAMES constant with lowercase filenames: claude.md, agents.md, copilot.md, instructions.md, gemini.md",
+      "In classify_feature_kind(), add case-insensitive filename check BEFORE existing checks using to_ascii_lowercase()",
+      "Add .instructions.md suffix check using ends_with on the lowercased filename",
+      "Update all existing match arms on FeatureKind throughout the codebase to handle the new Instructions variant",
+      "Verify the ordering ensures CLAUDE.md inside agents/ directory is classified as Instructions, not Agent",
+      "Run cargo build --workspace to confirm compilation"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "SchemaStore.org submission for zero-install schema discovery (Phase 1 — G2)",
+    "description": "Extend RuleOverride::Detailed variant in config.rs with an options BTreeMap<String, toml::Value> for per-rule custom options, and add rule_options() accessor method",
     "steps": [
-      "Fork the SchemaStore/schemastore repository on GitHub",
-      "Copy schemas/aipm.toml.schema.json to src/schemas/json/aipm.toml.json",
-      "Add catalog entry to src/api/json/catalog.json",
-      "Create positive and negative test fixtures",
-      "Run SchemaStore's test suite",
-      "Submit PR to SchemaStore/schemastore"
+      "Add options: BTreeMap<String, toml::Value> field to the Detailed variant of RuleOverride in crates/libaipm/src/lint/config.rs",
+      "Add use std::collections::BTreeMap to imports",
+      "Implement rule_options() method on Config that looks up a rule ID and returns its options (empty BTreeMap if not Detailed or rule not found)",
+      "Update all existing construction sites of RuleOverride::Detailed to include options: BTreeMap::new()",
+      "Run cargo build --workspace to confirm compilation"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Add field_value_range() shared helper for frontmatter range computation (Phase 2 — G4 prerequisite)",
+    "description": "Extend load_lint_config() in main.rs to forward unknown TOML keys (beyond 'level' and 'ignore') into the RuleOverride options BTreeMap",
     "steps": [
-      "Add pub fn field_value_range(line_content: &str, key: &str) -> Option<(usize, usize)> to frontmatter module",
-      "Returns 1-based (col, end_col) for the value portion after the colon",
-      "Handle whitespace between colon and value",
-      "Handle values with trailing whitespace via trim_end",
-      "Return None if key prefix not found",
-      "Write unit tests for exact match, extra spaces, wrong key, empty value",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Run cargo test --workspace"
+      "In crates/aipm/src/main.rs load_lint_config(), when processing a TOML table for a rule, collect all keys that are not 'level' or 'ignore' into a BTreeMap<String, toml::Value>",
+      "Pass the collected options to RuleOverride::Detailed constructor",
+      "Ensure backward compatibility: existing aipm.toml files with only level/ignore continue to work",
+      "Run cargo build --workspace and cargo test --workspace to confirm no regressions"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Populate end_line/end_col in skill/missing-name rule (Phase 2 — G4)",
+    "description": "Change quality_rules_for_kind() signature to accept &Config parameter and update all call sites in the lint pipeline",
     "steps": [
-      "When field is absent: set line to closing ---, col=1, end_line=same, end_col=4",
-      "Use field_value_range() to compute col/end_col for existing name field",
-      "Add unit tests for missing field and populated range"
+      "Change signature of quality_rules_for_kind() in crates/libaipm/src/lint/rules/mod.rs from (kind: &FeatureKind) to (kind: &FeatureKind, config: &Config)",
+      "Add use super::config::Config to imports in rules/mod.rs",
+      "Update the call in run_rules_for_feature() in crates/libaipm/src/lint/mod.rs to pass config",
+      "Update any other call sites (check with grep for quality_rules_for_kind)",
+      "Existing match arms can ignore the config parameter \u2014 no logic changes needed for current rules",
+      "Run cargo build --workspace to confirm compilation"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Populate end_line/end_col in skill/missing-description rule (Phase 2 — G4)",
+    "description": "Create import_resolver.rs module with resolve_imports() function that follows @path imports and relative markdown inline links, with circular reference protection and path traversal rejection",
     "steps": [
-      "When field is absent: set line to closing ---, col=1, end_line=same, end_col=4",
-      "Use field_value_range() to compute col/end_col for description field",
-      "Add unit tests"
+      "Create crates/libaipm/src/lint/rules/import_resolver.rs",
+      "Implement parse_at_imports() function using regex ^@([^\\s]+\\.md)\\s*$ to extract @path import targets",
+      "Implement parse_markdown_links() function using regex \\[([^\\]]*)\\]\\(([^)]+\\.md)\\) to extract relative markdown links, filtering out http:// and https:// URLs",
+      "Implement resolve_imports(file_path, fs, visited: &mut HashSet<PathBuf>) -> (usize, usize) that recursively resolves imports",
+      "Add circular reference protection: check visited set before processing, insert path before recursing",
+      "Add path traversal protection: reject paths containing '..' segments or absolute paths",
+      "Handle missing import targets gracefully (return (0, 0) for unreadable files)",
+      "Add module declaration in crates/libaipm/src/lint/rules/mod.rs",
+      "Run cargo build --workspace to confirm compilation"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Populate end_line/end_col in skill/name-too-long rule (Phase 2 — G4)",
+    "description": "Create instructions_oversized.rs with Oversized struct (max_lines, max_chars, resolve_imports fields), Default impl, and Rule trait implementation with check_file() logic emitting up to 2 diagnostics per file using OR logic",
     "steps": [
-      "Use field_value_range() to compute col/end_col for the name field value",
-      "Set end_line equal to line",
-      "Add unit test: name exceeding 64 chars produces diagnostic with correct range"
+      "Create crates/libaipm/src/lint/rules/instructions_oversized.rs",
+      "Define DEFAULT_MAX_LINES = 100 and DEFAULT_MAX_CHARS = 15_000 constants",
+      "Define Oversized struct with pub max_lines: usize, pub max_chars: usize, pub resolve_imports: bool",
+      "Implement Default for Oversized using the constants and resolve_imports: false",
+      "Implement Rule trait: id() returns 'instructions/oversized', name() returns 'oversized instruction file', default_severity() returns Warning",
+      "Implement help_url() and help_text() with appropriate guidance",
+      "Implement check_file(): read file content, count lines and chars, optionally resolve imports, emit up to 2 diagnostics (one for lines, one for chars) using OR logic",
+      "Use source_type 'project' for files outside .ai/.claude/.github via scan::source_type_from_path() mapping 'other' to 'project'",
+      "When resolve_imports is true, call import_resolver::resolve_imports() and use resolved totals for threshold comparison",
+      "Format diagnostic messages differently for resolve-imports (include both resolved and direct counts) vs direct-only",
+      "Implement check() method that delegates to check_file() or iterates directory for instruction files",
+      "Add module declaration in crates/libaipm/src/lint/rules/mod.rs",
+      "Run cargo build --workspace to confirm compilation"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Populate end_line/end_col in skill/name-invalid-chars rule (Phase 2 — G4)",
+    "description": "Register instructions/oversized rule in quality_rules_for_kind() under FeatureKind::Instructions arm with config-based construction, and add to catalog() for LSP integration",
     "steps": [
-      "Use field_value_range() to compute col/end_col for the name field value",
-      "Set end_line equal to line",
-      "Add unit test: invalid chars produce diagnostic with correct col/end_col"
+      "In crates/libaipm/src/lint/rules/mod.rs quality_rules_for_kind(), add FeatureKind::Instructions arm",
+      "Extract options from config using config.rule_options('instructions/oversized')",
+      "Parse 'lines' option as usize with DEFAULT_MAX_LINES fallback",
+      "Parse 'characters' option as usize with DEFAULT_MAX_CHARS fallback",
+      "Parse 'resolve-imports' option as bool with false fallback",
+      "Construct Oversized { max_lines, max_chars, resolve_imports } and return in vec",
+      "Add Oversized::default() to catalog() vec for LSP rule registry",
+      "Run cargo build --workspace to confirm compilation"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Populate end_line/end_col in skill/description-too-long rule (Phase 2 — G4)",
+    "description": "Unit tests for FeatureKind::Instructions discovery classification \u2014 case-insensitive matching, instruction files in agents/ dir, *.instructions.md suffix, and ensuring regular agent .md files are unaffected",
     "steps": [
-      "Use field_value_range() to compute col/end_col for the description field value",
-      "Set end_line equal to line",
-      "Add unit test"
+      "Add test classify_claude_md: CLAUDE.md at root returns FeatureKind::Instructions",
+      "Add test classify_claude_md_lowercase: claude.md at root returns FeatureKind::Instructions",
+      "Add test classify_agents_md_in_agents_dir: agents/AGENTS.md returns FeatureKind::Instructions (not Agent)",
+      "Add test classify_instructions_md_suffix: frontend.instructions.md returns FeatureKind::Instructions",
+      "Add test classify_regular_agent_unchanged: agents/security-reviewer.md still returns FeatureKind::Agent",
+      "Add test classify_gemini_md: GEMINI.md returns FeatureKind::Instructions",
+      "Add test classify_copilot_md: COPILOT.md returns FeatureKind::Instructions",
+      "Run cargo test --workspace to verify all pass"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Populate end_line/end_col in skill/invalid-shell rule (Phase 2 — G4)",
+    "description": "Unit tests for import_resolver.rs \u2014 @import syntax, markdown links, circular refs, path traversal, nested imports, missing targets, mixed imports",
     "steps": [
-      "Use field_value_range() to compute col/end_col for the shell field value",
-      "Set end_line equal to line",
-      "Add unit test: 'shell: zsh' produces diagnostic with col/end_col spanning 'zsh'"
+      "Add test at_import_basic: file with @path/to/file.md follows import and sums sizes",
+      "Add test markdown_link_basic: file with [text](./file.md) follows link and sums sizes",
+      "Add test external_url_ignored: [text](https://example.com/file.md) not followed",
+      "Add test non_md_link_ignored: [text](./config.json) not followed",
+      "Add test circular_import: A imports B, B imports A \u2014 no infinite loop, each file counted once",
+      "Add test path_traversal_rejected: @../../etc/passwd is ignored",
+      "Add test absolute_path_rejected: @/etc/passwd is ignored",
+      "Add test nested_imports: A -> B -> C chain of 3 all counted",
+      "Add test missing_import_target: @nonexistent.md silently skipped",
+      "Add test mixed_imports: file with both @import and markdown links, both followed",
+      "Run cargo test --workspace to verify all pass"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Populate end_line/end_col in agent/missing-tools rule (Phase 2 — G4)",
+    "description": "Unit tests for instructions_oversized rule \u2014 small file, at-limit, over-limit lines, over-limit chars, both exceeded, empty file, missing file, custom thresholds, source_type values",
     "steps": [
-      "When tools field is absent: set line to closing ---, col=1, end_line=same, end_col=4",
-      "Add unit test: missing tools field produces diagnostic at closing --- delimiter"
+      "Add test small_file_no_finding: file under both limits emits no diagnostics",
+      "Add test exactly_at_line_limit: exactly 100 lines emits no diagnostics",
+      "Add test exactly_at_char_limit: exactly 15000 characters emits no diagnostics",
+      "Add test over_line_limit: 101+ lines under char limit emits 1 diagnostic for lines",
+      "Add test over_char_limit: under line limit 15001+ chars emits 1 diagnostic for chars",
+      "Add test both_limits_exceeded: over both limits emits 2 diagnostics",
+      "Add test empty_file: empty instruction file emits no diagnostics",
+      "Add test missing_file: non-existent file returns empty vec",
+      "Add test case_insensitive_detection: claude.md lowercase is discovered and checked",
+      "Add test instructions_md_suffix: frontend.instructions.md is discovered and checked",
+      "Add test subdirectory_detection: packages/auth/CLAUDE.md is discovered and checked",
+      "Add test custom_thresholds: rule with lines=50 triggers at 51 lines",
+      "Add test source_type_project: file at project root has source_type 'project'",
+      "Add test source_type_claude: file at .claude/CLAUDE.md has source_type '.claude'",
+      "Run cargo test --workspace to verify all pass"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Populate end_col in plugin/broken-paths rule (Phase 2 — G4)",
+    "description": "Unit tests for resolve-imports integration in the oversized rule \u2014 basic import resolution, circular refs, both resolved and direct sizes in diagnostic messages",
     "steps": [
-      "Add end_col spanning the full ${CLAUDE_SKILL_DIR}/path string",
-      "Set end_line equal to line",
-      "Add unit test: broken path produces diagnostic with col and end_col"
+      "Add test resolve_imports_basic: Oversized with resolve_imports=true follows @import and checks resolved total",
+      "Add test resolve_imports_circular: circular import chain does not infinite loop and counts each file once",
+      "Add test resolve_imports_diagnostic_message: diagnostic message includes both resolved total and direct size",
+      "Add test resolve_imports_under_limit: resolved total under limit emits no diagnostic",
+      "Add test resolve_imports_markdown_link: follows relative markdown links when resolve_imports=true",
+      "Add test resolve_imports_disabled_by_default: Oversized::default() does not follow imports",
+      "Run cargo test --workspace to verify all pass"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Populate line/col/end_col in hook/unknown-event rule (Phase 2 — G4)",
+    "description": "Config system tests \u2014 RuleOverride with options BTreeMap, rule_options() accessor, load_lint_config() forwarding custom TOML keys",
     "steps": [
-      "Add locate_json_key() helper to find key position in JSON content",
-      "Set line, col, end_col on diagnostics via the helper",
-      "Set end_line equal to line",
-      "Add unit test: unknown event produces diagnostic with line/col/end_col"
+      "Add test rule_override_detailed_with_options: Detailed variant stores and returns options",
+      "Add test rule_options_empty_for_non_detailed: Allow and Level variants return empty options",
+      "Add test config_rule_options_accessor: Config.rule_options() returns options for a known rule",
+      "Add test config_rule_options_missing_rule: Config.rule_options() returns empty for unknown rule",
+      "Add test load_lint_config_custom_keys: TOML with lines/characters/resolve-imports keys are parsed into options",
+      "Add test load_lint_config_backward_compatible: existing TOML with only level/ignore still works",
+      "Run cargo test --workspace to verify all pass"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Populate col/end_col in hook/legacy-event-name rule (Phase 2 — G4)",
+    "description": "Integration tests \u2014 full lint() pipeline discovers instruction files, config overrides thresholds, allow suppresses rule",
     "steps": [
-      "Add locate_json_key() helper to find key position in JSON content",
-      "Set col, end_col on diagnostics via the helper",
-      "Set end_line equal to line",
-      "Add unit test: legacy event produces diagnostic with col/end_col"
+      "Add test lint_discovers_instruction_files: full lint() call with MockFs containing oversized CLAUDE.md produces diagnostics",
+      "Add test lint_config_overrides_thresholds: custom lines/characters in config are respected by the rule",
+      "Add test lint_config_allow_suppresses: 'allow' in config suppresses instructions/oversized rule entirely",
+      "Run cargo test --workspace to verify all pass"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Verify human reporter renders populated ranges correctly (Phase 2 verification)",
+    "description": "Verify LSP integration \u2014 catalog() includes instructions/oversized, build_rule_index() picks it up, lint_file() dispatches for FeatureKind::Instructions files",
     "steps": [
-      "Verify the existing reporter logic handles col and end_col populated together",
-      "Run existing reporter snapshot tests to confirm no regressions",
-      "All 1751+ tests pass"
+      "Verify catalog() in rules/mod.rs includes Oversized::default()",
+      "Check crates/aipm/src/lsp/helpers.rs build_rule_index() \u2014 confirm it calls catalog() generically",
+      "Verify lint_file() in lsp/helpers.rs will dispatch rules for FeatureKind::Instructions files",
+      "If needed, update lint_file() to handle Instructions classification",
+      "Run cargo build --workspace to confirm compilation"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Add aipm lsp CLI subcommand with stdio transport (Phase 3 — G5)",
+    "description": "Run all four build gates (cargo build, test, clippy, fmt) with zero warnings and verify branch coverage >= 89%",
     "steps": [
-      "Add tower-lsp and tokio to workspace and aipm crate Cargo.toml",
-      "Add Commands::Lsp variant to clap CLI in main.rs",
-      "Create crates/aipm/src/lsp.rs with Backend struct",
-      "Implement LanguageServer trait: initialize, shutdown, did_open, did_save, did_close",
-      "Implement find_workspace_dir() for workspace root detection",
-      "Implement to_lsp_diagnostic() for 1-based to 0-based range conversion",
-      "Implement lint_file_diagnostics() wrapping libaipm::lint::lint()",
-      "Wire Lsp command in main.rs to lsp::run()"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "LSP textDocument/completion for aipm.toml rule IDs and severity values (Phase 3 — G6)",
-    "steps": [
-      "Build rule index at Backend::new() via libaipm::lint::rules::catalog()",
-      "Implement completion() handler in LanguageServer impl",
-      "Detect cursor context: inside [workspace.lints] section via detect_completion_context()",
-      "Return rule ID completions at key positions, severity completions at value positions",
-      "Return level/ignore object key completions at key positions",
-      "Add unit tests for detect_completion_context() and severity_completions()"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "LSP textDocument/hover for rule ID documentation (Phase 3 — G7)",
-    "steps": [
-      "Implement hover() handler in LanguageServer impl",
-      "Use extract_rule_id_at() to find rule ID at cursor position",
-      "Look up rule in rule_index, return markdown with name, severity, help_text, help_url",
-      "Return None for non-rule-ID positions",
-      "Add unit tests for extract_rule_id_at()"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "LSP server integration tests for all 6 feature kinds (Phase 3 testing)",
-    "steps": [
-      "Create fixture files for each of the 6 feature kinds with known lint errors",
-      "Write integration tests that spawn aipm lsp and send LSP protocol messages",
-      "Assert publishDiagnostics response contains expected rule_id, severity, and range for each kind",
-      "Test stale diagnostic clearing: save fixed file, verify empty diagnostics published"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "VS Code extension scaffold with package.json and tomlValidation (Phase 4 — G3)",
-    "steps": [
-      "Create vscode-aipm/ directory with package.json, tsconfig.json, .vscodeignore",
-      "Add tomlValidation contribution pointing to bundled schema",
-      "Add aipm.lint.enable and aipm.path configuration properties",
-      "Copy schemas/aipm.toml.schema.json to vscode-aipm/schemas/"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "VS Code extension activation and LSP client connection (Phase 4 — G3)",
-    "steps": [
-      "Create vscode-aipm/src/extension.ts with activate() and deactivate()",
-      "Configure ServerOptions to spawn aipm lsp via stdio",
-      "Configure documentSelector for all 6 feature kinds",
-      "Add error handler to show notification when binary is not found",
-      "Push client to context.subscriptions for cleanup"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "LSP workspace detection for multi-root and nested projects (Phase 3 infrastructure)",
-    "steps": [
-      "Implement find_workspace_dir(): walk up parent dirs until aipm.toml or .ai/ found",
-      "Fall back to file's parent when no marker found",
-      "Add unit tests: with aipm.toml marker, with .ai/ marker, fallback to parent"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "LSP graceful error handling for missing binary and missing config (Phase 3/4)",
-    "steps": [
-      "lint_file_diagnostics() logs warning and returns empty vec on lint error",
-      "load_lint_config() returns default config when aipm.toml is missing or malformed",
-      "VS Code extension errorHandler shows notification on unexpected server close"
-    ],
-    "passes": true
-  },
-  {
-    "category": "performance",
-    "description": "LSP debounce and startup performance (Phase 3 — 7.1)",
-    "steps": [
-      "Add 300ms debounce using tokio::time::sleep before triggering re-lint on save",
-      "Verify initialize response completes in <100ms",
-      "Verify full lint pass completes in <500ms on typical project",
-      "Add tracing spans around lint execution"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "JSON Schema positive/negative test fixtures for schema validation (Phase 1 testing)",
-    "steps": [
-      "Create schemas/tests/valid.toml with valid [workspace.lints] section",
-      "Create schemas/tests/valid-with-other-sections.toml with non-lints sections",
-      "Create schemas/tests/invalid-unknown-rule.toml with typo in rule ID",
-      "Create schemas/tests/invalid-wrong-type.toml with number value instead of string"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Range population unit tests for all modified rules (Phase 2 testing)",
-    "steps": [
-      "Unit tests asserting end_line/end_col populated for all modified rules",
-      "Tests asserting col is correct (1-based)",
-      "Tests for missing-field case: end_line/end_col point to closing ---",
-      "Tests for hook rules: col and end_col span the event string"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "LSP coordinate conversion unit tests (Phase 3 testing)",
-    "steps": [
-      "Unit test: line=1,col=1,end_line=1,end_col=4 -> Range{start:Position(0,0),end:Position(0,3)}",
-      "Unit test: line=None,col=None -> Range{start:Position(0,0),end:Position(0,1)} (default)",
-      "Unit test: warning severity maps to DiagnosticSeverity::WARNING",
-      "Unit test: rule_id set as code field"
+      "Run cargo build --workspace and verify zero errors",
+      "Run cargo test --workspace and verify all tests pass",
+      "Run cargo clippy --workspace -- -D warnings and verify zero warnings",
+      "Run cargo fmt --check and verify formatting is correct",
+      "Run cargo +nightly llvm-cov clean --workspace",
+      "Run cargo +nightly llvm-cov --no-report --workspace --branch",
+      "Run cargo +nightly llvm-cov --no-report --doc",
+      "Run cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs|lsp\\.rs)' and verify TOTAL branch column >= 89%",
+      "Fix any clippy warnings, formatting issues, or coverage gaps before marking complete"
     ],
     "passes": true
   }
