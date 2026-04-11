@@ -1076,4 +1076,18 @@ mod tests {
         let result = "definitely-not-a-policy".parse::<Policy>();
         assert!(result.is_err(), "unknown policy string should return Err");
     }
+
+    #[test]
+    fn touch_entry_missing_key_is_noop() {
+        // Covers the False branch of `if let Some(entry) = index.entries.get_mut(spec_key)`
+        // in touch_entry: when the spec_key is absent from the index (e.g. removed between
+        // a successful get() and the subsequent touch_entry call), the function silently
+        // skips the timestamp update and returns Ok(()).
+        let (_temp, cache) = test_cache(Policy::Auto);
+
+        // Call touch_entry with a key that was never stored so the index is empty
+        // and get_mut returns None, taking the False branch.
+        let result = cache.touch_entry("nonexistent-spec");
+        assert!(result.is_ok(), "touch_entry with missing key must not return Err");
+    }
 }
