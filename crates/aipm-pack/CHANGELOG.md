@@ -1,6 +1,12 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.20.0] - 2026-04-11
+
+### Documentation
+- Add missing install guide links to `aipm install` See also section ([#422](https://github.com/TheLarkInn/aipm/pull/422)) (faa0849)
+- Fix Claude Code LSP artifact listing in README and add v0.19.7 changelog ([#425](https://github.com/TheLarkInn/aipm/pull/425)) (b81ea0d)
+
 ## [0.19.7] - 2026-04-11
 
 ### Documentation
