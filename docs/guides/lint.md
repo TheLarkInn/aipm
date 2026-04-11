@@ -291,6 +291,12 @@ All available rules, grouped by category:
 |------|----------|-------------|
 | [`source/misplaced-features`](../rules/source/misplaced-features.md) | warning | AI plugin feature files are outside the `.ai/` marketplace directory |
 
+### `instructions/`
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| [`instructions/oversized`](../rules/instructions/oversized.md) | warning | Instruction file exceeds the configured line or character limit |
+
 ## VS Code Extension
 
 The `vscode-aipm` extension surfaces `aipm lint` diagnostics inline as you edit, and
