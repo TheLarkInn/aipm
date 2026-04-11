@@ -252,3 +252,41 @@ linked_at = "2026-01-01T00:00:00Z"
         .success()
         .stdout(predicate::str::contains("dev-tool"));
 }
+
+// =========================================================================
+// `list --global` — no installed.json (empty registry branch)
+// =========================================================================
+
+#[test]
+fn list_global_no_installed_plugins() {
+    // Use an isolated HOME so no real ~/.aipm/installed.json is read.
+    let tmp_home = tempfile::tempdir().unwrap();
+    aipm()
+        .args(["list", "--global"])
+        .env("HOME", tmp_home.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No globally installed plugins."));
+}
+
+// =========================================================================
+// `install --global` — installs a local plugin into the global registry
+// =========================================================================
+
+#[test]
+fn install_global_local_plugin() {
+    // Isolated HOME so the test writes to a temp ~/.aipm/installed.json.
+    let tmp_home = tempfile::tempdir().unwrap();
+
+    aipm()
+        .args(["install", "--global", "local:./my-plugin"])
+        .env("HOME", tmp_home.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Installed 'local:./my-plugin' globally"));
+
+    // Verify the registry was persisted.
+    let installed =
+        std::fs::read_to_string(tmp_home.path().join(".aipm").join("installed.json")).unwrap();
+    assert!(installed.contains("local:./my-plugin"), "installed.json should record the spec");
+}
