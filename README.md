@@ -9,7 +9,7 @@ AIPM ships as **two Rust binaries** with **zero runtime dependencies**:
 
 | Binary | Role | Commands |
 |--------|------|----------|
-| **`aipm`** | Consumer CLI | `init`, `install`, `update`, `uninstall`, `link`, `unlink`, `list`, `lint`, `migrate` |
+| **`aipm`** | Consumer CLI | `init`, `install`, `update`, `uninstall`, `link`, `unlink`, `list`, `lint`, `migrate`, `lsp` |
 | **`aipm-pack`** | Author CLI | `init` |
 
 Both work across .NET, Python, Node.js, and Rust projects with no runtime dependency.
@@ -226,6 +226,24 @@ aipm lint [OPTIONS] [DIR]
 Exits with a non-zero status code when violations are found, making it safe to use in CI pipelines. Use `--reporter ci-github` for GitHub Actions annotations or `--reporter ci-azure` for Azure Pipelines.
 
 See also: [`docs/guides/lint.md`](docs/guides/lint.md) for full CLI usage, output formats, and CI integration; [`docs/guides/configuring-lint.md`](docs/guides/configuring-lint.md) for rule severity overrides, path ignores, and per-rule configuration.
+
+### `aipm lsp`
+
+Start an LSP (Language Server Protocol) server over stdio that surfaces `aipm lint` diagnostics directly inside your editor.
+
+```
+aipm lsp
+```
+
+The server advertises the following capabilities:
+
+| Capability | Description |
+|-----------|-------------|
+| `textDocument/publishDiagnostics` | Runs `aipm lint` on open and save, pushing violations as editor diagnostics |
+| `textDocument/completion` | Offers rule IDs and severity values when editing `aipm.toml` |
+| `textDocument/hover` | Shows rule documentation when hovering over rule names in `aipm.toml` |
+
+Configure your editor to launch `aipm lsp` as an external language server over stdio. For VS Code, see [`docs/guides/lint.md`](docs/guides/lint.md) for setup instructions.
 
 ---
 
