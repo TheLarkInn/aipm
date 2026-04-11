@@ -99,7 +99,7 @@ aipm migrate [OPTIONS] [DIR]
 | `--max-depth <N>` | Maximum depth for recursive discovery |
 | `--manifest` | Generate `aipm.toml` manifests for migrated plugins |
 
-**Claude Code (`.claude/`) artifact types:** skills (`SKILL.md`), agents (`agents/*.md`), MCP servers (`.mcp.json`), hooks (`hooks.json`), commands (`commands/*.md`), output styles, LSP servers (`lsp.json`).
+**Claude Code (`.claude/`) artifact types:** skills (`SKILL.md`), agents (`agents/*.md`), MCP servers (`.mcp.json`), hooks (`hooks.json`), commands (`commands/*.md`), output styles.
 
 **Copilot CLI (`.github/`) artifact types:** skills (`.github/skills/<name>/`), agents (`.github/agents/<name>.md` or `<name>.agent.md`), MCP servers (`.copilot/mcp-config.json`), hooks (`.github/hooks.json`), GitHub extensions (`.github/extensions/<name>/`), LSP servers (`.github/lsp.json`).
 
