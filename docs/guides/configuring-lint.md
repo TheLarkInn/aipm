@@ -48,7 +48,27 @@ Combine a severity override with rule-specific ignore paths using the inline tab
 "hook/unknown-event" = { level = "error", ignore = ["**/.ai/experimental/**"] }
 ```
 
-Fields: `level` (required) and `ignore` (optional list of glob patterns).
+Fields: `level` (optional) and `ignore` (optional list of glob patterns).
+
+Rules that support additional options (such as `instructions/oversized`) accept extra keys in
+the same inline table or as a separate TOML section:
+
+```toml
+[workspace.lints]
+# Raise the line/character limits for large monorepo instruction files
+"instructions/oversized" = { lines = 200, characters = 20000, resolve-imports = true }
+```
+
+Or using a section header (useful when there are many options):
+
+```toml
+[workspace.lints."instructions/oversized"]
+level = "error"
+lines = 200
+characters = 20000
+resolve-imports = true
+ignore = ["**/vendor/**"]
+```
 
 ## Full configuration example
 
@@ -70,6 +90,13 @@ plugins_dir = ".ai"
 
 [workspace.lints.ignore]
 paths = ["**/vendor/**", "**/third-party/**"]
+
+[workspace.lints."instructions/oversized"]
+level = "error"
+lines = 200
+characters = 20000
+resolve-imports = true
+ignore = ["**/vendor/**"]
 ```
 
 ## Severity levels
@@ -92,6 +119,7 @@ All built-in rule IDs follow the `category/rule-name` hierarchy. See the individ
 | `plugin/` | `broken-paths`, `missing-manifest`, `missing-registration`, `required-fields` |
 | `marketplace/` | `plugin-field-mismatch`, `source-resolve` |
 | `source/` | `misplaced-features` |
+| `instructions/` | `oversized` |
 
 ## CI usage
 
