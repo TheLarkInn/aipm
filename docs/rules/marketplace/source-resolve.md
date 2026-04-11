@@ -53,3 +53,9 @@ This rule also flags:
 ## How to fix
 
 Ensure the `source` field is present in each plugin entry and points to an existing plugin directory under `.ai/`. Paths are resolved relative to the `.ai/` directory; the leading `./` is optional.
+
+## See also
+
+- [plugin/missing-registration](../plugin/missing-registration.md) — validates that every plugin directory is listed in `marketplace.json`
+- [marketplace/plugin-field-mismatch](plugin-field-mismatch.md) — validates that `name`/`description` match between `marketplace.json` and `plugin.json`
+- [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system

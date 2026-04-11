@@ -46,3 +46,10 @@ description: Space is technically allowed, but hyphens are preferred.
 
 ## How to fix
 Remove any characters that are not alphanumeric, dots, underscores, hyphens, or spaces. Ensure the name starts with an alphanumeric character. Replace spaces with hyphens for maximum portability.
+
+## See also
+
+- [skill/missing-name](missing-name.md) — validates that a `name` field is present
+- [skill/name-too-long](name-too-long.md) — validates the name length limit
+- [Creating a plugin](../../guides/creating-a-plugin.md) — how to scaffold a new plugin with correct naming
+- [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system

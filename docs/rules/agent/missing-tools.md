@@ -30,3 +30,9 @@ Agent instructions here...
 
 ## How to fix
 Add a `tools` field to the YAML frontmatter listing each tool the agent requires. Use a YAML sequence (one tool per line with a leading `-`).
+
+## See also
+
+- [Creating a plugin](../../guides/creating-a-plugin.md) — how to scaffold a new plugin with correctly structured agent files
+- [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system
+- [Configuring lint](../../guides/configuring-lint.md) — override rule severity or suppress rules per path

@@ -46,3 +46,10 @@ Either create the missing script at the referenced path relative to the `SKILL.m
 |---|---|
 | `${CLAUDE_SKILL_DIR}/` | Directory containing the `SKILL.md` file (Claude Code convention) |
 | `${SKILL_DIR}/` | Alias for the same directory (portable convention) |
+
+## See also
+
+- [plugin/missing-manifest](missing-manifest.md) — validates that `.claude-plugin/plugin.json` exists
+- [plugin/required-fields](required-fields.md) — validates that `plugin.json` contains all required fields
+- [Creating a plugin](../../guides/creating-a-plugin.md) — how to scaffold a new plugin with the correct directory layout
+- [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system
