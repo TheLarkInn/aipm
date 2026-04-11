@@ -112,4 +112,40 @@ aipm lint --reporter ci-azure    # Azure Pipelines annotations
 aipm lint --reporter json        # JSON for custom tooling
 ```
 
-See also: [`aipm lint` usage guide](./lint.md), [`aipm lint` README reference](../../README.md#aipm-lint), [lint rule reference](../rules/).
+## Editor schema support
+
+A JSON Schema for `aipm.toml` provides autocomplete and validation for `[workspace.lints]` in any editor that supports Taplo/Tombi or JSON Schema associations. The schema intentionally covers only `[workspace.lints]` — other sections remain unconstrained.
+
+**Schema URL:**
+
+```
+https://raw.githubusercontent.com/TheLarkInn/aipm/main/schemas/aipm.toml.schema.json
+```
+
+### VS Code
+
+Install the [vscode-aipm](./vscode-extension.md) extension. It registers the schema via the `tomlValidation` contribution point automatically. Requires the **Even Better TOML** or **Taplo** VS Code extension for validation and autocomplete.
+
+### Taplo (all editors)
+
+[Taplo](https://taplo.tamasfe.dev/) is a TOML language server that works in Neovim, Helix, Emacs, and other editors via LSP. Add a `.taplo.toml` at your project root to associate the schema:
+
+```toml
+# .taplo.toml
+[[rule]]
+include = ["**/aipm.toml"]
+schema = "https://raw.githubusercontent.com/TheLarkInn/aipm/main/schemas/aipm.toml.schema.json"
+```
+
+Once configured, you get:
+
+- **Validation** — unknown rule IDs and type mismatches highlighted inline
+- **Autocomplete** — all 17 rule IDs and severity values suggested on demand
+
+### SchemaStore
+
+A catalog entry is prepared at `schemas/schemastore-submission/catalog-entry.json` for submission to [SchemaStore.org](https://www.schemastore.org/). Once the SchemaStore PR is merged, Taplo and Tombi users will get zero-install coverage — no `.taplo.toml` needed.
+
+---
+
+See also: [`aipm lint` usage guide](./lint.md), [`aipm lint` README reference](../../README.md#aipm-lint), [lint rule reference](../rules/), [VS Code extension guide](./vscode-extension.md).
