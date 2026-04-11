@@ -3,7 +3,7 @@
 **Severity:** warning
 **Fixable:** No
 
-Checks that instruction files (e.g. `CLAUDE.md`, `.github/copilot-instructions.md`) do not exceed configured line and character limits. Oversized instruction files increase token consumption and may be silently truncated by AI runtimes.
+Checks that instruction files (e.g. `CLAUDE.md`, `COPILOT.md`) do not exceed configured line and character limits. Oversized instruction files increase token consumption and may be silently truncated by AI runtimes.
 
 ## Default limits
 
@@ -22,13 +22,13 @@ Both thresholds are checked independently — a file that exceeds either limit (
 
 ## Import resolution
 
-When `resolve-imports = true`, the rule follows `@import` references and relative Markdown links transitively before checking the totals. The diagnostic will mention the resolved total alongside the direct file count:
+When `resolve-imports = true`, the rule follows `@path/to/file.md` imports and relative Markdown links transitively before checking the totals. The diagnostic will mention the resolved total alongside the direct file count:
 
 ```
-CLAUDE.md: resolved total 152 lines (direct 48) exceeds max_lines 100
+instruction file exceeds 100 line limit (resolved total: 152 lines, direct: 48 lines)
 ```
 
-Import resolution is **disabled by default** to keep checks fast. Enable it when your instruction files use `@import` or `[…](link.md)` patterns to compose content from multiple files.
+Import resolution is **disabled by default** to keep checks fast. Enable it when your instruction files use `@path/to/file.md` or `[…](link.md)` patterns to compose content from multiple files.
 
 ## Examples
 
@@ -62,7 +62,7 @@ For detailed guidance, link to skill files or external resources.
 Reduce the file size below both thresholds. Common strategies:
 
 - Move detailed or reusable content into separate `.ai/<plugin>/skills/` skill files
-- Split a monolithic instruction file into multiple focused files imported via `@import`
+- Split a monolithic instruction file into multiple focused files imported via `@path/to/file.md`
 - Remove redundant or verbose prose — prefer imperative bullets over narrative paragraphs
 - Link to external resources instead of inlining them
 
@@ -74,8 +74,12 @@ Override the defaults in `aipm.toml` using the inline table syntax:
 [workspace.lints]
 # Raise the line budget and enable import resolution
 "instructions/oversized" = { level = "warn", lines = 200, characters = 30000, resolve-imports = true }
+```
 
-# Suppress the rule entirely
+To suppress the rule entirely:
+
+```toml
+[workspace.lints]
 "instructions/oversized" = "allow"
 ```
 
@@ -86,7 +90,7 @@ Available options:
 | `level` | string | `"warn"` | Severity: `"error"`, `"warn"`, or `"allow"` |
 | `lines` | integer | `100` | Maximum line count |
 | `characters` | integer | `15000` | Maximum character count |
-| `resolve-imports` | boolean | `false` | Follow `@import` and relative links before checking limits |
+| `resolve-imports` | boolean | `false` | Follow `@path/to/file.md` imports and relative links before checking limits |
 
 ## See also
 
