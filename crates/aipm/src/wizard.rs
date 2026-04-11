@@ -430,6 +430,17 @@ mod tests {
     }
 
     #[test]
+    fn resolve_workspace_workspace_only_skips_marketplace_prompt() {
+        // flag_workspace=true, flag_marketplace=false → marketplace_possible=false.
+        // Covers the False branches of:
+        //   - "if marketplace_possible" (name resolution skipped, uses default)
+        //   - "if marketplace_possible && !flag_no_starter" (starter prompt skipped)
+        let answers: Vec<PromptAnswer> = vec![];
+        let result = resolve_workspace_answers(&answers, true, false, false, None);
+        assert_eq!(result, (true, false, false, "local-repo-plugins".to_string()));
+    }
+
+    #[test]
     fn resolve_workspace_custom_name_snapshot() {
         let answers = vec![
             PromptAnswer::Selected(0),
