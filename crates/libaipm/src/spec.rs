@@ -799,6 +799,14 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn parse_marketplace_location_no_slash_is_error() {
+        // location = "community": split_once('/') returns None, skipping the
+        // GitHub-format guard entirely → Err (covers the None branch at line 434).
+        let result = "market:hello@community".parse::<Spec>();
+        assert!(result.is_err());
+    }
+
     // ---- Case insensitivity ----
 
     #[test]
