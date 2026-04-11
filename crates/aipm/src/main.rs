@@ -1024,3 +1024,76 @@ fn main() -> std::process::ExitCode {
     }
     std::process::ExitCode::SUCCESS
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `load_lint_config` returns a default config when the aipm.toml exists
+    /// but contains no `[workspace]` table.
+    #[test]
+    fn load_lint_config_no_workspace_section_returns_default() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("aipm.toml"),
+            "[package]\nname = \"my-plugin\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert!(config.rule_overrides.is_empty());
+        assert!(config.ignore_paths.is_empty());
+    }
+
+    /// `load_lint_config` returns a default config when the `[workspace]` table
+    /// exists but contains no `lints` key.
+    #[test]
+    fn load_lint_config_workspace_without_lints_returns_default() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n")
+            .unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert!(config.rule_overrides.is_empty());
+        assert!(config.ignore_paths.is_empty());
+    }
+
+    /// `load_lint_config` returns a default config when `workspace.lints` is
+    /// present but is not a TOML table (e.g., a bare string).
+    #[test]
+    fn load_lint_config_lints_not_a_table_returns_default() {
+        let tmp = tempfile::tempdir().unwrap();
+        // `lints = "something"` makes it a string value, not a table.
+        std::fs::write(
+            tmp.path().join("aipm.toml"),
+            "[workspace]\nmembers = [\".ai/*\"]\nlints = \"not-a-table\"\n",
+        )
+        .unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert!(config.rule_overrides.is_empty());
+        assert!(config.ignore_paths.is_empty());
+    }
+
+    /// `cmd_lint` returns an error immediately when given an unrecognised reporter string.
+    #[test]
+    fn cmd_lint_unknown_reporter_returns_err() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = cmd_lint(tmp.path().to_path_buf(), None, "not-a-reporter", "auto", None, None);
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("unknown reporter"), "unexpected error: {err}");
+    }
+
+    /// `resolve_plugins_dir` falls back to `.ai` when the manifest has a
+    /// `[workspace]` table but no `plugins_dir` key.
+    #[test]
+    fn resolve_plugins_dir_no_plugins_dir_falls_back_to_dot_ai() {
+        let tmp = tempfile::tempdir().unwrap();
+        // Manifest has [workspace] but no plugins_dir field.
+        std::fs::write(tmp.path().join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n")
+            .unwrap();
+
+        let result = resolve_plugins_dir(tmp.path());
+        assert_eq!(result, tmp.path().join(".ai"));
+    }
+}
