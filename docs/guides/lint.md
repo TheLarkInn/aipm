@@ -285,6 +285,12 @@ All available rules, grouped by category:
 | [`skill/name-too-long`](../rules/skill/name-too-long.md) | warning | Skill `name` exceeds the maximum length |
 | [`skill/oversized`](../rules/skill/oversized.md) | warning | SKILL.md file exceeds the recommended size limit |
 
+### `instructions/`
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| [`instructions/oversized`](../rules/instructions/oversized.md) | warning | Instruction file (`CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, `*.instructions.md`) exceeds the configured line or character limit |
+
 ### `source/`
 
 | Rule | Severity | Description |
