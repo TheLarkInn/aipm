@@ -454,6 +454,17 @@ mod tests {
         assert!(extract_rule_id_at(text, 5, 0).is_none());
     }
 
+    #[test]
+    fn extract_rule_id_word_starts_at_column_zero() {
+        // The rule ID starts at the very beginning of the line (column 0).
+        // The backwards scan loop at `while start > 0 && ...` must terminate
+        // because `start` reaches 0, covering the `start == 0` exit branch.
+        let text = "skill/missing-name = \"warn\"\n";
+        // Cursor at col 3 (inside "skill"); the scan walks back to col 0.
+        let result = extract_rule_id_at(text, 0, 3);
+        assert_eq!(result.as_deref(), Some("skill/missing-name"));
+    }
+
     // ── severity_completions ──────────────────────────────────────────────────
 
     #[test]
