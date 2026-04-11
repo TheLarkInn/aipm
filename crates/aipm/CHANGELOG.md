@@ -1,6 +1,13 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.19.6] - 2026-04-11
+
+### Testing
+- Cover extract_rule_id_at when word starts at column zero (00c074e)
+- Cover marketplace_possible=false branches in resolve_workspace_answers (9eb4a5b)
+- Cover load_lint_config early returns, reporter validation, plugins_dir fallback, and Policy aliases (d7ce7f6)
+
 ## [0.19.5] - 2026-04-10
 
 ### Features

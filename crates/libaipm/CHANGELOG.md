@@ -1,6 +1,22 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.19.6] - 2026-04-11
+
+### Testing
+- Cover locate_json_key False branch when key is on non-first line (e17d81f)
+- Cover empty-file snippet branch in Human reporter (c64c712)
+- Cover other_files branch in generate_recursive_report (ae3a2d4)
+- Cover MockFs::exists file-only branch in cleanup (e58a242)
+- Cover False branch of emit_and_register with empty artifacts plan (c39e53c)
+- Cover validate_github_owner leading/trailing hyphen branch (7d4e825)
+- Cover invalid semver requirement error path (c7e4eb1)
+- Cover suppressed source/misplaced-features branch (fdeb137)
+- Cover git path-traversal error branch and parse() fallback (c1beb9f)
+- Cover make_temp_dir cleanup of existing directory (6c073b1)
+- Cover load_lint_config early returns, reporter validation, plugins_dir fallback, and Policy aliases (d7ce7f6)
+- Cover gc is_dir false branch for non-directory entries (0635d49)
+
 ## [0.19.5] - 2026-04-10
 
 ### Features
