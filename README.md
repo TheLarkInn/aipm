@@ -9,7 +9,7 @@ AIPM ships as **two Rust binaries** with **zero runtime dependencies**:
 
 | Binary | Role | Commands |
 |--------|------|----------|
-| **`aipm`** | Consumer CLI | `init`, `install`, `update`, `uninstall`, `link`, `unlink`, `list`, `lint`, `migrate` |
+| **`aipm`** | Consumer CLI | `init`, `install`, `update`, `uninstall`, `link`, `unlink`, `list`, `lint`, `migrate`, `lsp` |
 | **`aipm-pack`** | Author CLI | `init` |
 
 Both work across .NET, Python, Node.js, and Rust projects with no runtime dependency.
@@ -226,6 +226,21 @@ aipm lint [OPTIONS] [DIR]
 Exits with a non-zero status code when violations are found, making it safe to use in CI pipelines. Use `--reporter ci-github` for GitHub Actions annotations or `--reporter ci-azure` for Azure Pipelines.
 
 See also: [`docs/guides/lint.md`](docs/guides/lint.md) for full CLI usage, output formats, and CI integration; [`docs/guides/configuring-lint.md`](docs/guides/configuring-lint.md) for rule severity overrides, path ignores, and per-rule configuration.
+
+### `aipm lsp`
+
+Start the Language Server Protocol server for VS Code / IDE integration.
+
+```
+aipm lsp
+```
+
+Launches the LSP server over stdio. The server:
+- Publishes `aipm lint` diagnostics when you open or save a supported file
+- Provides completion for rule IDs and severity values inside `aipm.toml`
+- Provides hover documentation for lint rules in `aipm.toml`
+
+The `vscode-aipm` extension starts this server automatically when an `aipm.toml` is present. Configure the binary path with the `aipm.path` VS Code setting (default: `aipm`, resolved via `PATH`).
 
 ---
 
