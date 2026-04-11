@@ -690,6 +690,21 @@ mod tests {
         }
     }
 
+    #[test]
+    fn parse_git_path_traversal_rejected() {
+        // A git spec whose `:path` component contains `..` must be rejected.
+        // This exercises the Err branch of
+        // `path.map(ValidatedPath::new).transpose()?` in parse_git_spec, and
+        // also hits the Err arm of the local parse() helper.
+        let result = "git:https://github.com/org/repo:../secret".parse::<Spec>();
+        assert!(matches!(result, Err(Error::Path(_))));
+        // Calling parse() (which swallows errors) exercises its Err arm.
+        let fallback = parse("git:https://github.com/org/repo:../secret");
+        assert!(
+            matches!(fallback, Spec::Registry { ref name, version_req: None } if name.is_empty())
+        );
+    }
+
     // ---- Marketplace specs ----
 
     #[test]
