@@ -1320,4 +1320,23 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    #[test]
+    fn make_temp_dir_cleans_up_existing_directory() {
+        // Pre-create the directory so that the `if tmp.exists()` branch in
+        // `make_temp_dir` (the cleanup-before-recreate path) is exercised.
+        let name = "pre-existing-cleanup";
+        let tmp = std::env::temp_dir().join(format!("aipm-test-wsinit-{name}"));
+        std::fs::create_dir_all(&tmp).ok();
+        // Place a sentinel file to confirm the old tree is removed.
+        std::fs::write(tmp.join("sentinel.txt"), b"old").ok();
+        assert!(tmp.exists(), "pre-condition: directory must exist before make_temp_dir");
+
+        let (path, _) = make_temp_dir(name);
+        // The old directory (and its sentinel) was cleaned up and the dir was recreated.
+        assert!(path.exists());
+        assert!(!path.join("sentinel.txt").exists(), "old sentinel should have been removed");
+
+        cleanup(&path);
+    }
 }
