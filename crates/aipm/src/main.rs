@@ -1165,4 +1165,73 @@ mod tests {
         let result = resolve_plugins_dir(tmp.path());
         assert_eq!(result, tmp.path().join(".ai"));
     }
+
+    /// `load_lint_config` handles a `[workspace.lints.ignore]` section that lacks
+    /// a `paths` array — the inner branch is skipped, `ignore_paths` stays empty.
+    #[test]
+    fn load_lint_config_ignore_section_without_paths_array() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("aipm.toml"),
+            "[workspace.lints.ignore]\ncomment = \"no paths key here\"\n",
+        )
+        .unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert!(config.ignore_paths.is_empty());
+    }
+
+    /// `load_lint_config` silently skips non-string entries in the `paths` array;
+    /// only string values are added to `ignore_paths`.
+    #[test]
+    fn load_lint_config_ignore_paths_non_string_entry_is_skipped() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("aipm.toml"),
+            "[workspace.lints.ignore]\npaths = [42, \"valid/path\"]\n",
+        )
+        .unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert_eq!(config.ignore_paths, vec!["valid/path"]);
+    }
+
+    /// A rule override that is a string but not "allow" and not a known severity
+    /// level is silently ignored — no override is recorded.
+    #[test]
+    fn load_lint_config_string_rule_unknown_value_is_ignored() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("aipm.toml"),
+            "[workspace.lints]\n\"some-rule\" = \"garbage_value\"\n",
+        )
+        .unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert!(!config.rule_overrides.contains_key("some-rule"));
+    }
+
+    /// A rule override value that is neither a string nor a table (e.g., an
+    /// integer) is silently skipped.
+    #[test]
+    fn load_lint_config_non_string_non_table_rule_value_is_ignored() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("aipm.toml"), "[workspace.lints]\n\"some-rule\" = 42\n")
+            .unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert!(!config.rule_overrides.contains_key("some-rule"));
+    }
+
+    /// An empty rule table (no `level`, no `ignore`, no custom keys) does not
+    /// produce any rule override — the guard in `load_lint_config` requires at
+    /// least one meaningful field to record an override.
+    #[test]
+    fn load_lint_config_empty_rule_table_produces_no_override() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("aipm.toml"), "[workspace.lints.\"some-rule\"]\n").unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert!(!config.rule_overrides.contains_key("some-rule"));
+    }
 }
