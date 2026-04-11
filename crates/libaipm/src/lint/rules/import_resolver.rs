@@ -354,4 +354,31 @@ mod tests {
         let result = resolve_imports(&path, &fs, &mut visited);
         assert_eq!(result, (0, 0));
     }
+
+    #[test]
+    fn markdown_link_unclosed_paren_ignored() {
+        // `](` without a matching `)` — exercises the else branch of
+        // `if let Some(paren_close) = after_paren.find(')')` in parse_markdown_links.
+        let content = "This is [broken](missing-close.md";
+        let links = parse_markdown_links(content);
+        assert!(links.is_empty());
+    }
+
+    #[test]
+    fn path_traversal_in_markdown_link_rejected() {
+        // A markdown link whose URL contains `..` must not be followed.
+        // Exercises the `else` branch of `if is_path_safe(&link_path)` (line 129).
+        let mut fs = MockFs::new();
+        let main = PathBuf::from("CLAUDE.md");
+        let secret = PathBuf::from("../secret.md");
+        fs.exists.insert(main.clone());
+        fs.files.insert(main.clone(), "See [secret](../secret.md) for details\nend".to_string());
+        fs.exists.insert(secret.clone());
+        fs.files.insert(secret, "secret content\n".to_string());
+
+        let mut visited = HashSet::new();
+        let (lines, _) = resolve_imports(&main, &fs, &mut visited);
+        // Only the 2 lines of CLAUDE.md should be counted; ../secret.md must not be followed.
+        assert_eq!(lines, 2);
+    }
 }
