@@ -650,4 +650,16 @@ mod tests {
         let err = result.err();
         assert!(err.is_some_and(|e| e.to_string().contains("invalid package name")));
     }
+
+    #[test]
+    fn fail_fs_write_file_ok_branch() {
+        // Covers the false branch of `if self.fail_on == "write_file"` in FailFs::write_file.
+        // A valid name with PluginType::Lsp means init() reaches write_file and it succeeds.
+        let fs = FailFs { fail_on: "never" };
+        let tmp = std::path::PathBuf::from("/tmp/fake-init-write-ok");
+        let opts =
+            Options { dir: &tmp, name: Some("test-plugin"), plugin_type: Some(PluginType::Lsp) };
+        let result = init(&opts, &fs);
+        assert!(result.is_ok());
+    }
 }
