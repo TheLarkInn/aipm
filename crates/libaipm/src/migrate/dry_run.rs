@@ -1095,4 +1095,35 @@ mod tests {
         assert!(report.contains("shared configuration"));
         assert!(report.contains("settings.json"));
     }
+
+    #[test]
+    fn recursive_report_with_other_files_in_plan() {
+        // Cover the `if !all_other_files.is_empty()` branch in generate_recursive_report
+        // by including a PluginPlan that has at least one OtherFile.
+        let discovered = vec![DiscoveredSource {
+            source_dir: PathBuf::from("/project/.claude"),
+            source_type: ".claude".to_string(),
+            package_name: None,
+            relative_path: PathBuf::new(),
+        }];
+
+        let plugin_plans = vec![PluginPlan {
+            name: "deploy".to_string(),
+            artifacts: vec![make_artifact("deploy", ArtifactKind::Skill)],
+            is_package_scoped: false,
+            source_dir: PathBuf::from("/project/.claude"),
+            other_files: vec![OtherFile {
+                path: PathBuf::from("/project/.claude/scripts/helper.sh"),
+                relative_path: PathBuf::from("scripts/helper.sh"),
+                associated_artifact: Some("deploy".to_string()),
+                is_external: false,
+            }],
+        }];
+
+        let existing = HashSet::new();
+        let report = generate_recursive_report(&discovered, &plugin_plans, &existing, false);
+        assert!(report.contains("## Other Files"));
+        assert!(report.contains("scripts/helper.sh"));
+        assert!(report.contains("deploy"));
+    }
 }
