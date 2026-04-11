@@ -3896,4 +3896,43 @@ mod tests {
         let result = emit_other_files(&[other_file], Path::new("/ai/plugin"), &fs);
         assert!(result.is_err(), "should fail when other file write fails");
     }
+
+    #[test]
+    fn emit_package_plugin_shared_source_path_deduplicates_plugin_created() {
+        // Two artifacts sharing the same source_path exercise the False branch of
+        // `seen_sources.insert(artifact.source_path.clone())` (line ~434), ensuring
+        // that only one PluginCreated action is emitted per unique source path.
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/shared/SKILL.md"), "# Shared skill".to_string());
+
+        let artifact1 = Artifact {
+            kind: ArtifactKind::Skill,
+            name: "deploy".to_string(),
+            source_path: PathBuf::from("/src/shared"),
+            files: vec![PathBuf::from("SKILL.md")],
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata::default(),
+        };
+        let artifact2 = Artifact {
+            kind: ArtifactKind::Skill,
+            name: "monitor".to_string(),
+            source_path: PathBuf::from("/src/shared"), // same source_path
+            files: vec![PathBuf::from("SKILL.md")],
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata::default(),
+        };
+
+        let result =
+            emit_package_plugin("bundle", &[artifact1, artifact2], Path::new("/ai"), false, &fs);
+        assert!(result.is_ok(), "emit_package_plugin should succeed: {:?}", result.err());
+        let actions = result.unwrap();
+        // Only one PluginCreated action should be emitted despite two artifacts,
+        // because both share the same source_path (deduplication).
+        assert_eq!(
+            actions.len(),
+            1,
+            "expected exactly 1 action for shared source_path, got {}",
+            actions.len()
+        );
+    }
 }
