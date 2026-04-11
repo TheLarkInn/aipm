@@ -3898,6 +3898,47 @@ mod tests {
     }
 
     #[test]
+    fn emit_skill_file_skips_non_regular_file() {
+        // Arrange: artifact lists SKILL.md in files, but the path is NOT added to
+        // fs.files.  MockFs::is_file returns false for any path absent from its
+        // files map, simulating a directory or symlink at that location.
+        let fs = MockFs::new();
+        let artifact = Artifact {
+            kind: ArtifactKind::Skill,
+            name: "deploy".to_string(),
+            source_path: PathBuf::from("/src/skills/deploy"),
+            files: vec![PathBuf::from("SKILL.md")],
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata {
+                name: Some("deploy".to_string()),
+                description: Some("Deploy app".to_string()),
+                ..ArtifactMetadata::default()
+            },
+        };
+        let existing = HashSet::new();
+        let mut counter = 0;
+
+        // Act: emit_plugin must succeed even though SKILL.md is not a regular file
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, false, &fs);
+        assert!(
+            result.is_ok(),
+            "emit_plugin should succeed when file is skipped: {:?}",
+            result.err()
+        );
+
+        // Assert: the non-regular file was silently skipped (not written)
+        assert!(
+            fs.get_written(Path::new("/ai/deploy/skills/deploy/SKILL.md")).is_none(),
+            "non-regular file should have been skipped, not written"
+        );
+        // plugin.json should still be generated
+        assert!(
+            fs.get_written(Path::new("/ai/deploy/.claude-plugin/plugin.json")).is_some(),
+            "plugin.json should be written even when skill file is skipped"
+        );
+    }
+
+    #[test]
     fn emit_package_plugin_shared_source_path_deduplicates_plugin_created() {
         // Two artifacts sharing the same source_path exercise the False branch of
         // `seen_sources.insert(artifact.source_path.clone())` (line ~434), ensuring
