@@ -229,21 +229,27 @@ See also: [`docs/guides/lint.md`](docs/guides/lint.md) for full CLI usage, outpu
 
 ### `aipm lsp`
 
-Start an LSP (Language Server Protocol) server over stdio that surfaces `aipm lint` diagnostics directly inside your editor.
+Start the `aipm` Language Server Protocol (LSP) server on stdio.
 
 ```
 aipm lsp
 ```
 
-The server advertises the following capabilities:
+The LSP server is launched automatically by the [`vscode-aipm`](docs/guides/vscode-extension.md) extension and is not typically invoked directly. It communicates over stdin/stdout using the Language Server Protocol.
+
+**Capabilities:**
 
 | Capability | Description |
-|-----------|-------------|
-| `textDocument/publishDiagnostics` | Runs `aipm lint` on open and save, pushing violations as editor diagnostics |
-| `textDocument/completion` | Offers rule IDs and severity values when editing `aipm.toml` |
-| `textDocument/hover` | Shows rule documentation when hovering over rule names in `aipm.toml` |
+|---|---|
+| `textDocument/publishDiagnostics` | Publishes `aipm lint` violations as inline diagnostics on file open and save (300 ms debounce) |
+| `textDocument/completion` | Autocompletes rule IDs and severity values inside `[workspace.lints]` in `aipm.toml` |
+| `textDocument/hover` | Shows rule name, default severity, and help text when hovering a rule ID in `aipm.toml` |
 
-Configure your editor to launch `aipm lsp` as an external language server over stdio. For VS Code, see [`docs/guides/lint.md`](docs/guides/lint.md) for setup instructions.
+**Supported file patterns** (same as the VS Code extension document selector): `aipm.toml`, `skills/SKILL.md`, `skills/*/SKILL.md`, `agents/*.md`, `hooks/hooks.json`, `.ai/*/aipm.toml`, `.ai/*/.claude-plugin/plugin.json`, `.ai/.claude-plugin/marketplace.json`.
+
+**Binary resolution:** the server looks up the `aipm` binary from `AIPM_PATH` (environment variable) or the `aipm.path` VS Code setting (default: `"aipm"`).
+
+See also: [`docs/guides/vscode-extension.md`](docs/guides/vscode-extension.md) for installation, configuration, and development setup.
 
 ---
 
