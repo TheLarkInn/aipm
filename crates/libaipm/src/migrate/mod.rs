@@ -1217,4 +1217,35 @@ mod tests {
         let actions = result.ok().map(|o| o.actions).unwrap_or_default();
         assert!(actions.iter().any(|a| matches!(a, Action::DryRunReport { .. })));
     }
+
+    #[test]
+    fn emit_and_register_plan_with_no_artifacts_skips_plugin_emission() {
+        // Covers the False branch of `else if let Some(artifact) = plan.artifacts.first()`
+        // (line 590 in emit_and_register): when is_package_scoped is false and artifacts is
+        // empty, neither emit function is called but the plan is still registered in
+        // marketplace.json.
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/ai/.claude-plugin/marketplace.json"),
+            r#"{"plugins":[]}"#.to_string(),
+        );
+
+        let plan = PluginPlan {
+            name: "empty-plugin".to_string(),
+            artifacts: Vec::new(),
+            is_package_scoped: false,
+            source_dir: PathBuf::from("/src"),
+            other_files: Vec::new(),
+        };
+
+        let result = emit_and_register(vec![plan], HashSet::new(), Path::new("/ai"), false, &fs);
+        assert!(result.is_ok());
+        let outcome = result.expect("emit_and_register should succeed");
+        // No PluginCreated action since no artifacts were emitted
+        assert!(!outcome.has_migrated_artifacts());
+        // The plan is still registered in marketplace.json
+        assert!(outcome.actions.iter().any(
+            |a| matches!(a, Action::MarketplaceRegistered { name } if name == "empty-plugin")
+        ));
+    }
 }
