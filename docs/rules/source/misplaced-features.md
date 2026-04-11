@@ -62,3 +62,10 @@ aipm migrate --dry-run
 ```
 
 See [Migrating Existing Configurations](../../guides/migrate.md) for a full reference.
+
+## See also
+
+- [Migrating existing configurations](../../guides/migrate.md) — full `aipm migrate` reference, including `--dry-run`
+- [Migrating — step-by-step](../../guides/migrating-existing-configs.md) — dry-run, destructive cleanup, and recursive discovery walkthrough
+- [Creating a plugin](../../guides/creating-a-plugin.md) — scaffold a new plugin directly in `.ai/`
+- [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system

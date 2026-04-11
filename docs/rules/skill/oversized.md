@@ -33,3 +33,10 @@ Concise skill instructions that stay under the 15 000 character limit.
 
 ## How to fix
 Reduce the file size below 15 000 characters. Consider splitting large skills into multiple smaller, focused skill files, or moving lengthy reference material to an external resource linked from the skill body.
+
+## See also
+
+- [skill/missing-name](missing-name.md) — validates that a `name` field is present
+- [skill/missing-description](missing-description.md) — validates that a `description` field is present
+- [Creating a plugin](../../guides/creating-a-plugin.md) — how to scaffold a new plugin
+- [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system

@@ -45,3 +45,9 @@ Use one of the two supported shell values: `bash` or `powershell`. Remove the `s
 |-------|----------|
 | `bash` | Linux / macOS |
 | `powershell` | Windows |
+
+## See also
+
+- [Engine & Platform Compatibility](../../guides/engine-platform-compatibility.md) — declare supported AI tools and operating systems in `aipm.toml`
+- [Creating a plugin](../../guides/creating-a-plugin.md) — how to scaffold a new plugin
+- [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system

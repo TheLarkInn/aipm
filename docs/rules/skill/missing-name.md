@@ -28,3 +28,11 @@ Skill instructions here...
 
 ## How to fix
 Add a `name` field to the YAML frontmatter at the top of your SKILL.md file. The value should be a short, lowercase identifier for the skill.
+
+## See also
+
+- [skill/missing-description](missing-description.md) — validates the skill's `description` field
+- [skill/name-invalid-chars](name-invalid-chars.md) — validates that the name uses allowed characters
+- [skill/name-too-long](name-too-long.md) — validates the name length limit
+- [Creating a plugin](../../guides/creating-a-plugin.md) — how to scaffold a new plugin with all required frontmatter
+- [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system

@@ -52,3 +52,9 @@ mapping table above (e.g. `Stop` → `agentStop`, `UserPromptSubmit` → `userPr
 
 Run `aipm migrate` on an existing `.github/` directory to have the migration tool perform these
 renames automatically.
+
+## See also
+
+- [hook/unknown-event](unknown-event.md) — flags completely unrecognised event names
+- [Migrating existing configurations](../../guides/migrate.md) — `aipm migrate` can rename legacy event names automatically
+- [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system

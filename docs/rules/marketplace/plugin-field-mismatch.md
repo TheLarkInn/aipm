@@ -70,3 +70,9 @@ Both files agree on `name` and `description`:
 ## How to fix
 
 Update either `marketplace.json` or `plugin.json` so the `name` and `description` fields are identical in both files. Treat `plugin.json` as the authoritative source of truth and copy its values into the marketplace entry.
+
+## See also
+
+- [plugin/required-fields](../plugin/required-fields.md) — validates that `plugin.json` contains all required fields
+- [marketplace/source-resolve](source-resolve.md) — validates that each `source` path exists on disk
+- [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system

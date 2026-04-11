@@ -65,3 +65,9 @@ or with nesting:
 Replace the unknown event name with a valid hook event from the tables above.
 For `.ai/` marketplace plugins (shared across tools) any event from either tool's list is
 accepted.
+
+## See also
+
+- [hook/legacy-event-name](legacy-event-name.md) — warns when valid-but-deprecated PascalCase Copilot event names are used
+- [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system
+- [Configuring lint](../../guides/configuring-lint.md) — override rule severity or suppress rules per path
