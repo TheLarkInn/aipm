@@ -742,6 +742,24 @@ mod tests {
     }
 
     #[test]
+    fn gc_skips_non_directory_entries_in_entries_dir() {
+        // Covers the false branch of `entry.path().is_dir()` in gc():
+        // a plain file directly inside entries_dir is not a directory, so
+        // the GC loop short-circuits and leaves the file untouched.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+
+        let stray_file = cache.entries_dir().join("stray-file.txt");
+        std::fs::write(&stray_file, "leftover").unwrap_or_else(|_| {});
+        assert!(stray_file.exists());
+
+        let _ = cache.gc();
+
+        // The file must still be present: GC only removes directories.
+        assert!(stray_file.exists());
+    }
+
+    #[test]
     fn gc_preserves_installed_entries() {
         let temp = make_temp();
         let mut cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
