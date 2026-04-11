@@ -405,9 +405,10 @@ framework = "^2.0.0-beta.1"
 
 ```
 crates/
-  aipm/         Consumer CLI binary (init, install, update, uninstall, link, unlink, list, lint, migrate)
+  aipm/         Consumer CLI binary (init, install, update, uninstall, link, unlink, list, lint, migrate, lsp)
   aipm-pack/    Author CLI binary (init)
   libaipm/      Core library (manifest, validation, migration, scaffolding, lint, install, link, resolve)
+vscode-aipm/    VS Code extension (lint diagnostics, completions, hover for aipm.toml)
 specs/          Technical design documents
 tests/features/ Cucumber BDD feature files (31 files, 300+ scenarios)
 research/       Competitive analysis and design research
