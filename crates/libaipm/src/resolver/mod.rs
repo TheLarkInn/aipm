@@ -737,6 +737,19 @@ mod tests {
     }
 
     #[test]
+    fn resolve_invalid_requirement_returns_version_error() {
+        // Covers the `Requirement::parse(...)?` error branch (line 188):
+        // when a root dependency carries an unparseable semver requirement string,
+        // the resolver must return `Error::Version` without panicking.
+        let reg = MockRegistry::new();
+        let deps = vec![root_dep("foo", "not-valid-semver!!!")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg);
+        assert!(result.is_err());
+        let err_msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+        assert!(err_msg.contains("version error"), "expected version error, got: {err_msg}");
+    }
+
+    #[test]
     fn resolve_empty_deps() {
         let reg = MockRegistry::new();
         let result = resolve(&[], &BTreeMap::new(), &reg).unwrap();
