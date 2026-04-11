@@ -319,7 +319,7 @@ mod tests {
         cfg.rule_overrides.insert(
             "stub/per-rule-ignore".to_string(),
             config::RuleOverride::Detailed {
-                level: Severity::Warning,
+                level: Some(Severity::Warning),
                 ignore: vec!["vendor/**".to_string()],
                 options: std::collections::BTreeMap::new(),
             },
@@ -836,7 +836,7 @@ mod tests {
         cfg.rule_overrides.insert(
             "source/misplaced-features".to_string(),
             config::RuleOverride::Detailed {
-                level: Severity::Warning,
+                level: Some(Severity::Warning),
                 ignore: vec!["**/vendor/**".to_string()],
                 options: std::collections::BTreeMap::new(),
             },
@@ -1189,7 +1189,7 @@ mod tests {
         cfg.rule_overrides.insert(
             "instructions/oversized".to_string(),
             config::RuleOverride::Detailed {
-                level: Severity::Warning,
+                level: Some(Severity::Warning),
                 ignore: vec![],
                 options: opts_map,
             },

@@ -60,13 +60,23 @@ fn parse_markdown_links(content: &str) -> Vec<String> {
 
 /// Return `true` when `path` is safe to follow.
 ///
-/// Rejects absolute paths and any path containing `..` segments, preventing
-/// escapes outside the project tree.
+/// Rejects absolute paths, Windows drive prefixes, and `..` segments using
+/// `Path::components()` so that both `/`-separated and `\`-separated paths
+/// are handled correctly on every platform.
 fn is_path_safe(path: &str) -> bool {
-    if Path::new(path).is_absolute() {
-        return false;
-    }
-    path.split('/').all(|segment| segment != "..")
+    use std::path::Component;
+    Path::new(path)
+        .components()
+        .all(|c| !matches!(c, Component::ParentDir | Component::RootDir | Component::Prefix(..)))
+}
+
+/// Lexically normalize a path by stripping redundant `./` prefixes.
+///
+/// `a.md` and `./a.md` resolve to the same file; normalizing before inserting
+/// into the `visited` set prevents double-counting and strengthens cycle detection.
+fn normalize_path(path: &Path) -> PathBuf {
+    use std::path::Component;
+    path.components().filter(|c| !matches!(c, Component::CurDir)).collect()
 }
 
 /// Recursively resolve imports for a single file, accumulating sizes.
@@ -87,7 +97,9 @@ pub fn resolve_imports<S: BuildHasher>(
     fs: &dyn Fs,
     visited: &mut HashSet<PathBuf, S>,
 ) -> (usize, usize) {
-    let canonical = file_path.to_path_buf();
+    // Normalize before the visited check so that `./a.md` and `a.md` map to
+    // the same key, preventing double-counting and strengthening cycle detection.
+    let canonical = normalize_path(file_path);
 
     if visited.contains(&canonical) {
         return (0, 0);

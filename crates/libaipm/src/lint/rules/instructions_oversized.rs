@@ -71,16 +71,17 @@ impl Rule for Oversized {
         let source_type_raw = scan::source_type_from_path(file_path);
         let source_type = if source_type_raw == "other" { "project" } else { source_type_raw };
 
+        // Compute direct counts once; reuse them in the non-resolve-imports path.
+        let direct_lines = content.lines().count();
+        let direct_chars = content.len();
+
         let (checked_lines, checked_chars, is_resolved) = if self.resolve_imports {
             let mut visited = HashSet::new();
             let (lines, chars) = import_resolver::resolve_imports(file_path, fs, &mut visited);
             (lines, chars, true)
         } else {
-            (content.lines().count(), content.len(), false)
+            (direct_lines, direct_chars, false)
         };
-
-        let direct_lines = content.lines().count();
-        let direct_chars = content.len();
 
         let mut diagnostics = Vec::new();
 

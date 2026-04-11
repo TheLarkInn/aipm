@@ -20,10 +20,13 @@ pub enum RuleOverride {
     Allow,
     /// Simple severity override.
     Level(Severity),
-    /// Detailed override with severity, per-rule ignore paths, and custom options.
+    /// Detailed override with optional severity, per-rule ignore paths, and custom options.
+    ///
+    /// `level: None` means "use the rule's own default severity" — useful when only
+    /// `ignore` or custom option keys (e.g. `lines`, `characters`) are set.
     Detailed {
-        /// Severity level.
-        level: Severity,
+        /// Severity level override (`None` = keep rule default).
+        level: Option<Severity>,
         /// Per-rule ignore paths (globs).
         ignore: Vec<String>,
         /// Per-rule custom options forwarded from the TOML config.
@@ -41,7 +44,7 @@ impl Config {
     pub fn severity_override(&self, rule_id: &str) -> Option<Severity> {
         match self.rule_overrides.get(rule_id) {
             Some(RuleOverride::Level(s)) => Some(*s),
-            Some(RuleOverride::Detailed { level, .. }) => Some(*level),
+            Some(RuleOverride::Detailed { level, .. }) => *level,
             _ => None,
         }
     }
@@ -103,12 +106,23 @@ mod tests {
         config.rule_overrides.insert(
             "plugin/broken-paths".to_string(),
             RuleOverride::Detailed {
-                level: Severity::Warning,
+                level: Some(Severity::Warning),
                 ignore: vec!["examples/**".to_string()],
                 options: BTreeMap::new(),
             },
         );
         assert_eq!(config.severity_override("plugin/broken-paths"), Some(Severity::Warning));
+    }
+
+    #[test]
+    fn severity_override_none_level_in_detailed_returns_none() {
+        let mut config = Config::default();
+        config.rule_overrides.insert(
+            "instructions/oversized".to_string(),
+            RuleOverride::Detailed { level: None, ignore: vec![], options: BTreeMap::new() },
+        );
+        // No level override → rule uses its own default
+        assert_eq!(config.severity_override("instructions/oversized"), None);
     }
 
     #[test]
@@ -126,7 +140,7 @@ mod tests {
         config.rule_overrides.insert(
             "plugin/broken-paths".to_string(),
             RuleOverride::Detailed {
-                level: Severity::Error,
+                level: Some(Severity::Error),
                 ignore: vec!["examples/**".to_string(), "vendor/**".to_string()],
                 options: BTreeMap::new(),
             },
@@ -158,7 +172,7 @@ mod tests {
         opts.insert("lines".to_string(), toml::Value::Integer(200));
         config.rule_overrides.insert(
             "instructions/oversized".to_string(),
-            RuleOverride::Detailed { level: Severity::Error, ignore: vec![], options: opts },
+            RuleOverride::Detailed { level: Some(Severity::Error), ignore: vec![], options: opts },
         );
         let returned = config.rule_options("instructions/oversized");
         assert_eq!(returned.get("lines"), Some(&toml::Value::Integer(200)));
