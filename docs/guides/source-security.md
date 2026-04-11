@@ -68,3 +68,7 @@ All plugin paths are automatically validated for security:
 - Null bytes are rejected
 
 This protection is always active — no configuration needed.
+
+---
+
+See also: [`aipm install`](../../README.md#aipm-install), [`docs/guides/install-git-plugin.md`](./install-git-plugin.md), [`docs/guides/install-marketplace-plugin.md`](./install-marketplace-plugin.md), [`docs/guides/cache-management.md`](./cache-management.md), [`docs/guides/global-plugins.md`](./global-plugins.md).
