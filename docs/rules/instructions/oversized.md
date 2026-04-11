@@ -3,97 +3,121 @@
 **Severity:** warning
 **Fixable:** No
 
-Checks that instruction files (e.g. `CLAUDE.md`, `COPILOT.md`) do not exceed configured line and character limits. Oversized instruction files increase token consumption and may be silently truncated by AI runtimes.
+Checks that instruction files (`CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`,
+`INSTRUCTIONS.md`, and `*.instructions.md` files anywhere in the project tree) do not exceed
+configurable line and character limits. Oversized instruction files slow down context loading,
+consume more tokens, and may be truncated or rejected by AI runtimes.
+
+Up to two diagnostics are emitted per file — one for the line limit and one for the character
+limit — so both problems are visible in a single run.
 
 ## Default limits
 
-| Limit | Default | Config key |
-|-------|---------|------------|
-| Lines | 100 | `lines` |
-| Characters | 15 000 | `characters` |
+| Threshold | Default | Config key |
+|-----------|---------|------------|
+| Maximum lines | 100 | `lines` |
+| Maximum characters | 15 000 | `characters` |
 
-Both thresholds are checked independently — a file that exceeds either limit (or both) receives a separate diagnostic per violation.
+## Why these defaults?
 
-## Why these limits?
+The **100-line** default encourages writing concise, focused instruction files. An instruction
+file that spans hundreds of lines is difficult to maintain, hard for humans to review, and
+likely includes content better placed in linked documents.
 
-**100 lines** is a pragmatic threshold that encourages concise, focused instruction files. Instructions that run longer than a hundred lines often contain duplicated guidance, verbose prose, or content that belongs in linked skill files rather than the top-level instruction file.
-
-**15 000 characters** mirrors the `SKILL_CHAR_BUDGET` default used by Copilot CLI, making the rule consistent with the existing `skill/oversized` guardrail and ensuring instruction files remain safe across all supported AI runtimes.
-
-## Import resolution
-
-When `resolve-imports = true`, the rule follows `@path/to/file.md` imports and relative Markdown links transitively before checking the totals. The diagnostic will mention the resolved total alongside the direct file count:
-
-```
-instruction file exceeds 100 line limit (resolved total: 152 lines, direct: 48 lines)
-```
-
-Import resolution is **disabled by default** to keep checks fast. Enable it when your instruction files use `@path/to/file.md` or `[…](link.md)` patterns to compose content from multiple files.
+The **15 000-character** budget mirrors the `SKILL_CHAR_BUDGET` default used by Copilot CLI
+and is used here as a **tool-agnostic quality guardrail**: a file within this budget will work
+reliably across all supported AI runtimes. Exceeding it risks silent truncation by the runtime.
 
 ## Examples
 
-### Incorrect — exceeds line limit
+### Incorrect
 
 ```markdown
-# My project instructions
+<!-- CLAUDE.md — 150 lines, exceeds the 100-line default -->
+# Project rules
 
-[...more than 100 lines of guidance...]
-```
-
-### Incorrect — exceeds character limit
-
-```markdown
-# My project instructions
-
-[...content exceeding 15 000 characters...]
+[...content spanning more than 100 lines...]
 ```
 
 ### Correct
 
 ```markdown
-# My project instructions
+<!-- CLAUDE.md — concise, under both limits -->
+# Project rules
 
-Keep instruction files concise and focused on the most important context.
-For detailed guidance, link to skill files or external resources.
+Keep changes small and focused. Run `cargo test` before committing.
+See [coding-standards.md](./docs/coding-standards.md) for full guidelines.
 ```
+
+## Configuring thresholds
+
+Override the defaults in your workspace `aipm.toml`:
+
+```toml
+[workspace.lints."instructions/oversized"]
+level = "error"
+lines = 200
+characters = 20000
+```
+
+You can configure per-rule options without specifying a `level` — the rule will run at its
+default severity:
+
+```toml
+[workspace.lints."instructions/oversized"]
+lines = 200
+characters = 20000
+```
+
+## Suppress for specific paths
+
+Use rule-level `ignore` to exclude vendor or generated instruction files:
+
+```toml
+[workspace.lints."instructions/oversized"]
+ignore = ["**/vendor/**", "**/third-party/**"]
+```
+
+## Resolve-imports mode
+
+When `resolve-imports = true`, the rule follows `@path/to/file.md` import lines and relative
+markdown inline links (`[label](relative.md)`) transitively, accumulating the combined line and
+character counts of the entry file and all its imports. This is useful when a root instruction
+file is small but references large shared files.
+
+```toml
+[workspace.lints."instructions/oversized"]
+resolve-imports = true
+lines = 200
+characters = 20000
+```
+
+When a limit is exceeded in resolve-imports mode, the diagnostic message includes both the
+resolved total and the direct (entry-file-only) counts:
+
+```
+instruction file exceeds 200 line limit (resolved total: 312 lines, direct: 45 lines)
+```
+
+### Safety constraints
+
+- Circular import chains are detected and broken — no infinite loops.
+- Absolute paths (`/etc/passwd`) and path-traversal segments (`../secrets`) are rejected.
+- External URLs (`https://…`) are not followed.
 
 ## How to fix
 
-Reduce the file size below both thresholds. Common strategies:
-
-- Move detailed or reusable content into separate `.ai/<plugin>/skills/` skill files
-- Split a monolithic instruction file into multiple focused files imported via `@path/to/file.md`
-- Remove redundant or verbose prose — prefer imperative bullets over narrative paragraphs
-- Link to external resources instead of inlining them
-
-## Tuning thresholds
-
-Override the defaults in `aipm.toml` using the inline table syntax:
-
-```toml
-[workspace.lints]
-# Raise the line budget and enable import resolution
-"instructions/oversized" = { level = "warn", lines = 200, characters = 30000, resolve-imports = true }
-```
-
-To suppress the rule entirely:
-
-```toml
-[workspace.lints]
-"instructions/oversized" = "allow"
-```
-
-Available options:
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `level` | string | `"warn"` | Severity: `"error"`, `"warn"`, or `"allow"` |
-| `lines` | integer | `100` | Maximum line count |
-| `characters` | integer | `15000` | Maximum character count |
-| `resolve-imports` | boolean | `false` | Follow `@path/to/file.md` imports and relative links before checking limits |
+1. **Trim the file** — remove redundant rules, consolidate overlapping sections.
+2. **Split into focused files** — move subsections into separate `*.instructions.md` files and
+   link to them.  With `resolve-imports = false` (the default), linked files are not counted
+   against the root file's limits.
+3. **Move reference material externally** — link to `docs/` pages instead of embedding large
+   reference tables inline.
+4. **Raise the limit** — if the current content is intentionally comprehensive, increase
+   `lines` or `characters` in `aipm.toml` (see [Configuring thresholds](#configuring-thresholds)).
 
 ## See also
 
-- [skill/oversized](../skill/oversized.md) — analogous check for SKILL.md files
-- [Configuring lint](../../guides/configuring-lint.md) — how to tune severity and thresholds
+- [skill/oversized](../skill/oversized.md) — similar size check for SKILL.md files
 - [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system
+- [Configuring lint](../../guides/configuring-lint.md) — override rule severity or suppress rules per path
