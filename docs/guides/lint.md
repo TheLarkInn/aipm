@@ -291,6 +291,60 @@ All available rules, grouped by category:
 |------|----------|-------------|
 | [`source/misplaced-features`](../rules/source/misplaced-features.md) | warning | AI plugin feature files are outside the `.ai/` marketplace directory |
 
+## VS Code Extension
+
+The `vscode-aipm` extension surfaces `aipm lint` diagnostics inline as you edit, and
+adds autocompletion and hover documentation for `aipm.toml`.
+
+### Activation
+
+The extension activates automatically when the workspace contains any `aipm.toml` file.
+It connects to `aipm lsp`, which runs as a child process over stdio — no separate server
+process or port is required.
+
+File types that receive diagnostics and completions:
+
+| Pattern | Description |
+|---------|-------------|
+| `**/aipm.toml` | Workspace and plugin manifests |
+| `**/skills/SKILL.md` | Skills (flat layout) |
+| `**/skills/*/SKILL.md` | Skills (nested layout) |
+| `**/agents/*.md` | Agent files |
+| `**/hooks/hooks.json` | Hook configuration |
+| `**/.ai/*/aipm.toml` | Plugin manifests under `.ai/` |
+| `**/.ai/*/.claude-plugin/plugin.json` | Plugin JSON manifests |
+| `**/.ai/.claude-plugin/marketplace.json` | Marketplace manifest |
+
+### Configuration
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `aipm.path` | `"aipm"` | Path to the `aipm` binary. Set this if `aipm` is not in your `PATH`. |
+| `aipm.lint.enable` | `true` | Enable or disable lint diagnostics from the language server. |
+
+You can also override the binary path via the `AIPM_PATH` environment variable, which
+takes precedence over `aipm.path`.
+
+### Binary not found
+
+If the language server stops unexpectedly (most commonly because `aipm` is not installed
+or not on `PATH`), a notification appears with an **"Open Settings"** button that navigates
+directly to the `aipm.path` setting.
+
+### Installing the extension
+
+The extension is located in `vscode-aipm/` in the repository. To build and install it locally:
+
+```bash
+cd vscode-aipm
+npm install
+npm run compile
+```
+
+Then use **Extensions: Install from VSIX…** in VS Code to install the packaged extension, or
+open the `vscode-aipm/` folder directly as a VS Code workspace and press **F5** to launch an
+Extension Development Host.
+
 ## Exit Codes
 
 | Code | Meaning |
