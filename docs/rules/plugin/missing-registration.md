@@ -65,3 +65,6 @@ If `.ai/.claude-plugin/marketplace.json` does not exist yet, create it:
 
 - [marketplace/source-resolve](../marketplace/source-resolve.md) — validates that each `source` path resolves
 - [plugin/missing-manifest](missing-manifest.md) — validates that each plugin has a `plugin.json`
+- [Creating a plugin](../../guides/creating-a-plugin.md) — how to scaffold a new plugin with the correct directory layout
+- [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system
+- [Configuring lint](../../guides/configuring-lint.md) — override rule severity or suppress rules per path
