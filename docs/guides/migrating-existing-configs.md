@@ -38,7 +38,6 @@ The report lists every detected artifact, the plugin it will be grouped into, an
 | MCP servers | `.mcp.json` | `mcp` |
 | Hooks | `.claude/settings.json` hooks block | `hook` |
 | Output styles | `.claude/output-styles/<name>.md` | `composite` |
-| LSP servers | `lsp.json` | `lsp` |
 
 ### Copilot CLI (`.github/`)
 
