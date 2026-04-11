@@ -121,3 +121,7 @@ aipm install github:my-company/internal-plugins:tools/linter@v1.0
 ```bash
 aipm install git:https://git.company.com/team/plugins:governance/compliance@main
 ```
+
+---
+
+See also: [`aipm install`](../../README.md#aipm-install), [`docs/guides/install-marketplace-plugin.md`](./install-marketplace-plugin.md), [`docs/guides/install-local-plugin.md`](./install-local-plugin.md), [`docs/guides/source-security.md`](./source-security.md), [`docs/guides/cache-management.md`](./cache-management.md), [`docs/guides/global-plugins.md`](./global-plugins.md).

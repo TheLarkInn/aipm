@@ -248,3 +248,7 @@ External reference detected: scripts/common.sh (referenced by deploy)
 These files are not moved automatically. Resolve them manually after migration by
 copying the file into the plugin directory and updating the reference in
 `SKILL.md`.
+
+---
+
+See also: [`aipm migrate`](../../README.md#aipm-migrate), [`docs/guides/migrating-existing-configs.md`](./migrating-existing-configs.md), [`docs/guides/creating-a-plugin.md`](./creating-a-plugin.md), [`docs/guides/lint.md`](./lint.md).

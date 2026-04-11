@@ -134,3 +134,7 @@ aipm install --locked -vvv 2>&1 | tee aipm-debug.log
 # Or target just one subsystem
 AIPM_LOG=libaipm::installer=trace aipm install --locked
 ```
+
+---
+
+See also: [`aipm` global flags](../../README.md#global-flags), [`docs/guides/install-git-plugin.md`](./install-git-plugin.md), [`docs/guides/lint.md`](./lint.md).

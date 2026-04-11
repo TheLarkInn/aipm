@@ -100,3 +100,7 @@ aipm install --global --plugin-cache no-refresh github:org/repo:plugin@main
 ```
 
 The cache policy is stored per-plugin and applies whenever the plugin is used.
+
+---
+
+See also: [`aipm install`](../../README.md#aipm-install), [`docs/guides/install-git-plugin.md`](./install-git-plugin.md), [`docs/guides/install-marketplace-plugin.md`](./install-marketplace-plugin.md), [`docs/guides/cache-management.md`](./cache-management.md), [`docs/guides/source-security.md`](./source-security.md).

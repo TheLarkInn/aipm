@@ -66,3 +66,7 @@ GC runs automatically after cache-using operations:
 | CI/CD (reproducible) | `no-refresh` or `cache-only` |
 | Air-gapped environments | `cache-only` (pre-populate cache) |
 | Debugging plugin issues | `force-refresh` or `skip` |
+
+---
+
+See also: [`aipm install`](../../README.md#aipm-install), [`docs/guides/install-git-plugin.md`](./install-git-plugin.md), [`docs/guides/install-marketplace-plugin.md`](./install-marketplace-plugin.md), [`docs/guides/global-plugins.md`](./global-plugins.md), [`docs/guides/source-security.md`](./source-security.md).

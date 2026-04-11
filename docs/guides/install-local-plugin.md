@@ -65,3 +65,7 @@ source = "path+../my-plugin"
 | "Plugin directory does not exist" | The path doesn't point to a directory | Verify the relative path from your project root |
 | "Plugin path is not a directory" | The path points to a file | Point to the directory containing the plugin |
 | "Not a valid Claude plugin" | No `aipm.toml` or marker files found | Add an `aipm.toml` or `.claude-plugin/plugin.json` to the plugin |
+
+---
+
+See also: [`aipm install`](../../README.md#aipm-install), [`docs/guides/local-development.md`](./local-development.md), [`docs/guides/install-marketplace-plugin.md`](./install-marketplace-plugin.md), [`docs/guides/install-git-plugin.md`](./install-git-plugin.md).

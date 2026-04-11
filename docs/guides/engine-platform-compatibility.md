@@ -78,3 +78,7 @@ Platform incompatibility is a warning, not an error, because the plugin may stil
 | `"macos"` | Any macOS variant |
 
 Unknown platform values (e.g., `"freebsd"`) are preserved for forward compatibility but won't match any current platform.
+
+---
+
+See also: [`Manifest format`](../../README.md#manifest-format-aipmtoml), [`docs/guides/creating-a-plugin.md`](./creating-a-plugin.md), [`docs/guides/install-git-plugin.md`](./install-git-plugin.md).
