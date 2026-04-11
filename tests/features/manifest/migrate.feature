@@ -184,6 +184,26 @@ Feature: Migrate AI tool configurations into marketplace plugins
       When the user runs "aipm migrate" in "my-project"
       Then the command succeeds
 
+  Rule: Copilot CLI default path (.github/copilot/) is discovered
+
+    Scenario: Migrate a skill from .github/copilot/ (default copilot-cli path)
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a copilot skill "deploy" exists in "my-project"
+      When the user runs "aipm migrate --source .github" in "my-project"
+      Then the command succeeds
+      And a plugin directory exists at ".ai/deploy/" in "my-project"
+      And a file ".ai/deploy/skills/deploy/SKILL.md" exists in "my-project"
+
+    Scenario: Dry run finds skills in .github/copilot/ (default copilot-cli path)
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a copilot skill "deploy" exists in "my-project"
+      When the user runs "aipm migrate --dry-run --source .github" in "my-project"
+      Then the command succeeds
+      And a file "aipm-migrate-dryrun-report.md" exists in "my-project"
+      And the file "aipm-migrate-dryrun-report.md" in "my-project" contains "deploy"
+
   Rule: Prerequisites are validated
 
     Scenario: Error when marketplace directory is missing

@@ -709,6 +709,18 @@ async fn given_skill_exists(world: &mut AipmWorld, name: String, dir: String) {
     .expect("write SKILL.md");
 }
 
+#[given(expr = "a copilot skill {string} exists in {string}")]
+async fn given_copilot_skill_exists(world: &mut AipmWorld, name: String, dir: String) {
+    let base = world.dir_path(&dir);
+    let skill_dir = base.join(".github").join("copilot").join(&name);
+    std::fs::create_dir_all(&skill_dir).expect("create copilot skill dir");
+    std::fs::write(
+        skill_dir.join("SKILL.md"),
+        format!("---\nname: {name}\ndescription: {name} skill\n---\n{name} instructions"),
+    )
+    .expect("write SKILL.md");
+}
+
 #[given(expr = "a command {string} exists in {string}")]
 async fn given_command_exists(world: &mut AipmWorld, name: String, dir: String) {
     let base = world.dir_path(&dir);
