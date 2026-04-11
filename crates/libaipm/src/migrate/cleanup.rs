@@ -489,6 +489,18 @@ mod tests {
     }
 
     #[test]
+    fn mock_fs_exists_returns_true_for_file_not_in_dirs() {
+        // Exercises the `self.files.contains(path)` True branch in MockFs::exists
+        // (the second arm of the `||`), which is skipped when `dirs.contains_key`
+        // already returns true. Here the path is a plain file, not a directory.
+        let mut fs = MockFs::new();
+        let path = PathBuf::from("/p/.claude/commands/review.md");
+        fs.files.insert(path.clone());
+        assert!(fs.exists(&path));
+        assert!(!fs.exists(Path::new("/p/.claude/commands/nonexistent.md")));
+    }
+
+    #[test]
     fn source_at_root_path_has_no_parent_dir_to_check() {
         // Path::new("/").parent() returns None on Unix; verify that remove_migrated_sources
         // handles this gracefully and does not attempt to queue a parent dir for pruning.
