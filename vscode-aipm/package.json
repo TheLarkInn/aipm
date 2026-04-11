@@ -10,9 +10,7 @@
   "activationEvents": [
     "workspaceContains:**/aipm.toml"
   ],
-  "extensionDependencies": [
-    "tamasfe.even-better-toml"
-  ],
+
   "main": "./out/extension.js",
   "contributes": {
     "tomlValidation": [{
