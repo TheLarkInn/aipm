@@ -8,7 +8,7 @@
 
 ## Override rule severity
 
-Set any rule to `"error"`, `"warn"`, or `"allow"`:
+Set any rule to `"error"`, `"warn"`, or `"allow"` — or the equivalent aliases `"deny"` and `"warning"`:
 
 ```toml
 [workspace.lints]
@@ -22,7 +22,7 @@ Set any rule to `"error"`, `"warn"`, or `"allow"`:
 "skill/oversized" = "allow"
 ```
 
-Valid values: `"error"` · `"warn"` · `"allow"`
+Valid values: `"error"` · `"warn"` · `"allow"` — plus the aliases `"deny"` (same as `"error"`) and `"warning"` (same as `"warn"`)
 
 ## Ignore paths globally
 
@@ -74,11 +74,11 @@ paths = ["**/vendor/**", "**/third-party/**"]
 
 ## Severity levels
 
-| Level | Effect |
-|-------|--------|
-| `"error"` | Counts toward the error total; `aipm lint` exits non-zero when errors exist |
-| `"warn"` | Reported but does not fail the command |
-| `"allow"` | Silenced; rule does not run |
+| Level | Aliases | Effect |
+|-------|---------|--------|
+| `"error"` | `"deny"` | Counts toward the error total; `aipm lint` exits non-zero when errors exist |
+| `"warn"` | `"warning"` | Reported but does not fail the command |
+| `"allow"` | — | Silenced; rule does not run |
 
 ## Rule IDs
 
