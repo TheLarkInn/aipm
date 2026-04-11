@@ -1,4 +1,5 @@
-//! Copilot skill detector: scans `.github/skills/` for directories containing `SKILL.md`.
+//! Copilot skill detector: scans `.github/skills/` and `.github/copilot/` for directories
+//! containing `SKILL.md`.
 //!
 //! Thin wrapper delegating to shared `skill_common` logic.
 
@@ -10,7 +11,8 @@ use super::detector::Detector;
 use super::skill_common;
 use super::{Artifact, ArtifactKind, Error};
 
-/// Scans `.github/skills/` (Copilot CLI) for directories containing `SKILL.md`.
+/// Scans `.github/skills/` and `.github/copilot/` (Copilot CLI) for directories containing
+/// `SKILL.md`.
 pub struct CopilotSkillDetector;
 
 impl Detector for CopilotSkillDetector {
@@ -19,46 +21,52 @@ impl Detector for CopilotSkillDetector {
     }
 
     fn detect(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Artifact>, Error> {
-        let skills_dir = source_dir.join("skills");
-        if !fs.exists(&skills_dir) {
-            return Ok(Vec::new());
-        }
-
-        let entries = fs.read_dir(&skills_dir)?;
         let mut artifacts = Vec::new();
 
-        for entry in entries {
-            if !entry.is_dir {
+        // Scan both `.github/skills/` (legacy) and `.github/copilot/` (default copilot-cli path)
+        for subdir in &["skills", "copilot"] {
+            let skills_dir = source_dir.join(subdir);
+            if !fs.exists(&skills_dir) {
                 continue;
             }
 
-            let entry_dir = skills_dir.join(&entry.name);
-            let skill_md = entry_dir.join("SKILL.md");
+            let entries = fs.read_dir(&skills_dir)?;
 
-            if !fs.exists(&skill_md) {
-                continue;
+            for entry in entries {
+                if !entry.is_dir {
+                    continue;
+                }
+
+                let entry_dir = skills_dir.join(&entry.name);
+                let skill_md = entry_dir.join("SKILL.md");
+
+                if !fs.exists(&skill_md) {
+                    continue;
+                }
+
+                let content = fs.read_to_string(&skill_md)?;
+                let metadata = skill_common::parse_skill_frontmatter(&content, &skill_md)?;
+                let files = skill_common::collect_files_recursive(&entry_dir, &entry_dir, fs)?;
+
+                // Search for both Copilot and Claude skill dir variable references
+                let mut referenced_scripts =
+                    skill_common::extract_script_references(&content, "${SKILL_DIR}/");
+                referenced_scripts.extend(skill_common::extract_script_references(
+                    &content,
+                    "${CLAUDE_SKILL_DIR}/",
+                ));
+
+                let name = metadata.name.clone().unwrap_or_else(|| entry.name.clone());
+
+                artifacts.push(Artifact {
+                    kind: ArtifactKind::Skill,
+                    name,
+                    source_path: entry_dir,
+                    files,
+                    referenced_scripts,
+                    metadata,
+                });
             }
-
-            let content = fs.read_to_string(&skill_md)?;
-            let metadata = skill_common::parse_skill_frontmatter(&content, &skill_md)?;
-            let files = skill_common::collect_files_recursive(&entry_dir, &entry_dir, fs)?;
-
-            // Search for both Copilot and Claude skill dir variable references
-            let mut referenced_scripts =
-                skill_common::extract_script_references(&content, "${SKILL_DIR}/");
-            referenced_scripts
-                .extend(skill_common::extract_script_references(&content, "${CLAUDE_SKILL_DIR}/"));
-
-            let name = metadata.name.clone().unwrap_or_else(|| entry.name.clone());
-
-            artifacts.push(Artifact {
-                kind: ArtifactKind::Skill,
-                name,
-                source_path: entry_dir,
-                files,
-                referenced_scripts,
-                metadata,
-            });
         }
 
         Ok(artifacts)
@@ -275,5 +283,81 @@ mod tests {
         let result = detector.detect(Path::new("/project/.github"), &fs);
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn detect_skill_from_github_copilot_dir() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.github/copilot"));
+        fs.exists.insert(PathBuf::from("/project/.github/copilot/lint/SKILL.md"));
+        fs.dirs.insert(PathBuf::from("/project/.github/copilot"), vec![de("lint", true)]);
+        fs.dirs.insert(PathBuf::from("/project/.github/copilot/lint"), vec![de("SKILL.md", false)]);
+        fs.files.insert(
+            PathBuf::from("/project/.github/copilot/lint/SKILL.md"),
+            "---\nname: lint\ndescription: Lint code\n---\nLint instructions".to_string(),
+        );
+
+        let detector = CopilotSkillDetector;
+        let result = detector.detect(Path::new("/project/.github"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.len(), 1);
+        assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("lint"));
+        assert_eq!(artifacts.first().map(|a| &a.kind), Some(&ArtifactKind::Skill));
+    }
+
+    #[test]
+    fn detect_skills_from_both_github_skills_and_copilot_dirs() {
+        let mut fs = MockFs::new();
+        // skill in .github/skills/
+        fs.exists.insert(PathBuf::from("/project/.github/skills"));
+        fs.exists.insert(PathBuf::from("/project/.github/skills/deploy/SKILL.md"));
+        fs.dirs.insert(PathBuf::from("/project/.github/skills"), vec![de("deploy", true)]);
+        fs.dirs
+            .insert(PathBuf::from("/project/.github/skills/deploy"), vec![de("SKILL.md", false)]);
+        fs.files.insert(
+            PathBuf::from("/project/.github/skills/deploy/SKILL.md"),
+            "---\nname: deploy\ndescription: Deploy skill\n---\nDeploy instructions".to_string(),
+        );
+        // skill in .github/copilot/
+        fs.exists.insert(PathBuf::from("/project/.github/copilot"));
+        fs.exists.insert(PathBuf::from("/project/.github/copilot/lint/SKILL.md"));
+        fs.dirs.insert(PathBuf::from("/project/.github/copilot"), vec![de("lint", true)]);
+        fs.dirs.insert(PathBuf::from("/project/.github/copilot/lint"), vec![de("SKILL.md", false)]);
+        fs.files.insert(
+            PathBuf::from("/project/.github/copilot/lint/SKILL.md"),
+            "---\nname: lint\ndescription: Lint code\n---\nLint instructions".to_string(),
+        );
+
+        let detector = CopilotSkillDetector;
+        let result = detector.detect(Path::new("/project/.github"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.len(), 2);
+        let names: Vec<&str> = artifacts.iter().map(|a| a.name.as_str()).collect();
+        assert!(names.contains(&"deploy"));
+        assert!(names.contains(&"lint"));
+    }
+
+    #[test]
+    fn detect_skill_from_copilot_dir_without_name_uses_dir_name() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.github/copilot"));
+        fs.exists.insert(PathBuf::from("/project/.github/copilot/my-skill/SKILL.md"));
+        fs.dirs.insert(PathBuf::from("/project/.github/copilot"), vec![de("my-skill", true)]);
+        fs.dirs.insert(
+            PathBuf::from("/project/.github/copilot/my-skill"),
+            vec![de("SKILL.md", false)],
+        );
+        fs.files.insert(
+            PathBuf::from("/project/.github/copilot/my-skill/SKILL.md"),
+            "---\ndescription: no name\n---\nbody".to_string(),
+        );
+
+        let detector = CopilotSkillDetector;
+        let result = detector.detect(Path::new("/project/.github"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("my-skill"));
     }
 }
