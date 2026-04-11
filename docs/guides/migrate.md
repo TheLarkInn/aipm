@@ -57,12 +57,17 @@ aipm migrate --source .claude
 
 | Artifact | Source Location | Migrated As |
 |----------|----------------|-------------|
-| Skills | `.github/skills/<name>/` | `skill` plugin |
+| Skills | `.github/skills/<name>/` or `.github/copilot/<name>/` | `skill` plugin |
 | Agents | `.github/agents/<name>.md` or `<name>.agent.md` | `agent` plugin |
 | MCP servers | `.copilot/mcp-config.json` | `mcp` plugin |
 | Hooks | `.github/hooks.json` or `.github/hooks/hooks.json` | `hook` plugin |
 | GitHub extensions | `.github/extensions/<name>/` | `composite` plugin |
 | LSP servers | `.github/lsp.json` or `lsp.json` | `lsp` plugin |
+
+> **Note**: The Copilot CLI stores skills in `.github/copilot/` by default. The
+> legacy `.github/skills/` path is also supported. Both directories are scanned
+> automatically; each subdirectory containing a `SKILL.md` file is detected as a
+> skill artifact.
 
 Files that are not claimed by any detector (e.g., scripts referenced from a
 skill) are also migrated and tracked.
