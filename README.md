@@ -136,7 +136,7 @@ Omit `PACKAGE` to install all dependencies from `aipm.toml`.
 
 **Global installs** write to `~/.aipm/registry/` and are available across all projects. Use `--engine` to scope a plugin to a specific AI tool.
 
-See also: [`docs/guides/global-plugins.md`](docs/guides/global-plugins.md), [`docs/guides/install-git-plugin.md`](docs/guides/install-git-plugin.md), [`docs/guides/cache-management.md`](docs/guides/cache-management.md).
+See also: [`docs/guides/install-marketplace-plugin.md`](docs/guides/install-marketplace-plugin.md), [`docs/guides/install-local-plugin.md`](docs/guides/install-local-plugin.md), [`docs/guides/install-git-plugin.md`](docs/guides/install-git-plugin.md), [`docs/guides/global-plugins.md`](docs/guides/global-plugins.md), [`docs/guides/cache-management.md`](docs/guides/cache-management.md).
 
 ### `aipm update`
 
