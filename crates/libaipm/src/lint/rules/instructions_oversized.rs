@@ -392,4 +392,28 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
     }
+
+    #[test]
+    fn resolve_imports_char_limit_exceeded_message_includes_resolved_and_direct_counts() {
+        // Covers the `if is_resolved { ... }` True branch at the character-limit check
+        // (L116). All prior `resolve_imports: true` tests only exceeded the *line* limit;
+        // this test sets a tiny `max_chars` so the resolved character total is over the
+        // threshold while the line count stays under the line limit.
+        let rule = Oversized { max_lines: 1_000, max_chars: 10, resolve_imports: true };
+        let mut fs = MockFs::new();
+        // main file: 8 chars ("@b.md\n" = 6 + "x\n" = 2 = 8), shared: 5 chars ("hello")
+        // resolved total ≈ 13 > max_chars 10
+        let main = make_file(&mut fs, "CLAUDE.md", "@b.md\nx\n");
+        let b = PathBuf::from("b.md");
+        fs.exists.insert(b.clone());
+        fs.files.insert(b, "hello".to_string());
+
+        let diags = rule.check_file(&main, &fs).ok().unwrap_or_default();
+        assert!(!diags.is_empty(), "expected a character-limit diagnostic");
+        let char_diag = diags.iter().find(|d| d.message.contains("character limit"));
+        assert!(char_diag.is_some(), "expected 'character limit' in diagnostic message");
+        let msg = &char_diag.unwrap().message;
+        assert!(msg.contains("resolved total"), "expected 'resolved total' in: {msg}");
+        assert!(msg.contains("direct"), "expected 'direct' in: {msg}");
+    }
 }
