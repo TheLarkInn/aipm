@@ -1109,4 +1109,37 @@ mod tests {
         assert_eq!(diags[1].rule_id, "r2"); // a.md:3
         assert_eq!(diags[2].rule_id, "r1"); // b.md:5:10
     }
+
+    #[test]
+    fn lint_misplaced_features_suppressed_by_allow_config() {
+        // Covers the False branch of `if !config.is_suppressed(rule.id())` in
+        // `dispatch_rules_for_feature` (lint/mod.rs line 97): when the
+        // `source/misplaced-features` rule is set to Allow, the branch body is
+        // skipped and no diagnostic is emitted for an out-of-place feature.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Create a SKILL.md outside .ai/ so it would normally trigger
+        // source/misplaced-features.
+        write_skill_md(&root.join(".claude").join("skills").join("default"), "misplaced-skill");
+
+        let mut config = config::Config::default();
+        config
+            .rule_overrides
+            .insert("source/misplaced-features".to_string(), config::RuleOverride::Allow);
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: Some(".claude".to_string()),
+            config,
+            max_depth: None,
+        };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap();
+        assert!(
+            !outcome.diagnostics.iter().any(|d| d.rule_id == "source/misplaced-features"),
+            "source/misplaced-features should be suppressed when set to Allow"
+        );
+    }
 }
