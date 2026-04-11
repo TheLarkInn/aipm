@@ -1032,4 +1032,30 @@ mod tests {
         let content = std::fs::read_to_string(dir2.join("v2.txt")).unwrap();
         assert_eq!(content, "v2");
     }
+
+    #[test]
+    fn cache_policy_parse_aliases() {
+        // Each variant has additional aliases beyond the canonical `to_string()` form.
+        // These branches are otherwise untouched by `cache_policy_roundtrip`.
+        let cases: &[(&str, Policy)] = &[
+            ("cacheonly", Policy::CacheOnly),
+            ("skip-cache", Policy::SkipCache),
+            ("skipcache", Policy::SkipCache),
+            ("forcerefresh", Policy::ForceRefresh),
+            ("force", Policy::ForceRefresh),
+            ("norefresh", Policy::CacheNoRefresh),
+            ("cache-no-refresh", Policy::CacheNoRefresh),
+        ];
+        for (input, expected) in cases {
+            let parsed = input.parse::<Policy>();
+            assert!(parsed.is_ok(), "expected '{input}' to parse successfully");
+            assert_eq!(parsed.unwrap(), *expected, "alias '{input}' mismatch");
+        }
+    }
+
+    #[test]
+    fn cache_policy_parse_unknown_returns_err() {
+        let result = "definitely-not-a-policy".parse::<Policy>();
+        assert!(result.is_err(), "unknown policy string should return Err");
+    }
 }
