@@ -9,7 +9,7 @@ AIPM ships as **two Rust binaries** with **zero runtime dependencies**:
 
 | Binary | Role | Commands |
 |--------|------|----------|
-| **`aipm`** | Consumer CLI | `init`, `install`, `update`, `uninstall`, `link`, `unlink`, `list`, `lint`, `migrate` |
+| **`aipm`** | Consumer CLI | `init`, `install`, `update`, `uninstall`, `link`, `unlink`, `list`, `lint`, `migrate`, `lsp` |
 | **`aipm-pack`** | Author CLI | `init` |
 
 Both work across .NET, Python, Node.js, and Rust projects with no runtime dependency.
@@ -226,6 +226,30 @@ aipm lint [OPTIONS] [DIR]
 Exits with a non-zero status code when violations are found, making it safe to use in CI pipelines. Use `--reporter ci-github` for GitHub Actions annotations or `--reporter ci-azure` for Azure Pipelines.
 
 See also: [`docs/guides/lint.md`](docs/guides/lint.md) for full CLI usage, output formats, and CI integration; [`docs/guides/configuring-lint.md`](docs/guides/configuring-lint.md) for rule severity overrides, path ignores, and per-rule configuration.
+
+### `aipm lsp`
+
+Start the `aipm` Language Server Protocol (LSP) server on stdio.
+
+```
+aipm lsp
+```
+
+The LSP server is launched automatically by the [`vscode-aipm`](docs/guides/vscode-extension.md) extension and is not typically invoked directly. It communicates over stdin/stdout using the Language Server Protocol.
+
+**Capabilities:**
+
+| Capability | Description |
+|---|---|
+| `textDocument/publishDiagnostics` | Publishes `aipm lint` violations as inline diagnostics on file open and save (300 ms debounce) |
+| `textDocument/completion` | Autocompletes rule IDs and severity values inside `[workspace.lints]` in `aipm.toml` |
+| `textDocument/hover` | Shows rule name, default severity, and help text when hovering a rule ID in `aipm.toml` |
+
+**Supported file patterns** (same as the VS Code extension document selector): `aipm.toml`, `skills/SKILL.md`, `skills/*/SKILL.md`, `agents/*.md`, `hooks/hooks.json`, `.ai/*/aipm.toml`, `.ai/*/.claude-plugin/plugin.json`, `.ai/.claude-plugin/marketplace.json`.
+
+**Binary resolution:** the server looks up the `aipm` binary from `AIPM_PATH` (environment variable) or the `aipm.path` VS Code setting (default: `"aipm"`).
+
+See also: [`docs/guides/vscode-extension.md`](docs/guides/vscode-extension.md) for installation, configuration, and development setup.
 
 ---
 
