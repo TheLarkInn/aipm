@@ -82,7 +82,7 @@ fn run_rules_for_feature(
     let is_inside_ai = feature.source_context.as_ref().is_some_and(|ctx| ctx.source_type == ".ai");
 
     // 1. Quality rules — run on ALL features regardless of location.
-    let quality_rules = rules::quality_rules_for_kind(&feature.kind);
+    let quality_rules = rules::quality_rules_for_kind(&feature.kind, config);
     for rule in &quality_rules {
         if config.is_suppressed(rule.id()) {
             continue;
@@ -319,8 +319,9 @@ mod tests {
         cfg.rule_overrides.insert(
             "stub/per-rule-ignore".to_string(),
             config::RuleOverride::Detailed {
-                level: Severity::Warning,
+                level: Some(Severity::Warning),
                 ignore: vec!["vendor/**".to_string()],
+                options: std::collections::BTreeMap::new(),
             },
         );
 
@@ -835,8 +836,9 @@ mod tests {
         cfg.rule_overrides.insert(
             "source/misplaced-features".to_string(),
             config::RuleOverride::Detailed {
-                level: Severity::Warning,
+                level: Some(Severity::Warning),
                 ignore: vec!["**/vendor/**".to_string()],
+                options: std::collections::BTreeMap::new(),
             },
         );
 
@@ -1140,6 +1142,90 @@ mod tests {
         assert!(
             !outcome.diagnostics.iter().any(|d| d.rule_id == "source/misplaced-features"),
             "source/misplaced-features should be suppressed when set to Allow"
+        );
+    }
+
+    // --- instructions/oversized integration tests ---
+
+    #[test]
+    fn lint_discovers_oversized_instruction_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Create a CLAUDE.md with >100 lines
+        let content: String = (0..110).map(|i| format!("line {i}\n")).collect();
+        std::fs::write(root.join("CLAUDE.md"), &content).unwrap();
+        // Create .ai/ marker
+        std::fs::create_dir_all(root.join(".ai")).unwrap();
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap();
+        assert!(
+            outcome.diagnostics.iter().any(|d| d.rule_id == "instructions/oversized"),
+            "should detect oversized CLAUDE.md"
+        );
+    }
+
+    #[test]
+    fn lint_config_overrides_thresholds() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // 60 lines — under default 100, over custom 50
+        let content: String = (0..60).map(|i| format!("line {i}\n")).collect();
+        std::fs::write(root.join("CLAUDE.md"), &content).unwrap();
+        std::fs::create_dir_all(root.join(".ai")).unwrap();
+
+        let mut cfg = config::Config::default();
+        let mut opts_map = std::collections::BTreeMap::new();
+        opts_map.insert("lines".to_string(), toml::Value::Integer(50));
+        cfg.rule_overrides.insert(
+            "instructions/oversized".to_string(),
+            config::RuleOverride::Detailed {
+                level: Some(Severity::Warning),
+                ignore: vec![],
+                options: opts_map,
+            },
+        );
+
+        let opts = Options { dir: root.to_path_buf(), source: None, config: cfg, max_depth: None };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap();
+        assert!(
+            outcome.diagnostics.iter().any(|d| d.rule_id == "instructions/oversized"),
+            "custom threshold of 50 lines should trigger on 60-line file"
+        );
+    }
+
+    #[test]
+    fn lint_config_allow_suppresses_instructions_oversized() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Oversized CLAUDE.md
+        let content: String = (0..110).map(|i| format!("line {i}\n")).collect();
+        std::fs::write(root.join("CLAUDE.md"), &content).unwrap();
+        std::fs::create_dir_all(root.join(".ai")).unwrap();
+
+        let mut cfg = config::Config::default();
+        cfg.rule_overrides
+            .insert("instructions/oversized".to_string(), config::RuleOverride::Allow);
+
+        let opts = Options { dir: root.to_path_buf(), source: None, config: cfg, max_depth: None };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap();
+        assert!(
+            !outcome.diagnostics.iter().any(|d| d.rule_id == "instructions/oversized"),
+            "instructions/oversized should be suppressed by allow"
         );
     }
 }

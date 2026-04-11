@@ -488,8 +488,9 @@ mod tests {
         assert!(index.contains_key("agent/missing-tools"));
         assert!(index.contains_key("plugin/missing-manifest"));
         assert!(index.contains_key("source/misplaced-features"));
-        // 17 rules total (16 quality rules + source/misplaced-features)
-        assert_eq!(index.len(), 17);
+        assert!(index.contains_key("instructions/oversized"));
+        // 18 rules total (17 quality rules + source/misplaced-features)
+        assert_eq!(index.len(), 18);
     }
 
     #[test]
