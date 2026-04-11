@@ -50,3 +50,6 @@ Run `aipm-pack init` to scaffold a new plugin with all required fields pre-popul
 
 - [plugin/missing-manifest](missing-manifest.md) — validates that `plugin.json` exists
 - [plugin/missing-registration](missing-registration.md) — validates the plugin is listed in `marketplace.json`
+- [Creating a plugin](../../guides/creating-a-plugin.md) — how to scaffold a new plugin with all required fields pre-populated
+- [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system
+- [Configuring lint](../../guides/configuring-lint.md) — override rule severity or suppress rules per path
