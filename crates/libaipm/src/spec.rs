@@ -1556,4 +1556,20 @@ mod tests {
             assert!(reason.contains("owner cannot be empty"), "got: {reason}");
         }
     }
+
+    #[test]
+    fn validate_github_owner_leading_hyphen_rejected() {
+        // Covers the `owner.starts_with('-')` branch in `validate_github_owner`.
+        // GitHub forbids owner names that begin with a hyphen.
+        let result = validate_github_owner("-org");
+        assert!(matches!(result, Err(Error::GitHub { .. })));
+    }
+
+    #[test]
+    fn validate_github_owner_trailing_hyphen_rejected() {
+        // Covers the `owner.ends_with('-')` branch in `validate_github_owner`.
+        // GitHub forbids owner names that end with a hyphen.
+        let result = validate_github_owner("org-");
+        assert!(matches!(result, Err(Error::GitHub { .. })));
+    }
 }
