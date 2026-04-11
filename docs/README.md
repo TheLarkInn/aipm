@@ -22,6 +22,7 @@ How-to guides for common tasks:
 | [Engine & Platform Compatibility](guides/engine-platform-compatibility.md) | Declare supported AI tools and operating systems |
 | [Download Cache](guides/cache-management.md) | Cache policies, TTL, and garbage collection |
 | [Source Security](guides/source-security.md) | Source allowlists and path traversal protection |
+| [VS Code Extension](guides/vscode-extension.md) | Real-time lint diagnostics, completions, and hover in VS Code via `aipm lsp` |
 
 ## Lint Rule Reference
 
