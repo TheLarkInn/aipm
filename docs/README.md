@@ -16,7 +16,7 @@ How-to guides for common tasks:
 | [Local Development](guides/local-development.md) | Develop plugins locally with `aipm link` / `aipm unlink` |
 | [Migrating Existing Configurations](guides/migrate.md) | Convert `.claude/` / `.github/` configs to marketplace plugins |
 | [Migrating — Step-by-step](guides/migrating-existing-configs.md) | Dry-run, destructive cleanup, recursive discovery walkthrough |
-| [Configuring Lint](guides/configuring-lint.md) | Tune rule severity, suppress noise, exclude directories |
+| [Configuring Lint](guides/configuring-lint.md) | Tune rule severity, suppress noise, exclude directories, and configure editor schema support |
 | [Using `aipm lint`](guides/lint.md) | CLI flags, output formats, CI integration, rules reference |
 | [Verbosity & Logging](guides/verbosity-and-logging.md) | Verbosity flags, `AIPM_LOG`, log file, CI recommendations |
 | [Engine & Platform Compatibility](guides/engine-platform-compatibility.md) | Declare supported AI tools and operating systems |

@@ -74,6 +74,14 @@ The extension registers a JSON Schema for `aipm.toml` via the `tomlValidation` c
 - **Validation** — unknown keys and type mismatches are flagged inline
 - **Autocomplete** — `Ctrl+Space` suggests valid fields and values
 
+The schema covers only `[workspace.lints]` and is also available standalone for other editors:
+
+```
+https://raw.githubusercontent.com/TheLarkInn/aipm/main/schemas/aipm.toml.schema.json
+```
+
+See [Configuring Lint — Editor schema support](./configuring-lint.md#editor-schema-support) for Taplo and SchemaStore setup instructions.
+
 ### Completions in `[workspace.lints]`
 
 Inside the `[workspace.lints]` section of `aipm.toml`, the language server provides:
@@ -104,6 +112,8 @@ This error appears if the `aipm` binary cannot be found or crashes on startup. S
 ### Schema validation not working
 
 Schema validation for `aipm.toml` fields requires the **Even Better TOML** extension. Install it from the Marketplace and reload VS Code.
+
+If you prefer not to install Even Better TOML, or if you use a different editor, you can configure Taplo directly with a `.taplo.toml` file — see [Editor schema support](./configuring-lint.md#editor-schema-support) in the lint configuration guide.
 
 ---
 
