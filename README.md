@@ -405,6 +405,26 @@ framework = "^1.0.0"
 framework = "^2.0.0-beta.1"
 ```
 
+### Editor Schema Support for `aipm.toml`
+
+A JSON Schema for `aipm.toml` provides autocomplete and inline validation for `[workspace.lints]` in any editor that understands TOML or JSON Schema:
+
+**Schema URL:**
+```
+https://raw.githubusercontent.com/TheLarkInn/aipm/main/schemas/aipm.toml.schema.json
+```
+
+- **VS Code** — install the [`vscode-aipm`](docs/guides/vscode-extension.md) extension; it registers the schema automatically via `tomlValidation`. Requires [Even Better TOML](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml) or Taplo for validation and autocomplete.
+- **Neovim / Helix / Emacs (Taplo)** — add a `.taplo.toml` to your project root:
+  ```toml
+  [[rule]]
+  include = ["**/aipm.toml"]
+  schema = "https://raw.githubusercontent.com/TheLarkInn/aipm/main/schemas/aipm.toml.schema.json"
+  ```
+- **SchemaStore** — a catalog entry is prepared at `schemas/schemastore-submission/catalog-entry.json` for submission to [SchemaStore.org](https://www.schemastore.org/). Once merged, Taplo and Tombi users get zero-install coverage — no `.taplo.toml` needed.
+
+See [Editor schema support](docs/guides/configuring-lint.md#editor-schema-support) in the lint configuration guide for full details.
+
 ---
 
 ## Project Structure
