@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.20.1] - 2026-04-12
+
+### Testing
+- Cover touch_entry False branch when key absent from index (32ccca9)
+- Cover unsafe markdown link and unclosed paren branches (460deb7)
+- Cover warn-and-skip path for non-regular skill files (899a4e7)
+- Cover resolve_imports char-limit True branch (5aa9a3b)
+- Extract make_temp_dir helper to cover cleanup-guard True branch (ff89580)
+- Cover locate_json_key None path and check_file malformed JSON (f093fe3)
+
 ## [0.20.0] - 2026-04-11
 
 ### Documentation
