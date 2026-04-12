@@ -1,3 +1,8 @@
-Iteration 1 complete - all 15 features implemented and verified
+Iteration 2 complete - added missing test coverage for Instructions exemption
 Build gates: cargo build ✓, cargo test ✓, cargo clippy ✓, cargo fmt ✓
-Coverage: 89.07% branch (≥89% required)
+Coverage: 89.20% branch (≥89% required) ✓
+aipm lint .: 0 errors, 0 warnings ✓
+
+All 8 features pass. Added in iteration 2:
+- crates/libaipm/src/lint/mod.rs: lint_instruction_files_not_flagged_as_misplaced() test
+  covering the new FeatureKind::Instructions exemption branch

@@ -41,40 +41,17 @@ All four must pass with zero warnings before any commit.
 
 ## Coverage Commands (MANDATORY before pushing)
 
-Coverage uses nightly Rust for branch-level instrumentation. The coverage check
-is a **correctness gate** — LLM-generated code must hit 89% branch coverage.
+89% branch coverage is required. Prereqs: `rustup toolchain install nightly && rustup component add llvm-tools-preview --toolchain nightly && cargo install cargo-llvm-cov`
 
 ```bash
-# Clean prior coverage data to ensure a fresh run (matches CI behavior)
 cargo +nightly llvm-cov clean --workspace
-
-# 1) Collect workspace test coverage (no report yet)
 cargo +nightly llvm-cov --no-report --workspace --branch
-
-# 2) Collect doctest coverage (no report yet)
 cargo +nightly llvm-cov --no-report --doc
-
-# 3) Generate report — verify TOTAL line branch column shows >= 89%
 cargo +nightly llvm-cov report --doctests --branch \
   --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs|lsp\.rs)'
-
-# HTML report (visual inspection; uses merged tests + doctests)
-cargo +nightly llvm-cov report --workspace --branch --doctests \
-  --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs|lsp\.rs)' \
-  --html --open
-
-# lcov for VS Code Coverage Gutters extension (uses merged tests + doctests)
-cargo +nightly llvm-cov report --workspace --branch --doctests \
-  --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs|lsp\.rs)' \
-  --lcov --output-path lcov.info
 ```
 
-All coverage commands require the nightly toolchain and llvm-tools-preview:
-```bash
-rustup toolchain install nightly
-rustup component add llvm-tools-preview --toolchain nightly
-cargo install cargo-llvm-cov
-```
+Verify the TOTAL branch column shows ≥ 89%. For HTML or lcov output, append `--html --open` or `--lcov --output-path lcov.info` to the report command.
 
 ## Agentic Workflows
 
@@ -90,13 +67,7 @@ The repository uses [GitHub Agentic Workflows](https://githubnext.com/projects/a
 
 ### Why 45 minutes?
 
-The full agent cycle (Rust nightly toolchain install → build → test → coverage instrumentation → analysis → PR creation) consistently exceeded shorter timeouts. Specifically:
-
-- `improve-coverage` was killed at 30 min with 29+ repeated failures ([issue #367](https://github.com/TheLarkInn/aipm/issues/367))
-- `daily-qa` was killed at 15 min
-- `docs-updater` was killed at the default 20 min
-
-**Do not lower these timeouts.** If a workflow still times out, investigate the agent logic — do not reduce the limit.
+The full agent cycle (nightly toolchain install → build → test → coverage → analysis → PR creation) consistently exceeded shorter limits — `improve-coverage` failed 29+ times at 30 min ([#367](https://github.com/TheLarkInn/aipm/issues/367)), `daily-qa` at 15 min, `docs-updater` at 20 min. **Do not lower these timeouts.** If a workflow still times out, investigate the agent logic — do not reduce the limit.
 
 ### Modifying workflow files
 

@@ -1,4 +1,5 @@
 ---
+name: scaffold-plugin
 description: Scaffold a new AI plugin in the .ai/ marketplace directory. Use when the user wants to create a new plugin, skill, agent, or hook package.
 ---
 

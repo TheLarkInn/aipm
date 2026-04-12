@@ -13,7 +13,7 @@ pub mod rules;
 
 use std::path::PathBuf;
 
-use crate::discovery::DiscoveredFeature;
+use crate::discovery::{DiscoveredFeature, FeatureKind};
 use crate::fs::Fs;
 
 pub use diagnostic::{Diagnostic, Severity};
@@ -91,8 +91,10 @@ fn run_rules_for_feature(
         apply_rule_diagnostics(rule.as_ref(), rule_diagnostics, config, diagnostics);
     }
 
-    // 2. Misplaced-features — run on features NOT inside .ai/.
-    if !is_inside_ai {
+    // 2. Misplaced-features — run on features NOT inside .ai/, but NOT on instruction files.
+    // Instruction files (CLAUDE.md, AGENTS.md, etc.) live at the repo root by design and
+    // are not plugin features — flagging them as misplaced would always be a false positive.
+    if !is_inside_ai && feature.kind != FeatureKind::Instructions {
         let rule = rules::misplaced_features_rule(feature, ai_exists);
         if !config.is_suppressed(rule.id()) {
             let rule_diagnostics = rule.check_file(&feature.file_path, fs)?;
@@ -810,6 +812,57 @@ mod tests {
             outcome.diagnostics.iter().find(|d| d.rule_id == "source/misplaced-features").unwrap();
         let help = diag.help_text.as_deref().unwrap_or("");
         assert!(help.contains("aipm init"));
+    }
+
+    /// Instruction files (CLAUDE.md, AGENTS.md, etc.) live at the repo root by design and
+    /// must NOT trigger `source/misplaced-features` even though they are outside `.ai/`.
+    ///
+    /// A skill outside `.ai/` (in `.claude/`) MUST still trigger the rule — this ensures
+    /// the exemption is narrowly scoped to `FeatureKind::Instructions`, not all outside-`.ai/`
+    /// features. The test covers both branches of the `kind != FeatureKind::Instructions` guard.
+    #[test]
+    fn lint_instruction_files_not_flagged_as_misplaced() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // CLAUDE.md at the repo root — Instructions feature outside .ai/ (must NOT be flagged)
+        std::fs::write(root.join("CLAUDE.md"), "# Project Rules\n\nSome rules here.\n").unwrap();
+
+        // A skill in .claude/ — Skill feature outside .ai/ (MUST still be flagged)
+        write_skill_md(&root.join(".claude").join("skills").join("misplaced"), "misplaced-skill");
+
+        // .ai/ exists so the help text uses "aipm migrate" path
+        std::fs::create_dir_all(root.join(".ai").join(".claude-plugin")).unwrap();
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap();
+
+        // The skill in .claude/ must still be flagged as misplaced
+        assert!(
+            outcome.diagnostics.iter().any(|d| d.rule_id == "source/misplaced-features"),
+            "source/misplaced-features must still fire for skills outside .ai/"
+        );
+
+        // CLAUDE.md must NOT appear in any misplaced-features diagnostic
+        let misplaced_on_claude: Vec<_> = outcome
+            .diagnostics
+            .iter()
+            .filter(|d| {
+                d.rule_id == "source/misplaced-features"
+                    && d.file_path.file_name().is_some_and(|n| n == "CLAUDE.md")
+            })
+            .collect();
+        assert!(
+            misplaced_on_claude.is_empty(),
+            "source/misplaced-features must not fire on CLAUDE.md (instruction files are not plugin features)"
+        );
     }
 
     /// Covers the `is_ignored(&path_str, rule_ignores)` True branch.

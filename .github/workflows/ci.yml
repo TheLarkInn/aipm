@@ -33,6 +33,9 @@ jobs:
       - name: Build
         run: cargo build --workspace
 
+      - name: Lint AI plugins
+        run: ./target/debug/aipm lint . --reporter ci-github
+
       - name: Test
         run: cargo test --workspace
 
