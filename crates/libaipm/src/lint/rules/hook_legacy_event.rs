@@ -303,6 +303,58 @@ mod tests {
     }
 
     #[test]
+    fn check_file_malformed_json_silently_skipped() {
+        // LegacyEventName.check_file() silently skips malformed JSON
+        // (the Err(_) arm at the match on serde_json::from_str), unlike check()
+        // which never reaches that path.
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/hooks/hooks.json");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), "not json {{{".to_string());
+
+        let result = LegacyEventName.check_file(&path, &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn check_file_locate_json_key_returns_none_for_unicode_escaped_key() {
+        // When a JSON key is written with a Unicode escape (e.g. "St\u006fp" which
+        // serde_json resolves to "Stop"), locate_json_key searches the raw content for
+        // the literal string "Stop" and cannot find it.  The diagnostic is still
+        // produced but with line=None, col=None, end_col=None.
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/hooks/hooks.json");
+        fs.exists.insert(path.clone());
+        // \u006f is 'o', so "St\u006fp" parses to "Stop" but the raw bytes differ.
+        fs.files.insert(path.clone(), r#"{"St\u006fp": []}"#.to_string());
+
+        let diags = LegacyEventName.check_file(&path, &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].rule_id, "hook/legacy-event-name");
+        assert!(diags[0].message.contains("agentStop"));
+        assert_eq!(diags[0].line, None);
+        assert_eq!(diags[0].col, None);
+        assert_eq!(diags[0].end_col, None);
+    }
+
+    #[test]
+    fn check_locate_json_key_returns_none_for_unicode_escaped_key() {
+        // Same as the check_file variant but exercises the check() code path.
+        let mut fs = MockFs::new();
+        // \u006f is 'o', so "St\u006fp" parses to "Stop" but the raw bytes differ.
+        fs.add_hooks("p", r#"{"St\u006fp": []}"#);
+
+        let diags = LegacyEventName.check(Path::new(".ai"), &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].rule_id, "hook/legacy-event-name");
+        assert!(diags[0].message.contains("agentStop"));
+        assert_eq!(diags[0].line, None);
+        assert_eq!(diags[0].col, None);
+        assert_eq!(diags[0].end_col, None);
+    }
+
+    #[test]
     fn check_file_multiline_json_line_number_found() {
         // Multi-line JSON means the find_map closure returns None for lines that
         // don't contain the key (the `else { None }` arm), then Some once the
