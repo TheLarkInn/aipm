@@ -110,50 +110,6 @@
                   }
                 }
               ]
-            },
-            "^instructions/oversized$": {
-              "description": "Override the severity of the instructions/oversized rule, or configure its line and character thresholds.",
-              "oneOf": [
-                {
-                  "type": "string",
-                  "enum": ["allow", "warn", "warning", "error", "deny"],
-                  "description": "Simple severity override. \"allow\" suppresses the rule; \"warn\"/\"warning\" makes it advisory (exit 0); \"error\"/\"deny\" makes it blocking (exit 1)."
-                },
-                {
-                  "type": "object",
-                  "description": "Detailed rule config: change severity, set size thresholds, enable import resolution, and/or provide per-rule ignore paths. All properties are optional.",
-                  "additionalProperties": false,
-                  "properties": {
-                    "level": {
-                      "type": "string",
-                      "enum": ["allow", "warn", "warning", "error", "deny"],
-                      "description": "Severity level for this rule."
-                    },
-                    "lines": {
-                      "type": "integer",
-                      "description": "Maximum number of lines allowed in an instruction file (default: 100).",
-                      "minimum": 1
-                    },
-                    "characters": {
-                      "type": "integer",
-                      "description": "Maximum number of characters allowed in an instruction file (default: 15000).",
-                      "minimum": 1
-                    },
-                    "resolve-imports": {
-                      "type": "boolean",
-                      "description": "When true, follows @import lines and relative markdown links transitively, accumulating combined line and character counts (default: false)."
-                    },
-                    "ignore": {
-                      "type": "array",
-                      "description": "Glob patterns to exclude from this specific rule only.",
-                      "items": {
-                        "type": "string",
-                        "description": "A glob pattern relative to the workspace root."
-                      }
-                    }
-                  }
-                }
-              ]
             }
           }
         }
