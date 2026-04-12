@@ -1,6 +1,13 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.20.1] - 2026-04-12
+
+### Testing
+- Cover load_lint_config edge-case branches (2a43059)
+- Cover load_installed_registry file-exists and load_lint_config non-NotFound IO error branches (063854f)
+- Cover ignore-only rule override branch in load_lint_config (396b5b3)
+
 ## [0.20.0] - 2026-04-11
 
 ### Documentation

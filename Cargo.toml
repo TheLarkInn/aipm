@@ -7,7 +7,7 @@ resolver = "2"
 # =============================================================================
 
 [workspace.package]
-version = "0.20.0"
+version = "0.20.1"
 edition = "2021"
 license = "MIT"
 repository = "https://github.com/thelarkinn/aipm"
@@ -22,7 +22,7 @@ readme = "README.md"
 
 [workspace.dependencies]
 # Shared library
-libaipm = { path = "crates/libaipm", version = "0.20.0" }
+libaipm = { path = "crates/libaipm", version = "0.20.1" }
 
 # CLI
 clap = { version = "4", features = ["derive"] }
