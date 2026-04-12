@@ -11,6 +11,8 @@ Write code that is correct, idiomatic, and efficient on the first pass. Don't ma
 
 **Core principle:** Use the platform. Build maps, not nested loops. Count without allocating. Protect your dictionaries. Keep your shapes monomorphic. Name your types. Hoist your constants.
 
+For violation examples, fix patterns, and extended explanations see `references/anti-pattern-details.md`.
+
 ## The Iron Laws
 
 ```
@@ -29,31 +31,11 @@ Write code that is correct, idiomatic, and efficient on the first pass. Don't ma
 13. ALWAYS accept Iterable<T> (not T[]) when using for...of in helpers
 ```
 
-## Anti-Pattern 1: O(n²) Collection Scanning
+## Anti-Pattern Gates
 
-**The violation:**
-```typescript
-// ❌ BAD: .find() inside .map() = O(n × m)
-const steps = befores.map((b) => {
-  const a = afters.find((x) => x.callId === b.callId);
-  return { ...b, endTime: a?.endTime };
-});
-```
+### AP1: O(n²) Collection Scanning
 
-**Why:** 1,000 events x 1,000 lookups = 1,000,000 comparisons. Pre-build a Map for O(1) lookups.
-
-**The fix:**
-```typescript
-// ✅ GOOD: Pre-build Map, then O(1) lookups
-const afterMap = new Map(afters.map((a) => [a.callId, a]));
-
-const steps = befores.map((b) => {
-  const a = afterMap.get(b.callId!);
-  return { ...b, endTime: a?.endTime };
-});
-```
-
-### Gate Function
+Pre-build a `Map` before the loop; use `.get()` for O(1) lookup instead of `.find()` inside `.map()`.
 
 ```
 BEFORE using .find(), .filter(), or .some() on a collection:
@@ -68,44 +50,9 @@ BEFORE using .find(), .filter(), or .some() on a collection:
     - On a collection known to be tiny (< 10 elements)
 ```
 
-## Anti-Pattern 2: Allocating Arrays Just to Count
+### AP2: Allocating Arrays Just to Count
 
-**The violation:**
-```typescript
-// ❌ BAD: Two temp arrays allocated, only .length is read, then both are discarded
-const expects: Step[] = children.filter((c) => c.method === 'expect');
-const errors: Step[] = expects.filter((e) => e.error);
-return { expectCount: expects.length, expectErrorCount: errors.length };
-```
-
-**Why:** V8 does NOT optimize `.filter().length` into a count. It allocates the full array, copies matching elements, reads `.length`, then the GC reclaims it. Benchmarked at **2.4x slower** than a counting loop on real trace data (6,498 events).
-
-**The fix:**
-```typescript
-// ✅ GOOD: Single pass, zero allocations
-let expectCount: number = 0;
-let expectErrorCount: number = 0;
-for (const c of children) {
-  if (c.method === 'expect') {
-    expectCount++;
-    if (c.error) expectErrorCount++;
-  }
-}
-return { expectCount, expectErrorCount };
-```
-
-For standalone counts, use a `countIf` helper (note: accepts `Iterable`, not just arrays):
-```typescript
-function countIf<T>(items: Iterable<T>, predicate: (item: T) => boolean): number {
-  let count: number = 0;
-  for (const item of items) {
-    if (predicate(item)) count++;
-  }
-  return count;
-}
-```
-
-### Gate Function
+Use a counting loop or `countIf` helper; never `.filter().length` when you only need the count.
 
 ```
 BEFORE writing .filter(...).length:
@@ -119,30 +66,9 @@ BEFORE writing .filter(...).length:
     .filter().length is fine — the array is used
 ```
 
-## Anti-Pattern 3: Multiple Passes When One Will Do
+### AP3: Multiple Passes When One Will Do
 
-**The violation:**
-```typescript
-// ❌ BAD: Four O(n) passes over the same array
-const contextOpts = events.find((e) => e.type === 'context-options');
-const topError = events.find((e) => e.type === 'error');
-const befores = events.filter((e) => e.type === 'before');
-const afters = events.filter((e) => e.type === 'after');
-```
-
-**Why:** 4 full scans when 1 suffices. `Map.groupBy` exists for this.
-
-**The fix:**
-```typescript
-// ✅ GOOD: Single O(n) pass groups everything
-const byType = Map.groupBy(events, (e) => e.type);
-const contextOpts = byType.get('context-options')?.[0];
-const topError = byType.get('error')?.[0];
-const befores = byType.get('before') ?? [];
-const afters = byType.get('after') ?? [];
-```
-
-### Gate Function
+Use `Map.groupBy()` once and call `.get()` for each group.
 
 ```
 BEFORE writing multiple .find() or .filter() calls on the same array:
@@ -152,31 +78,9 @@ BEFORE writing multiple .find() or .filter() calls on the same array:
     STOP — Use Map.groupBy() once, then .get() each group
 ```
 
-## Anti-Pattern 4: Unsafe Dictionaries
+### AP4: Unsafe Dictionaries
 
-**The violation:**
-```typescript
-// ❌ BAD: Plain {} inherits from Object.prototype
-const counts: Record<string, number> = {};
-for (const s of steps) {
-  const m: string = s.method || 'unknown';
-  counts[m] = (counts[m] || 0) + 1;
-}
-```
-
-**Why:** `counts['constructor']` returns `Object.prototype.constructor` (a function, truthy), so `(counts['constructor'] || 0) + 1` produces `NaN`. Also: `Object.fromEntries()` produces prototype-bearing objects — don't use it to build dictionaries.
-
-**The fix:**
-```typescript
-// ✅ GOOD: Null-prototype object — no inherited keys
-const counts: Record<string, number> = Object.create(null);
-for (const s of steps) {
-  const m: string = s.method || 'unknown';
-  counts[m] = (counts[m] || 0) + 1;
-}
-```
-
-### Gate Function
+Use `Object.create(null)` or `new Map()` for any dictionary with dynamic keys.
 
 ```
 BEFORE creating a dictionary with dynamic keys:
@@ -187,23 +91,21 @@ BEFORE creating a dictionary with dynamic keys:
     It silently re-adds Object.prototype
 ```
 
-## Anti-Pattern 5: Hand-Rolling Node.js Built-ins
+### AP5: Hand-Rolling Node.js Built-ins
 
-**The violation:**
-```typescript
-// ❌ BAD: Redundant .trim() — parseInt already skips whitespace per the spec
-const nums = values.map((s: string) => parseInt(s.trim(), 10));
+Prefer `node:path`, `node:util`, `node:url` over hand-rolled string utilities.
+
+```
+BEFORE writing a string manipulation utility:
+  Ask: "Does Node.js or the JS standard library already do this?"
+
+  Check: node:path, node:util, node:url, node:fs, Map.groupBy, structuredClone
+
+  IF a built-in exists:
+    Use it — it handles edge cases you haven't thought of
 ```
 
-**Why:** `parseInt` skips leading whitespace per the ECMAScript spec. `.trim()` allocates a new string for nothing. Benchmarked at **1.3x slower** per call — pure waste.
-
-**The fix:**
-```typescript
-// ✅ GOOD: Drop the redundant work
-const nums = values.map((s: string) => parseInt(s, 10));
-```
-
-### Common built-ins to prefer
+Common substitutions:
 
 | Instead of | Use |
 |---|---|
@@ -214,39 +116,9 @@ const nums = values.map((s: string) => parseInt(s, 10));
 | `require('fs')` in `.mts` | `import fs from 'node:fs'` |
 | Manual URL parsing | `new URL(str)` |
 
-### Gate Function
+### AP6: Verbose Map Checks
 
-```
-BEFORE writing a string manipulation utility:
-  Ask: "Does Node.js or the JS standard library already do this?"
-
-  Check: node:path, node:util, node:url, node:fs, Map.groupBy, structuredClone
-
-  IF a built-in exists:
-    Use it — it handles edge cases you haven't thought of
-
-  Exceptions (rare):
-    - Streaming text decoders that must preserve encoding state across chunks
-    - Cases where the built-in's behavior is subtly wrong for your specific use case
-```
-
-## Anti-Pattern 6: Verbose Map Checks
-
-**The violation:**
-```typescript
-// ❌ BAD: Allocates an empty array on every cache miss just to check .length
-const hasChildren: boolean = (childrenByParent.get(callId) ?? []).length > 0;
-```
-
-**Why:** `Map.groupBy` only creates keys for non-empty groups. The `?? []` creates a throwaway array on every miss. Benchmarked at **1.8x slower** than `.has()`.
-
-**The fix:**
-```typescript
-// ✅ GOOD: Direct existence check — no allocation, clearer intent
-const hasChildren: boolean = childrenByParent.has(callId);
-```
-
-### Gate Function
+Use `map.has(key)` not `(map.get(key) ?? []).length > 0`.
 
 ```
 BEFORE writing (map.get(key) ?? []).length > 0:
@@ -255,37 +127,9 @@ BEFORE writing (map.get(key) ?? []).length > 0:
     Use !map.has(key) for absence
 ```
 
-## Anti-Pattern 7: Duplicate Utility Logic
+### AP7: Duplicate Utility Logic
 
-**The violation:**
-```typescript
-// ❌ BAD: Same 5-line "build a Map keyed by callId" loop copied twice
-const afterMap: Map<string, TraceEvent> = new Map();
-for (const a of afters) {
-  if (a.callId) afterMap.set(a.callId, a);
-}
-// ... 200 lines later, identical loop for befores ...
-```
-
-**Why:** Two copies of the same bug surface. Extract a helper.
-
-**The fix:**
-```typescript
-// ✅ GOOD: Generic helper — accepts Iterable so it works on arrays, Sets, Maps, generators
-function buildMapFromProperty<K, V>(input: Iterable<V>, selector: (value: V) => K | undefined): Map<K, V> {
-  const result: Map<K, V> = new Map();
-  for (const elem of input) {
-    const key: K | undefined = selector(elem);
-    if (key !== undefined) result.set(key, elem);
-  }
-  return result;
-}
-
-const afterMap = buildMapFromProperty(afters, (a) => a.callId);
-const beforeByCallId = buildMapFromProperty(befores, (b) => b.callId);
-```
-
-### Gate Function
+Extract `buildMapFromProperty`, `countByKey`, `countIf` helpers accepting `Iterable<T>`.
 
 ```
 BEFORE writing a loop that builds a Map or counts by key:
@@ -301,33 +145,9 @@ BEFORE writing a loop that builds a Map or counts by key:
     - "Count items matching predicate" → countIf
 ```
 
-## Anti-Pattern 8: `.split()` on Large Strings
+### AP8: `.split()` on Large Strings
 
-**The violation:**
-```typescript
-// ❌ BAD: Materializes every line as a separate string object at once
-const lines = hugeFile.split('\n');
-for (const line of lines) {
-  processLine(line);
-}
-```
-
-**Why:** `.split('\n')` on a 10MB file creates thousands of small string objects in a single burst. Every substring is a heap allocation. The entire array and all its elements must live in memory simultaneously, causing GC pressure spikes. For one-off scripts this is fine, but in hot paths or large inputs, it's wasteful.
-
-**The fix:**
-```typescript
-// ✅ GOOD: Process one line at a time with indexOf/slice — earlier strings can be GC'd
-let pos: number = 0;
-while (pos < content.length) {
-  const nextNewline: number = content.indexOf('\n', pos);
-  const end: number = nextNewline === -1 ? content.length : nextNewline;
-  const line: string = content.slice(pos, end);
-  processLine(line);
-  pos = end + 1;
-}
-```
-
-### Gate Function
+Use an `indexOf`/`slice` loop in hot paths; `.split()` is fine for one-off operations.
 
 ```
 BEFORE using .split() on a string:
@@ -342,52 +162,9 @@ BEFORE using .split() on a string:
   Same principle applies to .split(','), .split('\t'), etc.
 ```
 
-## Anti-Pattern 9: Polymorphic Object Shapes (V8 Deoptimization)
+### AP9: Polymorphic Object Shapes (V8 Deoptimization)
 
-**The violation:**
-```typescript
-// ❌ BAD: Objects created with different property orders or optional properties
-function makeResult(event: TraceEvent) {
-  const result: any = { callId: event.callId };
-  if (event.error) {
-    result.error = event.error;     // sometimes present, sometimes absent
-  }
-  if (event.title) {
-    result.title = event.title;     // same — shape varies per call
-  }
-  return result;
-}
-```
-
-**Why:** V8 assigns a hidden class (called "Map" internally, confusingly) to every object. When a function always produces objects with the same properties in the same order, V8 uses a **monomorphic** inline cache — direct memory offset lookup, extremely fast. When shapes vary:
-
-- **Monomorphic** (1 shape): Direct offset lookup. Fast.
-- **Polymorphic** (2-4 shapes): Linear search through cached shapes. Slower.
-- **Megamorphic** (5+ shapes): Hash table fallback. Slowest.
-
-Adding properties conditionally creates different hidden classes for each combination of present/absent fields. A function called 1,000 times with 3 optional fields can produce up to 8 distinct shapes, pushing V8 into megamorphic mode for every downstream consumer.
-
-**The fix:**
-```typescript
-// ✅ GOOD: Always produce the same shape — use undefined for absent values
-function makeResult(event: TraceEvent) {
-  return {
-    callId: event.callId,
-    error: event.error ?? undefined,
-    title: event.title ?? undefined
-  };
-}
-```
-
-### Key Rules
-
-- **Always initialize all properties**, even if the value is `undefined`. This ensures one hidden class.
-- **Maintain consistent property order** across object literals that share a type.
-- **Never add properties after creation** (e.g., `result.newProp = ...` in an if-block).
-- **Avoid the `delete` operator altogether** — it forces a hidden class transition. Instead, create a new object without the property, or use `Map` which is designed for dynamic key removal.
-- **Prefer interfaces over ad-hoc objects** — the interface definition naturally enforces a consistent shape.
-
-### Gate Function
+Always initialize all properties; use `undefined` for absent values to keep V8 monomorphic.
 
 ```
 BEFORE conditionally adding properties to an object:
@@ -401,32 +178,11 @@ BEFORE conditionally adding properties to an object:
     Conditional properties are fine
 ```
 
-## Anti-Pattern 10: RegExp and Object Allocation in Hot Paths
+Key rules: always initialize all properties; maintain consistent property order; never add properties after creation; avoid `delete` (creates a hidden class transition — use `Map.delete()` or create a new object); prefer interfaces over ad-hoc objects.
 
-**The violation:**
-```typescript
-// ❌ BAD: RegExp compiled on every .find() iteration, callers pass constant strings
-function findFile(dir: string, pattern: string): string | null {
-  const files = fs.readdirSync(dir);
-  return files.find((f) => f.match(new RegExp(pattern))) ?? null;
-}
-```
+### AP10: RegExp and Object Allocation in Hot Paths
 
-**Why:** `new RegExp(pattern)` compiles per iteration. All callers pass constants — hoist to module scope.
-
-**The fix:**
-```typescript
-// ✅ GOOD: Hoisted RegExp constant, function takes RegExp directly
-const TEST_TRACE_PATTERN: RegExp = /^test\.trace$/;
-
-function findFile(dir: string, pattern: RegExp): string | null {
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  const match = entries.find((e) => e.isFile() && pattern.test(e.name));
-  return match ? path.join(dir, match.name) : null;
-}
-```
-
-### Gate Function
+Hoist constant RegExp to module scope; accept `RegExp` parameters instead of `string`.
 
 ```
 BEFORE creating a RegExp:
@@ -434,61 +190,17 @@ BEFORE creating a RegExp:
   IF inside a loop or callback: move it outside
 ```
 
-## Anti-Pattern 11: Pretty-Printing Machine-Consumed Data
+### AP11: Pretty-Printing Machine-Consumed Data
 
-**The violation:**
-```typescript
-// ❌ BAD: 2-space indentation for data an LLM or parser will consume
-console.log(JSON.stringify(data, null, 2));
-```
+Use `JSON.stringify(data)` not `JSON.stringify(data, null, 2)` for output piped to parsers or LLMs.
 
-**Why:** Whitespace adds ~30-40% to JSON size. LLMs and parsers don't benefit. For very large data, even compact `JSON.stringify` can hit V8's string length limit (~512MB) — consider streaming serialization in those cases.
+### AP12: Untyped Filesystem APIs
 
-**The fix:**
-```typescript
-// ✅ GOOD: Compact output for machine consumers
-console.log(JSON.stringify(data));
-```
+Always pass `{ withFileTypes: true }` to `readdirSync`; filter with `.isFile()` / `.isDirectory()`.
 
-## Anti-Pattern 12: Untyped Filesystem APIs
+### AP13: Inline Type Literals Instead of Named Interfaces
 
-**The violation:**
-```typescript
-// ❌ BAD: Returns string[], can't tell files from directories
-const files = fs.readdirSync(dir);
-```
-
-**Why:** Without `withFileTypes`, you need a separate `statSync` per entry.
-
-**The fix:**
-```typescript
-// ✅ GOOD: Dirent objects with .isFile()/.isDirectory()
-const entries = fs.readdirSync(dir, { withFileTypes: true });
-const match = entries.find((e) => e.isFile() && pattern.test(e.name));
-```
-
-## Anti-Pattern 13: Inline Type Literals Instead of Named Interfaces
-
-**The violation:**
-```typescript
-// ❌ BAD: Long inline type, unreadable and unreusable
-const frames: Array<{ file: string; fullPath: string; line: number; function: string | undefined }> = [];
-```
-
-**Why:** Hard to read, can't be reused, buries logic changes in diffs.
-
-**The fix:**
-```typescript
-// ✅ GOOD: Named interface. Follow repo conventions (this monorepo enforces `I` prefix).
-interface IErrorStackFrame {
-  file: string;
-  fullPath: string;
-  line: number;
-  function: string | undefined;
-}
-
-const frames: IErrorStackFrame[] = [];
-```
+Extract inline types with 3+ properties to a named `interface` following repo conventions.
 
 ## Quick Reference
 
