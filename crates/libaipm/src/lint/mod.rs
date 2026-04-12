@@ -816,16 +816,22 @@ mod tests {
 
     /// Instruction files (CLAUDE.md, AGENTS.md, etc.) live at the repo root by design and
     /// must NOT trigger `source/misplaced-features` even though they are outside `.ai/`.
+    ///
+    /// A skill outside `.ai/` (in `.claude/`) MUST still trigger the rule — this ensures
+    /// the exemption is narrowly scoped to `FeatureKind::Instructions`, not all outside-`.ai/`
+    /// features. The test covers both branches of the `kind != FeatureKind::Instructions` guard.
     #[test]
     fn lint_instruction_files_not_flagged_as_misplaced() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
 
-        // CLAUDE.md at the repo root — an Instructions feature outside .ai/
-        let claude_md = root.join("CLAUDE.md");
-        std::fs::write(&claude_md, "# Project Rules\n\nSome rules here.\n").unwrap();
+        // CLAUDE.md at the repo root — Instructions feature outside .ai/ (must NOT be flagged)
+        std::fs::write(root.join("CLAUDE.md"), "# Project Rules\n\nSome rules here.\n").unwrap();
 
-        // Also create a .ai/ marketplace so we know it's not the missing-.ai/ case
+        // A skill in .claude/ — Skill feature outside .ai/ (MUST still be flagged)
+        write_skill_md(&root.join(".claude").join("skills").join("misplaced"), "misplaced-skill");
+
+        // .ai/ exists so the help text uses "aipm migrate" path
         std::fs::create_dir_all(root.join(".ai").join(".claude-plugin")).unwrap();
 
         let opts = Options {
@@ -838,7 +844,13 @@ mod tests {
         assert!(result.is_ok());
         let outcome = result.unwrap();
 
-        // source/misplaced-features must NOT fire for the instruction file
+        // The skill in .claude/ must still be flagged as misplaced
+        assert!(
+            outcome.diagnostics.iter().any(|d| d.rule_id == "source/misplaced-features"),
+            "source/misplaced-features must still fire for skills outside .ai/"
+        );
+
+        // CLAUDE.md must NOT appear in any misplaced-features diagnostic
         let misplaced_on_claude: Vec<_> = outcome
             .diagnostics
             .iter()
