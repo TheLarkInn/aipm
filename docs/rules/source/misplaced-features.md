@@ -11,6 +11,21 @@ installed, or linked by `aipm`.
 This rule fires regardless of whether a `.ai/` directory exists. The fix guidance adapts
 based on your project state (see [How to fix](#how-to-fix) below).
 
+## Exempt files
+
+**Instruction files are always exempt from this rule.** The following file types live at
+the repository root (or within tool directories) by design — they are AI context files,
+not plugin features — and are never flagged as misplaced:
+
+| File pattern | Examples |
+|---|---|
+| `CLAUDE.md` | Anthropic Claude project instructions |
+| `AGENTS.md` | OpenAI Codex / o1 agent instructions |
+| `COPILOT.md` | GitHub Copilot instructions |
+| `GEMINI.md` | Google Gemini instructions |
+| `INSTRUCTIONS.md` | Generic instructions file |
+| `*.instructions.md` | VS Code Copilot scoped instructions (e.g. `python.instructions.md`) |
+
 ## Examples
 
 ### Incorrect — skill in `.claude/`
@@ -27,11 +42,19 @@ based on your project state (see [How to fix](#how-to-fix) below).
     my-agent.md   # ❌ not discovered by aipm
 ```
 
-### Correct
+### Correct — plugin features in `.ai/`
 ```
 .ai/
   my-plugin/
     SKILL.md      # ✅ discovered and managed by aipm
+```
+
+### Correct — instruction file at repo root (exempt)
+```
+CLAUDE.md         # ✅ exempt — instruction file, not a plugin feature
+AGENTS.md         # ✅ exempt — instruction file, not a plugin feature
+.github/
+  copilot-instructions.md   # ✅ exempt — *.instructions.md pattern
 ```
 
 ## How to fix
