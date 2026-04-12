@@ -438,4 +438,13 @@ mod tests {
         // be detected as a relative script — exercises the path.contains('\\') branch.
         assert!(is_relative_script("scripts\\check.sh", Path::new(".")));
     }
+
+    #[test]
+    fn is_relative_script_unrecognized_extension_returns_false() {
+        // A bare filename with an extension that is not .sh/.py/.js should return false —
+        // exercises the Some(ext) branch of extension().is_some_and(…) where the closure
+        // returns false because the extension does not match any known script type.
+        assert!(!is_relative_script("check.rb", Path::new(".")));
+        assert!(!is_relative_script("build.go", Path::new(".")));
+    }
 }
