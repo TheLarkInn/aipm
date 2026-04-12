@@ -1267,4 +1267,25 @@ mod tests {
         assert!(config.rule_overrides.is_empty());
         assert!(config.ignore_paths.is_empty());
     }
+
+    /// A rule override table with only an `ignore` array (no `level`, no custom
+    /// options) must produce a `RuleOverride::Detailed` entry. This exercises the
+    /// `!ignore.is_empty()` True branch in the short-circuit condition
+    /// `level.is_some() || !ignore.is_empty() || !options.is_empty()` that guards
+    /// creation of the `Detailed` variant.
+    #[test]
+    fn load_lint_config_ignore_only_rule_creates_detailed_override() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("aipm.toml"),
+            "[workspace.lints.\"some-rule\"]\nignore = [\"examples/**\", \"docs/**\"]\n",
+        )
+        .unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert!(config.rule_overrides.contains_key("some-rule"), "override must be recorded");
+        assert_eq!(config.rule_ignore_paths("some-rule"), &["examples/**", "docs/**"]);
+        assert_eq!(config.severity_override("some-rule"), None);
+        assert!(config.rule_options("some-rule").is_empty());
+    }
 }
