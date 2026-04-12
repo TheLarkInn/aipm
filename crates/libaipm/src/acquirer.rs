@@ -664,4 +664,45 @@ mod tests {
             "expected GitClone error, got: {result:?}",
         );
     }
+
+    /// Covers the `output.status.success()` True branch in `run_git_clone`
+    /// and the `if let Err(e) = clone_result` False branch in `acquire_git`:
+    /// a successful clone from a local git repository.
+    #[test]
+    fn acquire_git_local_repo_success() {
+        // Build a minimal local git repository with valid plugin structure.
+        let source_temp = make_temp();
+        let src = source_temp.path();
+
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+
+        // Initialise repo; skip test if git is unavailable.
+        let Ok(init) = git(&["init", "-b", "main"]) else { return };
+        if !init.status.success() {
+            return;
+        }
+        std::fs::create_dir_all(src.join(".claude-plugin")).unwrap();
+        std::fs::write(src.join(".claude-plugin/plugin.json"), "{}").unwrap();
+        git(&["add", "."]).unwrap();
+        git(&["commit", "-m", "init"]).unwrap();
+
+        let dest_temp = make_temp();
+        let git_source = crate::spec::GitSource {
+            url: src.to_string_lossy().to_string(),
+            path: None,
+            git_ref: None,
+        };
+
+        let result = acquire_git(&git_source, dest_temp.path(), Engine::Claude);
+        assert!(result.is_ok(), "expected Ok from local git clone, got: {result:?}");
+    }
 }
