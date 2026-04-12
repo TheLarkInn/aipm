@@ -69,6 +69,12 @@ Quality rules enforced by `aipm lint`:
 | [plugin-field-mismatch](rules/marketplace/plugin-field-mismatch.md) | error | `marketplace.json` entry `name`/`description` differs from `plugin.json` |
 | [source-resolve](rules/marketplace/source-resolve.md) | error | `marketplace.json` entry `source` path does not exist on disk |
 
+### `instructions/`
+
+| Rule | Default | Description |
+|------|---------|-------------|
+| [oversized](rules/instructions/oversized.md) | warn | Instruction file (`CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, `*.instructions.md`) exceeds the configured line or character limit |
+
 ### `source/`
 
 | Rule | Default | Description |
