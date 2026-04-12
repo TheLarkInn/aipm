@@ -628,4 +628,40 @@ mod tests {
         crate::engine::validate_plugin(&dest, engine)?;
         Ok(dest)
     }
+
+    /// Covers the clone-failure path in `acquire_git`: when `run_git_clone`
+    /// fails (invalid URL → non-zero exit), the error propagates and the temp
+    /// directory is cleaned up.
+    #[test]
+    fn acquire_git_invalid_url_returns_error() {
+        let temp = make_temp();
+        let source = crate::spec::GitSource {
+            url: "not-a-valid-url://nowhere".to_string(),
+            path: None,
+            git_ref: None,
+        };
+        let result = acquire_git(&source, temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::GitClone { .. })),
+            "expected GitClone error, got: {result:?}",
+        );
+    }
+
+    /// Covers the `git_ref` branch in `run_git_clone`: passing a `git_ref`
+    /// causes `--branch <ref>` to be appended to the git command, which still
+    /// fails for an invalid URL.
+    #[test]
+    fn acquire_git_with_ref_invalid_url_returns_error() {
+        let temp = make_temp();
+        let source = crate::spec::GitSource {
+            url: "not-a-valid-url://nowhere".to_string(),
+            path: None,
+            git_ref: Some("main".to_string()),
+        };
+        let result = acquire_git(&source, temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::GitClone { .. })),
+            "expected GitClone error, got: {result:?}",
+        );
+    }
 }
