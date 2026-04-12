@@ -1595,4 +1595,14 @@ mod tests {
         let result = validate_github_owner("org-");
         assert!(matches!(result, Err(Error::GitHub { .. })));
     }
+
+    #[test]
+    fn spec_deserialize_non_string_returns_error() {
+        // Covers the `String::deserialize(deserializer)?` error branch in the
+        // `Deserialize for Spec` impl (line 293).  When the JSON token is not
+        // a string (e.g. a number), `String::deserialize` itself fails and
+        // the `?` propagates that error before `.parse()` is ever called.
+        let result: Result<Spec, _> = serde_json::from_str("42");
+        assert!(result.is_err());
+    }
 }
