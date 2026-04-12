@@ -186,17 +186,12 @@ mod tests {
         let result = register_plugins(Path::new("/ai"), &entries, &fs);
         assert!(result.is_ok());
 
-        let written = fs.get_written(&marketplace_path());
-        if let Some(content) = written {
-            // Count occurrences of "deploy" as a name value — should be exactly 1
-            let count = content.matches("\"deploy\"").count();
-            // name field + source field = at least 2 occurrences of "deploy" string,
-            // but the name key should appear exactly once
-            let parsed: serde_json::Value = serde_json::from_str(&content).ok().unwrap_or_default();
-            let plugins =
-                parsed.get("plugins").and_then(|v| v.as_array()).map(Vec::len).unwrap_or(0);
-            assert_eq!(plugins, 1, "should not duplicate: found {count} 'deploy' strings");
-        }
+        let content =
+            fs.get_written(&marketplace_path()).expect("marketplace.json should have been written");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&content).expect("marketplace.json should be valid JSON");
+        let plugins = parsed.get("plugins").and_then(|v| v.as_array()).map(Vec::len).unwrap_or(0);
+        assert_eq!(plugins, 1, "deploy should not be duplicated in marketplace.json");
     }
 
     #[test]
