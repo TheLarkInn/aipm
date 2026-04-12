@@ -1,6 +1,7 @@
 //! `aipm-pack` — author CLI for AI plugin packages.
 //!
-//! Commands: init, pack, publish, yank, login.
+//! Commands: init.
+//! Planned (not yet implemented): pack, publish, yank, login.
 
 mod wizard;
 mod wizard_tty;
