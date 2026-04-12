@@ -1,6 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.20.4] - 2026-04-12
+
+### Documentation
+- Add instruction file patterns to VS Code LSP document selector ([#466](https://github.com/TheLarkInn/aipm/pull/466)) (8497d8d)
+
+### Testing
+- Cover None branch of dest.parent() in emit_skill_files (227c4f5)
+- Cover False branches of .any() closures in MockFs test helpers (5b76bc6)
+
 ## [0.20.3] - 2026-04-12
 
 ## [0.20.2] - 2026-04-12
