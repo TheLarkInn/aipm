@@ -88,6 +88,7 @@ Inside the `[workspace.lints]` section of `aipm.toml`, the language server provi
 
 - **Rule ID completions** — pressing `Ctrl+Space` on a key position lists all known rule IDs (e.g., `skill/missing-name`, `hook/unknown-event`)
 - **Severity value completions** — pressing `Ctrl+Space` after `=` suggests `"allow"`, `"warn"`, `"warning"`, `"error"`, or `"deny"`
+- **Per-rule option completions** — for rules with additional configuration options (such as `instructions/oversized`), `Ctrl+Space` inside the rule's inline table or section also suggests rule-specific fields like `lines`, `characters`, and `resolve-imports`
 
 ### Hover documentation
 
