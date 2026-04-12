@@ -1453,6 +1453,35 @@ mod tests {
     }
 
     #[test]
+    fn emit_skill_files_absolute_path_skips_parent_dir_creation() {
+        // When artifact.files contains an absolute path (e.g. PathBuf::from("/")),
+        // joining it to the skill dest produces a root path whose parent() is None.
+        // This test covers the None arm of `if let Some(parent) = dest.parent()` in
+        // emit_skill_files.  The file is not a regular file in MockFs so it is skipped
+        // after the parent-dir check, and emit_plugin should still succeed.
+        let fs = MockFs::new();
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let artifact = Artifact {
+            kind: ArtifactKind::Skill,
+            name: "deploy".to_string(),
+            source_path: PathBuf::from("/src/skills/deploy"),
+            // Absolute path: plugin_dir.join("skills").join("deploy").join("/") == "/"
+            // whose parent() is None.
+            files: vec![PathBuf::from("/")],
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata {
+                name: Some("deploy".to_string()),
+                description: Some("Deploy app".to_string()),
+                ..ArtifactMetadata::default()
+            },
+        };
+
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok(), "emit_plugin should succeed even with an absolute file entry");
+    }
+
+    #[test]
     fn emit_copies_referenced_scripts() {
         let mut fs = MockFs::new();
         fs.files.insert(
