@@ -150,21 +150,15 @@ pub fn generate_recursive_report<S: BuildHasher>(
 
         let _ = writeln!(report, "### Plugin: `{final_name}` ({source_label})");
         let _ = writeln!(report, "- Type: {type_str}");
-        match plan.artifacts.as_slice() {
-            [a] => {
-                let _ = writeln!(report, "- Components: {}", component_path(a));
-            },
-            _ => {
-                let _ = writeln!(report, "- Components:");
-                for a in &plan.artifacts {
-                    let suffix = if a.kind == ArtifactKind::Command {
-                        " (converted from command)"
-                    } else {
-                        ""
-                    };
-                    let _ = writeln!(report, "  - {}{suffix}", component_path(a));
-                }
-            },
+        if let [a] = plan.artifacts.as_slice() {
+            let _ = writeln!(report, "- Components: {}", component_path(a));
+        } else {
+            let _ = writeln!(report, "- Components:");
+            for a in &plan.artifacts {
+                let suffix =
+                    if a.kind == ArtifactKind::Command { " (converted from command)" } else { "" };
+                let _ = writeln!(report, "  - {}{suffix}", component_path(a));
+            }
         }
         let _ = writeln!(report);
     }
