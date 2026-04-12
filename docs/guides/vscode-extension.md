@@ -66,6 +66,12 @@ The language server attaches to these file patterns:
 | `**/.ai/*/aipm.toml` | Plugin manifests under `.ai/` |
 | `**/.ai/*/.claude-plugin/plugin.json` | Claude plugin JSON manifests |
 | `**/.ai/.claude-plugin/marketplace.json` | Marketplace manifest |
+| `**/CLAUDE.md` | Claude Code instruction file |
+| `**/AGENTS.md` | OpenAI Agents instruction file |
+| `**/COPILOT.md` | Copilot instruction file |
+| `**/GEMINI.md` | Gemini instruction file |
+| `**/INSTRUCTIONS.md` | Generic instruction file |
+| `**/*.instructions.md` | Scoped instruction files (e.g. `frontend.instructions.md`) |
 
 ### `aipm.toml` schema validation
 

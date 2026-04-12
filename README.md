@@ -245,7 +245,7 @@ The LSP server is launched automatically by the [`vscode-aipm`](docs/guides/vsco
 | `textDocument/completion` | Autocompletes rule IDs and severity values inside `[workspace.lints]` in `aipm.toml` |
 | `textDocument/hover` | Shows rule name, default severity, and help text when hovering a rule ID in `aipm.toml` |
 
-**Supported file patterns** (same as the VS Code extension document selector): `aipm.toml`, `skills/SKILL.md`, `skills/*/SKILL.md`, `agents/*.md`, `hooks/hooks.json`, `.ai/*/aipm.toml`, `.ai/*/.claude-plugin/plugin.json`, `.ai/.claude-plugin/marketplace.json`.
+**Supported file patterns** (simplified/relative patterns; see the VS Code extension for the exact document selector globs): `aipm.toml`, `skills/SKILL.md`, `skills/*/SKILL.md`, `agents/*.md`, `hooks/hooks.json`, `.ai/*/aipm.toml`, `.ai/*/.claude-plugin/plugin.json`, `.ai/.claude-plugin/marketplace.json`, `CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, `*.instructions.md`.
 
 **Binary resolution:** the server looks up the `aipm` binary from `AIPM_PATH` (environment variable) or the `aipm.path` VS Code setting (default: `"aipm"`).
 
