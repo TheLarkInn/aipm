@@ -119,5 +119,6 @@ instruction file exceeds 200 line limit (resolved total: 312 lines, direct: 45 l
 ## See also
 
 - [skill/oversized](../skill/oversized.md) — similar size check for SKILL.md files
+- [source/misplaced-features](../source/misplaced-features.md) — instruction files are always exempt from this rule (they are AI context files, not plugin features)
 - [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system
 - [Configuring lint](../../guides/configuring-lint.md) — override rule severity or suppress rules per path
