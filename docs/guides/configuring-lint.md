@@ -118,8 +118,8 @@ All built-in rule IDs follow the `category/rule-name` hierarchy. See the individ
 | `agent/` | `missing-tools` |
 | `plugin/` | `broken-paths`, `missing-manifest`, `missing-registration`, `required-fields` |
 | `marketplace/` | `plugin-field-mismatch`, `source-resolve` |
-| `source/` | `misplaced-features` |
 | `instructions/` | `oversized` |
+| `source/` | `misplaced-features` |
 
 ## CI usage
 
