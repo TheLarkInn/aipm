@@ -238,6 +238,10 @@ mod tests {
     #[test]
     fn mock_fs_add_marketplace_json_adds_claude_plugin_dir_entry() {
         let mut fs = MockFs::new();
+        // Add a plugin first so `.ai` has multiple entries. When `.any()` iterates
+        // looking for `.claude-plugin`, it encounters "pre-existing" first and the
+        // `&&` short-circuit (False branch) executes before the match is found.
+        fs.add_plugin_json("pre-existing", r#"{"name":"pre-existing"}"#);
         fs.add_marketplace_json(r#"{"plugins":[]}"#);
         let ai_entries = fs.read_dir(Path::new(".ai")).unwrap_or_default();
         assert!(ai_entries.iter().any(|e| e.name == ".claude-plugin" && e.is_dir));
@@ -265,6 +269,10 @@ mod tests {
     #[test]
     fn mock_fs_add_plugin_json_adds_plugin_dir_entry_in_ai() {
         let mut fs = MockFs::new();
+        // Add marketplace first so `.ai` has multiple entries. When `.any()` iterates
+        // looking for "my-plugin", it encounters ".claude-plugin" first and the
+        // `&&` short-circuit (False branch) executes before the match is found.
+        fs.add_marketplace_json(r#"{"plugins":[]}"#);
         fs.add_plugin_json("my-plugin", r#"{"name":"my-plugin"}"#);
         let ai_entries = fs.read_dir(Path::new(".ai")).unwrap_or_default();
         assert!(ai_entries.iter().any(|e| e.name == "my-plugin" && e.is_dir));
