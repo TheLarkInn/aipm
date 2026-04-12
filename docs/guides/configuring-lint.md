@@ -168,7 +168,7 @@ schema = "https://raw.githubusercontent.com/TheLarkInn/aipm/main/schemas/aipm.to
 Once configured, you get:
 
 - **Validation** — unknown rule IDs and type mismatches highlighted inline
-- **Autocomplete** — all 17 rule IDs and severity values suggested on demand
+- **Autocomplete** — all 18 rule IDs and severity values suggested on demand
 
 ### SchemaStore
 
