@@ -207,6 +207,41 @@ mod tests {
     use super::*;
     use crate::fs::Real;
 
+    /// Creates a fresh temporary directory named `aipm-test-init-{name}`.
+    ///
+    /// If the directory already exists from a previous test run it is removed
+    /// first, exercising the cleanup-before-recreate branch.
+    fn make_temp_dir(name: &str) -> std::path::PathBuf {
+        let tmp = std::env::temp_dir().join(format!("aipm-test-init-{name}"));
+        if tmp.exists() {
+            let _ = std::fs::remove_dir_all(&tmp);
+        }
+        std::fs::create_dir_all(&tmp).ok();
+        tmp
+    }
+
+    fn cleanup(path: &std::path::Path) {
+        let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn make_temp_dir_cleans_up_existing_directory() {
+        // Pre-create the directory so the `if tmp.exists()` branch in
+        // `make_temp_dir` (the cleanup-before-recreate path) is exercised.
+        let name = "cleanup-guard";
+        let tmp = std::env::temp_dir().join(format!("aipm-test-init-{name}"));
+        std::fs::create_dir_all(&tmp).ok();
+        std::fs::write(tmp.join("sentinel.txt"), b"old").ok();
+        assert!(tmp.exists(), "pre-condition: directory must exist before make_temp_dir");
+
+        let path = make_temp_dir(name);
+        // The old directory (and its sentinel) should have been removed and recreated.
+        assert!(path.exists());
+        assert!(!path.join("sentinel.txt").exists(), "old sentinel should have been removed");
+
+        cleanup(&path);
+    }
+
     #[test]
     fn valid_names() {
         assert!(is_valid_package_name("my-plugin"));
@@ -247,11 +282,7 @@ mod tests {
 
     #[test]
     fn init_creates_manifest_and_dirs() {
-        let tmp = std::env::temp_dir().join("aipm-test-init-basic");
-        if tmp.exists() {
-            let _ = std::fs::remove_dir_all(&tmp);
-        }
-        std::fs::create_dir_all(&tmp).ok();
+        let tmp = make_temp_dir("basic");
 
         let opts = Options { dir: &tmp, name: Some("test-plugin"), plugin_type: None };
         let result = init(&opts, &Real);
@@ -269,16 +300,12 @@ mod tests {
         assert!(tmp.join("skills/.gitkeep").exists());
 
         // Cleanup
-        let _ = std::fs::remove_dir_all(&tmp);
+        cleanup(&tmp);
     }
 
     #[test]
     fn init_uses_directory_name_as_default() {
-        let tmp = std::env::temp_dir().join("aipm-test-init-dirname");
-        if tmp.exists() {
-            let _ = std::fs::remove_dir_all(&tmp);
-        }
-        std::fs::create_dir_all(&tmp).ok();
+        let tmp = make_temp_dir("dirname");
 
         let opts = Options { dir: &tmp, name: None, plugin_type: None };
         let result = init(&opts, &Real);
@@ -288,16 +315,12 @@ mod tests {
         assert!(content.is_ok());
         assert!(content.is_ok_and(|c| c.contains("aipm-test-init-dirname")));
 
-        let _ = std::fs::remove_dir_all(&tmp);
+        cleanup(&tmp);
     }
 
     #[test]
     fn init_fails_if_already_initialized() {
-        let tmp = std::env::temp_dir().join("aipm-test-init-exists");
-        if tmp.exists() {
-            let _ = std::fs::remove_dir_all(&tmp);
-        }
-        std::fs::create_dir_all(&tmp).ok();
+        let tmp = make_temp_dir("exists");
         std::fs::File::create(tmp.join("aipm.toml")).ok();
 
         let opts = Options { dir: &tmp, name: Some("test"), plugin_type: None };
@@ -306,16 +329,12 @@ mod tests {
         let err = result.err();
         assert!(err.is_some_and(|e| e.to_string().contains("already initialized")));
 
-        let _ = std::fs::remove_dir_all(&tmp);
+        cleanup(&tmp);
     }
 
     #[test]
     fn init_fails_for_invalid_name() {
-        let tmp = std::env::temp_dir().join("aipm-test-init-badname");
-        if tmp.exists() {
-            let _ = std::fs::remove_dir_all(&tmp);
-        }
-        std::fs::create_dir_all(&tmp).ok();
+        let tmp = make_temp_dir("badname");
 
         let opts = Options { dir: &tmp, name: Some("INVALID_Name!"), plugin_type: None };
         let result = init(&opts, &Real);
@@ -323,16 +342,12 @@ mod tests {
         let err = result.err();
         assert!(err.is_some_and(|e| e.to_string().contains("invalid package name")));
 
-        let _ = std::fs::remove_dir_all(&tmp);
+        cleanup(&tmp);
     }
 
     #[test]
     fn init_skill_type_creates_template() {
-        let tmp = std::env::temp_dir().join("aipm-test-init-skill");
-        if tmp.exists() {
-            let _ = std::fs::remove_dir_all(&tmp);
-        }
-        std::fs::create_dir_all(&tmp).ok();
+        let tmp = make_temp_dir("skill");
 
         let opts =
             Options { dir: &tmp, name: Some("my-skill"), plugin_type: Some(PluginType::Skill) };
@@ -346,7 +361,7 @@ mod tests {
         let content = std::fs::read_to_string(tmp.join("aipm.toml"));
         assert!(content.is_ok_and(|c| c.contains("type = \"skill\"")));
 
-        let _ = std::fs::remove_dir_all(&tmp);
+        cleanup(&tmp);
     }
 
     #[test]
@@ -359,11 +374,7 @@ mod tests {
             ("lsp", PluginType::Lsp),
             ("composite", PluginType::Composite),
         ] {
-            let tmp = std::env::temp_dir().join(format!("aipm-test-init-type-{type_str}"));
-            if tmp.exists() {
-                let _ = std::fs::remove_dir_all(&tmp);
-            }
-            std::fs::create_dir_all(&tmp).ok();
+            let tmp = make_temp_dir(&format!("type-{type_str}"));
 
             let opts = Options { dir: &tmp, name: Some("test-pkg"), plugin_type: Some(pt) };
             let result = init(&opts, &Real);
@@ -375,17 +386,13 @@ mod tests {
                 "manifest should contain type = \"{type_str}\""
             );
 
-            let _ = std::fs::remove_dir_all(&tmp);
+            cleanup(&tmp);
         }
     }
 
     #[test]
     fn generated_manifest_is_parseable() {
-        let tmp = std::env::temp_dir().join("aipm-test-init-parseable");
-        if tmp.exists() {
-            let _ = std::fs::remove_dir_all(&tmp);
-        }
-        std::fs::create_dir_all(&tmp).ok();
+        let tmp = make_temp_dir("parseable");
 
         let opts = Options {
             dir: &tmp,
@@ -400,7 +407,7 @@ mod tests {
         let parsed = crate::manifest::parse_and_validate(content.as_deref().unwrap_or(""), None);
         assert!(parsed.is_ok(), "generated manifest should be valid");
 
-        let _ = std::fs::remove_dir_all(&tmp);
+        cleanup(&tmp);
     }
 
     // =====================================================================
