@@ -290,3 +290,61 @@ fn install_global_local_plugin() {
         std::fs::read_to_string(tmp_home.path().join(".aipm").join("installed.json")).unwrap();
     assert!(installed.contains("local:./my-plugin"), "installed.json should record the spec");
 }
+
+// =========================================================================
+// `install --global` (re-install) — "Updated" branch when plugin already exists
+// =========================================================================
+
+#[test]
+fn install_global_updates_existing_plugin() {
+    let tmp_home = tempfile::tempdir().unwrap();
+
+    // First install.
+    aipm()
+        .args(["install", "--global", "local:./my-plugin"])
+        .env("HOME", tmp_home.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Installed 'local:./my-plugin' globally"));
+
+    // Re-install the same spec — should print "Updated" instead of "Installed".
+    aipm()
+        .args(["install", "--global", "local:./my-plugin"])
+        .env("HOME", tmp_home.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Updated 'local:./my-plugin' in global registry"));
+}
+
+// =========================================================================
+// `list --global` — plugins present (non-empty registry branch)
+// =========================================================================
+
+#[test]
+fn list_global_with_installed_plugins() {
+    let tmp_home = tempfile::tempdir().unwrap();
+
+    // Install two plugins so the registry is non-empty.
+    aipm()
+        .args(["install", "--global", "local:./plugin-a"])
+        .env("HOME", tmp_home.path())
+        .assert()
+        .success();
+    aipm()
+        .args(["install", "--global", "--engine", "claude", "local:./plugin-b"])
+        .env("HOME", tmp_home.path())
+        .assert()
+        .success();
+
+    // List should show "Globally installed plugins:" header and both entries.
+    aipm()
+        .args(["list", "--global"])
+        .env("HOME", tmp_home.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Globally installed plugins:"))
+        .stdout(predicate::str::contains("local:./plugin-a"))
+        .stdout(predicate::str::contains("all engines"))
+        .stdout(predicate::str::contains("local:./plugin-b"))
+        .stdout(predicate::str::contains("claude"));
+}
