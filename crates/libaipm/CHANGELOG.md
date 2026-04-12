@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.20.2] - 2026-04-12
+
+### Features
+- Dogfood aipm lint on this repo ([#426](https://github.com/TheLarkInn/aipm/pull/426)) ([#460](https://github.com/TheLarkInn/aipm/pull/460)) (cd56ceb)
+
 ## [0.20.1] - 2026-04-12
 
 ### Testing
