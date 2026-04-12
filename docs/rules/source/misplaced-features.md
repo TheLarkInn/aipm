@@ -8,6 +8,11 @@ extensions) are located inside the `.ai/` marketplace directory rather than in t
 locations such as `.claude/` or `.github/`. Files in legacy locations are not discovered,
 installed, or linked by `aipm`.
 
+> **Instruction files are exempt.** Files recognized as AI instruction files —
+> `CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, and
+> `*.instructions.md` — are not plugin features and are never flagged by this rule.
+> They are checked separately by [`instructions/oversized`](../instructions/oversized.md).
+
 This rule fires regardless of whether a `.ai/` directory exists. The fix guidance adapts
 based on your project state (see [How to fix](#how-to-fix) below).
 
