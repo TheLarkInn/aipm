@@ -150,17 +150,21 @@ pub fn generate_recursive_report<S: BuildHasher>(
 
         let _ = writeln!(report, "### Plugin: `{final_name}` ({source_label})");
         let _ = writeln!(report, "- Type: {type_str}");
-        if plan.artifacts.len() == 1 {
-            if let Some(a) = plan.artifacts.first() {
+        match plan.artifacts.as_slice() {
+            [a] => {
                 let _ = writeln!(report, "- Components: {}", component_path(a));
-            }
-        } else {
-            let _ = writeln!(report, "- Components:");
-            for a in &plan.artifacts {
-                let suffix =
-                    if a.kind == ArtifactKind::Command { " (converted from command)" } else { "" };
-                let _ = writeln!(report, "  - {}{suffix}", component_path(a));
-            }
+            },
+            _ => {
+                let _ = writeln!(report, "- Components:");
+                for a in &plan.artifacts {
+                    let suffix = if a.kind == ArtifactKind::Command {
+                        " (converted from command)"
+                    } else {
+                        ""
+                    };
+                    let _ = writeln!(report, "  - {}{suffix}", component_path(a));
+                }
+            },
         }
         let _ = writeln!(report);
     }
@@ -201,22 +205,23 @@ fn write_other_files_section(report: &mut String, other_files: &[OtherFile]) {
 fn write_other_files_section_refs(report: &mut String, other_files: &[&OtherFile]) {
     let _ = writeln!(report, "## Other Files\n");
 
-    let dependencies: Vec<&&OtherFile> =
-        other_files.iter().filter(|f| f.associated_artifact.is_some() && !f.is_external).collect();
+    let dependencies: Vec<(&OtherFile, &str)> = other_files
+        .iter()
+        .filter(|f| !f.is_external)
+        .filter_map(|f| f.associated_artifact.as_deref().map(|a| (*f, a)))
+        .collect();
     let unassociated: Vec<&&OtherFile> =
         other_files.iter().filter(|f| f.associated_artifact.is_none() && !f.is_external).collect();
     let external: Vec<&&OtherFile> = other_files.iter().filter(|f| f.is_external).collect();
 
     if !dependencies.is_empty() {
         let _ = writeln!(report, "### Dependencies\n");
-        for f in &dependencies {
-            if let Some(ref artifact) = f.associated_artifact {
-                let _ = writeln!(
-                    report,
-                    "- `{}` (dependency of **{artifact}**)",
-                    f.relative_path.display()
-                );
-            }
+        for (f, artifact) in &dependencies {
+            let _ = writeln!(
+                report,
+                "- `{}` (dependency of **{artifact}**)",
+                f.relative_path.display()
+            );
         }
         let _ = writeln!(report);
     }
