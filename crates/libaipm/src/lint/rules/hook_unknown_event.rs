@@ -398,6 +398,26 @@ mod tests {
     }
 
     #[test]
+    fn locate_json_key_returns_none_for_unicode_escaped_key() {
+        // When a JSON key is written with a Unicode escape (e.g. "In\u0076alidEvent"
+        // which serde_json resolves to "InvalidEvent"), locate_json_key searches the
+        // raw content for the literal string "InvalidEvent" and cannot find it.
+        // The diagnostic is still produced but with line=None, col=None, end_col=None.
+        let mut fs = MockFs::new();
+        // \u0076 is 'v', so "In\u0076alidEvent" parses to "InvalidEvent"
+        // but the raw bytes differ, causing locate_json_key to return None.
+        fs.add_hooks("p", r#"{"In\u0076alidEvent": []}"#);
+
+        let diags = UnknownEvent.check(Path::new(".ai"), &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].rule_id, "hook/unknown-event");
+        assert!(diags[0].message.contains("InvalidEvent"));
+        assert_eq!(diags[0].line, None);
+        assert_eq!(diags[0].col, None);
+        assert_eq!(diags[0].end_col, None);
+    }
+
+    #[test]
     fn unknown_event_on_non_first_line_reports_correct_line() {
         // Multi-line hooks.json: "InvalidEvent" appears on line 2, not line 1.
         // locate_json_key must iterate past line 1 (False branch) before finding
