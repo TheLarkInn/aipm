@@ -113,7 +113,7 @@ Fields:
 | `end_col` | number\|null | End column for multi-line spans, or `null` |
 | `help_url` | string\|null | Link to the rule documentation, or `null` |
 | `help_text` | string\|null | Fix suggestion, or `null` |
-| `source_type` | string | Source directory type that produced this diagnostic (e.g. `".ai"`, `".claude"`) |
+| `source_type` | string | Source directory type that produced this diagnostic: `".ai"`, `".claude"`, `".github"`, or `"project"` (for instruction files at project root outside a recognized source directory) |
 
 ### `ci-github`
 
