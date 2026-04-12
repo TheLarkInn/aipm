@@ -1234,4 +1234,37 @@ mod tests {
         let config = load_lint_config(tmp.path());
         assert!(!config.rule_overrides.contains_key("some-rule"));
     }
+
+    /// `load_installed_registry` parses a valid JSON registry file when the path
+    /// exists, covering the `path.exists()` → read-and-parse branch.
+    #[test]
+    fn load_installed_registry_parses_existing_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let registry_path = tmp.path().join("installed.json");
+        std::fs::write(
+            &registry_path,
+            r#"{"plugins":[{"spec":"github:owner/repo","engines":["claude"]}]}"#,
+        )
+        .unwrap();
+
+        let registry = load_installed_registry(&registry_path);
+        assert_eq!(registry.plugins.len(), 1);
+        assert_eq!(registry.plugins[0].spec, "github:owner/repo");
+        assert_eq!(registry.plugins[0].engines, vec!["claude"]);
+    }
+
+    /// `load_lint_config` returns a default config when reading `aipm.toml`
+    /// fails with a non-`NotFound` IO error (e.g., the path is a directory),
+    /// covering the `Err(e)` arm after the `NotFound` guard fails.
+    #[test]
+    fn load_lint_config_non_not_found_io_error_returns_default() {
+        let tmp = tempfile::tempdir().unwrap();
+        // Create a directory named "aipm.toml" — read_to_string on a directory
+        // fails with an IO error that is NOT ErrorKind::NotFound.
+        std::fs::create_dir(tmp.path().join("aipm.toml")).unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert!(config.rule_overrides.is_empty());
+        assert!(config.ignore_paths.is_empty());
+    }
 }
