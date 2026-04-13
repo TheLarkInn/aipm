@@ -569,7 +569,7 @@ fn cmd_install_global(
 
     // Load or create the global installed registry
     let registry_path = home_aipm_path()?.join("installed.json");
-    let mut registry = load_installed_registry(&registry_path);
+    let mut registry = load_installed_registry(&registry_path)?;
 
     let added = registry.install(spec.clone(), &engines, cache_policy, None)?;
 
@@ -594,7 +594,7 @@ fn cmd_uninstall_global(
     _dir: PathBuf,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let registry_path = home_aipm_path()?.join("installed.json");
-    let mut registry = load_installed_registry(&registry_path);
+    let mut registry = load_installed_registry(&registry_path)?;
 
     let engine_filter: Vec<String> = engine.iter().map(ToString::to_string).collect();
     let spec = registry.resolve_spec(package, &engine_filter)?;
@@ -625,7 +625,7 @@ fn cmd_uninstall_global(
 
 fn cmd_list_global() -> Result<(), Box<dyn std::error::Error>> {
     let registry_path = home_aipm_path()?.join("installed.json");
-    let registry = load_installed_registry(&registry_path);
+    let registry = load_installed_registry(&registry_path)?;
 
     let mut stdout = std::io::stdout();
     if registry.plugins.is_empty() {
@@ -653,14 +653,8 @@ fn home_aipm_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
 }
 
 /// Load the global installed registry from disk (or empty default).
-fn load_installed_registry(path: &Path) -> libaipm::installed::Registry {
-    if !path.exists() {
-        return libaipm::installed::Registry::default();
-    }
-    std::fs::read_to_string(path).map_or_else(
-        |_| libaipm::installed::Registry::default(),
-        |content| serde_json::from_str(&content).unwrap_or_default(),
-    )
+fn load_installed_registry(path: &Path) -> std::io::Result<libaipm::installed::Registry> {
+    libaipm::fs::read_or_default(&libaipm::fs::Real, path)
 }
 
 fn cmd_lint(
@@ -1247,7 +1241,7 @@ mod tests {
         )
         .unwrap();
 
-        let registry = load_installed_registry(&registry_path);
+        let registry = load_installed_registry(&registry_path).unwrap();
         assert_eq!(registry.plugins.len(), 1);
         assert_eq!(registry.plugins[0].spec, "github:owner/repo");
         assert_eq!(registry.plugins[0].engines, vec!["claude"]);
