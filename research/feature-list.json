@@ -250,7 +250,7 @@
       "Add unit tests: register new plugin, register duplicate (update), unregister existing, unregister nonexistent, create from scratch",
       "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

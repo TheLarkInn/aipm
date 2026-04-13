@@ -222,9 +222,17 @@ fn scaffold_marketplace(
 
     // Create marketplace.json in .ai/.claude-plugin/
     fs.create_dir_all(&ai_dir.join(".claude-plugin"))?;
+    let initial_plugins = if no_starter {
+        Vec::new()
+    } else {
+        vec![crate::generate::marketplace::Entry {
+            name: "starter-aipm-plugin",
+            description: "Default starter plugin \u{2014} scaffold new plugins, scan your marketplace, and log tool usage",
+        }]
+    };
     fs.write_file(
         &ai_dir.join(".claude-plugin").join("marketplace.json"),
-        generate_marketplace_json(marketplace_name, no_starter).as_bytes(),
+        crate::generate::marketplace::create(marketplace_name, &initial_plugins).as_bytes(),
     )?;
 
     if no_starter {
@@ -470,31 +478,6 @@ fn generate_hook_template() -> String {
      \x20 ]\n\
      }\n"
     .to_string()
-}
-
-fn generate_marketplace_json(marketplace_name: &str, no_starter: bool) -> String {
-    let plugins = if no_starter {
-        serde_json::json!([])
-    } else {
-        serde_json::json!([
-            {
-                "name": "starter-aipm-plugin",
-                "source": "./starter-aipm-plugin",
-                "description": "Default starter plugin \u{2014} scaffold new plugins, scan your marketplace, and log tool usage"
-            }
-        ])
-    };
-
-    let obj = serde_json::json!({
-        "name": marketplace_name,
-        "owner": { "name": "local" },
-        "metadata": { "description": "Local plugins for this repository" },
-        "plugins": plugins
-    });
-
-    let mut output = serde_json::to_string_pretty(&obj).unwrap_or_default();
-    output.push('\n');
-    output
 }
 
 fn generate_mcp_stub() -> String {
@@ -874,7 +857,12 @@ mod tests {
 
     #[test]
     fn scaffold_script_marketplace_name_matches_generator() {
-        let marketplace_json = generate_marketplace_json("local-repo-plugins", false);
+        let starter = crate::generate::marketplace::Entry {
+            name: "starter-aipm-plugin",
+            description: "Default starter plugin",
+        };
+        let marketplace_json =
+            crate::generate::marketplace::create("local-repo-plugins", &[starter]);
         let parsed: serde_json::Value =
             serde_json::from_str(&marketplace_json).ok().unwrap_or_default();
         let marketplace_name = parsed.get("name").and_then(|n| n.as_str()).unwrap_or("");
@@ -914,7 +902,11 @@ mod tests {
 
     #[test]
     fn marketplace_json_with_starter_is_valid() {
-        let json = generate_marketplace_json("local-repo-plugins", false);
+        let starter = crate::generate::marketplace::Entry {
+            name: "starter-aipm-plugin",
+            description: "Default starter plugin",
+        };
+        let json = crate::generate::marketplace::create("local-repo-plugins", &[starter]);
         let parsed: Result<serde_json::Value, _> = serde_json::from_str(&json);
         assert!(parsed.is_ok(), "marketplace.json should be valid JSON: {parsed:?}");
         let v = parsed.ok();
@@ -939,7 +931,7 @@ mod tests {
 
     #[test]
     fn marketplace_json_no_starter_has_empty_plugins() {
-        let json = generate_marketplace_json("local-repo-plugins", true);
+        let json = crate::generate::marketplace::create("local-repo-plugins", &[]);
         let parsed: Result<serde_json::Value, _> = serde_json::from_str(&json);
         assert!(parsed.is_ok(), "marketplace.json should be valid JSON: {parsed:?}");
         let v = parsed.ok();
