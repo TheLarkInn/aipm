@@ -1,6 +1,6 @@
 //! `aipm` — consumer CLI for AI plugin management.
 //!
-//! Commands: init, install, update, link, unlink, list, lint, migrate, lsp.
+//! Commands: init, install, update, uninstall, link, unlink, list, lint, migrate, lsp.
 
 mod lsp;
 mod wizard;
