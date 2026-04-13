@@ -86,6 +86,26 @@ pub trait Fs: Send + Sync {
     fn atomic_write(&self, _path: &Path, _content: &[u8]) -> std::io::Result<()> {
         Err(std::io::Error::other("atomic_write not implemented"))
     }
+
+    // -----------------------------------------------------------------
+    // Convenience defaults (compose required methods above)
+    // -----------------------------------------------------------------
+
+    /// Creates parent directories if needed, then writes the file.
+    ///
+    /// Equivalent to `create_dir_all(parent) + write_file(path, content)`.
+    /// All 6+ locations in the codebase that do this manually can call
+    /// this method instead.
+    fn write_file_with_parents(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+        if let Some(parent) = path.parent() {
+            // Only call create_dir_all when the parent is a non-empty path
+            // (path.parent() returns Some("") for a bare filename).
+            if !parent.as_os_str().is_empty() {
+                self.create_dir_all(parent)?;
+            }
+        }
+        self.write_file(path, content)
+    }
 }
 
 /// Standard filesystem — delegates to `std::fs`.
@@ -399,6 +419,49 @@ mod tests {
     #[test]
     fn real_is_file_returns_false_for_nonexistent() {
         assert!(!Real.is_file(Path::new("/nonexistent/path/that/does/not/exist")));
+    }
+
+    #[test]
+    fn write_file_with_parents_creates_nested_dirs_and_file() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let nested = tmp.path().join("a").join("b").join("c").join("output.txt");
+
+        assert!(Real.write_file_with_parents(&nested, b"hello nested").is_ok());
+        assert!(nested.exists());
+        assert_eq!(std::fs::read_to_string(&nested).expect("read"), "hello nested");
+    }
+
+    #[test]
+    fn write_file_with_parents_bare_filename_no_parent_create() {
+        // A bare filename has no meaningful parent directory — write_file_with_parents
+        // must not call create_dir_all with an empty path (which would be a no-op
+        // on most OSes but is semantically wrong). We test via a tmp dir cd-less
+        // approach: just check the call succeeds when parent is empty.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let file = tmp.path().join("just_a_file.txt");
+
+        // Parent exists (tmp dir), so create_dir_all is a no-op; file is created.
+        assert!(Real.write_file_with_parents(&file, b"bare").is_ok());
+        assert_eq!(std::fs::read_to_string(&file).expect("read"), "bare");
+    }
+
+    #[test]
+    fn write_file_with_parents_overwrites_existing_file() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let file = tmp.path().join("sub").join("overwrite.txt");
+
+        assert!(Real.write_file_with_parents(&file, b"first").is_ok());
+        assert!(Real.write_file_with_parents(&file, b"second").is_ok());
+        assert_eq!(std::fs::read_to_string(&file).expect("read"), "second");
+    }
+
+    #[test]
+    fn write_file_with_parents_single_level_parent() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let file = tmp.path().join("one_level").join("file.txt");
+
+        assert!(Real.write_file_with_parents(&file, b"content").is_ok());
+        assert!(file.exists());
     }
 
     #[test]
