@@ -4,55 +4,7 @@
 //! 1. **Prompt definitions** (pure functions) — build prompt configs, answer mapping.
 //! 2. **Prompt execution** (thin bridge) — calls `inquire::*.prompt()`.
 
-// =============================================================================
-// Types
-// =============================================================================
-
-/// Describes a single prompt step in the wizard.
-#[derive(Debug)]
-pub struct PromptStep {
-    /// Human-readable label shown to the user.
-    pub label: &'static str,
-    /// The kind of prompt.
-    pub kind: PromptKind,
-    /// Optional help message shown below the prompt.
-    pub help: Option<&'static str>,
-}
-
-/// The kind of interactive prompt.
-#[derive(Debug)]
-pub enum PromptKind {
-    /// Single-choice list.
-    Select {
-        /// Option labels.
-        options: Vec<&'static str>,
-        /// Index of the default selection.
-        default_index: usize,
-    },
-    /// Yes/no confirmation.
-    Confirm {
-        /// Default value (true = yes).
-        default: bool,
-    },
-    /// Free-form text input.
-    Text {
-        /// Grey placeholder text (shown when input is empty).
-        placeholder: String,
-        /// Whether to apply marketplace-name validation.
-        validate: bool,
-    },
-}
-
-/// Raw answer collected from a prompt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PromptAnswer {
-    /// Index of the selected option.
-    Selected(usize),
-    /// Boolean confirmation.
-    Bool(bool),
-    /// Text input.
-    Text(String),
-}
+pub use libaipm::wizard::{styled_render_config, PromptAnswer, PromptKind, PromptStep};
 
 // =============================================================================
 // Prompt definitions — fully testable, no terminal dependency
@@ -228,21 +180,6 @@ pub fn migrate_cleanup_prompt_steps(migrated_count: usize) -> Vec<PromptStep> {
 /// Returns `true` if the user chose to remove source files.
 pub const fn resolve_migrate_cleanup_answer(answers: &[PromptAnswer]) -> bool {
     matches!(answers.first(), Some(PromptAnswer::Bool(true)))
-}
-
-// =============================================================================
-// Theming
-// =============================================================================
-
-/// Build a styled `RenderConfig` for a modern prompt appearance.
-pub fn styled_render_config() -> inquire::ui::RenderConfig<'static> {
-    use inquire::ui::{Color, RenderConfig, StyleSheet, Styled};
-
-    let mut config = RenderConfig::default_colored();
-    config.prompt_prefix = Styled::new("?").with_fg(Color::LightCyan);
-    config.answered_prompt_prefix = Styled::new("\u{2713}").with_fg(Color::LightGreen);
-    config.placeholder = StyleSheet::new().with_fg(Color::DarkGrey);
-    config
 }
 
 // =============================================================================

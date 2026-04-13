@@ -359,7 +359,7 @@
       "Delete validate_marketplace_name from aipm/wizard.rs and validate_package_name from aipm-pack/wizard.rs (replaced by manifest::validate calls)",
       "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

@@ -67,6 +67,14 @@ fn execute_prompts(steps: &[PromptStep]) -> Result<Vec<PromptAnswer>, Box<dyn st
                 let result = prompt.prompt()?;
                 PromptAnswer::Text(result)
             },
+            PromptKind::Confirm { default } => {
+                let mut prompt = inquire::Confirm::new(step.label).with_default(*default);
+                if let Some(help) = step.help {
+                    prompt = prompt.with_help_message(help);
+                }
+                let result = prompt.prompt()?;
+                PromptAnswer::Bool(result)
+            },
             PromptKind::Select { options, default_index } => {
                 let mut prompt = inquire::Select::new(step.label, options.clone())
                     .with_starting_cursor(*default_index);

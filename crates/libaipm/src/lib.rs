@@ -30,6 +30,8 @@ pub mod security;
 pub mod spec;
 pub mod store;
 pub mod version;
+#[cfg(feature = "wizard")]
+pub mod wizard;
 pub mod workspace;
 pub mod workspace_init;
 

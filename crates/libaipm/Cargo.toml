@@ -36,6 +36,13 @@ anstyle-query = { workspace = true }
 [target.'cfg(windows)'.dependencies]
 junction = { workspace = true }
 
+[features]
+wizard = ["dep:inquire"]
+
+[dependencies.inquire]
+workspace = true
+optional = true
+
 [dev-dependencies]
 cucumber = { workspace = true }
 futures = { workspace = true }

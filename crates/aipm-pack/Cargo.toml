@@ -10,7 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-libaipm = { workspace = true }
+libaipm = { workspace = true, features = ["wizard"] }
 clap = { workspace = true }
 inquire = { workspace = true }
 serde = { workspace = true }

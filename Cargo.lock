@@ -1178,6 +1178,7 @@ dependencies = [
  "git2",
  "glob",
  "ignore",
+ "inquire",
  "insta",
  "junction",
  "rayon",
