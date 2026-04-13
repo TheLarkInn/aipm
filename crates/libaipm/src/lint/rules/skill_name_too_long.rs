@@ -38,43 +38,6 @@ impl Rule for NameTooLong {
         Some("shorten the name to 60 characters or fewer")
     }
 
-    fn check(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
-        let mut diagnostics = Vec::new();
-
-        for skill in scan::scan_skills(source_dir, fs) {
-            if let Some(ref fm) = skill.frontmatter {
-                if let Some(name) = fm.fields.get("name") {
-                    if name.len() > MAX_SKILL_NAME_LENGTH {
-                        let name_line = fm.field_lines.get("name").copied();
-                        let (col, end_col) = name_line
-                            .and_then(|n| skill.content.lines().nth(n - 1))
-                            .and_then(|line| crate::frontmatter::field_value_range(line, "name"))
-                            .unzip();
-                        diagnostics.push(Diagnostic {
-                            rule_id: self.id().to_string(),
-                            severity: self.default_severity(),
-                            message: format!(
-                                "skill name exceeds {} characters ({} chars, Copilot CLI limit)",
-                                MAX_SKILL_NAME_LENGTH,
-                                name.len()
-                            ),
-                            file_path: skill.path,
-                            line: name_line,
-                            col,
-                            end_line: name_line,
-                            end_col,
-                            source_type: ".ai".to_string(),
-                            help_text: None,
-                            help_url: None,
-                        });
-                    }
-                }
-            }
-        }
-
-        Ok(diagnostics)
-    }
-
     fn check_file(&self, file_path: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
         let source_type = scan::source_type_from_path(file_path).to_string();
         let Some(skill) = scan::read_skill(file_path, fs) else {
@@ -116,64 +79,6 @@ mod tests {
     use crate::lint::rules::test_helpers::MockFs;
 
     #[test]
-    fn short_name_no_finding() {
-        let mut fs = MockFs::new();
-        fs.add_skill("p", "s", "---\nname: short\n---\nbody");
-
-        let result = NameTooLong.check(Path::new(".ai"), &fs);
-        assert!(result.is_ok());
-        assert!(result.ok().unwrap_or_default().is_empty());
-    }
-
-    #[test]
-    fn exactly_64_chars_no_finding() {
-        let mut fs = MockFs::new();
-        let name = "a".repeat(64);
-        let content = format!("---\nname: {name}\n---\nbody");
-        fs.add_skill("p", "s", &content);
-
-        let result = NameTooLong.check(Path::new(".ai"), &fs);
-        assert!(result.is_ok());
-        assert!(result.ok().unwrap_or_default().is_empty());
-    }
-
-    #[test]
-    fn exceeds_64_chars_finding() {
-        let mut fs = MockFs::new();
-        let name = "a".repeat(65);
-        let content = format!("---\nname: {name}\n---\nbody");
-        fs.add_skill("p", "s", &content);
-
-        let result = NameTooLong.check(Path::new(".ai"), &fs);
-        assert!(result.is_ok());
-        let diags = result.ok().unwrap_or_default();
-        assert_eq!(diags.len(), 1);
-        assert_eq!(diags[0].rule_id, "skill/name-too-long");
-    }
-
-    #[test]
-    fn no_name_no_finding() {
-        let mut fs = MockFs::new();
-        fs.add_skill("p", "s", "---\ndescription: test\n---\nbody");
-
-        let result = NameTooLong.check(Path::new(".ai"), &fs);
-        assert!(result.is_ok());
-        assert!(result.ok().unwrap_or_default().is_empty());
-    }
-
-    #[test]
-    fn no_frontmatter_no_finding() {
-        let mut fs = MockFs::new();
-        fs.add_skill("p", "s", "no frontmatter here");
-
-        let result = NameTooLong.check(Path::new(".ai"), &fs);
-        assert!(result.is_ok());
-        assert!(result.ok().unwrap_or_default().is_empty());
-    }
-
-    // --- check_file() tests ---
-
-    #[test]
     fn check_file_no_file_returns_empty() {
         let fs = MockFs::new();
         let result = NameTooLong.check_file(Path::new(".ai/p/skills/s/SKILL.md"), &fs);
@@ -207,21 +112,6 @@ mod tests {
         let result = NameTooLong.check_file(&path, &fs);
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
-    }
-
-    #[test]
-    fn check_populates_col_and_end_col() {
-        // "name: " is 6 chars, so value starts at col 7; 65 'a's → end_col = 7 + 65 = 72
-        let mut fs = MockFs::new();
-        let name = "a".repeat(65);
-        let content = format!("---\nname: {name}\n---\nbody");
-        fs.add_skill("p", "s", &content);
-
-        let diags = NameTooLong.check(Path::new(".ai"), &fs).ok().unwrap_or_default();
-        assert_eq!(diags.len(), 1);
-        assert_eq!(diags[0].col, Some(7));
-        assert_eq!(diags[0].end_line, diags[0].line);
-        assert_eq!(diags[0].end_col, Some(72));
     }
 
     #[test]

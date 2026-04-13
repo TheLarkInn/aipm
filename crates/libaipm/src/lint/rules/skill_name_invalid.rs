@@ -49,41 +49,6 @@ impl Rule for NameInvalidChars {
         Some("use only alphanumeric, hyphen, and underscore characters")
     }
 
-    fn check(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
-        let mut diagnostics = Vec::new();
-
-        for skill in scan::scan_skills(source_dir, fs) {
-            if let Some(ref fm) = skill.frontmatter {
-                if let Some(name) = fm.fields.get("name") {
-                    if !name.is_empty() && !is_valid_copilot_name(name) {
-                        let name_line = fm.field_lines.get("name").copied();
-                        let (col, end_col) = name_line
-                            .and_then(|n| skill.content.lines().nth(n - 1))
-                            .and_then(|line| crate::frontmatter::field_value_range(line, "name"))
-                            .unzip();
-                        diagnostics.push(Diagnostic {
-                            rule_id: self.id().to_string(),
-                            severity: self.default_severity(),
-                            message: format!(
-                                "skill name \"{name}\" contains characters not allowed by Copilot CLI (must match /^[a-zA-Z0-9][a-zA-Z0-9._\\- ]*$/)"
-                            ),
-                            file_path: skill.path,
-                            line: name_line,
-                            col,
-                            end_line: name_line,
-                            end_col,
-                            source_type: ".ai".to_string(),
-                            help_text: None,
-                            help_url: None,
-                        });
-                    }
-                }
-            }
-        }
-
-        Ok(diagnostics)
-    }
-
     fn check_file(&self, file_path: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
         let source_type = scan::source_type_from_path(file_path).to_string();
         let Some(skill) = scan::read_skill(file_path, fs) else {
@@ -144,51 +109,6 @@ mod tests {
     }
 
     #[test]
-    fn check_invalid_name_produces_diagnostic() {
-        let mut fs = MockFs::new();
-        fs.add_skill("p", "bad-name", "---\nname: has@special\n---\nbody");
-
-        let result = NameInvalidChars.check(Path::new(".ai"), &fs);
-        assert!(result.is_ok());
-        let diags = result.ok().unwrap_or_default();
-        assert_eq!(diags.len(), 1);
-        assert_eq!(diags[0].rule_id, "skill/name-invalid-chars");
-        assert!(diags[0].message.contains("has@special"));
-    }
-
-    #[test]
-    fn check_valid_name_no_diagnostic() {
-        let mut fs = MockFs::new();
-        fs.add_skill("p", "good-name", "---\nname: valid-skill\n---\nbody");
-
-        let result = NameInvalidChars.check(Path::new(".ai"), &fs);
-        assert!(result.is_ok());
-        assert!(result.ok().unwrap_or_default().is_empty());
-    }
-
-    #[test]
-    fn check_no_name_field_no_diagnostic() {
-        let mut fs = MockFs::new();
-        fs.add_skill("p", "no-name", "---\ndescription: A skill\n---\nbody");
-
-        let result = NameInvalidChars.check(Path::new(".ai"), &fs);
-        assert!(result.is_ok());
-        assert!(result.ok().unwrap_or_default().is_empty());
-    }
-
-    #[test]
-    fn check_no_frontmatter_no_diagnostic() {
-        let mut fs = MockFs::new();
-        fs.add_skill("p", "s", "no frontmatter here");
-
-        let result = NameInvalidChars.check(Path::new(".ai"), &fs);
-        assert!(result.is_ok());
-        assert!(result.ok().unwrap_or_default().is_empty());
-    }
-
-    // --- check_file() tests ---
-
-    #[test]
     fn check_file_no_file_returns_empty() {
         let fs = MockFs::new();
         let result = NameInvalidChars.check_file(Path::new(".ai/p/skills/s/SKILL.md"), &fs);
@@ -246,31 +166,6 @@ mod tests {
         let result = NameInvalidChars.check_file(&path, &fs);
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
-    }
-
-    #[test]
-    fn check_empty_name_no_diagnostic() {
-        // Covers the short-circuit False branch of `!name.is_empty() && ...`
-        // in check() when the name field is an empty string.
-        let mut fs = MockFs::new();
-        fs.add_skill("p", "s", "---\nname: \"\"\n---\nbody");
-
-        let result = NameInvalidChars.check(Path::new(".ai"), &fs);
-        assert!(result.is_ok());
-        assert!(result.ok().unwrap_or_default().is_empty());
-    }
-
-    #[test]
-    fn check_populates_col_and_end_col() {
-        // "name: has@special" — value starts at col 7, "has@special" is 11 chars → end_col 18
-        let mut fs = MockFs::new();
-        fs.add_skill("p", "bad-name", "---\nname: has@special\n---\nbody");
-
-        let diags = NameInvalidChars.check(Path::new(".ai"), &fs).ok().unwrap_or_default();
-        assert_eq!(diags.len(), 1);
-        assert_eq!(diags[0].col, Some(7));
-        assert_eq!(diags[0].end_line, diags[0].line);
-        assert_eq!(diags[0].end_col, Some(18));
     }
 
     #[test]

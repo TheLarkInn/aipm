@@ -33,15 +33,6 @@ impl Rule for FieldMismatch {
         Some("update marketplace.json or plugin.json so the name and description fields match")
     }
 
-    fn check(
-        &self,
-        source_dir: &Path,
-        fs: &dyn Fs,
-    ) -> Result<Vec<Diagnostic>, super::super::Error> {
-        let mp_path = source_dir.join(".claude-plugin").join("marketplace.json");
-        Ok(check_mismatch(&mp_path, source_dir, fs))
-    }
-
     fn check_file(
         &self,
         file_path: &Path,
@@ -301,16 +292,6 @@ mod tests {
         fs.add_marketplace_json(r#"{"plugins":[{"name":"foo"}]}"#);
         let result =
             FieldMismatch.check_file(Path::new(".ai/.claude-plugin/marketplace.json"), &fs);
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_empty());
-    }
-
-    #[test]
-    fn check_directory_level() {
-        let mut fs = MockFs::new();
-        fs.add_marketplace_json(&make_marketplace("foo", "same", "./foo"));
-        fs.add_plugin_json("foo", &make_plugin_json("foo", "same"));
-        let result = FieldMismatch.check(Path::new(".ai"), &fs);
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
     }

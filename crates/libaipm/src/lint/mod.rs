@@ -294,7 +294,7 @@ mod tests {
             fn default_severity(&self) -> Severity {
                 Severity::Warning
             }
-            fn check(
+            fn check_file(
                 &self,
                 _: &std::path::Path,
                 _: &dyn crate::fs::Fs,

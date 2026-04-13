@@ -34,15 +34,6 @@ impl Rule for MissingRegistration {
         Some("add this plugin to the plugins array in .ai/.claude-plugin/marketplace.json")
     }
 
-    fn check(
-        &self,
-        source_dir: &Path,
-        fs: &dyn Fs,
-    ) -> Result<Vec<Diagnostic>, super::super::Error> {
-        let mp_path = source_dir.join(".claude-plugin").join("marketplace.json");
-        Ok(check_registration(&mp_path, source_dir, fs))
-    }
-
     fn check_file(
         &self,
         file_path: &Path,
@@ -254,14 +245,6 @@ mod tests {
     fn check_file_no_grandparent_returns_empty() {
         let fs = MockFs::new();
         let result = MissingRegistration.check_file(Path::new("marketplace.json"), &fs);
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_empty());
-    }
-
-    #[test]
-    fn check_directory_level() {
-        let fs = make_fs_with_plugins(&["foo"], &["foo"]);
-        let result = MissingRegistration.check(Path::new(".ai"), &fs);
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
     }

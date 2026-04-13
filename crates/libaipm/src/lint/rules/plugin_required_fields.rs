@@ -36,15 +36,6 @@ impl Rule for RequiredFields {
         )
     }
 
-    fn check(
-        &self,
-        source_dir: &Path,
-        fs: &dyn Fs,
-    ) -> Result<Vec<Diagnostic>, super::super::Error> {
-        let pj_path = source_dir.join(".claude-plugin").join("plugin.json");
-        Ok(check_required_fields(&pj_path, fs))
-    }
-
     fn check_file(
         &self,
         file_path: &Path,
@@ -300,15 +291,6 @@ mod tests {
     fn nonexistent_file_returns_empty() {
         let fs = MockFs::new();
         let result = RequiredFields.check_file(Path::new(".ai/p/.claude-plugin/plugin.json"), &fs);
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_empty());
-    }
-
-    #[test]
-    fn check_directory_level() {
-        let mut fs = MockFs::new();
-        fs.add_plugin_json("p", FULL_VALID);
-        let result = RequiredFields.check(Path::new(".ai/p"), &fs);
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
     }

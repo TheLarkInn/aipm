@@ -34,14 +34,6 @@ impl Rule for MissingManifest {
         Some("create a .claude-plugin/plugin.json file in the plugin directory")
     }
 
-    fn check(
-        &self,
-        source_dir: &Path,
-        fs: &dyn Fs,
-    ) -> Result<Vec<Diagnostic>, super::super::Error> {
-        Ok(check_manifests(source_dir, fs))
-    }
-
     fn check_file(
         &self,
         file_path: &Path,
@@ -159,17 +151,6 @@ mod tests {
         let fs = MockFs::new();
         let result =
             MissingManifest.check_file(Path::new(".ai/.claude-plugin/marketplace.json"), &fs);
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_empty());
-    }
-
-    #[test]
-    fn check_directory_level() {
-        let mut fs = MockFs::new();
-        let ai_path = PathBuf::from(".ai");
-        fs.dirs.entry(ai_path).or_default().push(DirEntry { name: "p".to_string(), is_dir: true });
-        fs.add_plugin_json("p", r#"{"name":"p","version":"0.1.0"}"#);
-        let result = MissingManifest.check(Path::new(".ai"), &fs);
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
     }

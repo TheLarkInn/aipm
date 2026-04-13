@@ -35,15 +35,6 @@ impl Rule for SourceResolve {
         Some("ensure the source field points to an existing plugin directory under .ai/")
     }
 
-    fn check(
-        &self,
-        source_dir: &Path,
-        fs: &dyn Fs,
-    ) -> Result<Vec<Diagnostic>, super::super::Error> {
-        let mp_path = source_dir.join(".claude-plugin").join("marketplace.json");
-        Ok(check_marketplace(&mp_path, source_dir, fs))
-    }
-
     fn check_file(
         &self,
         file_path: &Path,
@@ -208,16 +199,6 @@ mod tests {
         let fs = MockFs::new();
         let result =
             SourceResolve.check_file(Path::new(".ai/.claude-plugin/marketplace.json"), &fs);
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_empty());
-    }
-
-    #[test]
-    fn check_directory_level_uses_ai_dir() {
-        let mut fs = MockFs::new();
-        fs.add_marketplace_json(r#"{"name":"local","plugins":[{"name":"bar","source":"./bar"}]}"#);
-        fs.add_existing(".ai/bar");
-        let result = SourceResolve.check(Path::new(".ai"), &fs);
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
     }
