@@ -128,7 +128,7 @@ pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<Instal
 
     // Step 4b: Load link overrides (aipm link takes priority over workspace deps)
     let link_overrides: BTreeSet<String> = if config.link_state_path.exists() {
-        let entries = linker::link_state::list(&config.link_state_path)
+        let entries = linker::link_state::list(&crate::fs::Real, &config.link_state_path)
             .map_err(|e| Error::Io(std::io::Error::other(format!("link state read error: {e}"))))?;
         entries.iter().map(|e| e.name.clone()).collect()
     } else {
@@ -765,7 +765,7 @@ fn handle_removals(
 /// Clear all dev link overrides (for --locked mode).
 fn clear_dev_links(link_state_path: &Path) -> Result<(), Error> {
     if link_state_path.exists() {
-        let entries = linker::link_state::list(link_state_path)
+        let entries = linker::link_state::list(&crate::fs::Real, link_state_path)
             .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
 
         for link in &entries {
@@ -776,7 +776,7 @@ fn clear_dev_links(link_state_path: &Path) -> Result<(), Error> {
             );
         }
 
-        linker::link_state::clear_all(link_state_path)
+        linker::link_state::clear_all(&crate::fs::Real, link_state_path)
             .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
     }
     Ok(())
@@ -1448,12 +1448,12 @@ features = ["json"]
             path: std::path::PathBuf::from("/work/my-plugin"),
             linked_at: "2026-03-26T12:00:00Z".to_string(),
         };
-        linker::link_state::add(&state_path, entry).expect("add entry");
+        linker::link_state::add(&crate::fs::Real, &state_path, entry).expect("add entry");
 
         assert!(clear_dev_links(&state_path).is_ok());
 
         // Entries should be cleared
-        let remaining = linker::link_state::list(&state_path).expect("list");
+        let remaining = linker::link_state::list(&crate::fs::Real, &state_path).expect("list");
         assert!(remaining.is_empty());
     }
 
@@ -1681,10 +1681,12 @@ features = ["extra"]
             path: std::path::PathBuf::from("/dev/path"),
             linked_at: "2026-01-01T00:00:00Z".to_string(),
         };
-        crate::linker::link_state::add(&config.link_state_path, link_entry).unwrap();
+        crate::linker::link_state::add(&crate::fs::Real, &config.link_state_path, link_entry)
+            .unwrap();
 
         // Verify entry was added
-        let entries = crate::linker::link_state::list(&config.link_state_path).unwrap();
+        let entries =
+            crate::linker::link_state::list(&crate::fs::Real, &config.link_state_path).unwrap();
         assert_eq!(entries.len(), 1);
 
         // Now install in --locked mode — should clear dev links
@@ -1693,7 +1695,8 @@ features = ["extra"]
         assert!(result.is_ok(), "locked install failed: {result:?}");
 
         // Dev links should be cleared
-        let entries = crate::linker::link_state::list(&config.link_state_path).unwrap();
+        let entries =
+            crate::linker::link_state::list(&crate::fs::Real, &config.link_state_path).unwrap();
         assert!(entries.is_empty());
     }
 
@@ -1873,16 +1876,16 @@ pkg-a = "^1.0"
             path: std::path::PathBuf::from("/dev/tool-b"),
             linked_at: "2026-01-02T00:00:00Z".to_string(),
         };
-        crate::linker::link_state::add(&state_path, entry_a).unwrap();
-        crate::linker::link_state::add(&state_path, entry_b).unwrap();
+        crate::linker::link_state::add(&crate::fs::Real, &state_path, entry_a).unwrap();
+        crate::linker::link_state::add(&crate::fs::Real, &state_path, entry_b).unwrap();
 
-        let before = crate::linker::link_state::list(&state_path).unwrap();
+        let before = crate::linker::link_state::list(&crate::fs::Real, &state_path).unwrap();
         assert_eq!(before.len(), 2);
 
         // clear_dev_links should empty the file
         clear_dev_links(&state_path).unwrap();
 
-        let after = crate::linker::link_state::list(&state_path).unwrap();
+        let after = crate::linker::link_state::list(&crate::fs::Real, &state_path).unwrap();
         assert!(after.is_empty(), "expected empty state after clear_dev_links");
     }
 

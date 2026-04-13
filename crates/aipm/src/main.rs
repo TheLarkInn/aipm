@@ -481,7 +481,7 @@ fn cmd_link(path: PathBuf, dir: PathBuf) -> Result<(), Box<dyn std::error::Error
         path: path.clone(),
         linked_at: timestamp_now(),
     };
-    libaipm::linker::link_state::add(&link_state_path, entry)
+    libaipm::linker::link_state::add(&libaipm::fs::Real, &link_state_path, entry)
         .map_err(|e| std::io::Error::other(e.to_string()))?;
 
     let mut stdout = std::io::stdout();
@@ -498,7 +498,7 @@ fn cmd_unlink(package: &str, dir: PathBuf) -> Result<(), Box<dyn std::error::Err
         .map_err(|e| std::io::Error::other(e.to_string()))?;
 
     let link_state_path = dir.join(".aipm/links.toml");
-    libaipm::linker::link_state::remove(&link_state_path, package)
+    libaipm::linker::link_state::remove(&libaipm::fs::Real, &link_state_path, package)
         .map_err(|e| std::io::Error::other(e.to_string()))?;
 
     let gitignore_path = plugins_dir.join(".gitignore");
@@ -518,7 +518,7 @@ fn cmd_list(linked: bool, dir: PathBuf) -> Result<(), Box<dyn std::error::Error>
 
     if linked {
         let link_state_path = dir.join(".aipm/links.toml");
-        let entries = libaipm::linker::link_state::list(&link_state_path)
+        let entries = libaipm::linker::link_state::list(&libaipm::fs::Real, &link_state_path)
             .map_err(|e| std::io::Error::other(e.to_string()))?;
 
         if entries.is_empty() {

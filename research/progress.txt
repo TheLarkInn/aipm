@@ -1,8 +1,4 @@
-Iteration 2 complete - added missing test coverage for Instructions exemption
-Build gates: cargo build ✓, cargo test ✓, cargo clippy ✓, cargo fmt ✓
-Coverage: 89.20% branch (≥89% required) ✓
-aipm lint .: 0 errors, 0 warnings ✓
-
-All 8 features pass. Added in iteration 2:
-- crates/libaipm/src/lint/mod.rs: lint_instruction_files_not_flagged_as_misplaced() test
-  covering the new FeatureKind::Instructions exemption branch
+[2026-04-13] Phase 1.1a COMPLETE — write_file_with_parents() default method added to Fs trait in crates/libaipm/src/fs.rs. Creates parent dirs (skipping empty-path parents for bare filenames) then writes file. 4 unit tests added. cargo verifier: PASS (94.67% coverage). Commit: b108119.
+[2026-04-13] Phase 1.1b COMPLETE — read_or_default<T> and read_toml_or_default<T> added as free functions in fs.rs (NOT trait methods — generic trait methods break &dyn Fs dyn-compatibility). 6 unit tests. cargo verifier: PASS (89.30% coverage). Commit: 3809c3a.
+[2026-04-13] Phase 1.1c COMPLETE — lockfile::read and lockfile::write migrated from std::fs to &dyn Fs. write() now uses fs.write_file_with_parents(). 24 callers updated (main.rs, pipeline.rs prod+test, lockfile tests). cargo verifier: PASS (89.32% coverage). Commit: 0e32e49.
+[2026-04-13] Phase 1.1d COMPLETE — linker/link_state.rs migrated from std::fs to &dyn Fs. read() now delegates to crate::fs::read_toml_or_default::<State>(). write() uses fs.write_file_with_parents(). All 6 public functions (read, write, add, remove, clear_all, list) take &dyn Fs. 15 callers updated (main.rs 3, pipeline.rs prod 3, pipeline.rs tests 9, link_state tests 12). cargo verifier: PASS (89.34% coverage).
