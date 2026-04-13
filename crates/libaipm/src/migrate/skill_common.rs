@@ -4,76 +4,44 @@ use std::path::{Path, PathBuf};
 
 use crate::fs::Fs;
 
-use super::{strip_yaml_quotes, ArtifactMetadata, Error};
+use super::{ArtifactMetadata, Error};
 
-/// Parse YAML frontmatter from a SKILL.md file.
+/// Parse YAML frontmatter and extract artifact metadata.
 ///
-/// Frontmatter is delimited by `---` lines. Extracts `name`, `description`,
-/// and `hooks` fields using simple line-by-line parsing (no YAML parser).
-pub fn parse_skill_frontmatter(content: &str, path: &Path) -> Result<ArtifactMetadata, Error> {
-    let mut metadata = ArtifactMetadata::default();
+/// Delegates to [`crate::frontmatter::parse`] for the actual YAML parsing,
+/// then maps the generic `Frontmatter` fields into `ArtifactMetadata`.
+///
+/// Returns `Err` if the content has an opening `---` but no closing delimiter.
+pub fn parse_frontmatter(content: &str, path: &Path) -> Result<ArtifactMetadata, Error> {
+    let fm = crate::frontmatter::parse(content)
+        .map_err(|reason| Error::FrontmatterParse { path: path.to_path_buf(), reason })?;
+    Ok(metadata_from_frontmatter(fm))
+}
 
-    // Find frontmatter between --- delimiters
-    let trimmed = content.trim_start();
-    if !trimmed.starts_with("---") {
-        return Ok(metadata);
-    }
+/// Parse YAML frontmatter leniently, returning default metadata on any error.
+///
+/// Use this for artifact types (commands, output styles) where missing or
+/// malformed frontmatter is acceptable.
+pub fn parse_frontmatter_lenient(content: &str) -> ArtifactMetadata {
+    crate::frontmatter::parse(content)
+        .map_or_else(|_| ArtifactMetadata::default(), metadata_from_frontmatter)
+}
 
-    // Find the closing ---
-    let after_first = &trimmed[3..];
-    let rest = after_first.trim_start_matches(['\r', '\n']);
-    let closing = rest.find("\n---");
-    let yaml_block = match closing {
-        Some(pos) => &rest[..pos],
-        None => {
-            return Err(Error::FrontmatterParse {
-                path: path.to_path_buf(),
-                reason: "no closing --- delimiter found".to_string(),
-            });
-        },
+fn metadata_from_frontmatter(fm: Option<crate::frontmatter::Frontmatter>) -> ArtifactMetadata {
+    let Some(fm) = fm else {
+        return ArtifactMetadata::default();
     };
 
-    // Parse line by line
-    let mut hooks_lines: Vec<String> = Vec::new();
-    let mut in_hooks = false;
-
-    for line in yaml_block.lines() {
-        let trimmed_line = line.trim();
-
-        // Check if we're in a hooks block (indented continuation)
-        if in_hooks {
-            if line.starts_with(' ') || line.starts_with('\t') {
-                // Strip one level of indentation so the emitter can parse key: value lines
-                let stripped =
-                    line.strip_prefix("  ").or_else(|| line.strip_prefix('\t')).unwrap_or(line);
-                hooks_lines.push(stripped.to_string());
-                continue;
-            }
-            in_hooks = false;
-        }
-
-        if let Some(value) = trimmed_line.strip_prefix("name:") {
-            metadata.name = Some(strip_yaml_quotes(value.trim()).to_string());
-        } else if let Some(value) = trimmed_line.strip_prefix("description:") {
-            metadata.description = Some(strip_yaml_quotes(value.trim()).to_string());
-        } else if trimmed_line.starts_with("hooks:") {
-            in_hooks = true;
-            let value = trimmed_line.strip_prefix("hooks:").unwrap_or_default().trim();
-            if !value.is_empty() {
-                hooks_lines.push(value.to_string());
-            }
-        } else if let Some(value) = trimmed_line.strip_prefix("disable-model-invocation:") {
-            if value.trim() == "true" {
-                metadata.model_invocation_disabled = true;
-            }
-        }
+    ArtifactMetadata {
+        name: fm.fields.get("name").cloned(),
+        description: fm.fields.get("description").cloned(),
+        hooks: fm.fields.get("hooks").cloned(),
+        model_invocation_disabled: fm
+            .fields
+            .get("disable-model-invocation")
+            .is_some_and(|v| v == "true"),
+        raw_content: None,
     }
-
-    if !hooks_lines.is_empty() {
-        metadata.hooks = Some(hooks_lines.join("\n"));
-    }
-
-    Ok(metadata)
 }
 
 /// Extract script references from artifact content.
@@ -266,7 +234,7 @@ mod tests {
 
     #[test]
     fn parse_frontmatter_extracts_name_and_description() {
-        let result = parse_skill_frontmatter(
+        let result = parse_frontmatter(
             "---\nname: deploy\ndescription: Deploy app\n---\nbody",
             Path::new("test"),
         );
@@ -278,7 +246,7 @@ mod tests {
 
     #[test]
     fn parse_frontmatter_no_frontmatter() {
-        let result = parse_skill_frontmatter("just plain text", Path::new("test"));
+        let result = parse_frontmatter("just plain text", Path::new("test"));
         assert!(result.is_ok());
         let meta = result.ok().unwrap_or_default();
         assert!(meta.name.is_none());
@@ -286,16 +254,14 @@ mod tests {
 
     #[test]
     fn parse_frontmatter_no_closing() {
-        let result = parse_skill_frontmatter("---\nname: test\nno closing", Path::new("test"));
+        let result = parse_frontmatter("---\nname: test\nno closing", Path::new("test"));
         assert!(result.is_err());
     }
 
     #[test]
     fn parse_frontmatter_with_hooks() {
-        let result = parse_skill_frontmatter(
-            "---\nhooks:\n  PreToolUse: check\n---\nbody",
-            Path::new("test"),
-        );
+        let result =
+            parse_frontmatter("---\nhooks:\n  PreToolUse: check\n---\nbody", Path::new("test"));
         assert!(result.is_ok());
         let meta = result.ok().unwrap_or_default();
         assert!(meta.hooks.is_some());
@@ -303,10 +269,8 @@ mod tests {
 
     #[test]
     fn parse_frontmatter_disable_model_invocation() {
-        let result = parse_skill_frontmatter(
-            "---\ndisable-model-invocation: true\n---\nbody",
-            Path::new("test"),
-        );
+        let result =
+            parse_frontmatter("---\ndisable-model-invocation: true\n---\nbody", Path::new("test"));
         assert!(result.is_ok());
         let meta = result.ok().unwrap_or_default();
         assert!(meta.model_invocation_disabled);
@@ -380,10 +344,8 @@ mod tests {
 
     #[test]
     fn parse_frontmatter_with_hooks_tab_indent() {
-        let result = parse_skill_frontmatter(
-            "---\nhooks:\n\tPreToolUse: check\n---\nbody",
-            Path::new("test"),
-        );
+        let result =
+            parse_frontmatter("---\nhooks:\n\tPreToolUse: check\n---\nbody", Path::new("test"));
         assert!(result.is_ok());
         let meta = result.ok().unwrap_or_default();
         assert!(meta.hooks.is_some());
@@ -391,8 +353,7 @@ mod tests {
 
     #[test]
     fn parse_frontmatter_hooks_inline_value() {
-        let result =
-            parse_skill_frontmatter("---\nhooks: inline-value\n---\nbody", Path::new("test"));
+        let result = parse_frontmatter("---\nhooks: inline-value\n---\nbody", Path::new("test"));
         assert!(result.is_ok());
         let meta = result.ok().unwrap_or_default();
         assert!(meta.hooks.is_some());
@@ -401,7 +362,7 @@ mod tests {
     #[test]
     fn parse_frontmatter_empty_name() {
         let result =
-            parse_skill_frontmatter("---\nname:\ndescription: test\n---\nbody", Path::new("test"));
+            parse_frontmatter("---\nname:\ndescription: test\n---\nbody", Path::new("test"));
         assert!(result.is_ok());
         let meta = result.ok().unwrap_or_default();
         assert!(meta.name.is_some());
@@ -409,10 +370,8 @@ mod tests {
 
     #[test]
     fn parse_frontmatter_disable_model_invocation_false() {
-        let result = parse_skill_frontmatter(
-            "---\ndisable-model-invocation: false\n---\nbody",
-            Path::new("test"),
-        );
+        let result =
+            parse_frontmatter("---\ndisable-model-invocation: false\n---\nbody", Path::new("test"));
         assert!(result.is_ok());
         let meta = result.ok().unwrap_or_default();
         assert!(!meta.model_invocation_disabled);
@@ -420,10 +379,8 @@ mod tests {
 
     #[test]
     fn parse_frontmatter_unknown_key_ignored() {
-        let result = parse_skill_frontmatter(
-            "---\nunknown-key: value\nname: test\n---\nbody",
-            Path::new("test"),
-        );
+        let result =
+            parse_frontmatter("---\nunknown-key: value\nname: test\n---\nbody", Path::new("test"));
         assert!(result.is_ok());
         let meta = result.ok().unwrap_or_default();
         assert_eq!(meta.name.as_deref(), Some("test"));
@@ -442,7 +399,7 @@ mod tests {
         // not a tab) exercises the `strip_prefix("  ").or_else(|| strip_prefix('\t')).unwrap_or(line)`
         // fallback — both strip_prefix calls return None, so the original line is kept.
         let content = "---\nhooks:\n PreToolUse: check\n---\nbody";
-        let result = parse_skill_frontmatter(content, Path::new("test"));
+        let result = parse_frontmatter(content, Path::new("test"));
         assert!(result.is_ok());
         let meta = result.ok().unwrap_or_default();
         // The line " PreToolUse: check" starts with ' ', so it is treated as a
@@ -483,7 +440,7 @@ mod tests {
         // `in_hooks = false` — the False branch of `line.starts_with('\t')` when
         // `line.starts_with(' ')` is also False.
         let content = "---\nhooks:\n\tPreToolUse: check\nname: my-skill\n---\nbody";
-        let result = parse_skill_frontmatter(content, Path::new("test"));
+        let result = parse_frontmatter(content, Path::new("test"));
         assert!(result.is_ok());
         let meta = result.ok().unwrap_or_default();
         assert_eq!(meta.name.as_deref(), Some("my-skill"));

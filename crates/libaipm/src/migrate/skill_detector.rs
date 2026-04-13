@@ -38,7 +38,7 @@ impl Detector for SkillDetector {
             }
 
             let content = fs.read_to_string(&skill_md)?;
-            let metadata = skill_common::parse_skill_frontmatter(&content, &skill_md)?;
+            let metadata = skill_common::parse_frontmatter(&content, &skill_md)?;
             let files = skill_common::collect_files_recursive(&entry_dir, &entry_dir, fs)?;
             let referenced_scripts =
                 skill_common::extract_script_references(&content, "${CLAUDE_SKILL_DIR}/");
@@ -70,7 +70,7 @@ pub fn extract_script_references(content: &str) -> Vec<std::path::PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use skill_common::parse_skill_frontmatter;
+    use skill_common::parse_frontmatter;
     use std::collections::{HashMap, HashSet};
     use std::path::PathBuf;
     use std::sync::Mutex;
@@ -290,7 +290,7 @@ mod tests {
 
     #[test]
     fn parse_frontmatter_no_frontmatter() {
-        let result = parse_skill_frontmatter("just plain text", Path::new("test"));
+        let result = parse_frontmatter("just plain text", Path::new("test"));
         assert!(result.is_ok());
         let meta = result.ok().unwrap_or_default();
         assert!(meta.name.is_none());
@@ -298,13 +298,13 @@ mod tests {
 
     #[test]
     fn parse_frontmatter_no_closing() {
-        let result = parse_skill_frontmatter("---\nname: test\nno closing", Path::new("test"));
+        let result = parse_frontmatter("---\nname: test\nno closing", Path::new("test"));
         assert!(result.is_err());
     }
 
     #[test]
     fn parse_frontmatter_with_disable_model_invocation() {
-        let result = parse_skill_frontmatter(
+        let result = parse_frontmatter(
             "---\nname: test\ndisable-model-invocation: true\n---\nbody",
             Path::new("test"),
         );
@@ -316,7 +316,7 @@ mod tests {
     #[test]
     fn parse_frontmatter_hooks_with_inline_value() {
         let result =
-            parse_skill_frontmatter("---\nhooks: inline-hook-value\n---\nbody", Path::new("test"));
+            parse_frontmatter("---\nhooks: inline-hook-value\n---\nbody", Path::new("test"));
         assert!(result.is_ok());
         let meta = result.ok().unwrap_or_default();
         assert!(meta.hooks.is_some());
@@ -370,7 +370,7 @@ mod tests {
 
     #[test]
     fn parse_frontmatter_with_hooks_multiline() {
-        let result = parse_skill_frontmatter(
+        let result = parse_frontmatter(
             "---\nhooks:\n  PreToolUse: check\n  PostToolUse: log\n---\nbody",
             Path::new("test"),
         );
@@ -382,7 +382,7 @@ mod tests {
     #[test]
     fn parse_frontmatter_empty_name() {
         let result =
-            parse_skill_frontmatter("---\nname:\ndescription: test\n---\nbody", Path::new("test"));
+            parse_frontmatter("---\nname:\ndescription: test\n---\nbody", Path::new("test"));
         assert!(result.is_ok());
         let meta = result.ok().unwrap_or_default();
         // Empty name value should be Some("")
@@ -391,10 +391,8 @@ mod tests {
 
     #[test]
     fn parse_frontmatter_disable_model_invocation_false() {
-        let result = parse_skill_frontmatter(
-            "---\ndisable-model-invocation: false\n---\nbody",
-            Path::new("test"),
-        );
+        let result =
+            parse_frontmatter("---\ndisable-model-invocation: false\n---\nbody", Path::new("test"));
         assert!(result.is_ok());
         let meta = result.ok().unwrap_or_default();
         assert!(!meta.model_invocation_disabled);
@@ -416,10 +414,8 @@ mod tests {
 
     #[test]
     fn parse_frontmatter_hooks_with_tab_indent() {
-        let result = parse_skill_frontmatter(
-            "---\nhooks:\n\tPreToolUse: check\n---\nbody",
-            Path::new("test"),
-        );
+        let result =
+            parse_frontmatter("---\nhooks:\n\tPreToolUse: check\n---\nbody", Path::new("test"));
         assert!(result.is_ok());
         let meta = result.ok().unwrap_or_default();
         assert!(meta.hooks.is_some());
@@ -427,7 +423,7 @@ mod tests {
 
     #[test]
     fn parse_frontmatter_unknown_key() {
-        let result = parse_skill_frontmatter(
+        let result = parse_frontmatter(
             "---\nunknown-key: some-value\nname: test\n---\nbody",
             Path::new("test"),
         );

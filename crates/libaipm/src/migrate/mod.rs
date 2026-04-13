@@ -78,20 +78,6 @@ pub struct ArtifactMetadata {
     pub raw_content: Option<String>,
 }
 
-/// Strip matching surrounding YAML quote delimiters from a scalar value.
-///
-/// Handles both double-quoted (`"..."`) and single-quoted (`'...'`) YAML scalars.
-/// Returns the inner content if delimiters match, otherwise returns the input unchanged.
-pub(crate) fn strip_yaml_quotes(s: &str) -> &str {
-    let bytes = s.as_bytes();
-    match (bytes.first(), bytes.last()) {
-        (Some(b'"'), Some(b'"')) | (Some(b'\''), Some(b'\'')) if bytes.len() >= 2 => {
-            &s[1..s.len() - 1]
-        },
-        _ => s,
-    }
-}
-
 /// A single detected artifact from a source folder.
 #[derive(Debug, Clone)]
 pub struct Artifact {
@@ -995,50 +981,6 @@ mod tests {
         assert!(sources[0].1); // is_dir
         assert_eq!(sources[1].0, Path::new("/project/.claude/commands/review.md"));
         assert!(!sources[1].1); // not is_dir
-    }
-
-    #[test]
-    fn strip_yaml_quotes_double() {
-        assert_eq!(strip_yaml_quotes(r#""hello""#), "hello");
-    }
-
-    #[test]
-    fn strip_yaml_quotes_single() {
-        assert_eq!(strip_yaml_quotes("'hello'"), "hello");
-    }
-
-    #[test]
-    fn strip_yaml_quotes_no_quotes() {
-        assert_eq!(strip_yaml_quotes("hello"), "hello");
-    }
-
-    #[test]
-    fn strip_yaml_quotes_mismatched() {
-        assert_eq!(strip_yaml_quotes("\"hello'"), "\"hello'");
-    }
-
-    #[test]
-    fn strip_yaml_quotes_empty_quoted() {
-        assert_eq!(strip_yaml_quotes("\"\""), "");
-    }
-
-    #[test]
-    fn strip_yaml_quotes_single_char() {
-        assert_eq!(strip_yaml_quotes("x"), "x");
-    }
-
-    #[test]
-    fn strip_yaml_quotes_empty() {
-        assert_eq!(strip_yaml_quotes(""), "");
-    }
-
-    #[test]
-    fn strip_yaml_quotes_lone_quote_char_unchanged() {
-        // A string containing only a single quote character (either '"' or '\''):
-        // first == last == quote, but bytes.len() == 1 < 2, so the guard fails and
-        // the input is returned as-is.
-        assert_eq!(strip_yaml_quotes("\""), "\"");
-        assert_eq!(strip_yaml_quotes("'"), "'");
     }
 
     #[test]
