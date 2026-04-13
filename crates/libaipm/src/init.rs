@@ -194,11 +194,14 @@ fn generate_manifest(name: &str, plugin_type: PluginType) -> String {
         PluginType::Composite => "composite",
     };
 
-    format!(
-        "[package]\n\
-         name = \"{name}\"\n\
-         version = \"0.1.0\"\n\
-         type = \"{type_str}\"\n"
+    crate::manifest::builder::build_plugin_manifest(
+        &crate::manifest::builder::PluginManifestOpts {
+            name,
+            version: "0.1.0",
+            plugin_type: Some(type_str),
+            description: None,
+        },
+        None,
     )
 }
 
