@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.20.6] - 2026-04-13
+
+### Bug Fixes
+- Add missing `uninstall` to `aipm` module doc comment ([#486](https://github.com/TheLarkInn/aipm/pull/486)) (3ba374f)
+
 ## [0.20.5] - 2026-04-13
 
 ### Testing
