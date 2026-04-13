@@ -187,6 +187,25 @@ fn install_standalone_plugin() {
 }
 
 // =========================================================================
+// workspace-no-deps: install from a workspace member subdir finds workspace root
+// =========================================================================
+
+/// Running `aipm install` from a workspace member subdirectory (not the
+/// workspace root itself) exercises the `ws_root != &dir` branch in
+/// `cmd_install`, which logs the discovered workspace root.
+#[test]
+fn install_from_workspace_member_subdir_finds_workspace_root() {
+    let (_tmp, dir) = setup_fixture("workspace-no-deps");
+    let member_dir = dir.join(".ai").join("hello-world");
+
+    aipm()
+        .args(["install", "--dir", member_dir.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Installed 0 package(s)"));
+}
+
+// =========================================================================
 // workspace-transitive-deps: list after install shows packages
 // =========================================================================
 
