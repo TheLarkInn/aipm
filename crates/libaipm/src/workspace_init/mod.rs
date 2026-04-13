@@ -1339,4 +1339,60 @@ mod tests {
 
         cleanup(&path);
     }
+
+    #[test]
+    fn init_marketplace_adaptor_skipped_when_already_configured() {
+        // Covers the `False` branch of `if adaptor.apply(...)` at line 135:
+        // when `.claude/settings.json` is already correctly configured, the
+        // Claude Code adaptor returns `Ok(false)` and no `ToolConfigured`
+        // action is pushed.
+        let (tmp, _guard) = make_temp_dir("mp-adaptor-skip");
+        let marketplace_name = "local-repo-plugins";
+
+        // Pre-create a .claude/settings.json that already has both the
+        // marketplace entry AND the starter plugin enabled — the adaptor
+        // will detect this and return false (nothing to do).
+        let settings_dir = tmp.join(".claude");
+        std::fs::create_dir_all(&settings_dir).ok();
+        // Write fully-configured settings as a literal to avoid any branch from
+        // serialization helpers inside the test itself.
+        let settings_content = concat!(
+            "{\n",
+            "  \"extraKnownMarketplaces\": {\n",
+            "    \"local-repo-plugins\": {\n",
+            "      \"source\": { \"source\": \"directory\", \"path\": \"./.ai\" }\n",
+            "    }\n",
+            "  },\n",
+            "  \"enabledPlugins\": {\n",
+            "    \"starter-aipm-plugin@local-repo-plugins\": true\n",
+            "  }\n",
+            "}\n"
+        );
+        std::fs::write(settings_dir.join("settings.json"), settings_content.as_bytes()).ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: false,
+            manifest: true,
+            marketplace_name,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        // marketplace was created
+        assert!(actions.contains(&InitAction::MarketplaceCreated));
+        // but the Claude Code adaptor was NOT applied (settings already configured)
+        let has_claude_configured = actions
+            .iter()
+            .any(|a| a == &InitAction::ToolConfigured("Claude Code".to_string()));
+        assert!(
+            !has_claude_configured,
+            "ToolConfigured(Claude Code) should not appear when settings already up-to-date"
+        );
+
+        cleanup(&tmp);
+    }
 }

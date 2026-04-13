@@ -1605,4 +1605,18 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    #[test]
+    fn parse_known_prefix_empty_identifier_returns_error() {
+        // Covers the `rest.is_empty()` → `true` branch inside `from_str`.
+        // When a spec string has a known source prefix followed by nothing
+        // (e.g. "git:"), the parser must return `Error::EmptyIdentifier`.
+        for prefix in &["git:", "github:", "local:", "market:", "marketplace:", "mp:"] {
+            let result = prefix.parse::<Spec>();
+            assert!(
+                matches!(result, Err(Error::EmptyIdentifier(_))),
+                "expected EmptyIdentifier for {prefix:?}, got {result:?}"
+            );
+        }
+    }
 }
