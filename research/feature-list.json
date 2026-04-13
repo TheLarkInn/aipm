@@ -217,7 +217,7 @@
       "Add pub mod generate to crates/libaipm/src/lib.rs",
       "Run cargo build --workspace to verify module structure compiles"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

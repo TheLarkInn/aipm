@@ -10,6 +10,7 @@ pub mod discovery;
 pub mod engine;
 pub mod frontmatter;
 pub mod fs;
+pub mod generate;
 pub mod init;
 pub mod installed;
 pub mod installer;
