@@ -503,7 +503,7 @@ fn cmd_unlink(package: &str, dir: PathBuf) -> Result<(), Box<dyn std::error::Err
 
     let gitignore_path = plugins_dir.join(".gitignore");
     if gitignore_path.exists() {
-        libaipm::linker::gitignore::remove_entry(&gitignore_path, package)
+        libaipm::linker::gitignore::remove_entry(&libaipm::fs::Real, &gitignore_path, package)
             .map_err(|e| std::io::Error::other(e.to_string()))?;
     }
 

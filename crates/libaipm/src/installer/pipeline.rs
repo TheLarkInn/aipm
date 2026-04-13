@@ -258,8 +258,12 @@ fn link_resolved_packages(
                 } else {
                     linker::directory_link::create(&member.path, &link_target)
                         .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
-                    linker::gitignore::add_entry(&config.gitignore_path, pkg_name)
-                        .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
+                    linker::gitignore::add_entry(
+                        &crate::fs::Real,
+                        &config.gitignore_path,
+                        pkg_name,
+                    )
+                    .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
                 }
                 installed += 1;
             },
@@ -283,7 +287,7 @@ fn link_resolved_packages(
                     &config.plugins_dir,
                 )
                 .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
-                linker::gitignore::add_entry(&config.gitignore_path, pkg_name)
+                linker::gitignore::add_entry(&crate::fs::Real, &config.gitignore_path, pkg_name)
                     .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
                 installed += 1;
             },
@@ -752,7 +756,7 @@ fn handle_removals(
             linker::pipeline::unlink_package(&pkg.name, links_dir, plugins_dir)
                 .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
 
-            linker::gitignore::remove_entry(gitignore_path, &pkg.name)
+            linker::gitignore::remove_entry(&crate::fs::Real, gitignore_path, &pkg.name)
                 .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
 
             removed += 1;
@@ -931,7 +935,7 @@ pub fn update(config: &UpdateConfig, registry: &dyn Registry) -> Result<InstallR
         )
         .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
 
-        linker::gitignore::add_entry(&config.gitignore_path, pkg_name)
+        linker::gitignore::add_entry(&crate::fs::Real, &config.gitignore_path, pkg_name)
             .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
 
         installed += 1;
