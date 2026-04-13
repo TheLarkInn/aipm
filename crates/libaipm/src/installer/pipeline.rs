@@ -107,7 +107,7 @@ pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<Instal
     let existing_lockfile = if config.lockfile_path.exists() {
         tracing::info!(lockfile = %config.lockfile_path.display(), "loading existing lockfile");
         Some(
-            lockfile::read(&config.lockfile_path)
+            lockfile::read(&crate::fs::Real, &config.lockfile_path)
                 .map_err(|e| Error::Manifest { reason: format!("lockfile read error: {e}") })?,
         )
     } else {
@@ -190,7 +190,7 @@ pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<Instal
 
     // Step 10: Write lockfile
     let new_lockfile = build_lockfile(&resolution, &config.generated_by);
-    lockfile::write(&config.lockfile_path, &new_lockfile)
+    lockfile::write(&crate::fs::Real, &config.lockfile_path, &new_lockfile)
         .map_err(|e| Error::Manifest { reason: format!("lockfile write error: {e}") })?;
 
     tracing::info!(
@@ -857,7 +857,7 @@ pub fn update(config: &UpdateConfig, registry: &dyn Registry) -> Result<InstallR
     // Load existing lockfile
     let existing_lockfile = if config.lockfile_path.exists() {
         Some(
-            lockfile::read(&config.lockfile_path)
+            lockfile::read(&crate::fs::Real, &config.lockfile_path)
                 .map_err(|e| Error::Manifest { reason: format!("lockfile read error: {e}") })?,
         )
     } else {
@@ -948,7 +948,7 @@ pub fn update(config: &UpdateConfig, registry: &dyn Registry) -> Result<InstallR
 
     // Write updated lockfile
     let new_lockfile = build_lockfile(&resolution, &config.generated_by);
-    lockfile::write(&config.lockfile_path, &new_lockfile)
+    lockfile::write(&crate::fs::Real, &config.lockfile_path, &new_lockfile)
         .map_err(|e| Error::Manifest { reason: format!("lockfile write error: {e}") })?;
 
     tracing::info!(
@@ -1327,7 +1327,7 @@ features = ["json"]
         assert!(config.lockfile_path.exists());
 
         // Read back and verify
-        let lf = lockfile::read(&config.lockfile_path).unwrap();
+        let lf = lockfile::read(&crate::fs::Real, &config.lockfile_path).unwrap();
         assert!(!lf.packages.is_empty());
     }
 
@@ -1383,7 +1383,7 @@ features = ["json"]
 
         // Write a lockfile that's missing "pkg-a"
         let lf = lockfile::types::Lockfile::new("test".to_string());
-        lockfile::write(&config.lockfile_path, &lf).unwrap();
+        lockfile::write(&crate::fs::Real, &config.lockfile_path, &lf).unwrap();
 
         let registry = make_registry();
         let result = install(&config, &registry);
@@ -1539,7 +1539,7 @@ pkg-a = "^1.0"
         assert!(result.is_ok(), "update failed: {result:?}");
 
         // Lockfile should be updated
-        let lf = lockfile::read(&config.lockfile_path).unwrap();
+        let lf = lockfile::read(&crate::fs::Real, &config.lockfile_path).unwrap();
         assert!(!lf.packages.is_empty());
     }
 
@@ -1924,7 +1924,7 @@ pkg-a = "^1.0"
         let result = update(&config, &registry);
         assert!(result.is_ok(), "full update: {result:?}");
 
-        let lf = lockfile::read(&config.lockfile_path).unwrap();
+        let lf = lockfile::read(&crate::fs::Real, &config.lockfile_path).unwrap();
         assert!(!lf.packages.is_empty());
     }
 
@@ -2021,7 +2021,7 @@ pkg-b = "^2.0"
         let r2 = install(&config2, &registry);
         assert!(r2.is_ok(), "second install with added dep: {r2:?}");
 
-        let lf = lockfile::read(&config2.lockfile_path).unwrap();
+        let lf = lockfile::read(&crate::fs::Real, &config2.lockfile_path).unwrap();
         let names: Vec<_> = lf.packages.iter().map(|p| p.name.as_str()).collect();
         assert!(names.contains(&"pkg-b"), "pkg-b should be in lockfile after re-install");
     }
@@ -2084,14 +2084,15 @@ pkg-b = "^2.0"
 
         // Step 2: read the real lockfile and tamper with the checksum so that
         // needs_update will return true even though the version matches
-        let mut lf =
-            lockfile::read(&install_config.lockfile_path).expect("lockfile must be readable");
+        let mut lf = lockfile::read(&crate::fs::Real, &install_config.lockfile_path)
+            .expect("lockfile must be readable");
         for pkg in &mut lf.packages {
             if pkg.name == "pkg-a" {
                 pkg.checksum = "sha512-tampered-checksum".to_string();
             }
         }
-        lockfile::write(&install_config.lockfile_path, &lf).expect("lockfile must be writable");
+        lockfile::write(&crate::fs::Real, &install_config.lockfile_path, &lf)
+            .expect("lockfile must be writable");
 
         // Step 3: run update — assembled_dir exists but checksum mismatch means
         // needs_update returns true, so the condition at L907 is false and the
@@ -2289,7 +2290,7 @@ pkg-a = "^1.0"
         let result = update(&config, &registry);
         assert!(result.is_ok(), "targeted update with existing lockfile: {result:?}");
 
-        let lf = lockfile::read(&config.lockfile_path).unwrap();
+        let lf = lockfile::read(&crate::fs::Real, &config.lockfile_path).unwrap();
         assert!(!lf.packages.is_empty());
     }
 
@@ -2860,7 +2861,7 @@ plugin-b = { workspace = "*" }
         assert_eq!(marker.unwrap(), "hello");
 
         // Verify lockfile was written with workspace source
-        let lf = lockfile::read(&config.lockfile_path).unwrap();
+        let lf = lockfile::read(&crate::fs::Real, &config.lockfile_path).unwrap();
         assert_eq!(lf.packages.len(), 1);
         assert_eq!(lf.packages[0].name, "plugin-b");
         assert_eq!(lf.packages[0].source, "workspace");
@@ -3336,7 +3337,7 @@ plugin-a = { workspace = "*" }
         assert_eq!(content.unwrap(), "world");
 
         // Verify lockfile was written
-        let lf = lockfile::read(&config.lockfile_path).unwrap();
+        let lf = lockfile::read(&crate::fs::Real, &config.lockfile_path).unwrap();
         assert_eq!(lf.packages.len(), 1);
         assert_eq!(lf.packages[0].name, "plugin-a");
         assert_eq!(lf.packages[0].source, "workspace");
@@ -3412,7 +3413,7 @@ print-clock = { workspace = "*" }
         assert!(!linker::directory_link::is_link(&clock_dir));
 
         // Lockfile should have both packages
-        let lf = lockfile::read(&config.lockfile_path).unwrap();
+        let lf = lockfile::read(&crate::fs::Real, &config.lockfile_path).unwrap();
         assert_eq!(lf.packages.len(), 2);
         let names: Vec<&str> = lf.packages.iter().map(|p| p.name.as_str()).collect();
         assert!(names.contains(&"get-current-time"));

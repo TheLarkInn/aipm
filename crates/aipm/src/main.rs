@@ -538,7 +538,7 @@ fn cmd_list(linked: bool, dir: PathBuf) -> Result<(), Box<dyn std::error::Error>
     } else {
         let lockfile_path = dir.join("aipm.lock");
         if lockfile_path.exists() {
-            let lf = libaipm::lockfile::read(&lockfile_path)
+            let lf = libaipm::lockfile::read(&libaipm::fs::Real, &lockfile_path)
                 .map_err(|e| std::io::Error::other(e.to_string()))?;
 
             if lf.packages.is_empty() {
