@@ -1150,10 +1150,51 @@ fn generate_plugin_manifest(artifact: &Artifact, plugin_name: &str) -> String {
     )
 }
 
-/// Generate `.claude-plugin/plugin.json` for a migrated plugin.
+/// Build `PluginJsonComponents` from a set of artifact kinds.
 ///
-/// For single-artifact plugins, includes the component field for that kind.
-/// Accepts a slice of kinds to include all relevant component fields for composites.
+/// Maps each distinct kind to its canonical component path.
+fn components_from_kinds(
+    kinds: &[ArtifactKind],
+) -> crate::generate::plugin_json::Components<'static> {
+    let distinct: HashSet<&ArtifactKind> = kinds.iter().collect();
+    crate::generate::plugin_json::Components {
+        skills: if distinct.contains(&ArtifactKind::Skill)
+            || distinct.contains(&ArtifactKind::Command)
+        {
+            Some("./skills/")
+        } else {
+            None
+        },
+        agents: if distinct.contains(&ArtifactKind::Agent) { Some("./agents/") } else { None },
+        mcp_servers: if distinct.contains(&ArtifactKind::McpServer) {
+            Some("./.mcp.json")
+        } else {
+            None
+        },
+        hooks: if distinct.contains(&ArtifactKind::Hook) {
+            Some("./hooks/hooks.json")
+        } else {
+            None
+        },
+        output_styles: if distinct.contains(&ArtifactKind::OutputStyle) {
+            Some("./")
+        } else {
+            None
+        },
+        lsp_servers: if distinct.contains(&ArtifactKind::LspServer) {
+            Some("./lsp.json")
+        } else {
+            None
+        },
+        extensions: if distinct.contains(&ArtifactKind::Extension) {
+            Some("./extensions/")
+        } else {
+            None
+        },
+    }
+}
+
+/// Generate `.claude-plugin/plugin.json` for a migrated plugin.
 fn generate_plugin_json(name: &str, metadata: &ArtifactMetadata, kind: &ArtifactKind) -> String {
     generate_plugin_json_multi(name, metadata, std::slice::from_ref(kind))
 }
@@ -1166,49 +1207,11 @@ fn generate_plugin_json_multi(
 ) -> String {
     let description =
         metadata.description.as_deref().unwrap_or("Migrated from .claude/ configuration");
-
-    let mut map = serde_json::Map::new();
-    map.insert("name".to_string(), serde_json::Value::String(name.to_string()));
-    map.insert("version".to_string(), serde_json::Value::String("0.1.0".to_string()));
-    map.insert("description".to_string(), serde_json::Value::String(description.to_string()));
-    let mut author = serde_json::Map::new();
-    author.insert("name".to_string(), serde_json::Value::String("TODO".to_string()));
-    author.insert("email".to_string(), serde_json::Value::String("TODO".to_string()));
-    map.insert("author".to_string(), serde_json::Value::Object(author));
-
-    let distinct: HashSet<&ArtifactKind> = kinds.iter().collect();
-    if distinct.contains(&ArtifactKind::Skill) || distinct.contains(&ArtifactKind::Command) {
-        map.insert("skills".to_string(), serde_json::Value::String("./skills/".to_string()));
-    }
-    if distinct.contains(&ArtifactKind::Agent) {
-        map.insert("agents".to_string(), serde_json::Value::String("./agents/".to_string()));
-    }
-    if distinct.contains(&ArtifactKind::McpServer) {
-        map.insert("mcpServers".to_string(), serde_json::Value::String("./.mcp.json".to_string()));
-    }
-    if distinct.contains(&ArtifactKind::Hook) {
-        map.insert(
-            "hooks".to_string(),
-            serde_json::Value::String("./hooks/hooks.json".to_string()),
-        );
-    }
-    if distinct.contains(&ArtifactKind::OutputStyle) {
-        map.insert("outputStyles".to_string(), serde_json::Value::String("./".to_string()));
-    }
-    if distinct.contains(&ArtifactKind::LspServer) {
-        map.insert("lspServers".to_string(), serde_json::Value::String("./lsp.json".to_string()));
-    }
-    if distinct.contains(&ArtifactKind::Extension) {
-        map.insert(
-            "extensions".to_string(),
-            serde_json::Value::String("./extensions/".to_string()),
-        );
-    }
-
-    let obj = serde_json::Value::Object(map);
-    let mut output = serde_json::to_string_pretty(&obj).unwrap_or_default();
-    output.push('\n');
-    output
+    let components = components_from_kinds(kinds);
+    crate::generate::plugin_json::generate(
+        &crate::generate::plugin_json::Opts { name, version: "0.1.0", description },
+        Some(&components),
+    )
 }
 
 #[cfg(test)]

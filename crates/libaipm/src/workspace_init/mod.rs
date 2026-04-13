@@ -266,10 +266,20 @@ fn scaffold_marketplace(
     }
 
     // .ai/starter-aipm-plugin/.claude-plugin/plugin.json
-    fs.write_file(
-        &starter.join(".claude-plugin").join("plugin.json"),
-        generate_plugin_json().as_bytes(),
-    )?;
+    let plugin_json = crate::generate::plugin_json::generate(
+        &crate::generate::plugin_json::Opts {
+            name: "starter-aipm-plugin",
+            version: "0.1.0",
+            description: "Default starter plugin \u{2014} scaffold new plugins, scan your marketplace, and log tool usage",
+        },
+        Some(&crate::generate::plugin_json::Components {
+            skills: Some("./skills/"),
+            agents: Some("./agents/"),
+            hooks: Some("./hooks/hooks.json"),
+            ..crate::generate::plugin_json::Components::default()
+        }),
+    );
+    fs.write_file(&starter.join(".claude-plugin").join("plugin.json"), plugin_json.as_bytes())?;
 
     // .ai/starter-aipm-plugin/.mcp.json
     fs.write_file(&starter.join(".mcp.json"), generate_mcp_stub().as_bytes())?;
@@ -298,27 +308,6 @@ fn generate_starter_manifest() -> String {
             ..crate::manifest::builder::PluginComponentsOpts::default()
         }),
     )
-}
-
-fn generate_plugin_json() -> String {
-    let mut map = serde_json::Map::new();
-    map.insert("name".to_string(), serde_json::Value::String("starter-aipm-plugin".to_string()));
-    map.insert("version".to_string(), serde_json::Value::String("0.1.0".to_string()));
-    map.insert(
-        "description".to_string(),
-        serde_json::Value::String(
-            "Default starter plugin \u{2014} scaffold new plugins, scan your marketplace, and log tool usage"
-                .to_string(),
-        ),
-    );
-    let mut author = serde_json::Map::new();
-    author.insert("name".to_string(), serde_json::Value::String("TODO".to_string()));
-    author.insert("email".to_string(), serde_json::Value::String("TODO".to_string()));
-    map.insert("author".to_string(), serde_json::Value::Object(author));
-    let obj = serde_json::Value::Object(map);
-    let mut output = serde_json::to_string_pretty(&obj).unwrap_or_default();
-    output.push('\n');
-    output
 }
 
 fn generate_skill_template() -> String {
@@ -770,13 +759,28 @@ mod tests {
 
     #[test]
     fn plugin_json_is_valid() {
-        let json = generate_plugin_json();
+        let json = crate::generate::plugin_json::generate(
+            &crate::generate::plugin_json::Opts {
+                name: "starter-aipm-plugin",
+                version: "0.1.0",
+                description: "Default starter plugin",
+            },
+            Some(&crate::generate::plugin_json::Components {
+                skills: Some("./skills/"),
+                agents: Some("./agents/"),
+                hooks: Some("./hooks/hooks.json"),
+                ..crate::generate::plugin_json::Components::default()
+            }),
+        );
         let parsed: Result<serde_json::Value, _> = serde_json::from_str(&json);
         assert!(parsed.is_ok());
         let v = parsed.ok();
         assert!(v.as_ref().is_some_and(|v| v.get("name").is_some()));
         assert!(v.as_ref().is_some_and(|v| v.get("version").is_some()));
-        assert!(v.is_some_and(|v| v.get("description").is_some()));
+        assert!(v.as_ref().is_some_and(|v| v.get("description").is_some()));
+        // Component keys should be present (fixes #356)
+        assert!(v.as_ref().is_some_and(|v| v.get("skills").is_some()));
+        assert!(v.is_some_and(|v| v.get("agents").is_some()));
     }
 
     #[test]
