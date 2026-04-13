@@ -298,6 +298,7 @@ fn generate_starter_manifest() -> String {
 
 fn generate_skill_template() -> String {
     "---\n\
+     name: scaffold-plugin\n\
      description: Scaffold a new AI plugin in the .ai/ marketplace directory. Use when the user wants to create a new plugin, skill, agent, or hook package.\n\
      ---\n\
      \n\

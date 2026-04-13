@@ -1254,4 +1254,70 @@ mod tests {
             "instructions/oversized should be suppressed by allow"
         );
     }
+
+    // --- init-then-lint integration test ---
+
+    #[test]
+    fn lint_after_init_produces_zero_diagnostics() {
+        // Verifies that `aipm init` (with marketplace + manifest) produces a
+        // workspace that passes `aipm lint` with zero diagnostics (#356).
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Step 1: initialise workspace with marketplace + starter plugin
+        let init_opts = crate::workspace_init::Options {
+            dir: root,
+            workspace: false,
+            marketplace: true,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+        };
+        let adaptors = crate::workspace_init::adaptors::defaults();
+        crate::workspace_init::init(&init_opts, &adaptors, &crate::fs::Real).unwrap();
+
+        // Step 2: lint the initialised workspace
+        let lint_opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let outcome = lint(&lint_opts, &crate::fs::Real).unwrap();
+
+        // Step 3: assert zero diagnostics
+        assert!(
+            outcome.diagnostics.is_empty(),
+            "freshly initialised workspace should produce zero lint diagnostics, got: {:#?}",
+            outcome.diagnostics,
+        );
+
+        // Step 4: verify starter plugin has component arrays in plugin.json
+        let plugin_json_path =
+            root.join(".ai").join("starter-aipm-plugin").join(".claude-plugin").join("plugin.json");
+        let plugin_json_content = std::fs::read_to_string(&plugin_json_path).unwrap();
+        let plugin_json: serde_json::Value = serde_json::from_str(&plugin_json_content).unwrap();
+        assert!(plugin_json.get("skills").is_some(), "plugin.json should contain 'skills' array");
+        assert!(plugin_json.get("agents").is_some(), "plugin.json should contain 'agents' array");
+
+        // Step 5: verify starter skill and agent have proper frontmatter
+        let skill_path = root
+            .join(".ai")
+            .join("starter-aipm-plugin")
+            .join("skills")
+            .join("scaffold-plugin")
+            .join("SKILL.md");
+        assert!(skill_path.exists(), "starter skill SKILL.md should exist");
+        let skill_content = std::fs::read_to_string(&skill_path).unwrap();
+        assert!(skill_content.starts_with("---"), "starter skill should have YAML frontmatter");
+
+        let agent_path = root
+            .join(".ai")
+            .join("starter-aipm-plugin")
+            .join("agents")
+            .join("marketplace-scanner.md");
+        assert!(agent_path.exists(), "starter agent .md should exist");
+        let agent_content = std::fs::read_to_string(&agent_path).unwrap();
+        assert!(agent_content.starts_with("---"), "starter agent should have YAML frontmatter");
+    }
 }

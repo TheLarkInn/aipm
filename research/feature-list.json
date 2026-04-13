@@ -402,7 +402,7 @@
       "Verify that the starter plugin's SKILL.md and agent .md files have proper frontmatter",
       "Run cargo test --workspace to verify integration test passes"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
