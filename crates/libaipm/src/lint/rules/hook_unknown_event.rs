@@ -10,23 +10,7 @@ use crate::lint::diagnostic::{Diagnostic, Severity};
 use crate::lint::rule::Rule;
 use crate::lint::Error;
 
-use super::{known_events, scan};
-
-/// Return `(line_num, col, end_col)` for a JSON key in a string of JSON content.
-///
-/// Searches for the first line containing `"key"` and returns:
-/// - `line_num`: 1-based line number
-/// - `col`: 1-based column of the opening `"`
-/// - `end_col`: 1-based exclusive column past the closing `"`
-fn locate_json_key(content: &str, key: &str) -> Option<(usize, usize, usize)> {
-    let needle = format!("\"{key}\"");
-    for (i, line) in content.lines().enumerate() {
-        if let Some(pos) = line.find(&needle) {
-            return Some((i + 1, pos + 1, pos + needle.len() + 1));
-        }
-    }
-    None
-}
+use super::{known_events, locate_json_key, scan};
 
 /// Checks that hook event names are valid.
 pub struct UnknownEvent;

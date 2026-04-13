@@ -46,19 +46,13 @@ impl Rule for FieldMismatch {
 }
 
 fn diag(mp_path: &Path, source_type: &str, message: String) -> Diagnostic {
-    Diagnostic {
-        rule_id: "marketplace/plugin-field-mismatch".to_string(),
-        severity: Severity::Error,
+    super::simple_diag(
+        "marketplace/plugin-field-mismatch",
+        Severity::Error,
         message,
-        file_path: mp_path.to_path_buf(),
-        line: None,
-        col: None,
-        end_line: None,
-        end_col: None,
-        source_type: source_type.to_string(),
-        help_text: None,
-        help_url: None,
-    }
+        mp_path,
+        source_type,
+    )
 }
 
 fn check_mismatch(mp_path: &Path, ai_dir: &Path, fs: &dyn Fs) -> Vec<Diagnostic> {

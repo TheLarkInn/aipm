@@ -51,19 +51,13 @@ fn check_manifests(ai_dir: &Path, fs: &dyn Fs) -> Vec<Diagnostic> {
     for name in super::scan::list_plugin_dirs(ai_dir, fs) {
         let pj_path = ai_dir.join(&name).join(".claude-plugin").join("plugin.json");
         if !fs.exists(&pj_path) {
-            diagnostics.push(Diagnostic {
-                rule_id: "plugin/missing-manifest".to_string(),
-                severity: Severity::Error,
-                message: format!("plugin '{name}' is missing .claude-plugin/plugin.json"),
-                file_path: pj_path,
-                line: None,
-                col: None,
-                end_line: None,
-                end_col: None,
-                source_type: ".ai".to_string(),
-                help_text: None,
-                help_url: None,
-            });
+            diagnostics.push(super::simple_diag(
+                "plugin/missing-manifest",
+                Severity::Error,
+                format!("plugin '{name}' is missing .claude-plugin/plugin.json"),
+                &pj_path,
+                ".ai",
+            ));
         }
     }
     diagnostics

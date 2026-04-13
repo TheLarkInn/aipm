@@ -28,11 +28,56 @@ pub mod skill_oversized;
 #[cfg(test)]
 pub(crate) mod test_helpers;
 
+use std::path::Path;
+
 use crate::discovery::{DiscoveredFeature, FeatureKind};
+use crate::lint::diagnostic::{Diagnostic, Severity};
 use misplaced_features::MisplacedFeatures;
 
 use super::config::Config;
 use super::rule::Rule;
+
+/// Return `(line_num, col, end_col)` for a JSON key in a string of JSON content.
+///
+/// Searches for the first line containing `"key"` and returns:
+/// - `line_num`: 1-based line number
+/// - `col`: 1-based column of the opening `"`
+/// - `end_col`: 1-based exclusive column past the closing `"`
+pub(crate) fn locate_json_key(content: &str, key: &str) -> Option<(usize, usize, usize)> {
+    let needle = format!("\"{key}\"");
+    for (i, line) in content.lines().enumerate() {
+        if let Some(pos) = line.find(&needle) {
+            return Some((i + 1, pos + 1, pos + needle.len() + 1));
+        }
+    }
+    None
+}
+
+/// Create a simple diagnostic with no line/col information.
+///
+/// Shared by marketplace and plugin rules that produce diagnostics
+/// without precise source positions.
+pub(crate) fn simple_diag(
+    rule_id: &str,
+    severity: Severity,
+    message: String,
+    file_path: &Path,
+    source_type: &str,
+) -> Diagnostic {
+    Diagnostic {
+        rule_id: rule_id.to_string(),
+        severity,
+        message,
+        file_path: file_path.to_path_buf(),
+        line: None,
+        col: None,
+        end_line: None,
+        end_col: None,
+        source_type: source_type.to_string(),
+        help_text: None,
+        help_url: None,
+    }
+}
 
 /// Get quality rules applicable to a feature kind.
 ///
@@ -127,6 +172,67 @@ pub(crate) const fn misplaced_features_rule(
 mod tests {
     use super::*;
     use crate::lint::config::Config;
+
+    #[test]
+    fn locate_json_key_finds_key_on_first_line() {
+        let content = r#"{"event": []}"#;
+        let result = locate_json_key(content, "event");
+        // "event" starts at col 2 (after '{'), col+len("\"event\"")=2+7=9
+        assert_eq!(result, Some((1, 2, 9)));
+    }
+
+    #[test]
+    fn locate_json_key_finds_key_on_later_line() {
+        let content = "{\n  \"event\": []\n}";
+        let result = locate_json_key(content, "event");
+        assert_eq!(result, Some((2, 3, 10)));
+    }
+
+    #[test]
+    fn locate_json_key_returns_none_for_missing_key() {
+        let content = r#"{"other": []}"#;
+        assert_eq!(locate_json_key(content, "event"), None);
+    }
+
+    #[test]
+    fn locate_json_key_empty_content() {
+        assert_eq!(locate_json_key("", "key"), None);
+    }
+
+    #[test]
+    fn simple_diag_creates_diagnostic_with_no_positions() {
+        let d = simple_diag(
+            "test/rule",
+            Severity::Error,
+            "test message".to_string(),
+            Path::new("test.json"),
+            ".ai",
+        );
+        assert_eq!(d.rule_id, "test/rule");
+        assert_eq!(d.severity, Severity::Error);
+        assert_eq!(d.message, "test message");
+        assert_eq!(d.file_path, Path::new("test.json"));
+        assert_eq!(d.source_type, ".ai");
+        assert_eq!(d.line, None);
+        assert_eq!(d.col, None);
+        assert_eq!(d.end_line, None);
+        assert_eq!(d.end_col, None);
+        assert!(d.help_text.is_none());
+        assert!(d.help_url.is_none());
+    }
+
+    #[test]
+    fn simple_diag_warning_severity() {
+        let d = simple_diag(
+            "test/warn",
+            Severity::Warning,
+            "warn msg".to_string(),
+            Path::new("f.json"),
+            ".claude",
+        );
+        assert_eq!(d.severity, Severity::Warning);
+        assert_eq!(d.source_type, ".claude");
+    }
 
     #[test]
     fn quality_rules_for_skill_kind() {

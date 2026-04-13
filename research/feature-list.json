@@ -313,6 +313,7 @@
   {
     "category": "refactor",
     "description": "Phase 3.2: Consolidate lint rule helpers — shared locate_json_key() and diag() in rules/mod.rs",
+    "passes": true,
     "steps": [
       "Read crates/libaipm/src/lint/rules/hook_unknown_event.rs:21 to capture locate_json_key() implementation",
       "Read crates/libaipm/src/lint/rules/hook_legacy_event.rs:15 to confirm identical implementation",
@@ -325,8 +326,7 @@
       "Delete the 4 private diag() helpers from marketplace/plugin rules",
       "Replace legacy inline MockFs in skill_missing_name.rs:125 with shared test_helpers::MockFs",
       "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": false
+    ]
   },
   {
     "category": "refactor",

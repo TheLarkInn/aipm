@@ -9,18 +9,7 @@ use crate::lint::diagnostic::{Diagnostic, Severity};
 use crate::lint::rule::Rule;
 use crate::lint::Error;
 
-use super::{known_events, scan};
-
-/// Return `(line_num, col, end_col)` for a JSON key in a string of JSON content.
-fn locate_json_key(content: &str, key: &str) -> Option<(usize, usize, usize)> {
-    let needle = format!("\"{key}\"");
-    for (i, line) in content.lines().enumerate() {
-        if let Some(pos) = line.find(&needle) {
-            return Some((i + 1, pos + 1, pos + needle.len() + 1));
-        }
-    }
-    None
-}
+use super::{known_events, locate_json_key, scan};
 
 /// Warns about legacy `PascalCase` hook event names.
 pub struct LegacyEventName;

@@ -46,19 +46,7 @@ impl Rule for RequiredFields {
 }
 
 fn diag(pj_path: &Path, source_type: &str, message: String) -> Diagnostic {
-    Diagnostic {
-        rule_id: "plugin/required-fields".to_string(),
-        severity: Severity::Error,
-        message,
-        file_path: pj_path.to_path_buf(),
-        line: None,
-        col: None,
-        end_line: None,
-        end_col: None,
-        source_type: source_type.to_string(),
-        help_text: None,
-        help_url: None,
-    }
+    super::simple_diag("plugin/required-fields", Severity::Error, message, pj_path, source_type)
 }
 
 fn check_top_level(

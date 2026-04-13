@@ -48,19 +48,7 @@ impl Rule for SourceResolve {
 }
 
 fn diag(mp_path: &Path, source_type: &str, message: String) -> Diagnostic {
-    Diagnostic {
-        rule_id: "marketplace/source-resolve".to_string(),
-        severity: Severity::Error,
-        message,
-        file_path: mp_path.to_path_buf(),
-        line: None,
-        col: None,
-        end_line: None,
-        end_col: None,
-        source_type: source_type.to_string(),
-        help_text: None,
-        help_url: None,
-    }
+    super::simple_diag("marketplace/source-resolve", Severity::Error, message, mp_path, source_type)
 }
 
 fn check_marketplace(mp_path: &Path, ai_dir: &Path, fs: &dyn Fs) -> Vec<Diagnostic> {
