@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.20.5] - 2026-04-13
+
+### Testing
+- Cover ws_root != dir branch in cmd_install (6d91f88)
+
 ## [0.20.4] - 2026-04-12
 
 ### Documentation

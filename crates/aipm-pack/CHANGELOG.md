@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.20.5] - 2026-04-13
+
+### Bug Fixes
+- Correct aipm-pack module doc comment to list only implemented commands ([#476](https://github.com/TheLarkInn/aipm/pull/476)) (de6ece8)
+
 ## [0.20.4] - 2026-04-12
 
 ### Documentation
