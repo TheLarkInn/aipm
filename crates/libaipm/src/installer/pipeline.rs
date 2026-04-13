@@ -3418,4 +3418,60 @@ print-clock = { workspace = "*" }
         assert!(names.contains(&"get-current-time"));
         assert!(names.contains(&"print-clock"));
     }
+
+    /// Covers the `manifest::parse_and_validate` error branch in `install()`.
+    ///
+    /// When the manifest file contains invalid TOML, `install` must return
+    /// `Error::Manifest` immediately after attempting to parse it.
+    #[test]
+    fn install_with_invalid_manifest_toml_returns_manifest_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        std::fs::write(tmp.path().join("aipm.toml"), b"this is [not valid toml !!!")
+            .expect("write manifest");
+
+        let config = InstallConfig {
+            manifest_path: tmp.path().join("aipm.toml"),
+            lockfile_path: tmp.path().join("aipm.lock"),
+            store_path: tmp.path().join(".aipm/store"),
+            links_dir: tmp.path().join(".aipm/links"),
+            plugins_dir: tmp.path().join("claude-plugins"),
+            gitignore_path: tmp.path().join("claude-plugins/.gitignore"),
+            link_state_path: tmp.path().join(".aipm/links.toml"),
+            workspace_root: None,
+            locked: false,
+            add_package: None,
+            generated_by: "aipm-test 0.1.0".to_string(),
+        };
+
+        let registry = make_registry();
+        let result = install(&config, &registry);
+        assert!(result.is_err(), "expected an error for invalid manifest TOML");
+        assert!(
+            matches!(result.unwrap_err(), Error::Manifest { .. }),
+            "expected Error::Manifest variant"
+        );
+    }
+
+    /// Covers the `lockfile::read` error branch in `install()`.
+    ///
+    /// When the lockfile file exists but contains invalid TOML,
+    /// `install` must return `Error::Manifest` (the lockfile read error is
+    /// wrapped in that variant).
+    #[test]
+    fn install_with_malformed_lockfile_returns_manifest_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let config = setup_project(tmp.path());
+
+        // Write a syntactically invalid lockfile so `lockfile::read` returns an error.
+        std::fs::write(&config.lockfile_path, b"not valid lock toml content !!!")
+            .expect("write lockfile");
+
+        let registry = make_registry();
+        let result = install(&config, &registry);
+        assert!(result.is_err(), "expected an error for malformed lockfile");
+        assert!(
+            matches!(result.unwrap_err(), Error::Manifest { .. }),
+            "expected Error::Manifest variant for lockfile read failure"
+        );
+    }
 }
