@@ -3,6 +3,7 @@
 //! This module provides the complete manifest schema used by both workspace
 //! root manifests and plugin member manifests.
 
+pub mod builder;
 pub mod error;
 pub mod types;
 pub mod validate;
