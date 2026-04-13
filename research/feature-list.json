@@ -160,7 +160,7 @@
       "Verify snapshot test matches for emitter TOML output",
       "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
