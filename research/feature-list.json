@@ -419,6 +419,6 @@
       "Verify TOTAL branch column shows >= 89%",
       "If coverage dropped below 89%, add targeted tests for uncovered branches in new/refactored code"
     ],
-    "passes": false
+    "passes": true
   }
 ]
