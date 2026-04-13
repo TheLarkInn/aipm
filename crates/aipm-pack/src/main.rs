@@ -2,6 +2,7 @@
 //!
 //! Commands: init, pack, publish, yank, login.
 
+mod error;
 mod wizard;
 mod wizard_tty;
 
@@ -41,7 +42,7 @@ enum Commands {
     },
 }
 
-fn run() -> Result<(), Box<dyn std::error::Error>> {
+fn run() -> Result<(), error::CliError> {
     let cli = Cli::parse();
 
     match cli.command {
