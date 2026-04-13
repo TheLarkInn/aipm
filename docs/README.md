@@ -13,6 +13,7 @@ How-to guides for common tasks:
 | [Installing from Local Paths](guides/install-local-plugin.md) | Install plugins from your local filesystem |
 | [Installing from Marketplaces](guides/install-marketplace-plugin.md) | Install plugins from curated marketplace repos |
 | [Global Plugin Installation](guides/global-plugins.md) | Install plugins globally across all projects |
+| [Uninstalling Plugins](guides/uninstall.md) | Remove a plugin from a project or the global registry |
 | [Local Development](guides/local-development.md) | Develop plugins locally with `aipm link` / `aipm unlink` |
 | [Migrating Existing Configurations](guides/migrate.md) | Convert `.claude/` / `.github/` configs to marketplace plugins |
 | [Migrating — Step-by-step](guides/migrating-existing-configs.md) | Dry-run, destructive cleanup, recursive discovery walkthrough |

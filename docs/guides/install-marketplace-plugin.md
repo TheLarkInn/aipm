@@ -106,4 +106,4 @@ Local marketplace paths do not support `#ref` — `#` is treated as a literal di
 
 ---
 
-See also: [`aipm install`](../../README.md#aipm-install), [`docs/guides/install-git-plugin.md`](./install-git-plugin.md), [`docs/guides/install-local-plugin.md`](./install-local-plugin.md), [`docs/guides/global-plugins.md`](./global-plugins.md), [`docs/guides/source-security.md`](./source-security.md), [`docs/guides/cache-management.md`](./cache-management.md).
+See also: [`aipm install`](../../README.md#aipm-install), [`docs/guides/install-git-plugin.md`](./install-git-plugin.md), [`docs/guides/install-local-plugin.md`](./install-local-plugin.md), [`docs/guides/global-plugins.md`](./global-plugins.md), [`docs/guides/source-security.md`](./source-security.md), [`docs/guides/cache-management.md`](./cache-management.md), [`docs/guides/uninstall.md`](./uninstall.md).
