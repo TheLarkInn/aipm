@@ -161,24 +161,6 @@ pub fn resolve_package_answers(
     (name, plugin_type)
 }
 
-/// Validate a package name input.
-///
-/// Empty string is valid (means "use default").
-/// Otherwise must be lowercase alphanumeric with hyphens, optionally `@org/name`.
-pub fn validate_package_name(input: &str) -> Result<(), String> {
-    if input.is_empty() {
-        return Ok(());
-    }
-
-    for c in input.chars() {
-        if !(c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '@' || c == '/') {
-            return Err("Must be lowercase alphanumeric with hyphens".to_string());
-        }
-    }
-
-    Ok(())
-}
-
 // =============================================================================
 // Theming
 // =============================================================================
@@ -354,47 +336,54 @@ mod tests {
     }
 
     // =========================================================================
-    // Validator unit tests
+    // Validator unit tests (now delegates to shared validator)
     // =========================================================================
+
+    fn validate_name_interactive(input: &str) -> Result<(), String> {
+        libaipm::manifest::validate::check_name(
+            input,
+            libaipm::manifest::validate::ValidationMode::Interactive,
+        )
+    }
 
     #[test]
     fn validate_package_name_accepts_lowercase() {
-        assert!(validate_package_name("my-plugin").is_ok());
+        assert!(validate_name_interactive("my-plugin").is_ok());
     }
 
     #[test]
     fn validate_package_name_accepts_scoped() {
-        assert!(validate_package_name("@org/my-plugin").is_ok());
+        assert!(validate_name_interactive("@org/my-plugin").is_ok());
     }
 
     #[test]
     fn validate_package_name_accepts_empty_for_default() {
-        assert!(validate_package_name("").is_ok());
+        assert!(validate_name_interactive("").is_ok());
     }
 
     #[test]
     fn validate_package_name_accepts_digits() {
-        assert!(validate_package_name("123abc").is_ok());
+        assert!(validate_name_interactive("123abc").is_ok());
     }
 
     #[test]
     fn validate_package_name_rejects_uppercase() {
-        assert!(validate_package_name("MyPlugin").is_err());
+        assert!(validate_name_interactive("MyPlugin").is_err());
     }
 
     #[test]
     fn validate_package_name_rejects_spaces() {
-        assert!(validate_package_name("my plugin").is_err());
+        assert!(validate_name_interactive("my plugin").is_err());
     }
 
     #[test]
     fn validate_package_name_rejects_special_chars() {
-        assert!(validate_package_name("my_plugin!").is_err());
+        assert!(validate_name_interactive("my_plugin!").is_err());
     }
 
     #[test]
     fn validate_package_name_rejects_underscores() {
-        assert!(validate_package_name("my_plugin").is_err());
+        assert!(validate_name_interactive("my_plugin").is_err());
     }
 
     // =========================================================================

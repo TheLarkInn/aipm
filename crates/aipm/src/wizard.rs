@@ -201,28 +201,6 @@ pub fn resolve_defaults(
 }
 
 // =============================================================================
-// Validation
-// =============================================================================
-
-/// Validate a marketplace name.
-///
-/// Empty string is valid (means "use default").
-/// Otherwise must be lowercase alphanumeric with hyphens, optionally `@org/name`.
-pub fn validate_marketplace_name(input: &str) -> Result<(), String> {
-    if input.is_empty() {
-        return Ok(());
-    }
-
-    for c in input.chars() {
-        if !(c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '@' || c == '/') {
-            return Err("Must be lowercase alphanumeric with hyphens".to_string());
-        }
-    }
-
-    Ok(())
-}
-
-// =============================================================================
 // Migrate cleanup prompts
 // =============================================================================
 
@@ -530,42 +508,49 @@ mod tests {
     }
 
     // =========================================================================
-    // validate_marketplace_name
+    // validate_marketplace_name (now delegates to shared validator)
     // =========================================================================
+
+    fn validate_name_interactive(input: &str) -> Result<(), String> {
+        libaipm::manifest::validate::check_name(
+            input,
+            libaipm::manifest::validate::ValidationMode::Interactive,
+        )
+    }
 
     #[test]
     fn validate_marketplace_name_accepts_lowercase() {
-        assert!(validate_marketplace_name("my-plugins").is_ok());
+        assert!(validate_name_interactive("my-plugins").is_ok());
     }
 
     #[test]
     fn validate_marketplace_name_accepts_scoped() {
-        assert!(validate_marketplace_name("@org/plugins").is_ok());
+        assert!(validate_name_interactive("@org/plugins").is_ok());
     }
 
     #[test]
     fn validate_marketplace_name_accepts_empty_for_default() {
-        assert!(validate_marketplace_name("").is_ok());
+        assert!(validate_name_interactive("").is_ok());
     }
 
     #[test]
     fn validate_marketplace_name_accepts_digits() {
-        assert!(validate_marketplace_name("123abc").is_ok());
+        assert!(validate_name_interactive("123abc").is_ok());
     }
 
     #[test]
     fn validate_marketplace_name_rejects_uppercase() {
-        assert!(validate_marketplace_name("MyPlugins").is_err());
+        assert!(validate_name_interactive("MyPlugins").is_err());
     }
 
     #[test]
     fn validate_marketplace_name_rejects_spaces() {
-        assert!(validate_marketplace_name("my plugins").is_err());
+        assert!(validate_name_interactive("my plugins").is_err());
     }
 
     #[test]
     fn validate_marketplace_name_rejects_underscores() {
-        assert!(validate_marketplace_name("my_plugins").is_err());
+        assert!(validate_name_interactive("my_plugins").is_err());
     }
 
     // =========================================================================

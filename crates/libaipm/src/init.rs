@@ -74,7 +74,10 @@ pub fn init(opts: &Options<'_>, fs: &dyn Fs) -> Result<(), Error> {
     };
 
     // Validate name
-    if !is_valid_package_name(&name) {
+    if !crate::manifest::validate::is_valid_name(
+        &name,
+        crate::manifest::validate::ValidationMode::Strict,
+    ) {
         return Err(Error::InvalidName {
             name,
             reason: "must be lowercase alphanumeric with hyphens, optionally scoped with @org/name"
@@ -93,38 +96,6 @@ pub fn init(opts: &Options<'_>, fs: &dyn Fs) -> Result<(), Error> {
     fs.write_file(&manifest_path, toml_content.as_bytes())?;
 
     Ok(())
-}
-
-/// Check if a package name is valid (same rules as manifest validation).
-fn is_valid_package_name(name: &str) -> bool {
-    if name.is_empty() {
-        return false;
-    }
-
-    if let Some(rest) = name.strip_prefix('@') {
-        let Some(slash_pos) = rest.find('/') else {
-            return false;
-        };
-        let scope = &rest[..slash_pos];
-        let pkg = &rest[slash_pos + 1..];
-        if scope.is_empty() || pkg.is_empty() {
-            return false;
-        }
-        return is_valid_segment(scope) && is_valid_segment(pkg);
-    }
-
-    is_valid_segment(name)
-}
-
-fn is_valid_segment(s: &str) -> bool {
-    if s.is_empty() {
-        return false;
-    }
-    let bytes = s.as_bytes();
-    if !bytes.first().is_some_and(|b| b.is_ascii_lowercase() || b.is_ascii_digit()) {
-        return false;
-    }
-    bytes.iter().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || *b == b'-')
 }
 
 /// Create the conventional directory layout for a plugin type.
@@ -245,42 +216,40 @@ mod tests {
         cleanup(&path);
     }
 
+    use crate::manifest::validate::ValidationMode;
+
+    fn check_strict(name: &str) -> bool {
+        crate::manifest::validate::is_valid_name(name, ValidationMode::Strict)
+    }
+
     #[test]
     fn valid_names() {
-        assert!(is_valid_package_name("my-plugin"));
-        assert!(is_valid_package_name("plugin123"));
-        assert!(is_valid_package_name("@org/my-plugin"));
-        // Digit-starting names (exercises is_ascii_digit branch in first-char check)
-        assert!(is_valid_package_name("1abc"));
-        assert!(is_valid_package_name("123"));
-        // Hyphens in middle (exercises b == b'-' branch in all() iterator)
-        assert!(is_valid_package_name("a-b-c"));
+        assert!(check_strict("my-plugin"));
+        assert!(check_strict("plugin123"));
+        assert!(check_strict("@org/my-plugin"));
+        // Digit-starting names
+        assert!(check_strict("1abc"));
+        assert!(check_strict("123"));
+        // Hyphens in middle
+        assert!(check_strict("a-b-c"));
         // Scoped with digit-starting segments
-        assert!(is_valid_package_name("@1org/2pkg"));
+        assert!(check_strict("@1org/2pkg"));
         // All-digit segments
-        assert!(is_valid_package_name("@123/456"));
+        assert!(check_strict("@123/456"));
     }
 
     #[test]
     fn invalid_names() {
-        assert!(!is_valid_package_name(""));
-        assert!(!is_valid_package_name("INVALID_Name!"));
-        assert!(!is_valid_package_name("has spaces"));
-        assert!(!is_valid_package_name("-starts-dash"));
-        // Scoped name edge cases (branch coverage)
-        assert!(!is_valid_package_name("@noslash"));
-        assert!(!is_valid_package_name("@/pkg"));
-        assert!(!is_valid_package_name("@org/"));
-        assert!(!is_valid_package_name("@ORG/my-plugin"));
-        assert!(!is_valid_package_name("@org/INVALID"));
-    }
-
-    #[test]
-    fn is_valid_segment_rejects_empty_string() {
-        // is_valid_segment is never called with "" via is_valid_package_name (which guards
-        // the empty-name case and the empty-scope/pkg cases before delegating).
-        // Call it directly to cover the early-return branch.
-        assert!(!is_valid_segment(""));
+        assert!(!check_strict(""));
+        assert!(!check_strict("INVALID_Name!"));
+        assert!(!check_strict("has spaces"));
+        assert!(!check_strict("-starts-dash"));
+        // Scoped name edge cases
+        assert!(!check_strict("@noslash"));
+        assert!(!check_strict("@/pkg"));
+        assert!(!check_strict("@org/"));
+        assert!(!check_strict("@ORG/my-plugin"));
+        assert!(!check_strict("@org/INVALID"));
     }
 
     #[test]
