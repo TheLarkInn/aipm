@@ -164,24 +164,29 @@ fn init_workspace(dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
 }
 
 fn generate_workspace_manifest() -> String {
-    "# AI Plugin Manager — Workspace Configuration\n\
-     # Docs: https://github.com/thelarkinn/aipm\n\
-     \n\
-     [workspace]\n\
-     members = [\".ai/*\"]\n\
-     plugins_dir = \".ai\"\n\
-     \n\
-     # Shared dependency versions for all workspace members.\n\
-     # Members reference these via: dep = { workspace = \"*\" }\n\
-     # [workspace.dependencies]\n\
-     \n\
-     # Direct registry installs (available project-wide).\n\
-     # [dependencies]\n\
-     \n\
-     # Environment requirements for all plugins in this workspace.\n\
-     # [environment]\n\
-     # requires = [\"git\"]\n"
-        .to_string()
+    let members = vec![".ai/*".to_string()];
+    crate::manifest::builder::build_workspace_manifest(
+        &crate::manifest::builder::WorkspaceManifestOpts {
+            members: &members,
+            plugins_dir: Some(".ai"),
+            header_comments: Some(&[
+                "AI Plugin Manager — Workspace Configuration",
+                "Docs: https://github.com/thelarkinn/aipm",
+            ]),
+            trailing_comments: Some(&[
+                "Shared dependency versions for all workspace members.",
+                "Members reference these via: dep = { workspace = \"*\" }",
+                "[workspace.dependencies]",
+                "",
+                "Direct registry installs (available project-wide).",
+                "[dependencies]",
+                "",
+                "Environment requirements for all plugins in this workspace.",
+                "[environment]",
+                "requires = [\"git\"]",
+            ]),
+        },
+    )
 }
 
 // =============================================================================
@@ -273,22 +278,26 @@ fn scaffold_marketplace(
 }
 
 fn generate_starter_manifest() -> String {
-    "[package]\n\
-     name = \"starter-aipm-plugin\"\n\
-     version = \"0.1.0\"\n\
-     type = \"composite\"\n\
-     description = \"Default starter plugin — scaffold new plugins, scan your marketplace, and log tool usage\"\n\
-     \n\
-     # [dependencies]\n\
-     # Add registry dependencies here, e.g.:\n\
-     # shared-skill = \"^1.0\"\n\
-     \n\
-     [components]\n\
-     skills = [\"skills/scaffold-plugin/SKILL.md\"]\n\
-     agents = [\"agents/marketplace-scanner.md\"]\n\
-     hooks = [\"hooks/hooks.json\"]\n\
-     scripts = [\"scripts/scaffold-plugin.ts\"]\n"
-        .to_string()
+    let skills = vec!["skills/scaffold-plugin/SKILL.md".to_string()];
+    let agents = vec!["agents/marketplace-scanner.md".to_string()];
+    let hooks = vec!["hooks/hooks.json".to_string()];
+    let scripts = vec!["scripts/scaffold-plugin.ts".to_string()];
+
+    crate::manifest::builder::build_plugin_manifest(
+        &crate::manifest::builder::PluginManifestOpts {
+            name: "starter-aipm-plugin",
+            version: "0.1.0",
+            plugin_type: Some("composite"),
+            description: Some("Default starter plugin \u{2014} scaffold new plugins, scan your marketplace, and log tool usage"),
+        },
+        Some(&crate::manifest::builder::PluginComponentsOpts {
+            skills: Some(&skills),
+            agents: Some(&agents),
+            hooks: Some(&hooks),
+            scripts: Some(&scripts),
+            ..crate::manifest::builder::PluginComponentsOpts::default()
+        }),
+    )
 }
 
 fn generate_plugin_json() -> String {
