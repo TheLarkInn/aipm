@@ -6,6 +6,8 @@
 
 use std::path::Path;
 
+use serde::de::DeserializeOwned;
+
 /// A directory entry returned by `Fs::read_dir`.
 #[derive(Debug, Clone)]
 pub struct DirEntry {
@@ -255,6 +257,44 @@ impl Fs for Real {
     }
 }
 
+// -----------------------------------------------------------------
+// Read-or-default helpers (free functions so they remain dyn-compatible)
+// -----------------------------------------------------------------
+
+/// Reads and JSON-deserializes a file via `fs`, returning `T::default()` if
+/// the file does not exist.
+///
+/// Returns an error if the file exists but cannot be read or contains invalid
+/// JSON.
+pub fn read_or_default<T>(fs: &dyn Fs, path: &Path) -> std::io::Result<T>
+where
+    T: Default + DeserializeOwned,
+{
+    match fs.read_to_string(path) {
+        Ok(content) => serde_json::from_str(&content)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(T::default()),
+        Err(e) => Err(e),
+    }
+}
+
+/// Reads and TOML-deserializes a file via `fs`, returning `T::default()` if
+/// the file does not exist.
+///
+/// Returns an error if the file exists but cannot be read or contains invalid
+/// TOML.
+pub fn read_toml_or_default<T>(fs: &dyn Fs, path: &Path) -> std::io::Result<T>
+where
+    T: Default + DeserializeOwned,
+{
+    match fs.read_to_string(path) {
+        Ok(content) => toml::from_str(&content)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(T::default()),
+        Err(e) => Err(e),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -462,6 +502,78 @@ mod tests {
 
         assert!(Real.write_file_with_parents(&file, b"content").is_ok());
         assert!(file.exists());
+    }
+
+    // ---- read_or_default tests (JSON) ----
+
+    #[derive(Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+    struct TestJson {
+        value: u32,
+    }
+
+    #[test]
+    fn read_or_default_returns_default_when_file_missing() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("missing.json");
+        let result: std::io::Result<TestJson> = read_or_default(&Real, &path);
+        assert!(result.is_ok());
+        assert_eq!(result.expect("ok"), TestJson::default());
+    }
+
+    #[test]
+    fn read_or_default_deserializes_valid_json() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("data.json");
+        std::fs::write(&path, r#"{"value": 42}"#).expect("write");
+        let result: std::io::Result<TestJson> = read_or_default(&Real, &path);
+        assert!(result.is_ok());
+        assert_eq!(result.expect("ok"), TestJson { value: 42 });
+    }
+
+    #[test]
+    fn read_or_default_errors_on_invalid_json() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("bad.json");
+        std::fs::write(&path, "not json at all :::").expect("write");
+        let result: std::io::Result<TestJson> = read_or_default(&Real, &path);
+        assert!(result.is_err());
+        assert_eq!(result.err().map(|e| e.kind()), Some(std::io::ErrorKind::InvalidData));
+    }
+
+    // ---- read_toml_or_default tests ----
+
+    #[derive(Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+    struct TestToml {
+        count: u32,
+    }
+
+    #[test]
+    fn read_toml_or_default_returns_default_when_file_missing() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("missing.toml");
+        let result: std::io::Result<TestToml> = read_toml_or_default(&Real, &path);
+        assert!(result.is_ok());
+        assert_eq!(result.expect("ok"), TestToml::default());
+    }
+
+    #[test]
+    fn read_toml_or_default_deserializes_valid_toml() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("data.toml");
+        std::fs::write(&path, "count = 7\n").expect("write");
+        let result: std::io::Result<TestToml> = read_toml_or_default(&Real, &path);
+        assert!(result.is_ok());
+        assert_eq!(result.expect("ok"), TestToml { count: 7 });
+    }
+
+    #[test]
+    fn read_toml_or_default_errors_on_invalid_toml() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("bad.toml");
+        std::fs::write(&path, "[[not valid toml :::").expect("write");
+        let result: std::io::Result<TestToml> = read_toml_or_default(&Real, &path);
+        assert!(result.is_err());
+        assert_eq!(result.err().map(|e| e.kind()), Some(std::io::ErrorKind::InvalidData));
     }
 
     #[test]
