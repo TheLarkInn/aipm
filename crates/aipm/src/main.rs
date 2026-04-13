@@ -405,7 +405,7 @@ fn cmd_install(
     };
 
     let registry = StubRegistry;
-    let result = libaipm::installer::pipeline::install(&config, &registry)?;
+    let result = libaipm::installer::pipeline::install(&libaipm::fs::Real, &config, &registry)?;
 
     let mut stdout = std::io::stdout();
     let _ = writeln!(
@@ -433,7 +433,7 @@ fn cmd_update(package: Option<String>, dir: PathBuf) -> Result<(), Box<dyn std::
     };
 
     let registry = StubRegistry;
-    let result = libaipm::installer::pipeline::update(&config, &registry)?;
+    let result = libaipm::installer::pipeline::update(&libaipm::fs::Real, &config, &registry)?;
 
     let mut stdout = std::io::stdout();
     let _ = writeln!(

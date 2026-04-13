@@ -78,7 +78,7 @@
       "Add MockFs-based unit tests for both modules",
       "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
