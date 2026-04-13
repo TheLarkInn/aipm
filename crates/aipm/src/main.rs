@@ -2,6 +2,7 @@
 //!
 //! Commands: init, install, update, link, unlink, list, lint, migrate, lsp.
 
+mod error;
 mod lsp;
 mod wizard;
 mod wizard_tty;
@@ -247,7 +248,7 @@ impl libaipm::registry::Registry for StubRegistry {
 // =========================================================================
 
 /// Resolve a directory argument: if ".", use `current_dir()`.
-fn resolve_dir(dir: PathBuf) -> Result<PathBuf, Box<dyn std::error::Error>> {
+fn resolve_dir(dir: PathBuf) -> Result<PathBuf, error::CliError> {
     if dir.as_os_str() == "." {
         Ok(std::env::current_dir()?)
     } else {
@@ -276,7 +277,7 @@ fn resolve_plugins_dir(dir: &Path) -> PathBuf {
 }
 
 /// Get the global content-addressable store path (`~/.aipm/store/`).
-fn home_store_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
+fn home_store_path() -> Result<PathBuf, error::CliError> {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .map_err(|_| "could not determine home directory")?;
@@ -330,7 +331,7 @@ fn cmd_init(
     manifest: bool,
     name: Option<&str>,
     dir: PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), error::CliError> {
     let dir = resolve_dir(dir)?;
     let interactive = !flags.yes && std::io::stdin().is_terminal();
 
@@ -374,11 +375,7 @@ fn cmd_init(
     Ok(())
 }
 
-fn cmd_install(
-    package: Option<String>,
-    locked: bool,
-    dir: PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn cmd_install(package: Option<String>, locked: bool, dir: PathBuf) -> Result<(), error::CliError> {
     let dir = resolve_dir(dir)?;
 
     // Discover workspace root if we're inside one
@@ -416,7 +413,7 @@ fn cmd_install(
     Ok(())
 }
 
-fn cmd_update(package: Option<String>, dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+fn cmd_update(package: Option<String>, dir: PathBuf) -> Result<(), error::CliError> {
     let dir = resolve_dir(dir)?;
 
     let plugins_dir = resolve_plugins_dir(&dir);
@@ -444,7 +441,7 @@ fn cmd_update(package: Option<String>, dir: PathBuf) -> Result<(), Box<dyn std::
     Ok(())
 }
 
-fn cmd_link(path: PathBuf, dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+fn cmd_link(path: PathBuf, dir: PathBuf) -> Result<(), error::CliError> {
     let dir = resolve_dir(dir)?;
     let path = if path.is_relative() { dir.join(&path) } else { path };
 
@@ -471,8 +468,7 @@ fn cmd_link(path: PathBuf, dir: PathBuf) -> Result<(), Box<dyn std::error::Error
 
     // Create the directory link
     std::fs::create_dir_all(&plugins_dir)?;
-    libaipm::linker::directory_link::create(&path, &link_target)
-        .map_err(|e| std::io::Error::other(e.to_string()))?;
+    libaipm::linker::directory_link::create(&path, &link_target)?;
 
     // Update link state
     let link_state_path = dir.join(".aipm/links.toml");
@@ -481,30 +477,26 @@ fn cmd_link(path: PathBuf, dir: PathBuf) -> Result<(), Box<dyn std::error::Error
         path: path.clone(),
         linked_at: timestamp_now(),
     };
-    libaipm::linker::link_state::add(&libaipm::fs::Real, &link_state_path, entry)
-        .map_err(|e| std::io::Error::other(e.to_string()))?;
+    libaipm::linker::link_state::add(&libaipm::fs::Real, &link_state_path, entry)?;
 
     let mut stdout = std::io::stdout();
     let _ = writeln!(stdout, "Linked '{pkg_name}' → {}", path.display());
     Ok(())
 }
 
-fn cmd_unlink(package: &str, dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+fn cmd_unlink(package: &str, dir: PathBuf) -> Result<(), error::CliError> {
     let dir = resolve_dir(dir)?;
     let plugins_dir = resolve_plugins_dir(&dir);
     let links_dir = dir.join(".aipm/links");
 
-    libaipm::linker::pipeline::unlink_package(package, &links_dir, &plugins_dir)
-        .map_err(|e| std::io::Error::other(e.to_string()))?;
+    libaipm::linker::pipeline::unlink_package(package, &links_dir, &plugins_dir)?;
 
     let link_state_path = dir.join(".aipm/links.toml");
-    libaipm::linker::link_state::remove(&libaipm::fs::Real, &link_state_path, package)
-        .map_err(|e| std::io::Error::other(e.to_string()))?;
+    libaipm::linker::link_state::remove(&libaipm::fs::Real, &link_state_path, package)?;
 
     let gitignore_path = plugins_dir.join(".gitignore");
     if gitignore_path.exists() {
-        libaipm::linker::gitignore::remove_entry(&libaipm::fs::Real, &gitignore_path, package)
-            .map_err(|e| std::io::Error::other(e.to_string()))?;
+        libaipm::linker::gitignore::remove_entry(&libaipm::fs::Real, &gitignore_path, package)?;
     }
 
     let mut stdout = std::io::stdout();
@@ -512,14 +504,13 @@ fn cmd_unlink(package: &str, dir: PathBuf) -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
-fn cmd_list(linked: bool, dir: PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+fn cmd_list(linked: bool, dir: PathBuf) -> Result<(), error::CliError> {
     let dir = resolve_dir(dir)?;
     let mut stdout = std::io::stdout();
 
     if linked {
         let link_state_path = dir.join(".aipm/links.toml");
-        let entries = libaipm::linker::link_state::list(&libaipm::fs::Real, &link_state_path)
-            .map_err(|e| std::io::Error::other(e.to_string()))?;
+        let entries = libaipm::linker::link_state::list(&libaipm::fs::Real, &link_state_path)?;
 
         if entries.is_empty() {
             let _ = writeln!(stdout, "No active dev link overrides.");
@@ -538,8 +529,7 @@ fn cmd_list(linked: bool, dir: PathBuf) -> Result<(), Box<dyn std::error::Error>
     } else {
         let lockfile_path = dir.join("aipm.lock");
         if lockfile_path.exists() {
-            let lf = libaipm::lockfile::read(&libaipm::fs::Real, &lockfile_path)
-                .map_err(|e| std::io::Error::other(e.to_string()))?;
+            let lf = libaipm::lockfile::read(&libaipm::fs::Real, &lockfile_path)?;
 
             if lf.packages.is_empty() {
                 let _ = writeln!(stdout, "No packages installed.");
@@ -561,11 +551,11 @@ fn cmd_install_global(
     engine: Option<String>,
     plugin_cache: Option<String>,
     _dir: PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), error::CliError> {
     let spec = package.ok_or("--global install requires a package spec")?;
     let engines: Vec<String> = engine.into_iter().collect();
     let cache_policy: Option<libaipm::cache::Policy> =
-        plugin_cache.map(|s| s.parse()).transpose().map_err(|e: String| e)?;
+        plugin_cache.map(|s| s.parse()).transpose()?;
 
     // Load or create the global installed registry
     let registry_path = home_aipm_path()?.join("installed.json");
@@ -575,9 +565,8 @@ fn cmd_install_global(
 
     // Save under lock
     let json = serde_json::to_string_pretty(&registry)?;
-    let mut locked = libaipm::locked_file::LockedFile::open(&registry_path)
-        .map_err(|e| std::io::Error::other(e.to_string()))?;
-    locked.write_content(&json).map_err(|e| std::io::Error::other(e.to_string()))?;
+    let mut locked = libaipm::locked_file::LockedFile::open(&registry_path)?;
+    locked.write_content(&json)?;
 
     let mut stdout = std::io::stdout();
     if added {
@@ -592,7 +581,7 @@ fn cmd_uninstall_global(
     package: &str,
     engine: Option<&str>,
     _dir: PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), error::CliError> {
     let registry_path = home_aipm_path()?.join("installed.json");
     let mut registry = load_installed_registry(&registry_path)?;
 
@@ -610,9 +599,8 @@ fn cmd_uninstall_global(
     }
 
     let json = serde_json::to_string_pretty(&registry)?;
-    let mut locked = libaipm::locked_file::LockedFile::open(&registry_path)
-        .map_err(|e| std::io::Error::other(e.to_string()))?;
-    locked.write_content(&json).map_err(|e| std::io::Error::other(e.to_string()))?;
+    let mut locked = libaipm::locked_file::LockedFile::open(&registry_path)?;
+    locked.write_content(&json)?;
 
     let mut stdout = std::io::stdout();
     if let Some(eng) = engine {
@@ -623,7 +611,7 @@ fn cmd_uninstall_global(
     Ok(())
 }
 
-fn cmd_list_global() -> Result<(), Box<dyn std::error::Error>> {
+fn cmd_list_global() -> Result<(), error::CliError> {
     let registry_path = home_aipm_path()?.join("installed.json");
     let registry = load_installed_registry(&registry_path)?;
 
@@ -645,7 +633,7 @@ fn cmd_list_global() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Get the `~/.aipm/` directory path.
-fn home_aipm_path() -> Result<PathBuf, Box<dyn std::error::Error>> {
+fn home_aipm_path() -> Result<PathBuf, error::CliError> {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .map_err(|_| "could not determine home directory")?;
@@ -664,7 +652,7 @@ fn cmd_lint(
     color: &str,
     format: Option<&str>,
     max_depth: Option<usize>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), error::CliError> {
     let dir = resolve_dir(dir)?;
 
     // Validate --source against supported set
@@ -845,7 +833,7 @@ fn cmd_migrate(
     max_depth: Option<usize>,
     manifest: bool,
     dir: PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), error::CliError> {
     let dir = resolve_dir(dir)?;
     let opts =
         libaipm::migrate::Options { dir: &dir, source, dry_run, destructive, max_depth, manifest };
@@ -947,7 +935,7 @@ fn cmd_migrate(
 // Entry point
 // =========================================================================
 
-fn run() -> Result<(), Box<dyn std::error::Error>> {
+fn run() -> Result<(), error::CliError> {
     let cli = Cli::parse();
 
     // Initialize logging from CLI flags
@@ -1009,7 +997,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         Some(Commands::Migrate { dry_run, destructive, source, max_depth, manifest, dir }) => {
             cmd_migrate(dry_run, destructive, source.as_deref(), max_depth, manifest, dir)
         },
-        Some(Commands::Lsp) => lsp::run(),
+        Some(Commands::Lsp) => Ok(lsp::run()?),
         None => {
             let mut stdout = std::io::stdout();
             let _ = writeln!(stdout, "aipm {}", libaipm::version());
