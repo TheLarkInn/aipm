@@ -388,6 +388,9 @@ common-skill = "^2.0"
 "skill/oversized" = "allow"
 # Per-rule ignore paths (lint ignore matching uses full file paths, so use `**/` to match anywhere)
 "source/misplaced-features" = { level = "warn", ignore = ["**/.claude/skills/legacy-*/**"] }
+# instructions/oversized — relax size limits for large monorepo instruction files
+# (also supports `resolve-imports = true` to count imported content toward the limit)
+"instructions/oversized" = { lines = 200, characters = 20000 }
 
 [workspace.lints.ignore]
 paths = ["**/vendor/**", "**/third-party/**"]
