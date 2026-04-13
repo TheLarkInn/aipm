@@ -79,6 +79,44 @@ pub(crate) fn simple_diag(
     }
 }
 
+use crate::fs::Fs;
+
+/// Read a skill file and compute its source type in one call.
+///
+/// Returns `None` if the file cannot be read, matching the early-return
+/// pattern used by all skill lint rules.
+pub(crate) fn read_skill_preamble(
+    file_path: &Path,
+    fs: &dyn Fs,
+) -> Option<(String, scan::FoundSkill)> {
+    let source_type = scan::source_type_from_path(file_path).to_string();
+    let skill = scan::read_skill(file_path, fs)?;
+    Some((source_type, skill))
+}
+
+/// Read an agent file and compute its source type in one call.
+///
+/// Returns `None` if the file cannot be read, matching the early-return
+/// pattern used by agent lint rules.
+pub(crate) fn read_agent_preamble(
+    file_path: &Path,
+    fs: &dyn Fs,
+) -> Option<(String, scan::FoundAgent)> {
+    let source_type = scan::source_type_from_path(file_path).to_string();
+    let agent = scan::read_agent(file_path, fs)?;
+    Some((source_type, agent))
+}
+
+/// Read a hook file and compute its source type in one call.
+///
+/// Returns `None` if the file cannot be read, matching the early-return
+/// pattern used by hook lint rules.
+pub(crate) fn read_hook_preamble(file_path: &Path, fs: &dyn Fs) -> Option<(String, String)> {
+    let source_type = scan::source_type_from_path(file_path).to_string();
+    let (_path, content) = scan::read_hook(file_path, fs)?;
+    Some((source_type, content))
+}
+
 /// Get quality rules applicable to a feature kind.
 ///
 /// These rules validate individual feature files without regard to which
@@ -232,6 +270,57 @@ mod tests {
         );
         assert_eq!(d.severity, Severity::Warning);
         assert_eq!(d.source_type, ".claude");
+    }
+
+    #[test]
+    fn read_skill_preamble_returns_some_for_existing_file() {
+        let mut fs = test_helpers::MockFs::new();
+        fs.add_skill("p", "s", "---\nname: s\n---\nbody");
+        let result = read_skill_preamble(Path::new(".ai/p/skills/s/SKILL.md"), &fs);
+        assert!(result.is_some());
+        let (source_type, skill) = result.unwrap();
+        assert_eq!(source_type, ".ai");
+        assert!(skill.frontmatter.is_some());
+    }
+
+    #[test]
+    fn read_skill_preamble_returns_none_for_missing_file() {
+        let fs = test_helpers::MockFs::new();
+        assert!(read_skill_preamble(Path::new(".ai/p/skills/s/SKILL.md"), &fs).is_none());
+    }
+
+    #[test]
+    fn read_agent_preamble_returns_some_for_existing_file() {
+        let mut fs = test_helpers::MockFs::new();
+        fs.add_agent("p", "reviewer", "---\nname: reviewer\ntools: Read\n---\nprompt");
+        let result = read_agent_preamble(Path::new(".ai/p/agents/reviewer.md"), &fs);
+        assert!(result.is_some());
+        let (source_type, agent) = result.unwrap();
+        assert_eq!(source_type, ".ai");
+        assert!(agent.frontmatter.is_some());
+    }
+
+    #[test]
+    fn read_agent_preamble_returns_none_for_missing_file() {
+        let fs = test_helpers::MockFs::new();
+        assert!(read_agent_preamble(Path::new(".ai/p/agents/reviewer.md"), &fs).is_none());
+    }
+
+    #[test]
+    fn read_hook_preamble_returns_some_for_existing_file() {
+        let mut fs = test_helpers::MockFs::new();
+        fs.add_hooks("p", r#"{"preToolUse": []}"#);
+        let result = read_hook_preamble(Path::new(".ai/p/hooks/hooks.json"), &fs);
+        assert!(result.is_some());
+        let (source_type, content) = result.unwrap();
+        assert_eq!(source_type, ".ai");
+        assert!(content.contains("preToolUse"));
+    }
+
+    #[test]
+    fn read_hook_preamble_returns_none_for_missing_file() {
+        let fs = test_helpers::MockFs::new();
+        assert!(read_hook_preamble(Path::new(".ai/p/hooks/hooks.json"), &fs).is_none());
     }
 
     #[test]

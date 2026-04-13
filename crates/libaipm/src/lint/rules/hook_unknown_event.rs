@@ -10,7 +10,7 @@ use crate::lint::diagnostic::{Diagnostic, Severity};
 use crate::lint::rule::Rule;
 use crate::lint::Error;
 
-use super::{known_events, locate_json_key, scan};
+use super::{known_events, locate_json_key};
 
 /// Checks that hook event names are valid.
 pub struct UnknownEvent;
@@ -37,8 +37,7 @@ impl Rule for UnknownEvent {
     }
 
     fn check_file(&self, file_path: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
-        let source_type = scan::source_type_from_path(file_path).to_string();
-        let Some((_path, content)) = scan::read_hook(file_path, fs) else {
+        let Some((source_type, content)) = super::read_hook_preamble(file_path, fs) else {
             return Ok(vec![]);
         };
         let mut diagnostics = Vec::new();

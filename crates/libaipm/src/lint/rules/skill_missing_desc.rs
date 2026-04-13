@@ -7,8 +7,6 @@ use crate::lint::diagnostic::{Diagnostic, Severity};
 use crate::lint::rule::Rule;
 use crate::lint::Error;
 
-use super::scan;
-
 /// Checks that every `SKILL.md` has a `description` frontmatter field.
 pub struct MissingDescription;
 
@@ -34,8 +32,7 @@ impl Rule for MissingDescription {
     }
 
     fn check_file(&self, file_path: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
-        let source_type = scan::source_type_from_path(file_path).to_string();
-        let Some(skill) = scan::read_skill(file_path, fs) else {
+        let Some((source_type, skill)) = super::read_skill_preamble(file_path, fs) else {
             return Ok(vec![]);
         };
         let diag = match skill.frontmatter {

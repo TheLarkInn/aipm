@@ -9,8 +9,6 @@ use crate::lint::diagnostic::{Diagnostic, Severity};
 use crate::lint::rule::Rule;
 use crate::lint::Error;
 
-use super::scan;
-
 /// Maximum length for a skill description (Copilot CLI limit).
 const MAX_DESCRIPTION_LENGTH: usize = 1024;
 
@@ -41,8 +39,7 @@ impl Rule for DescriptionTooLong {
     }
 
     fn check_file(&self, file_path: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
-        let source_type = scan::source_type_from_path(file_path).to_string();
-        let Some(skill) = scan::read_skill(file_path, fs) else {
+        let Some((source_type, skill)) = super::read_skill_preamble(file_path, fs) else {
             return Ok(vec![]);
         };
         let Some(ref fm) = skill.frontmatter else { return Ok(vec![]) };

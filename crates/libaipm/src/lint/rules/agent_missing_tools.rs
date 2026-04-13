@@ -7,8 +7,6 @@ use crate::lint::diagnostic::{Diagnostic, Severity};
 use crate::lint::rule::Rule;
 use crate::lint::Error;
 
-use super::scan;
-
 /// Checks that agent definitions include a `tools` frontmatter field.
 pub struct MissingTools;
 
@@ -34,8 +32,7 @@ impl Rule for MissingTools {
     }
 
     fn check_file(&self, file_path: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
-        let source_type = scan::source_type_from_path(file_path).to_string();
-        let Some(agent) = scan::read_agent(file_path, fs) else {
+        let Some((source_type, agent)) = super::read_agent_preamble(file_path, fs) else {
             return Ok(vec![]);
         };
         let diag = match agent.frontmatter {

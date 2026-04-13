@@ -9,8 +9,6 @@ use crate::lint::diagnostic::{Diagnostic, Severity};
 use crate::lint::rule::Rule;
 use crate::lint::Error;
 
-use super::scan;
-
 /// Maximum character count for a SKILL.md file (Copilot CLI default).
 const SKILL_CHAR_BUDGET: usize = 15_000;
 
@@ -39,8 +37,7 @@ impl Rule for Oversized {
     }
 
     fn check_file(&self, file_path: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
-        let source_type = scan::source_type_from_path(file_path).to_string();
-        let Some(skill) = scan::read_skill(file_path, fs) else {
+        let Some((source_type, skill)) = super::read_skill_preamble(file_path, fs) else {
             return Ok(vec![]);
         };
         if skill.content.len() <= SKILL_CHAR_BUDGET {
