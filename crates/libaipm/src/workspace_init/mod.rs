@@ -5,10 +5,13 @@
 //! applied by [`ToolAdaptor`] implementations in the [`adaptors`] module.
 
 pub mod adaptors;
+pub mod error;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::fs::Fs;
+
+pub use error::Error;
 
 /// An adaptor integrates aipm's `.ai/` marketplace with a specific AI coding tool.
 ///
@@ -79,31 +82,6 @@ pub enum InitAction {
 pub struct InitResult {
     /// Actions that were performed.
     pub actions: Vec<InitAction>,
-}
-
-/// Errors specific to workspace init.
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    /// The directory already has an `aipm.toml`.
-    #[error("already initialized: aipm.toml already exists in {}", .0.display())]
-    WorkspaceAlreadyInitialized(PathBuf),
-
-    /// The `.ai/` marketplace directory already exists.
-    #[error(".ai/ marketplace already exists in {}", .0.display())]
-    MarketplaceAlreadyExists(PathBuf),
-
-    /// I/O error.
-    #[error("I/O error: {0}")]
-    Io(#[from] std::io::Error),
-
-    /// JSON parse error in an existing settings file.
-    #[error("JSON parse error in {}: {source}", path.display())]
-    JsonParse {
-        /// Path to the file that failed to parse.
-        path: PathBuf,
-        /// The underlying `serde_json` error.
-        source: serde_json::Error,
-    },
 }
 
 /// Initialize workspace and/or marketplace.
