@@ -29,12 +29,12 @@ pub struct Member {
 ///
 /// Returns the path to the workspace root directory (parent of the manifest),
 /// or `None` if no workspace root is found before reaching the filesystem root.
-pub fn find_workspace_root(start_dir: &Path) -> Option<PathBuf> {
+pub fn find_workspace_root(fs: &dyn crate::fs::Fs, start_dir: &Path) -> Option<PathBuf> {
     let mut current = start_dir.to_path_buf();
     loop {
         let manifest_path = current.join("aipm.toml");
         if manifest_path.exists() {
-            match std::fs::read_to_string(&manifest_path) {
+            match fs.read_to_string(&manifest_path) {
                 Ok(content) => match toml::from_str::<manifest::types::Manifest>(&content) {
                     Ok(m) => {
                         if m.workspace.is_some() {
@@ -77,6 +77,7 @@ pub fn find_workspace_root(start_dir: &Path) -> Option<PathBuf> {
 /// - A member manifest has no `[package]` section
 /// - Two members declare the same package name
 pub fn discover_members(
+    fs: &dyn crate::fs::Fs,
     workspace_root: &Path,
     member_patterns: &[String],
 ) -> Result<BTreeMap<String, Member>, Error> {
@@ -104,7 +105,7 @@ pub fn discover_members(
                 continue;
             }
 
-            let content = std::fs::read_to_string(&manifest_path).map_err(|e| {
+            let content = fs.read_to_string(&manifest_path).map_err(|e| {
                 Error::Discovery(format!("failed to read {}: {e}", manifest_path.display()))
             })?;
 
@@ -153,7 +154,7 @@ mod tests {
         std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
         std::fs::create_dir_all(root.join(".ai/plugin-a")).unwrap();
 
-        let result = find_workspace_root(&root.join(".ai/plugin-a"));
+        let result = find_workspace_root(&crate::fs::Real, &root.join(".ai/plugin-a"));
         assert_eq!(result.as_deref(), Some(root));
     }
 
@@ -168,7 +169,7 @@ mod tests {
         let subdir = root.join("sub");
         std::fs::create_dir_all(&subdir).unwrap();
 
-        let result = find_workspace_root(&subdir);
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
         assert!(result.is_none(), "should not match non-workspace manifest, got: {result:?}");
     }
 
@@ -179,7 +180,7 @@ mod tests {
 
         std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
 
-        let result = find_workspace_root(root);
+        let result = find_workspace_root(&crate::fs::Real, root);
         assert_eq!(result.as_deref(), Some(root));
     }
 
@@ -200,7 +201,7 @@ mod tests {
             .unwrap();
         }
 
-        let members = discover_members(root, &[".ai/*".to_string()]).unwrap();
+        let members = discover_members(&crate::fs::Real, root, &[".ai/*".to_string()]).unwrap();
         assert_eq!(members.len(), 2);
         assert_eq!(members.get("plugin-a").unwrap().version, "1.0.0");
         assert_eq!(members.get("plugin-b").unwrap().version, "2.0.0");
@@ -220,7 +221,7 @@ mod tests {
         )
         .unwrap();
 
-        let members = discover_members(root, &[".ai/*".to_string()]).unwrap();
+        let members = discover_members(&crate::fs::Real, root, &[".ai/*".to_string()]).unwrap();
         assert_eq!(members.len(), 1);
         assert!(members.contains_key("valid-plugin"));
     }
@@ -240,7 +241,7 @@ mod tests {
             .unwrap();
         }
 
-        let err = discover_members(root, &[".ai/*".to_string()]).unwrap_err();
+        let err = discover_members(&crate::fs::Real, root, &[".ai/*".to_string()]).unwrap_err();
         assert!(format!("{err}").contains("duplicate workspace member name"));
     }
 
@@ -253,7 +254,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("aipm.toml"), "[workspace]\nmembers = [\"*\"]\n").unwrap();
 
-        let err = discover_members(root, &[".ai/*".to_string()]).unwrap_err();
+        let err = discover_members(&crate::fs::Real, root, &[".ai/*".to_string()]).unwrap_err();
         assert!(format!("{err}").contains("no [package] section"));
     }
 
@@ -278,8 +279,12 @@ mod tests {
         )
         .unwrap();
 
-        let members =
-            discover_members(root, &["plugins/*".to_string(), "tools/*".to_string()]).unwrap();
+        let members = discover_members(
+            &crate::fs::Real,
+            root,
+            &["plugins/*".to_string(), "tools/*".to_string()],
+        )
+        .unwrap();
         assert_eq!(members.len(), 2);
         assert!(members.contains_key("plugin-a"));
         assert!(members.contains_key("tool-b"));
@@ -294,7 +299,7 @@ mod tests {
         let subdir = root.join("sub");
         std::fs::create_dir_all(&subdir).unwrap();
 
-        let result = find_workspace_root(&subdir);
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
         assert!(result.is_none(), "should skip invalid TOML, got: {result:?}");
     }
 
@@ -311,7 +316,7 @@ mod tests {
         std::fs::write(dir.join("aipm.toml"), "[package]\nname = \"valid\"\nversion = \"1.0.0\"\n")
             .unwrap();
 
-        let members = discover_members(root, &[".ai/*".to_string()]).unwrap();
+        let members = discover_members(&crate::fs::Real, root, &[".ai/*".to_string()]).unwrap();
         assert_eq!(members.len(), 1);
         assert!(members.contains_key("valid"));
     }
@@ -322,7 +327,7 @@ mod tests {
         let root = tmp.path();
 
         // No .ai/ directory at all — glob finds nothing
-        let members = discover_members(root, &[".ai/*".to_string()]).unwrap();
+        let members = discover_members(&crate::fs::Real, root, &[".ai/*".to_string()]).unwrap();
         assert!(members.is_empty());
     }
 
@@ -335,7 +340,7 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("aipm.toml"), "this is [[[ not valid toml").unwrap();
 
-        let err = discover_members(root, &[".ai/*".to_string()]).unwrap_err();
+        let err = discover_members(&crate::fs::Real, root, &[".ai/*".to_string()]).unwrap_err();
         assert!(format!("{err}").contains("invalid manifest"));
     }
 
@@ -354,7 +359,7 @@ mod tests {
         let manifest_path = member_dir.join("aipm.toml");
         std::fs::create_dir_all(&manifest_path).unwrap();
 
-        let err = discover_members(root, &[".ai/*".to_string()]).unwrap_err();
+        let err = discover_members(&crate::fs::Real, root, &[".ai/*".to_string()]).unwrap_err();
         assert!(
             format!("{err}").contains("failed to read"),
             "expected 'failed to read' error, got: {err}"

@@ -555,7 +555,7 @@ fn discover_workspace_members(
             .manifest_path
             .parent()
             .ok_or_else(|| Error::Manifest { reason: "manifest has no parent dir".to_string() })?;
-        return workspace::discover_members(ws_root, &ws.members)
+        return workspace::discover_members(fs, ws_root, &ws.members)
             .map_err(|e| Error::Manifest { reason: format!("workspace discovery error: {e}") });
     }
 
@@ -569,7 +569,7 @@ fn discover_workspace_members(
                     Error::Manifest { reason: format!("workspace manifest error: {e}") }
                 })?;
             if let Some(ref ws) = ws_manifest.workspace {
-                return workspace::discover_members(ws_root, &ws.members).map_err(|e| {
+                return workspace::discover_members(fs, ws_root, &ws.members).map_err(|e| {
                     Error::Manifest { reason: format!("workspace discovery error: {e}") }
                 });
             }

@@ -259,7 +259,7 @@ fn resolve_dir(dir: PathBuf) -> Result<PathBuf, Box<dyn std::error::Error>> {
 /// back to `.ai` when unset or when the manifest cannot be loaded.
 fn resolve_plugins_dir(dir: &Path) -> PathBuf {
     let manifest_path = dir.join("aipm.toml");
-    match libaipm::manifest::load(&manifest_path) {
+    match libaipm::manifest::load(&libaipm::fs::Real, &manifest_path) {
         Ok(manifest) => {
             if let Some(ws) = manifest.workspace {
                 if let Some(pd) = ws.plugins_dir {
@@ -382,7 +382,7 @@ fn cmd_install(
     let dir = resolve_dir(dir)?;
 
     // Discover workspace root if we're inside one
-    let workspace_root = libaipm::workspace::find_workspace_root(&dir);
+    let workspace_root = libaipm::workspace::find_workspace_root(&libaipm::fs::Real, &dir);
     if let Some(ref ws_root) = workspace_root {
         if ws_root != &dir {
             tracing::info!(workspace_root = %ws_root.display(), "found workspace root");
@@ -459,7 +459,7 @@ fn cmd_link(path: PathBuf, dir: PathBuf) -> Result<(), Box<dyn std::error::Error
     }
 
     // Read package name from the manifest
-    let manifest = libaipm::manifest::load(&target_manifest)?;
+    let manifest = libaipm::manifest::load(&libaipm::fs::Real, &target_manifest)?;
     let pkg_name = manifest
         .package
         .as_ref()
