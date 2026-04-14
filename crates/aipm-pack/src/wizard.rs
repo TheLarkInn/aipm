@@ -155,6 +155,14 @@ mod tests {
                         out.push_str("  Validate: package-name\n");
                     }
                 },
+                PromptKind::MultiSelect { options, defaults } => {
+                    out.push_str("  Kind: MultiSelect\n");
+                    for (j, opt) in options.iter().enumerate() {
+                        let marker =
+                            if defaults.get(j).copied().unwrap_or(false) { " *" } else { "  " };
+                        out.push_str(&format!("  {}[{}] {}\n", marker, j, opt));
+                    }
+                },
             }
             if let Some(help) = step.help {
                 out.push_str(&format!("  Help: {}\n", help));

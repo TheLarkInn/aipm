@@ -102,7 +102,7 @@
       "Ensure the module is unconditionally compiled (not feature-gated)",
       "Run cargo build --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -115,7 +115,7 @@
       "Ensure Debug derive still works for new variants",
       "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

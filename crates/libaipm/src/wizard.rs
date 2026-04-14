@@ -37,6 +37,13 @@ pub enum PromptKind {
         /// Whether to apply name validation to this input.
         validate: bool,
     },
+    /// Multi-choice list (zero or more selections).
+    MultiSelect {
+        /// Option labels shown to the user.
+        options: Vec<&'static str>,
+        /// Per-option default selection state (`true` = pre-selected).
+        defaults: Vec<bool>,
+    },
 }
 
 /// Raw answer collected from a prompt.
@@ -48,6 +55,8 @@ pub enum PromptAnswer {
     Bool(bool),
     /// Text input.
     Text(String),
+    /// Indices of the selected options in a multi-select prompt.
+    MultiSelected(Vec<usize>),
 }
 
 /// Build a styled `RenderConfig` for a modern prompt appearance.
@@ -81,9 +90,12 @@ mod tests {
         let select = PromptKind::Select { options: vec!["a"], default_index: 0 };
         let confirm = PromptKind::Confirm { default: true };
         let text = PromptKind::Text { placeholder: String::new(), validate: false };
+        let multi =
+            PromptKind::MultiSelect { options: vec!["x", "y"], defaults: vec![true, false] };
         assert!(format!("{select:?}").contains("Select"));
         assert!(format!("{confirm:?}").contains("Confirm"));
         assert!(format!("{text:?}").contains("Text"));
+        assert!(format!("{multi:?}").contains("MultiSelect"));
     }
 
     #[test]
@@ -92,6 +104,11 @@ mod tests {
         assert_eq!(PromptAnswer::Bool(true), PromptAnswer::Bool(true));
         assert_eq!(PromptAnswer::Text("a".into()), PromptAnswer::Text("a".into()));
         assert_ne!(PromptAnswer::Selected(0), PromptAnswer::Selected(1));
+        assert_eq!(
+            PromptAnswer::MultiSelected(vec![0, 2]),
+            PromptAnswer::MultiSelected(vec![0, 2])
+        );
+        assert_ne!(PromptAnswer::MultiSelected(vec![0]), PromptAnswer::MultiSelected(vec![1]));
     }
 
     #[test]
