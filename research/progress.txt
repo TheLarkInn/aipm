@@ -40,3 +40,12 @@
 - Created crates/aipm/tests/pack_init_e2e.rs with 20 tests (dropped 1 aipm-pack-specific bare invocation test)
 - All tests retargeted from cargo_bin("aipm-pack") to cargo_bin("aipm") with ["pack", "init", ...] args
 - All 20 E2E tests pass, coverage 93.71%
+
+## Phase 5.1: Rewrite BDD init.feature for aipm make plugin — COMPLETE
+- Rewrote tests/features/manifest/init.feature with 8 scenarios (was 6) testing aipm make plugin
+- Added 4 new BDD step definitions in bdd.rs:
+  - Given an initialized marketplace in {string}
+  - Then a plugin directory {string} exists in the marketplace in {string}
+  - Then the plugin.json in {string} in {string} contains {string}
+  - Then the plugin {string} has a {string} directory in {string}
+- All 74 BDD scenarios pass, coverage 93.71%

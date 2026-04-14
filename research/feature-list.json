@@ -165,7 +165,7 @@
       "Run the BDD test suite: `cargo test -p libaipm --test bdd` to verify scenarios pass",
       "Run `cargo test --workspace`"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
