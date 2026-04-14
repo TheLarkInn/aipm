@@ -218,8 +218,36 @@ enum Commands {
         subcommand: MakeSubcommand,
     },
 
+    /// Author commands for plugin packages.
+    Pack {
+        #[command(subcommand)]
+        subcommand: PackSubcommand,
+    },
+
     /// Start the Language Server Protocol server (for VS Code / IDE integration).
     Lsp,
+}
+
+#[derive(Subcommand)]
+enum PackSubcommand {
+    /// Initialize a new AI plugin package.
+    Init {
+        /// Skip interactive prompts, use all defaults.
+        #[arg(short = 'y', long)]
+        yes: bool,
+
+        /// Package name (defaults to directory name).
+        #[arg(long)]
+        name: Option<String>,
+
+        /// Plugin type: skill, agent, mcp, hook, lsp, composite.
+        #[arg(long, rename_all = "kebab-case", value_name = "TYPE")]
+        r#type: Option<String>,
+
+        /// Directory to initialize (defaults to current directory).
+        #[arg(default_value = ".")]
+        dir: PathBuf,
+    },
 }
 
 #[derive(Subcommand)]
@@ -1060,6 +1088,30 @@ fn cmd_make_plugin(
     Ok(())
 }
 
+fn cmd_pack_init(
+    yes: bool,
+    name: Option<&str>,
+    r#type: Option<&str>,
+    dir: PathBuf,
+) -> Result<(), error::CliError> {
+    let plugin_type = r#type.map(str::parse::<libaipm::manifest::types::PluginType>).transpose()?;
+
+    let dir = resolve_dir(dir)?;
+    let interactive = !yes && std::io::stdin().is_terminal();
+
+    let (final_name, final_type) =
+        wizard_tty::resolve_pack_init(interactive, &dir, name.map(String::from), plugin_type)?;
+
+    let opts =
+        libaipm::init::Options { dir: &dir, name: final_name.as_deref(), plugin_type: final_type };
+
+    libaipm::init::init(&opts, &libaipm::fs::Real)?;
+
+    let mut stdout = std::io::stdout();
+    let _ = writeln!(stdout, "Initialized plugin package in {}", dir.display());
+    Ok(())
+}
+
 // =========================================================================
 // Entry point
 // =========================================================================
@@ -1129,6 +1181,11 @@ fn run() -> Result<(), error::CliError> {
         Some(Commands::Make { subcommand }) => match subcommand {
             MakeSubcommand::Plugin { name, engine, features, yes, dir } => {
                 cmd_make_plugin(name.as_deref(), engine.as_deref(), &features, yes, dir)
+            },
+        },
+        Some(Commands::Pack { subcommand }) => match subcommand {
+            PackSubcommand::Init { yes, name, r#type, dir } => {
+                cmd_pack_init(yes, name.as_deref(), r#type.as_deref(), dir)
             },
         },
         Some(Commands::Lsp) => Ok(lsp::run()?),

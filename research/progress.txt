@@ -1,155 +1,73 @@
-## Phase 1.1: make/action.rs — COMPLETE (2026-04-14)
+# Merge aipm-pack into aipm (#417) — Progress Log
+# Spec: specs/2026-04-14-merge-pack-into-aipm.md
+# Started: 2026-04-14
 
-Created `crates/libaipm/src/make/action.rs` with the central `Action` enum (9 variants):
-- DirectoryCreated, DirectoryAlreadyExists
-- FileWritten, FileAlreadyExists
-- PluginRegistered, PluginAlreadyRegistered
-- PluginEnabled, PluginAlreadyEnabled
-- PluginCreated (summary variant with name, path, features, engine)
+## Phase 1.1: Extract execute_prompts() into libaipm::wizard — COMPLETE
+- Copied execute_prompts() from crates/aipm/src/wizard_tty.rs:176-244 into crates/libaipm/src/wizard.rs
+- Updated module doc comment to reflect single-binary future
+- Added unit test: execute_prompts_empty_steps_returns_empty_vec
+- All imports use crate::manifest::validate (not libaipm::) since we're inside libaipm
+- cargo build/test/clippy/fmt all pass, coverage 89.17%
 
-Also created:
-- `crates/libaipm/src/make/mod.rs` — module hub, re-exports Action
-- Registered `pub mod make;` in `crates/libaipm/src/lib.rs`
+## Phase 1.3: Add unit tests for execute_prompts() — COMPLETE (done with 1.1)
+- Added execute_prompts_empty_steps_returns_empty_vec test
+- Interactive tests cannot run in CI (inquire needs real TTY)
 
-4 unit tests passing. All cargo gates green (build, test, clippy, fmt, 89.48% coverage).
+## Phase 1.2: Update aipm wizard_tty.rs to use libaipm::wizard::execute_prompts() — COMPLETE
+- Replaced 4 call sites with libaipm::wizard::execute_prompts()
+- Deleted local execute_prompts() function (69 lines removed)
+- Updated module doc comment
+- All imports still needed (PromptAnswer/PromptKind/PromptStep used in resolve_make_plugin inline logic)
+- cargo build/test/clippy/fmt all pass, coverage 89.17%
 
-## Phase 1.2: make/error.rs — COMPLETE (2026-04-14)
+## Phases 2.1-2.5: Add aipm pack init subcommand — COMPLETE
+- Added PackSubcommand enum with Init variant to main.rs (Phase 2.1)
+- Added Init(libaipm::init::Error) variant to CliError (Phase 2.2)
+- Moved PLUGIN_TYPE_OPTIONS, plugin_type_from_index, package_prompt_steps, resolve_package_answers from aipm-pack/wizard.rs to aipm/wizard.rs (Phase 2.3)
+- Added resolve_pack_init() TTY bridge + PackInitResult type alias to wizard_tty.rs (Phase 2.4)
+- Added cmd_pack_init() handler + match arm in run() (Phase 2.5)
+- Accepted 10 new snapshot files for pack-init wizard tests
+- Functional test: `aipm pack init --name test-pkg --type skill -y /tmp/test` creates correct aipm.toml
+- All 56 wizard tests pass, full workspace tests pass, coverage 89.18%
 
-Created `crates/libaipm/src/make/error.rs` with Error enum (8 variants):
-- MarketplaceNotFound, InvalidName, UnsupportedFeature, InvalidEngine,
-  InvalidFeature, MissingFlag, Io (#[from]), Json (#[from])
+## Phase 3: Delete crates/aipm-pack/ directory — COMPLETE
+- Removed entire crates/aipm-pack/ directory (Cargo.toml, CHANGELOG.md, src/, tests/)
+- Removed [profile.dev.package.aipm-pack] from workspace Cargo.toml
+- Workspace now has 2 crates: aipm, libaipm (down from 3)
+- cargo build/test/clippy/fmt all pass, coverage 89.10%
 
-Registered in make/mod.rs with `pub use error::Error`.
-8 unit tests passing. All cargo gates green (89.50% coverage).
+## Phase 4: Migrate E2E tests from aipm-pack to aipm — COMPLETE
+- Created crates/aipm/tests/pack_init_e2e.rs with 20 tests (dropped 1 aipm-pack-specific bare invocation test)
+- All tests retargeted from cargo_bin("aipm-pack") to cargo_bin("aipm") with ["pack", "init", ...] args
+- All 20 E2E tests pass, coverage 93.71%
 
-## Phase 1.3: make/engine_features.rs — COMPLETE (2026-04-14)
+## Phase 5.1: Rewrite BDD init.feature for aipm make plugin — COMPLETE
+- Rewrote tests/features/manifest/init.feature with 8 scenarios (was 6) testing aipm make plugin
+- Added 4 new BDD step definitions in bdd.rs:
+  - Given an initialized marketplace in {string}
+  - Then a plugin directory {string} exists in the marketplace in {string}
+  - Then the plugin.json in {string} in {string} contains {string}
+  - Then the plugin {string} has a {string} directory in {string}
+- All 74 BDD scenarios pass, coverage 93.71%
 
-Created `crates/libaipm/src/make/engine_features.rs` with:
-- Feature enum (7 variants: Skill, Agent, Mcp, Hook, OutputStyle, Lsp, Extension)
-- cli_name(), label(), from_cli_name() methods
-- features_for_engine() returning engine-filtered feature sets
-- validate_features() checking features against engine support
+## Phases 5.2-5.3, 6.1-6.5: Cleanup and documentation updates — COMPLETE
+- Phase 5.2: Removed aipm-pack special-case routing in bdd.rs, updated doc comment
+- Phase 5.3: Updated 7 aspirational BDD feature files (zero aipm-pack references remaining)
+- Phase 6.1: CLAUDE.md project structure updated (aipm-pack line removed)
+- Phase 6.2: Updated doc comments in lib.rs, init.rs (wizard.rs already done)
+- Phase 6.3: README.md updated (binary table, project structure, roadmap, feature flags)
+- Phase 6.4: Updated 4 documentation guides (creating-a-plugin, make-plugin, init, docs/README)
+- Phase 6.5: Simplified update-latest-release.yml condition, removed aipm-pack from docs-updater.md
+- All tests pass, coverage 89.12%
 
-Engine-feature matrix:
-- Claude: Skill, Agent, Mcp, Hook, OutputStyle
-- Copilot: Skill, Agent, Mcp, Hook, Lsp, Extension
-- Both: all 7
+## Phase 7: Final verification — COMPLETE
+- cargo build/test/clippy/fmt all pass
+- Coverage 89.12% (threshold 89%)
+- Zero aipm-pack references in source (crates/) or features (tests/features/)
+- `aipm --help` shows `pack` subcommand
+- `aipm pack init --help` shows correct flags (--yes, --name, --type, dir)
+- `aipm pack init --name test-verify --type skill -y /tmp/test` creates correct aipm.toml
 
-11 unit tests passing. All cargo gates green (95.01% coverage).
-
-## Phase 1.4: make/templates.rs — COMPLETE (2026-04-14)
-
-Created `crates/libaipm/src/make/templates.rs` with 6 template generators:
-- skill_template(name) — YAML frontmatter with name + description, placeholder body
-- agent_template(name) — YAML frontmatter with name + description + tools, placeholder body
-- mcp_template() — JSON {"mcpServers": {}}
-- hook_template() — JSON {"hooks": []}
-- output_style_template(name) — YAML frontmatter with name, placeholder body
-- lsp_template() — JSON {"lspServers": {}}
-
-6 insta snapshot tests + 3 validation tests = 9 tests passing.
-All cargo gates green (89.58% coverage).
-
-## Phase 1.5: make/discovery.rs — COMPLETE (2026-04-14)
-
-Created `crates/libaipm/src/make/discovery.rs` with:
-- find_marketplace(start_dir, fs) walk-up search for .ai/.claude-plugin/marketplace.json
-- Skips incomplete .ai/ directories (without marketplace.json marker)
-- Returns MarketplaceNotFound when root reached
-
-5 unit tests passing. All cargo gates green (94.97% coverage).
-
-## Phase 1.6: make/mod.rs orchestrator — COMPLETE (2026-04-14)
-
-Implemented the `plugin()` orchestrator function in make/mod.rs with:
-- PluginOpts<'a> and PluginResult structs (renamed from MakePluginOpts/MakeResult per clippy module_name_repetitions)
-- 9-step make_plugin pipeline composing existing CRUD primitives
-- Private helpers: scaffold_features, scaffold_single_feature, 7 per-feature scaffolders, write_plugin_json, register_in_marketplace, update_engine_settings, is_plugin_registered, read_marketplace_name
-
-7 unit tests passing. All cargo gates green (94.54% coverage).
-
-## Phase 1.7 + 2.1: lib.rs registration + MultiSelect wizard — COMPLETE (2026-04-14)
-
-Phase 1.7 was already done (lib.rs registration happened in Phase 1.1).
-
-Phase 2.1: Added MultiSelect variant to PromptKind and MultiSelected to PromptAnswer
-in libaipm::wizard. Updated match arms in 4 files:
-- crates/aipm/src/wizard_tty.rs (TTY handler)
-- crates/aipm-pack/src/wizard_tty.rs (TTY handler)
-- crates/aipm/src/wizard.rs (debug formatter)
-- crates/aipm-pack/src/wizard.rs (debug formatter)
-
-4 wizard tests passing. All cargo gates green (94.36% coverage).
-
-## Phase 2.2: make_plugin wizard prompt steps + resolver — COMPLETE (2026-04-14)
-
-Added to crates/aipm/src/wizard.rs:
-- ENGINE_OPTIONS constant ("Claude Code", "Copilot CLI", "Both")
-- make_plugin_prompt_steps() — builds wizard steps, skips flags that are set
-- engine_from_index() — maps Select index to engine CLI string
-- resolve_make_plugin_answers() — maps raw PromptAnswer to (name, engine, features)
-
-Note: Functions are #[cfg(test)] gated until the `aipm make` command is wired in.
-6 unit tests passing. All cargo gates green (94.38% coverage).
-
-## Phases 2.3 + 3.1 + 3.2 + 3.3: CLI integration — COMPLETE (2026-04-14)
-
-Implemented in one batch by sub-agent:
-- Phase 2.3: resolve_make_plugin() in wizard_tty.rs — two-phase interactive wizard
-  (name+engine first, then engine-filtered features). Non-interactive validates flags.
-  Removed #[cfg(test)] from ENGINE_OPTIONS and engine_from_index in wizard.rs.
-- Phase 3.1: Commands::Make variant in main.rs with MakeSubcommand::Plugin enum
-- Phase 3.2: CliError::Make variant in error.rs
-- Phase 3.3: cmd_make_plugin() handler + run() dispatch wiring
-
-`aipm make plugin --name foo --engine claude --feature skill -y` is now a working command.
-All cargo gates green (94.29% coverage).
-
-## Context window pause (2026-04-14)
-
-Completed 13/22 features (Phases 1.1-1.7, 2.1-2.3, 3.1-3.3). Context window >60% full.
-Remaining: Phases 4.1-4.3 (starter plugin redesign), 5.1-5.6 (tests & coverage).
-Next iteration should start with Phase 4.1.
-
-## Phases 4.1 + 4.2: Starter plugin TS->bash + SKILL.md update — COMPLETE (2026-04-14)
-
-- Phase 4.1: Replaced 88-line TypeScript generate_scaffold_script() with 5-line bash script
-  calling `aipm make plugin`. Updated file paths (.ts -> .sh) in scaffold_marketplace()
-  and generate_starter_manifest(). Updated snapshots and E2E tests.
-- Phase 4.2: Updated generate_skill_template() SKILL.md to reference `aipm make plugin`
-  instead of `node --experimental-strip-types scaffold-plugin.ts`.
-
-Also updated init_e2e.rs tests and BDD feature file.
-All cargo gates green (89.30% coverage).
-
-## Phase 4.3 + 5.1/5.2/5.4: On-disk drift fix + pre-existing tests — COMPLETE (2026-04-14)
-
-- Phase 4.3: Fixed on-disk .ai/starter-aipm-plugin/ drift:
-  - Deleted scaffold-plugin.ts, created scaffold-plugin.sh
-  - Updated SKILL.md to reference bash script
-  - Added component keys to plugin.json (skills, agents, hooks)
-- Phases 5.1, 5.2, 5.4: Already implemented during earlier phases (tests exist and pass)
-
-19/22 features done. Remaining: 5.3 (E2E make tests), 5.5 (BDD), 5.6 (coverage).
-All cargo gates green (94.33% coverage).
-
-## Phases 5.3 + 5.5 + 5.6: E2E tests + BDD + coverage — COMPLETE (2026-04-14)
-
-- Phase 5.3: Created crates/aipm/tests/make_e2e.rs with 7 E2E tests:
-  make_plugin_skill_claude, make_plugin_composite, make_plugin_copilot,
-  make_plugin_idempotent, make_plugin_missing_name, make_plugin_missing_feature,
-  make_plugin_no_marketplace
-- Phase 5.5: E2E tests cover all BDD scenarios comprehensively
-- Phase 5.6: Coverage verified at 89.30% (>= 89% threshold)
-
-## ALL 22 FEATURES COMPLETE (2026-04-14)
-
-Final summary: Implemented `aipm make plugin` (#363) with:
-- Core make module: action.rs, error.rs, engine_features.rs, templates.rs, discovery.rs, mod.rs
-- Wizard integration: MultiSelect prompt kind, make_plugin prompt steps, TTY entry point
-- CLI integration: Commands::Make, cmd_make_plugin, CliError::Make
-- Starter plugin redesign (#361): TypeScript -> bash script calling `aipm make plugin`
-- On-disk drift fix: .ai/ aligned with generator output
-- Tests: 7 orchestrator unit tests, 9 template tests, 11 engine_features tests, 5 discovery tests,
-  6 wizard tests, 7 E2E tests, 4 wizard type tests = ~49 new tests
-- All cargo gates green: build, test, clippy, fmt, 89.30% branch coverage
+## ALL PHASES COMPLETE — #417 merge-pack-into-aipm done
+Total: 20 features implemented across 7 phases
+Commits: ea167c5, f659199, 85b430c, 1e7412b, 7b1c7e4, 4c5d1dc, 6c51ade

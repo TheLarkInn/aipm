@@ -1,7 +1,7 @@
 //! BDD test harness — cucumber-rs step implementations for all `.feature` files.
 //!
-//! Steps implemented here execute the actual `aipm` and `aipm-pack` binaries
-//! and verify their behavior against the Gherkin specifications.
+//! Steps implemented here execute the actual `aipm` binary and verify its
+//! behavior against the Gherkin specifications.
 //!
 //! Scenarios with no matching step implementation are reported as **skipped**,
 //! giving a clear progress view of what's wired up vs. pending.
@@ -105,14 +105,8 @@ fn run_command(world: &mut AipmWorld, full_cmd: &str, working_dir: Option<&str>)
     let mut cmd = Command::cargo_bin(binary)
         .unwrap_or_else(|e| panic!("cargo bin '{binary}' not found: {e}"));
 
-    // For "aipm-pack init" in a dir, pass the dir as the positional arg
-    if binary == "aipm-pack" && args.first() == Some(&"init") && working_dir.is_some() {
-        cmd.args(args);
-        cmd.arg(cwd.to_str().unwrap());
-    } else {
-        cmd.args(args);
-        cmd.current_dir(&cwd);
-    }
+    cmd.args(args);
+    cmd.current_dir(&cwd);
 
     let output = cmd.output().expect("execute command");
     world.last_stdout = String::from_utf8_lossy(&output.stdout).to_string();
@@ -685,6 +679,56 @@ async fn then_gitignore_does_not_contain(world: &mut AipmWorld, expected: String
         !content.contains(&expected),
         "expected '{expected}' to be absent from .ai/.gitignore\ngot: {content}"
     );
+}
+
+// =========================================================================
+// Make plugin — setup and assertion steps
+// =========================================================================
+
+#[given(expr = "an initialized marketplace in {string}")]
+async fn given_initialized_marketplace(world: &mut AipmWorld, dir: String) {
+    world.ensure_root();
+    let path = world.root_path().join(&dir);
+    std::fs::create_dir_all(&path).expect("create dir");
+    world.dirs.insert(dir.clone(), path);
+    world.active_dir = Some(dir.clone());
+    run_command(world, "aipm init --marketplace -y", Some(&dir));
+    assert_eq!(
+        world.last_exit_code,
+        Some(0),
+        "aipm init --marketplace failed: {}",
+        world.last_stderr
+    );
+}
+
+#[then(expr = "a plugin directory {string} exists in the marketplace in {string}")]
+async fn then_plugin_dir_in_marketplace(world: &mut AipmWorld, plugin: String, dir: String) {
+    let path = world.dir_path(&dir).join(".ai").join(&plugin);
+    assert!(path.is_dir(), "expected plugin directory {} to exist", path.display());
+}
+
+#[then(expr = "the plugin.json in {string} in {string} contains {string}")]
+async fn then_plugin_json_contains(
+    world: &mut AipmWorld,
+    plugin: String,
+    dir: String,
+    expected: String,
+) {
+    let path = world.dir_path(&dir).join(".ai").join(&plugin).join(".claude-plugin/plugin.json");
+    let content = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("read plugin.json at {}: {e}", path.display()));
+    assert!(content.contains(&expected), "expected '{expected}' in plugin.json\ngot: {content}");
+}
+
+#[then(expr = "the plugin {string} has a {string} directory in {string}")]
+async fn then_plugin_has_feature_dir(
+    world: &mut AipmWorld,
+    plugin: String,
+    feature_dir: String,
+    dir: String,
+) {
+    let path = world.dir_path(&dir).join(".ai").join(&plugin).join(&feature_dir);
+    assert!(path.is_dir(), "expected {}/{} directory to exist", plugin, feature_dir);
 }
 
 // =========================================================================

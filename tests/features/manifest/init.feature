@@ -1,52 +1,48 @@
 @p0 @manifest
-Feature: Package initialization
+Feature: Plugin scaffolding
   As a plugin author,
-  I want to initialize a new AI plugin package,
+  I want to scaffold new plugins in a marketplace,
   so that I have a valid project structure to start building.
 
-  Scenario: Initialize a new plugin in an empty directory
-    Given an empty directory "my-plugin"
-    When the user runs "aipm-pack init" in "my-plugin"
-    Then a file "aipm.toml" is created in "my-plugin"
-    And the manifest contains the directory name "my-plugin" as the package name
-    And the manifest contains a version of "0.1.0"
+  Scenario: Create a new plugin in an initialized marketplace
+    Given an initialized marketplace in "my-project"
+    When the user runs "aipm make plugin --name my-plugin --engine claude --feature skill -y" in "my-project"
+    Then the command succeeds
+    And a plugin directory "my-plugin" exists in the marketplace in "my-project"
+    And the plugin.json in "my-plugin" in "my-project" contains "my-plugin"
 
-  Scenario: Initialize a new plugin with a custom name
-    Given an empty directory "workspace"
-    When the user runs "aipm-pack init --name hello-world" in "workspace"
-    Then the manifest contains the package name "hello-world"
+  Scenario: Create a plugin with --name flag
+    Given an initialized marketplace in "my-project"
+    When the user runs "aipm make plugin --name hello-world --engine claude --feature skill -y" in "my-project"
+    Then the command succeeds
+    And the plugin.json in "hello-world" in "my-project" contains "hello-world"
 
-  Scenario: Reject initialization in a directory with an existing manifest
-    Given a directory "existing" containing an "aipm.toml"
-    When the user runs "aipm-pack init" in "existing"
-    Then the command fails with "already initialized"
+  Scenario: Creating a plugin in existing directory succeeds idempotently
+    Given an initialized marketplace in "my-project"
+    When the user runs "aipm make plugin --name my-plugin --engine claude --feature skill -y" in "my-project"
+    Then the command succeeds
+    When the user runs "aipm make plugin --name my-plugin --engine claude --feature skill -y" in "my-project"
+    Then the command succeeds
 
-  Scenario: Initialize creates a standard directory layout
-    Given an empty directory "my-plugin"
-    When the user runs "aipm-pack init" in "my-plugin"
-    Then the following directories exist in "my-plugin":
-      | directory |
-      | skills/   |
-      | agents/   |
-      | hooks/    |
-    And a file "skills/.gitkeep" exists in "my-plugin"
+  Scenario: Plugin scaffold includes feature directories
+    Given an initialized marketplace in "my-project"
+    When the user runs "aipm make plugin --name my-plugin --engine claude --feature skill -y" in "my-project"
+    Then the command succeeds
+    And the plugin "my-plugin" has a "skills" directory in "my-project"
 
-  Scenario Outline: Initialize with a specific plugin type
-    Given an empty directory "my-plugin"
-    When the user runs "aipm-pack init --type <type>" in "my-plugin"
-    Then the manifest contains the plugin type "<type>"
-    And a starter template for "<type>" is created
+  Scenario Outline: Plugin scaffold with specific features
+    Given an initialized marketplace in "my-project"
+    When the user runs "aipm make plugin --name my-plugin --engine claude --feature <feature> -y" in "my-project"
+    Then the command succeeds
+    And the plugin "my-plugin" has a "<expected_dir>" directory in "my-project"
 
     Examples:
-      | type      |
-      | skill     |
-      | agent     |
-      | mcp       |
-      | hook      |
-      | composite |
+      | feature | expected_dir |
+      | skill   | skills       |
+      | agent   | agents       |
+      | hook    | hooks        |
 
-  Scenario: Package name must follow naming conventions
-    Given an empty directory "workspace"
-    When the user runs "aipm-pack init --name INVALID_Name!" in "workspace"
-    Then the command fails with "invalid package name"
-    And the error message explains the naming rules
+  Scenario: Plugin name must follow naming conventions
+    Given an initialized marketplace in "my-project"
+    When the user runs "aipm make plugin --name INVALID_Name! --engine claude --feature skill -y" in "my-project"
+    Then the command fails with "invalid"

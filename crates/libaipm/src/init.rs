@@ -1,4 +1,4 @@
-//! Package initialization and scaffolding for `aipm-pack init`.
+//! Package initialization and scaffolding for `aipm pack init`.
 //!
 //! Creates a new plugin directory with an `aipm.toml` manifest and
 //! conventional directory layout based on the plugin type.

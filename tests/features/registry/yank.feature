@@ -10,7 +10,7 @@ Feature: Package yanking and deprecation
 
   Scenario: Yank a published version
     Given "my-plugin" version "1.0.0" is published
-    When the user runs "aipm-pack yank my-plugin@1.0.0"
+    When the user runs "aipm yank my-plugin@1.0.0"
     Then version "1.0.0" is marked as yanked
     And the archive remains available for existing lockfiles
 
@@ -28,10 +28,10 @@ Feature: Package yanking and deprecation
 
   Scenario: Un-yank a version
     Given "my-plugin" version "1.0.0" is yanked
-    When the user runs "aipm-pack yank --undo my-plugin@1.0.0"
+    When the user runs "aipm yank --undo my-plugin@1.0.0"
     Then version "1.0.0" is available for new resolutions again
 
   Scenario: Deprecate a package with a message
-    When the user runs "aipm-pack deprecate my-plugin --message 'Use new-plugin instead'"
+    When the user runs "aipm deprecate my-plugin --message 'Use new-plugin instead'"
     Then the package is marked as deprecated
     And installing "my-plugin" shows a deprecation warning with "Use new-plugin instead"

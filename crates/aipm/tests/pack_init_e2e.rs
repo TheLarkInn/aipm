@@ -1,5 +1,4 @@
-//! E2E tests for `aipm-pack init` — maps directly to BDD scenarios in
-//! `tests/features/manifest/init.feature`.
+//! E2E tests for `aipm pack init` — migrated from `aipm-pack init`.
 //!
 //! These tests exercise the actual compiled binary via `assert_cmd`,
 //! using `tempfile` for isolated test directories.
@@ -11,22 +10,22 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 
-fn aipm_pack() -> assert_cmd::Command {
-    Command::cargo_bin("aipm-pack").expect("aipm-pack binary should be built")
+fn aipm() -> assert_cmd::Command {
+    Command::cargo_bin("aipm").expect("aipm binary should be built")
 }
 
 // =========================================================================
 // Scenario: Initialize a new plugin in an empty directory
 // =========================================================================
 #[test]
-fn init_in_empty_directory_creates_manifest() {
+fn pack_init_in_empty_directory_creates_manifest() {
     let tmp = tempfile::TempDir::new();
     assert!(tmp.is_ok(), "should create temp dir");
     let tmp = tmp.unwrap();
     let plugin_dir = tmp.path().join("my-plugin");
 
-    aipm_pack()
-        .args(["init", &plugin_dir.display().to_string()])
+    aipm()
+        .args(["pack", "init", &plugin_dir.display().to_string()])
         .assert()
         .success()
         .stdout(predicate::str::contains("Initialized"));
@@ -45,12 +44,12 @@ fn init_in_empty_directory_creates_manifest() {
 // Scenario: Initialize a new plugin with a custom name
 // =========================================================================
 #[test]
-fn init_with_custom_name() {
+fn pack_init_with_custom_name() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("workspace");
 
-    aipm_pack()
-        .args(["init", "--name", "hello-world", &dir.display().to_string()])
+    aipm()
+        .args(["pack", "init", "--name", "hello-world", &dir.display().to_string()])
         .assert()
         .success();
 
@@ -62,14 +61,14 @@ fn init_with_custom_name() {
 // Scenario: Reject initialization in a directory with an existing manifest
 // =========================================================================
 #[test]
-fn init_rejects_existing_manifest() {
+fn pack_init_rejects_existing_manifest() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("existing");
     std::fs::create_dir_all(&dir).ok();
     std::fs::write(dir.join("aipm.toml"), "[package]\n").ok();
 
-    aipm_pack()
-        .args(["init", &dir.display().to_string()])
+    aipm()
+        .args(["pack", "init", &dir.display().to_string()])
         .assert()
         .failure()
         .stderr(predicate::str::contains("already initialized"));
@@ -79,11 +78,11 @@ fn init_rejects_existing_manifest() {
 // Scenario: Initialize creates a standard directory layout
 // =========================================================================
 #[test]
-fn init_creates_standard_directory_layout() {
+fn pack_init_creates_standard_directory_layout() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("my-plugin");
 
-    aipm_pack().args(["init", &dir.display().to_string()]).assert().success();
+    aipm().args(["pack", "init", &dir.display().to_string()]).assert().success();
 
     assert!(dir.join("skills").is_dir(), "skills/ should exist");
     assert!(dir.join("agents").is_dir(), "agents/ should exist");
@@ -95,11 +94,11 @@ fn init_creates_standard_directory_layout() {
 // Scenario Outline: Initialize with a specific plugin type
 // =========================================================================
 #[test]
-fn init_with_type_skill() {
+fn pack_init_with_type_skill() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("my-plugin");
 
-    aipm_pack().args(["init", "--type", "skill", &dir.display().to_string()]).assert().success();
+    aipm().args(["pack", "init", "--type", "skill", &dir.display().to_string()]).assert().success();
 
     let content = std::fs::read_to_string(dir.join("aipm.toml")).unwrap();
     assert!(content.contains("type = \"skill\""));
@@ -107,11 +106,11 @@ fn init_with_type_skill() {
 }
 
 #[test]
-fn init_with_type_agent() {
+fn pack_init_with_type_agent() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("my-plugin");
 
-    aipm_pack().args(["init", "--type", "agent", &dir.display().to_string()]).assert().success();
+    aipm().args(["pack", "init", "--type", "agent", &dir.display().to_string()]).assert().success();
 
     let content = std::fs::read_to_string(dir.join("aipm.toml")).unwrap();
     assert!(content.contains("type = \"agent\""));
@@ -119,11 +118,11 @@ fn init_with_type_agent() {
 }
 
 #[test]
-fn init_with_type_mcp() {
+fn pack_init_with_type_mcp() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("my-plugin");
 
-    aipm_pack().args(["init", "--type", "mcp", &dir.display().to_string()]).assert().success();
+    aipm().args(["pack", "init", "--type", "mcp", &dir.display().to_string()]).assert().success();
 
     let content = std::fs::read_to_string(dir.join("aipm.toml")).unwrap();
     assert!(content.contains("type = \"mcp\""));
@@ -131,11 +130,11 @@ fn init_with_type_mcp() {
 }
 
 #[test]
-fn init_with_type_hook() {
+fn pack_init_with_type_hook() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("my-plugin");
 
-    aipm_pack().args(["init", "--type", "hook", &dir.display().to_string()]).assert().success();
+    aipm().args(["pack", "init", "--type", "hook", &dir.display().to_string()]).assert().success();
 
     let content = std::fs::read_to_string(dir.join("aipm.toml")).unwrap();
     assert!(content.contains("type = \"hook\""));
@@ -143,12 +142,12 @@ fn init_with_type_hook() {
 }
 
 #[test]
-fn init_with_type_composite() {
+fn pack_init_with_type_composite() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("my-plugin");
 
-    aipm_pack()
-        .args(["init", "--type", "composite", &dir.display().to_string()])
+    aipm()
+        .args(["pack", "init", "--type", "composite", &dir.display().to_string()])
         .assert()
         .success();
 
@@ -163,12 +162,12 @@ fn init_with_type_composite() {
 // Scenario: Package name must follow naming conventions
 // =========================================================================
 #[test]
-fn init_rejects_invalid_package_name() {
+fn pack_init_rejects_invalid_package_name() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("workspace");
 
-    aipm_pack()
-        .args(["init", "--name", "INVALID_Name!", &dir.display().to_string()])
+    aipm()
+        .args(["pack", "init", "--name", "INVALID_Name!", &dir.display().to_string()])
         .assert()
         .failure()
         .stderr(predicate::str::contains("invalid package name"));
@@ -178,23 +177,23 @@ fn init_rejects_invalid_package_name() {
 // Additional coverage: LSP type, scoped names, invalid type, --help
 // =========================================================================
 #[test]
-fn init_with_type_lsp() {
+fn pack_init_with_type_lsp() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("my-lsp");
 
-    aipm_pack().args(["init", "--type", "lsp", &dir.display().to_string()]).assert().success();
+    aipm().args(["pack", "init", "--type", "lsp", &dir.display().to_string()]).assert().success();
 
     let content = std::fs::read_to_string(dir.join("aipm.toml")).unwrap();
     assert!(content.contains("type = \"lsp\""));
 }
 
 #[test]
-fn init_with_scoped_name() {
+fn pack_init_with_scoped_name() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("scoped");
 
-    aipm_pack()
-        .args(["init", "--name", "@myorg/cool-plugin", &dir.display().to_string()])
+    aipm()
+        .args(["pack", "init", "--name", "@myorg/cool-plugin", &dir.display().to_string()])
         .assert()
         .success();
 
@@ -203,33 +202,34 @@ fn init_with_scoped_name() {
 }
 
 #[test]
-fn init_rejects_invalid_type() {
+fn pack_init_rejects_invalid_type() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("bad-type");
 
-    aipm_pack()
-        .args(["init", "--type", "invalid-type", &dir.display().to_string()])
+    aipm()
+        .args(["pack", "init", "--type", "invalid-type", &dir.display().to_string()])
         .assert()
         .failure()
         .stderr(predicate::str::contains("invalid plugin type"));
 }
 
 #[test]
-fn init_help_shows_usage() {
-    aipm_pack()
-        .args(["init", "--help"])
+fn pack_init_help_shows_usage() {
+    aipm()
+        .args(["pack", "init", "--help"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Initialize"));
 }
 
 #[test]
-fn generated_manifest_is_valid_toml() {
+fn pack_init_generated_manifest_is_valid_toml() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("roundtrip");
 
-    aipm_pack()
+    aipm()
         .args([
+            "pack",
             "init",
             "--name",
             "roundtrip-test",
@@ -247,29 +247,16 @@ fn generated_manifest_is_valid_toml() {
 }
 
 // =========================================================================
-// Scenario: No subcommand prints version and usage hint
-// =========================================================================
-
-#[test]
-fn no_subcommand_prints_version_and_usage() {
-    aipm_pack()
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("aipm-pack"))
-        .stdout(predicate::str::contains("--help"));
-}
-
-// =========================================================================
 // --yes / -y flag tests
 // =========================================================================
 
 #[test]
-fn yes_flag_creates_default_package() {
+fn pack_init_yes_flag_creates_default_package() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("yes-pkg");
     std::fs::create_dir_all(&dir).unwrap();
 
-    aipm_pack().args(["init", "-y", &dir.display().to_string()]).assert().success();
+    aipm().args(["pack", "init", "-y", &dir.display().to_string()]).assert().success();
 
     let content = std::fs::read_to_string(dir.join("aipm.toml")).unwrap();
     assert!(content.contains("type = \"composite\""));
@@ -277,24 +264,24 @@ fn yes_flag_creates_default_package() {
 }
 
 #[test]
-fn yes_long_form_works() {
+fn pack_init_yes_long_form_works() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("yes-long-pkg");
     std::fs::create_dir_all(&dir).unwrap();
 
-    aipm_pack().args(["init", "--yes", &dir.display().to_string()]).assert().success();
+    aipm().args(["pack", "init", "--yes", &dir.display().to_string()]).assert().success();
 
     assert!(dir.join("aipm.toml").exists());
 }
 
 #[test]
-fn yes_flag_with_name_override() {
+fn pack_init_yes_flag_with_name_override() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("yes-name-pkg");
     std::fs::create_dir_all(&dir).unwrap();
 
-    aipm_pack()
-        .args(["init", "-y", "--name", "custom-name", &dir.display().to_string()])
+    aipm()
+        .args(["pack", "init", "-y", "--name", "custom-name", &dir.display().to_string()])
         .assert()
         .success();
 
@@ -303,13 +290,13 @@ fn yes_flag_with_name_override() {
 }
 
 #[test]
-fn yes_flag_with_type_override() {
+fn pack_init_yes_flag_with_type_override() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("yes-type-pkg");
     std::fs::create_dir_all(&dir).unwrap();
 
-    aipm_pack()
-        .args(["init", "-y", "--type", "skill", &dir.display().to_string()])
+    aipm()
+        .args(["pack", "init", "-y", "--type", "skill", &dir.display().to_string()])
         .assert()
         .success();
 
@@ -322,18 +309,14 @@ fn yes_flag_with_type_override() {
 // =========================================================================
 
 #[test]
-fn init_defaults_to_current_directory() {
-    // Run `aipm-pack init` without specifying a directory. Clap defaults to
-    // "."; main.rs detects `dir.as_os_str() == "."` and substitutes
-    // `std::env::current_dir()`. Setting `current_dir` on the subprocess
-    // exercises that branch.
+fn pack_init_defaults_to_current_directory() {
     let tmp = tempfile::TempDir::new().unwrap();
     let plugin_dir = tmp.path().join("my-dot-plugin");
     std::fs::create_dir_all(&plugin_dir).unwrap();
 
-    aipm_pack()
+    aipm()
         .current_dir(&plugin_dir)
-        .args(["init"])
+        .args(["pack", "init"])
         .assert()
         .success()
         .stdout(predicate::str::contains("Initialized"));

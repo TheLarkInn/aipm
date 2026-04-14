@@ -1,11 +1,11 @@
 ---
-source: crates/aipm-pack/src/wizard.rs
+source: crates/aipm/src/wizard.rs
 expression: format_steps(&steps)
 ---
 Step 1:
   Label: Package name:
   Kind: Text (placeholder: "my-cool-project")
-  Validate: package-name
+  Validate: marketplace-name
   Help: Lowercase alphanumeric with hyphens, or @org/name
 
 Step 2:

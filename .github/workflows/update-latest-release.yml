@@ -16,8 +16,8 @@ on:
 
 jobs:
   update-latest:
-    # Only run for the consumer CLI release (aipm-v*), not aipm-pack-v* or libaipm-v*, and only for stable (non-prerelease) releases.
-    if: startsWith(github.event.release.tag_name, 'aipm-v') && !startsWith(github.event.release.tag_name, 'aipm-pack-v') && !github.event.release.prerelease
+    # Only run for the CLI release (aipm-v*), not libaipm-v*, and only for stable (non-prerelease) releases.
+    if: startsWith(github.event.release.tag_name, 'aipm-v') && !github.event.release.prerelease
     concurrency:
       group: update-latest-release
     runs-on: ubuntu-latest

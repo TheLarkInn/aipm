@@ -1,291 +1,270 @@
 ---
 date: 2026-04-14 14:34:34 UTC
 researcher: Claude (Opus 4.6)
-git_commit: 06bc32fe4c1865736864d29c6b37ad68beb26072
+git_commit: 2b94a6c3daa92851046553a429fc3a3d703a5541
 branch: main
 repository: aipm
-topic: "Merge aipm-pack into aipm (#417) with dependency analysis on aipm make (#363)"
+topic: "Merge aipm-pack into aipm (#417) — post-#363 analysis"
 tags: [research, codebase, aipm-pack, aipm-make, cli-consolidation, scaffolding, binary-merge]
 status: complete
 last_updated: 2026-04-14
 last_updated_by: Claude (Opus 4.6)
+last_updated_note: "Complete rewrite reflecting post-#363 state — aipm make plugin is now implemented, making aipm-pack init functionally obsolete"
 ---
 
-# Research: Merge aipm-pack into aipm (#417) with #363 Dependency Analysis
+# Research: Merge aipm-pack into aipm (#417) — Post-#363 Analysis
 
 ## Research Question
 
-Analyze the current `aipm-pack` crate structure, its commands, shared code with `aipm`, and what merging them (#417) would entail -- including binary consolidation, command routing, shared dependencies, and impact on tests/CI. Determine whether implementing `aipm make` (#363) -- the foundational scaffolding API that would make `aipm-pack init` obsolete -- should be implemented before, after, or concurrently with the pack merge.
+Document the current state of `aipm-pack` and `aipm` CLIs — their command surfaces, shared dependencies, structural overlap, and what would be involved in merging `aipm-pack`'s functionality into `aipm`, now that #363's `aipm make plugin` scaffolding replaces `aipm-pack init`.
 
 ## Summary
 
-`aipm-pack` is a thin CLI binary (~980 lines of source, excluding snapshots) that exposes a single `init` subcommand for scaffolding plugin packages. Every dependency it uses is already present in `aipm`. The merge (#417) is mechanically straightforward: move the `Init` command variant and its wizard into the `aipm` CLI under a `pack init` subcommand (or a top-level `init --pack` flag), delete the `crates/aipm-pack/` directory, and update the release pipeline.
+**Issue #363 is now closed and fully implemented.** The `aipm make plugin` command exists in the `aipm` CLI at commit `2b94a6c` with engine targeting, feature-based composition, marketplace integration, and an interactive wizard. This makes `aipm-pack init` functionally obsolete — confirming the prediction in #417's description.
 
-However, issue #417 itself states: "With the 'aipm make' api also on backlog, this will make 'aipm-pack init' obsolete." This signals that the `aipm make` API (#363) would subsume `aipm-pack init` entirely -- meaning the merge target may not need to exist if #363 ships first. A prior DRY architecture audit (2026-04-12) already identified 10 deduplication targets that serve as prerequisite consolidation for both issues.
+`aipm-pack` is a thin 4-file CLI binary (~635 lines of source) that exposes a single `init` subcommand. Every dependency it uses is already present in `aipm`. `aipm make plugin` is a strict superset of `aipm-pack init`'s capability: it creates plugins inside a marketplace, registers them in `marketplace.json`, enables them in engine settings, and supports engine-specific feature filtering — none of which `aipm-pack init` does.
 
-The analysis below documents the current state and presents the ordering trade-offs.
+The only unique capability `aipm-pack init` retains is generating a standalone `aipm.toml` plugin manifest (TOML format), while `aipm make plugin` generates `plugin.json` (JSON format) inside a marketplace. If standalone `aipm.toml` package scaffolding is still desired, it can be added as `aipm make package` or similar — but the core use case (creating plugins in a marketplace) is fully covered by `aipm make plugin`.
+
+The merge is now a deletion task with targeted test migration, not a code migration. The mechanical changes touch ~15 areas of the codebase (source, tests, BDD features, CI, docs, release config).
 
 ---
 
 ## Detailed Findings
 
-### A. aipm-pack Crate: Current State
+### A. Current Command Surfaces
 
-**Source files and line counts:**
+#### aipm CLI (12 commands at `2b94a6c`)
 
-| File | Lines | Purpose |
+| Command | Purpose | Handler |
 |---|---|---|
-| [`main.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm-pack/src/main.rs) | 84 | Binary entrypoint, CLI struct, arg parsing, orchestration |
-| [`error.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm-pack/src/error.rs) | 73 | Unified `CliError` enum with `From` impls |
-| [`wizard.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm-pack/src/wizard.rs) | 380 | Pure-function prompt definitions and answer resolution |
-| [`wizard_tty.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm-pack/src/wizard_tty.rs) | 98 | TTY bridge executing prompts via `inquire` |
-| [`tests/init_e2e.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm-pack/tests/init_e2e.rs) | 345 | 17 E2E tests via `assert_cmd` |
-| **Total source** | **980** | (excluding 11 insta snapshot files) |
+| `init` | Initialize workspace + marketplace | [`main.rs:361-408`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/aipm/src/main.rs#L361) |
+| `install` | Install packages from registry/git | [`main.rs:410-446`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/aipm/src/main.rs#L410) |
+| `update` | Update packages to latest compatible | [`main.rs:448-474`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/aipm/src/main.rs#L448) |
+| `link` | Link local package for development | [`main.rs:476-517`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/aipm/src/main.rs#L476) |
+| `uninstall` | Uninstall or unlink a package | [`main.rs:519-537`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/aipm/src/main.rs#L519) |
+| `unlink` | Unlink a previously linked package | via `cmd_unlink` |
+| `list` | List installed packages / links | [`main.rs:539-579`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/aipm/src/main.rs#L539) |
+| `lint` | Lint AI plugin configurations | [`main.rs:680-760`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/aipm/src/main.rs#L680) |
+| `migrate` | Migrate legacy tool configs into marketplace | [`main.rs:861-964`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/aipm/src/main.rs#L861) |
+| **`make plugin`** | **Scaffold new plugin in marketplace** | [**`main.rs:966-1061`**](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/aipm/src/main.rs#L966) |
+| `lsp` | Start Language Server Protocol server | [`main.rs:1134`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/aipm/src/main.rs#L1134) |
+| `install --global` | Install globally for all projects | [`main.rs:581-610`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/aipm/src/main.rs#L581) |
 
-**Single command:** `aipm-pack init [dir] [--yes] [--name NAME] [--type TYPE]`
+#### aipm-pack CLI (1 command)
 
-**Data flow:**
-1. `main()` -> `run()` -> `Cli::parse()` (clap)
-2. Parses `--type` string to `PluginType` via `FromStr`
-3. Resolves `"."` to `current_dir()`
-4. `wizard_tty::resolve()` -> `wizard::package_prompt_steps()` -> `execute_prompts()` -> `wizard::resolve_package_answers()`
-5. Constructs `libaipm::init::Options`, calls `libaipm::init::init(&opts, &libaipm::fs::Real)`
-6. Writes success message to stdout
-
-**libaipm APIs consumed (5 total):**
-- `libaipm::init::{Options, init, Error}` -- plugin package scaffolding
-- `libaipm::manifest::types::PluginType` -- type enum
-- `libaipm::fs::Real` -- filesystem implementation
-- `libaipm::version()` -- version string
-- `libaipm::wizard::*` types (re-exported through local wizard.rs)
-
-### B. aipm CLI Crate: Current State
-
-**Source files and line counts:**
-
-| File | Lines | Purpose |
+| Command | Purpose | Handler |
 |---|---|---|
-| [`main.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm/src/main.rs) | 1273 | CLI definition, 10 subcommands, command handlers |
-| [`error.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm/src/error.rs) | 127 | `CliError` enum with 13 variants |
-| [`wizard.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm/src/wizard.rs) | 538 | Pure prompt logic for `init` and `migrate` wizards |
-| [`wizard_tty.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm/src/wizard_tty.rs) | 121 | TTY bridge for prompts |
-| [`lsp.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm/src/lsp.rs) | 328 | Async LSP server |
-| [`lsp/helpers.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm/src/lsp/helpers.rs) | 589 | Sync helpers for LSP |
-| **Total** | **2976** | |
+| `init` | Initialize a standalone plugin package | [`main.rs:46-75`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/aipm-pack/src/main.rs#L46) |
 
-**10 subcommands:** `init`, `install`, `update`, `link`, `uninstall`, `unlink`, `list`, `lint`, `migrate`, `lsp`
+Planned but never implemented: `pack`, `publish`, `yank`, `login`.
 
-**Pattern for adding commands:** Add variant to `Commands` enum (lines 32-217), write `cmd_<name>()` handler, add match arm in `run()` (lines 949-1007), add error variant to `CliError` if needed.
+### B. Functional Overlap: `aipm make plugin` vs `aipm-pack init`
 
-**libaipm APIs consumed (~20+ modules):** workspace_init, installer::pipeline, linker::*, lockfile, lint, migrate, logging, fs::Real, manifest::load, workspace::find_workspace_root, cache::Policy, locked_file::LockedFile, installed::Registry, and more.
+Now that #363 is implemented, here is the precise feature comparison:
 
-### C. Dependency Overlap
-
-**Every dependency in aipm-pack is already in aipm:**
-
-| Dependency | aipm-pack | aipm |
+| Capability | `aipm-pack init` | `aipm make plugin` |
 |---|---|---|
-| `libaipm` (wizard feature) | Yes | Yes |
-| `clap` | Yes | Yes |
-| `inquire` | Yes | Yes |
-| `serde` | Yes | Yes |
-| `serde_json` | Yes | Yes |
-| `thiserror` | Yes | Yes |
-| `toml` | Yes | Yes |
-| `tracing` | Yes | Yes |
-| `tracing-subscriber` | Yes | Yes |
-| `clap-verbosity-flag` | No | Yes (unique to aipm) |
-| `tokio` | No | Yes (unique to aipm) |
-| `tower-lsp` | No | Yes (unique to aipm) |
+| Creates plugin directory | Yes (standalone) | Yes (inside marketplace) |
+| Plugin name validation | Yes (`manifest::validate`) | Yes (`manifest::validate`) |
+| Interactive wizard | Yes (inquire-based) | Yes (inquire-based, two-phase) |
+| Non-interactive mode | `--yes` flag | `--yes` flag + `--name`/`--feature` |
+| Manifest format | `aipm.toml` (TOML) | `plugin.json` (JSON) |
+| Plugin type selection | 6 types (Composite, Skill, Agent, MCP, Hook, LSP) | 7 features (Skill, Agent, MCP, Hook, OutputStyle, LSP, Extension) |
+| Engine targeting | None | `--engine claude/copilot/both` |
+| Feature-based composition | Single type per plugin | Multiple features per plugin |
+| Marketplace registration | None | Yes (`marketplace.json`) |
+| Engine settings integration | None | Yes (`.claude/settings.json`) |
+| Marketplace discovery | None | Walk-up search for `.ai/` |
+| Structured action log | None (`Result<(), Error>`) | Yes (`Vec<Action>`) |
+| `.gitkeep` placeholders | In every directory | Only for Extension feature |
+| `Composite` type | Yes (creates skills+agents+hooks) | No composite type; multi-feature selection instead |
+| Description prompt | Yes | No |
+| Idempotency | Error if exists | Graceful `AlreadyExists` action |
+
+**Key takeaway:** `aipm make plugin` is a strict superset in terms of integration capabilities. The only thing `aipm-pack init` produces that `make` doesn't is a standalone `aipm.toml` manifest — but that format is only needed for publishing to a registry (not yet implemented), while `plugin.json` is what the marketplace and engine settings actually consume.
+
+### C. Library Module Comparison: `libaipm::init` vs `libaipm::make`
+
+**`libaipm::init`** ([`init.rs`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/libaipm/src/init.rs)):
+- Single file, 644 lines (including tests)
+- Entry: `pub fn init(opts: &Options, fs: &dyn Fs) -> Result<(), Error>`
+- Produces: `aipm.toml` via `manifest::builder::build_plugin_manifest()`
+- Creates directory trees per `PluginType` enum (6 variants)
+- Has no awareness of marketplace, engine settings, or `plugin.json`
+- Only consumer: `aipm-pack init`
+
+**`libaipm::make`** ([`make/`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/libaipm/src/make/) directory, 6 files):
+- `mod.rs` (350+ lines) — orchestrator with `pub fn plugin()` and feature scaffolders
+- `action.rs` — 9-variant `Action` enum for structured reporting
+- `discovery.rs` — marketplace walk-up search
+- `engine_features.rs` — engine/feature mapping, validation, `Feature` enum (7 variants)
+- `error.rs` — 8-variant error enum
+- `templates.rs` — content templates per feature type
+- Entry: `pub fn plugin(opts: &PluginOpts, fs: &dyn Fs) -> Result<PluginResult, Error>`
+- Produces: `plugin.json`, marketplace registration, engine settings integration
+- Only consumer: `aipm make plugin`
+
+**Shared internal utilities:** None. The two modules share zero imports between each other. Both use `crate::fs::Fs` and `crate::manifest::validate` but through independent call paths.
+
+### D. Dependency Overlap
+
+Every `aipm-pack` dependency is already in `aipm`:
+
+| Dependency | aipm-pack | aipm | Unique to aipm |
+|---|---|---|---|
+| `libaipm` (wizard) | Yes | Yes | |
+| `clap` | Yes | Yes | |
+| `inquire` | Yes | Yes | |
+| `serde` | Yes | Yes | |
+| `serde_json` | Yes | Yes | |
+| `thiserror` | Yes | Yes | |
+| `toml` | Yes | Yes | |
+| `tracing` | Yes | Yes | |
+| `tracing-subscriber` | Yes | Yes | |
+| `clap-verbosity-flag` | | | Yes |
+| `tokio` | | | Yes |
+| `tower-lsp` | | | Yes |
 
 Merging adds zero new dependencies to the `aipm` binary.
 
-### D. Shared Wizard Infrastructure (Duplicated)
+### E. Wizard Overlap (Detailed)
 
-Both binaries independently contain a two-layer wizard architecture:
+Both crates implement a two-layer wizard architecture:
+- **Pure logic layer** (`wizard.rs`): Defines prompt steps, resolves answers
+- **TTY bridge layer** (`wizard_tty.rs`): Executes prompts via `inquire`
 
-| Layer | aipm-pack | aipm |
+#### Fully Duplicated: `execute_prompts()`
+
+The `execute_prompts` function exists identically in both TTY modules:
+- [`crates/aipm-pack/src/wizard_tty.rs:46-114`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/aipm-pack/src/wizard_tty.rs#L46)
+- [`crates/aipm/src/wizard_tty.rs:176-244`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/aipm/src/wizard_tty.rs#L176)
+
+Same signature, same dispatch logic over 4 `PromptKind` variants, same validation wiring, same MultiSelect index resolution. Only cosmetic difference: match arm ordering.
+
+#### Shared Patterns
+- Both re-export `libaipm::wizard::{PromptStep, PromptKind, PromptAnswer, styled_render_config}`
+- Both use `inquire::set_global_render_config(styled_render_config())` at interactive flow start
+- Both follow the same interactive/non-interactive dispatch pattern
+- Both use sequential `idx` counter for answer resolution
+- Both define identical `format_steps` test helpers for snapshot tests
+- Both define identical `validate_name_interactive` test helpers
+
+#### aipm-pack Wizard Functions (Unique — no counterpart in aipm)
+- `package_prompt_steps(dir, flag_name, flag_type)` — builds name/description/type prompts
+- `resolve_package_answers(answers, flag_name, flag_type)` — resolves `(Option<String>, Option<PluginType>)`
+- `plugin_type_from_index(index)` — maps select index to `PluginType` enum
+- `PLUGIN_TYPE_OPTIONS` — 6-element array of human-readable plugin type labels
+- Description prompt (always-shown text prompt)
+
+#### aipm Wizard Functions (Unique — no counterpart in aipm-pack)
+- `workspace_prompt_steps` / `resolve_workspace_answers` / `resolve_defaults` — workspace init
+- `migrate_cleanup_prompt_steps` / `resolve_migrate_cleanup_answer` — post-migration
+- `resolve_make_plugin` (in `wizard_tty.rs`) — two-phase make-plugin wizard with engine-filtered features
+- `ENGINE_OPTIONS` / `engine_from_index` — engine mapping for make plugin
+- `make_plugin_prompt_steps` / `resolve_make_plugin_answers` — `#[cfg(test)]` only
+
+### F. Complete Blast Radius of Removing aipm-pack
+
+#### Mandatory Changes (build/test breakage)
+
+| File | Lines | Change Required |
 |---|---|---|
-| Pure prompt logic | `wizard.rs` (380 lines) | `wizard.rs` (538 lines) |
-| TTY bridge | `wizard_tty.rs` (98 lines) | `wizard_tty.rs` (121 lines) |
+| [`Cargo.toml`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/Cargo.toml#L177) | 177-178 | Remove `[profile.dev.package.aipm-pack]` section |
+| `crates/aipm-pack/` | entire dir | Delete (4 source files, 11 snapshots, 1 E2E test file, 1 changelog, 1 Cargo.toml) |
+| [`crates/libaipm/tests/bdd.rs`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/libaipm/tests/bdd.rs#L108) | 108-109 | Update binary name routing for `aipm-pack init` scenarios |
+| [`tests/features/manifest/init.feature`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/tests/features/manifest/init.feature) | 9,16,21,26,36,50 | Update `aipm-pack init` command strings (6 occurrences) |
+| `Cargo.lock` | auto | Regenerated automatically |
 
-Both re-export `libaipm::wizard::{PromptStep, PromptKind, PromptAnswer, styled_render_config}`. Both implement the same `execute_prompts()` function pattern that dispatches `PromptKind::Text`, `PromptKind::Confirm`, and `PromptKind::Select` to `inquire` types. The DRY audit (B7) identified this as a deduplication target.
+#### Documentation Updates (accuracy)
 
-### E. Release Pipeline Impact
-
-The current release pipeline handles two binaries:
-
-1. **cargo-dist** (`dist-workspace.toml`): Builds both `aipm` and `aipm-pack` for 4 platform targets (x86_64-linux, x86_64-darwin, aarch64-darwin, x86_64-windows)
-2. **release-plz** (`release-plz.toml`): Manages separate changelogs and crates.io publishes for all 3 crates
-3. **Stable installer** (`update-latest-release.yml`): Only copies `aipm-v*` installers (not `aipm-pack-v*`)
-4. **CI** (`ci.yml`): Builds and tests the full workspace
-
-Merging would:
-- Remove `crates/aipm-pack/` as a workspace member from `Cargo.toml`
-- Eliminate one binary from cargo-dist builds (halving build matrix for that artifact)
-- Remove one changelog and one crates.io package
-- Simplify the install path (users only need one binary)
-
-### F. What the Merge (#417) Entails Mechanically
-
-1. Add a `Pack` subcommand (or `PackInit`) to `aipm`'s `Commands` enum
-2. Move `aipm-pack`'s wizard prompt steps (`package_prompt_steps`, `resolve_package_answers`, `plugin_type_from_index`, `PLUGIN_TYPE_OPTIONS`) into `aipm`'s `wizard.rs` or into `libaipm`
-3. Add a `cmd_pack_init()` handler in `aipm/main.rs` calling `libaipm::init::init()`
-4. Add `Init(libaipm::init::Error)` variant to `aipm`'s `CliError`
-5. Move the 17 E2E tests to `crates/aipm/tests/pack_init_e2e.rs`, retargeting `aipm pack init` instead of `aipm-pack init`
-6. Delete `crates/aipm-pack/`
-7. Update `Cargo.toml` workspace members
-8. Update cargo-dist and release-plz configuration
-9. Update README, install guides, and docs
-
-Estimated scope: ~500 lines of code moved/adapted, ~200 lines deleted.
-
-### G. libaipm Scaffolding: The Foundation for aipm make (#363)
-
-Issue #363 proposes raising existing atomic CRUD operations into a callable internal API. These operations already exist scattered across libaipm:
-
-| Operation | Current Location | Module |
+| File | Occurrences | Description |
 |---|---|---|
-| Create plugin directory tree | `init::create_directory_layout` | [`init.rs:108-135`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/libaipm/src/init.rs#L108) |
-| Generate `aipm.toml` | 4 independent paths | `init.rs`, `workspace_init/mod.rs`, `migrate/emitter.rs`, `manifest/builder.rs` |
-| Generate `plugin.json` | `generate::plugin_json::generate()` | [`generate/plugin_json.rs:42`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/libaipm/src/generate/plugin_json.rs#L42) |
-| Register in `marketplace.json` | `generate::marketplace::{create,register,register_all,unregister}` | [`generate/marketplace.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/libaipm/src/generate/marketplace.rs) |
-| Enable in `settings.json` | `generate::settings::{read_or_create,add_known_marketplace,enable_plugin}` | [`generate/settings.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/libaipm/src/generate/settings.rs) |
-| Write templates (SKILL.md, agents, hooks) | inline in `init.rs` and `workspace_init/mod.rs` | scattered |
-| Validate plugin name | `manifest::validate::check_name()` | [`manifest/validate.rs:38`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/libaipm/src/manifest/validate.rs#L38) |
-| Manage gitignore entries | `linker::gitignore::{add_entry,remove_entry}` | [`linker/gitignore.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/libaipm/src/linker/gitignore.rs) |
-| Manage manifest deps | `installer::manifest_editor::{add_dependency,remove_dependency}` | [`installer/manifest_editor.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/libaipm/src/installer/manifest_editor.rs) |
-| Manage link state | `linker::link_state::{add,remove,list}` | [`linker/link_state.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/libaipm/src/linker/link_state.rs) |
+| [`README.md`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/README.md) | 7+ lines | Module table, aipm-pack CLI section, project structure, roadmap |
+| [`CLAUDE.md`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/CLAUDE.md#L88) | 1 line | Project structure entry for `crates/aipm-pack/` |
+| [`docs/guides/creating-a-plugin.md`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/docs/guides/creating-a-plugin.md) | 9 lines | All references to `aipm-pack init` as scaffold command |
+| [`docs/guides/make-plugin.md`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/docs/guides/make-plugin.md) | 3 lines | Comparison table and see-also links |
+| [`docs/guides/init.md`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/docs/guides/init.md) | 2 lines | Cross-references to `aipm-pack init` |
+| [`docs/README.md`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/docs/README.md) | 3 lines | References to aipm-pack |
 
-**Key gap:** There is **no `IsFixable` trait** in the lint system. The `Rule` trait's `check_file()` returns `Vec<Diagnostic>` only -- diagnostics are output-only with no fix actions. `aipm lint --fix` (mentioned in #363) would require extending the `Rule` trait or adding a parallel `Fix` trait.
+#### Library Doc Comments
 
-**DRY audit pre-work (from 2026-04-12 audit):** The audit identified 10 deduplication targets that should be consolidated before #363:
-1. B1: Unify 4 `aipm.toml` generation paths into `manifest::builder`
-2. B2: Unify 2 `plugin.json` generation paths into `generate::plugin_json`
-3. B3: Unify 4 name validators into `manifest::validate::check_name()`
-4. B4: Unify marketplace.json RMW into `generate::marketplace`
-5. B5: Unify settings.json RMW into `generate::settings`
-6. B6: Unify frontmatter parsing into `frontmatter.rs`
-7. B7: Consolidate shared wizard types into `libaipm::wizard`
-8. B8: Consolidate "create parent dir then write" into `Fs::write_file_with_parents`
-9. B9: Consolidate "read or default" into `fs::read_or_default`/`fs::read_toml_or_default`
-10. B10: Eliminate lint rule check()/check_file() duplication
+| File | Line | Comment to Update |
+|---|---|---|
+| [`crates/libaipm/src/lib.rs`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/libaipm/src/lib.rs#L4) | 4 | `"and the 'aipm-pack' author binary"` |
+| [`crates/libaipm/src/init.rs`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/libaipm/src/init.rs#L1) | 1 | `"Package initialization and scaffolding for 'aipm-pack init'."` |
+| [`crates/libaipm/src/wizard.rs`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/crates/libaipm/src/wizard.rs#L4) | 4 | `"Both the 'aipm' and 'aipm-pack' binaries enable this feature"` |
 
-**Progress:** The `feature-list.json` and `progress.txt` in `research/` indicate that some of this DRY consolidation has already been completed (manifest builder unification, plugin.json consolidation, marketplace/settings module extraction, wizard type sharing). The current codebase at commit `06bc32f` reflects these improvements with the `generate/` module containing unified `marketplace.rs`, `plugin_json.rs`, and `settings.rs` submodules, and the `manifest/builder.rs` module handling TOML generation.
+#### CI/CD
 
-### H. Existing Test Coverage for Atomic Operations
+| File | Lines | Change |
+|---|---|---|
+| [`.github/workflows/update-latest-release.yml`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/.github/workflows/update-latest-release.yml#L19) | 19-20 | Simplify tag filter (remove `aipm-pack-v` exclusion) |
+| [`.github/workflows/docs-updater.md`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/.github/workflows/docs-updater.md#L101) | 101 | Remove `crates/aipm-pack/src/main.rs` reference |
+| `dist-workspace.toml` | auto | cargo-dist stops discovering `aipm-pack` binary automatically |
 
-The codebase has extensive test coverage that would need to be preserved through either change:
+#### Aspirational BDD Features (7 files, ~55 lines)
 
-- **102 `#[cfg(test)]` modules** across the workspace
-- **31 BDD feature files** in `tests/features/` covering all CLI commands
-- **17 E2E tests** for `aipm-pack init` specifically
-- **4 MockFs implementations** for testing CRUD operations without real filesystem
-- **E2E test helpers** in `migrate_e2e.rs`: `create_skill()`, `create_command()`, `create_agent()`, `create_mcp_json()`, `create_hooks_settings()`, `create_output_style()`
-- **BDD step definitions** in `bdd.rs`: 12 GIVEN steps, 3 WHEN steps, 9 THEN steps for CRUD operations
+These reference future `aipm-pack` commands that were never implemented:
+- `tests/features/registry/publish.feature` — `aipm-pack pack`, `aipm-pack publish`
+- `tests/features/registry/yank.feature` — `aipm-pack yank`, `aipm-pack deprecate`
+- `tests/features/registry/security.feature` — `aipm-pack publish`, `aipm-pack login`
+- `tests/features/registry/link.feature` — mentions `aipm-pack` in description
+- `tests/features/guardrails/quality.feature` — `aipm-pack init`, `aipm-pack lint`, `aipm-pack publish`
+- `tests/features/monorepo/orchestration.feature` — `aipm-pack lint`, `aipm-pack publish`
+- `tests/features/reuse/compositional-reuse.feature` — `aipm-pack publish`
 
----
+These should be updated to use `aipm` subcommands (e.g., `aipm pack`, `aipm publish`, `aipm make plugin`) if/when those features are implemented.
 
-## Ordering Analysis: #363 vs #417
+### G. Decision: What Happens to `libaipm::init`?
 
-### Option 1: Implement #363 (aipm make) First
+With `aipm-pack` deleted, `libaipm::init` loses its only consumer. There are two paths:
 
-**Arguments:**
-- Issue #417 explicitly states: "With the 'aipm make' api also on backlog, this will make 'aipm-pack init' obsolete." This signals `aipm make` is the intended replacement for `aipm-pack init`.
-- If `aipm make plugin new` replaces `aipm-pack init`, then #417 becomes trivial -- just delete `crates/aipm-pack/` and update the release pipeline. No command migration needed.
-- The DRY consolidation (pre-work for #363) benefits the entire codebase, including making any future merge cleaner.
-- Issue #361 (replace TypeScript scaffold with CLI) depends directly on #363 -- implementing #363 first unblocks #361 as well.
-- Avoids "move code then immediately refactor it" -- merging pack's init command into aipm only to replace it with `aipm make` would be wasted motion.
+**Option A: Delete `libaipm::init` entirely.**
+- `aipm make plugin` fully covers the marketplace-based workflow.
+- If standalone package scaffolding is ever needed, `aipm make package` can be added to the `make` module using the same action/template pattern.
+- Simplest approach — removes ~644 lines and the `manifest::builder::build_plugin_manifest()` call path.
 
-**Risks:**
-- #363 is significantly larger in scope than #417. It requires designing a new action/primitive API, extending the lint system with fix capabilities, and building a new CLI command surface.
-- Delays the simplification of having a single binary.
+**Option B: Keep `libaipm::init` and wire it into `aipm` under `aipm pack init`.**
+- Preserves the `aipm.toml`-based standalone package workflow.
+- Needed if users want to create packages for registry publishing (future `aipm publish`).
+- Requires adding `Init(libaipm::init::Error)` to `aipm`'s `CliError` and moving the wizard.
 
-### Option 2: Implement #417 (merge pack) First
+The choice depends on whether standalone `aipm.toml` packages are part of the near-term roadmap or not.
 
-**Arguments:**
-- Mechanically simple: ~500 lines moved, ~200 deleted, zero new dependencies. Low risk, high confidence.
-- Simplifies development workflow immediately -- one binary to build, test, and release.
-- Reduces cargo-dist build matrix and release complexity before tackling #363.
-- The merged `aipm pack init` command can later be aliased to or replaced by `aipm make plugin new` when #363 ships.
-- Single binary simplifies user onboarding right now.
+### H. E2E Test Migration
 
-**Risks:**
-- The merged init command will need refactoring when `aipm make` lands (the wizard, error types, and command routing would change).
-- The shared wizard code (currently duplicated) would need to be merged now, then potentially restructured again for `aipm make`'s more complex interactive flows.
+`crates/aipm-pack/tests/init_e2e.rs` contains 17 tests exercising the `aipm-pack` binary:
 
-### Option 3: Implement Concurrently
+| Test | What it exercises |
+|---|---|
+| `init_default_creates_manifest_and_skill_dir` | Default init creates aipm.toml + skills/ |
+| `init_custom_name_and_type` | `--name` and `--type` flags |
+| `init_yes_flag_skips_prompts` | Non-interactive mode |
+| `init_fails_if_already_initialized` | Idempotency error |
+| `init_invalid_name_rejected` | Name validation |
+| `init_each_plugin_type_*` (6 tests) | Each of the 6 plugin types |
+| `init_in_subdirectory` | Positional dir argument |
+| `init_default_name_from_dir` | Name derivation from directory |
+| `help_shows_usage` / `version_shows_version` | Help/version output |
 
-**Arguments:**
-- #417 touches the CLI layer (binary consolidation), #363 touches the library layer (action API in libaipm). They could proceed in parallel on separate branches.
-
-**Risks:**
-- High probability of merge conflicts in `wizard.rs`, `wizard_tty.rs`, `error.rs`, and `main.rs`.
-- The wizard consolidation work (DRY item B7) is a prerequisite for both and would need to land first.
-- Coordination overhead likely exceeds the time saved.
-
-### Option 4: DRY Consolidation First, Then #417, Then #363
-
-**Arguments:**
-- The DRY audit pre-work is valuable regardless of ordering -- it reduces surface area and eliminates duplicated code.
-- After DRY consolidation, the pack merge becomes even simpler (shared wizard types already in libaipm, unified validators, unified generators).
-- Then #363 builds on a cleaner foundation with all primitives already consolidated.
-
-**Risks:**
-- Three sequential phases means slower delivery of visible features.
-- However, the DRY consolidation is partially done already per `progress.txt`.
-
----
-
-## Code References
-
-### aipm-pack Crate
-- [`crates/aipm-pack/Cargo.toml`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm-pack/Cargo.toml) -- 9 runtime deps, all subset of aipm
-- [`crates/aipm-pack/src/main.rs:17-43`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm-pack/src/main.rs#L17) -- CLI struct and Commands enum
-- [`crates/aipm-pack/src/main.rs:46-75`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm-pack/src/main.rs#L46) -- `run()` orchestration function
-- [`crates/aipm-pack/src/wizard.rs:43-121`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm-pack/src/wizard.rs#L43) -- prompt steps and answer resolution
-- [`crates/aipm-pack/src/error.rs:7-20`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm-pack/src/error.rs#L7) -- CliError enum (3 variants)
-- [`crates/aipm-pack/tests/init_e2e.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm-pack/tests/init_e2e.rs) -- 17 E2E tests
-
-### aipm Crate
-- [`crates/aipm/src/main.rs:32-217`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm/src/main.rs#L32) -- Commands enum (10 variants)
-- [`crates/aipm/src/main.rs:938-1007`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm/src/main.rs#L938) -- `run()` command dispatch
-- [`crates/aipm/src/error.rs:9-61`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm/src/error.rs#L9) -- CliError enum (13 variants)
-- [`crates/aipm/src/wizard.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/aipm/src/wizard.rs) -- workspace init and migrate wizard prompts
-
-### libaipm Scaffolding APIs
-- [`crates/libaipm/src/init.rs:57`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/libaipm/src/init.rs#L57) -- `pub fn init()` (plugin package scaffolding)
-- [`crates/libaipm/src/workspace_init/mod.rs:96`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/libaipm/src/workspace_init/mod.rs#L96) -- `pub fn init()` (workspace + marketplace scaffolding)
-- [`crates/libaipm/src/manifest/builder.rs:53`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/libaipm/src/manifest/builder.rs#L53) -- `build_plugin_manifest()`
-- [`crates/libaipm/src/generate/marketplace.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/libaipm/src/generate/marketplace.rs) -- marketplace CRUD
-- [`crates/libaipm/src/generate/plugin_json.rs:42`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/libaipm/src/generate/plugin_json.rs#L42) -- `generate()`
-- [`crates/libaipm/src/generate/settings.rs`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/libaipm/src/generate/settings.rs) -- settings CRUD
-
-### Traits
-- [`crates/libaipm/src/fs.rs:27`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/libaipm/src/fs.rs#L27) -- `Fs` trait (14 methods)
-- [`crates/libaipm/src/lint/rule.rs:16`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/libaipm/src/lint/rule.rs#L16) -- `Rule` trait (no fix capability)
-- [`crates/libaipm/src/workspace_init/mod.rs:20`](https://github.com/TheLarkInn/aipm/blob/06bc32f/crates/libaipm/src/workspace_init/mod.rs#L20) -- `ToolAdaptor` trait
-
-### Release Pipeline
-- [`Cargo.toml:2`](https://github.com/TheLarkInn/aipm/blob/06bc32f/Cargo.toml#L2) -- workspace members glob
-- [`dist-workspace.toml`](https://github.com/TheLarkInn/aipm/blob/06bc32f/dist-workspace.toml) -- cargo-dist config (builds both binaries)
-- [`release-plz.toml`](https://github.com/TheLarkInn/aipm/blob/06bc32f/release-plz.toml) -- release automation
-- [`.github/workflows/ci.yml`](https://github.com/TheLarkInn/aipm/blob/06bc32f/.github/workflows/ci.yml) -- CI pipeline
-- [`.github/workflows/release.yml`](https://github.com/TheLarkInn/aipm/blob/06bc32f/.github/workflows/release.yml) -- cargo-dist release
+All 17 use `Command::cargo_bin("aipm-pack")`. Migration path depends on decision G above:
+- If Option A (delete init): these tests are removed entirely (their coverage is subsumed by `aipm make plugin` tests).
+- If Option B (keep init): retarget to `cargo_bin("aipm")` with `["pack", "init", ...]` arguments.
 
 ---
 
 ## Architecture Documentation
 
-### Current Two-Binary Architecture
+### Current Two-Binary Architecture (at `2b94a6c`)
 
 ```
 User installs:
-  aipm        -- consumer CLI (init, install, update, link, unlink, list, lint, migrate, lsp)
-  aipm-pack   -- author CLI (init)
+  aipm        -- unified CLI (init, install, update, link, unlink, list, lint, migrate, make, lsp)
+  aipm-pack   -- author CLI (init only, functionally obsolete)
 
 Both depend on:
-  libaipm     -- shared library (27+ public modules)
+  libaipm     -- shared library (30+ public modules)
     features = ["wizard"] gates inquire-dependent shared types
 
 Binary output:
@@ -297,50 +276,37 @@ Binary output:
 
 ```
 User installs:
-  aipm        -- unified CLI (init, pack init, install, update, link, unlink, list, lint, migrate, lsp)
+  aipm        -- single CLI (init, install, update, link, unlink, list, lint, migrate, make, lsp)
 
 Depends on:
-  libaipm     -- shared library (unchanged)
+  libaipm     -- shared library (unchanged or with init module removed)
 
 Binary output:
   cargo-dist builds 1 binary x 4 platforms = 4 artifacts per release
   release-plz publishes 2 crates to crates.io (aipm, libaipm)
 ```
 
-### Post-Make Architecture (#363 + #417)
+### Scaffolding Data Flow (Post-#363, Current State)
 
 ```
-User installs:
-  aipm        -- unified CLI (init, make, install, update, link, unlink, list, lint, migrate, lsp)
+aipm-pack init [dir]                              ← OBSOLETE
+  └→ wizard_tty::resolve()                        [aipm-pack/wizard_tty.rs]
+       └→ libaipm::init::init()                   [init.rs:57]
+             ├→ validate name                     [init.rs:77]
+             ├→ create_directory_layout            [init.rs:92]
+             └→ write aipm.toml                   [init.rs:96 — standalone TOML manifest]
 
-  aipm make plugin new     -- replaces aipm-pack init
-  aipm make plugin <args>  -- atomic scaffolding actions
-  aipm lint --fix          -- auto-fix via make actions
-  aipm make extension      -- future: engine-specific SDK integrations
-
-Depends on:
-  libaipm     -- shared library with new `make` module
-    make::{Action, ActionRegistry, execute}  -- composable atomic primitives
-    lint::rule::Fix (or IsFixable trait)     -- lint fix actions
-```
-
-### Scaffolding Data Flow (Current)
-
-```
-aipm-pack init [dir]
-  └─→ wizard_tty::resolve()              [aipm-pack/wizard_tty.rs]
-        └─→ libaipm::init::init()        [init.rs:57]
-              ├─→ validate name           [init.rs:77 -- independent copy]
-              ├─→ create_directory_layout  [init.rs:92]
-              └─→ write aipm.toml         [init.rs:96 -- format! approach]
-
-aipm init [dir]
-  └─→ wizard_tty::resolve()              [aipm/wizard_tty.rs]
-        └─→ libaipm::workspace_init::init()  [workspace_init/mod.rs:96]
-              ├─→ init_workspace()         → write aipm.toml (workspace manifest)
-              ├─→ scaffold_marketplace()   → create .ai/ tree, write marketplace.json,
-              │                               plugin.json, SKILL.md, hooks.json, etc.
-              └─→ adaptors::claude::apply() → merge .claude/settings.json
+aipm make plugin --name X --engine claude --feature skill
+  └→ wizard_tty::resolve_make_plugin()            [aipm/wizard_tty.rs:78]
+       ├→ Phase 1: name + engine prompts          [wizard_tty.rs:98-135]
+       ├→ engine_features::validate_features()    [engine_features.rs:108]
+       ├→ Phase 2: feature multi-select prompt    [wizard_tty.rs:144-170]
+       └→ libaipm::make::plugin()                 [make/mod.rs:55]
+             ├→ create plugin directory            [mod.rs:60]
+             ├→ scaffold per-feature artifacts     [mod.rs:130-258]
+             ├→ generate plugin.json               [mod.rs:262-283]
+             ├→ register in marketplace.json       [mod.rs:287-306]
+             └→ enable in .claude/settings.json    [mod.rs:309-333]
 ```
 
 ---
@@ -349,45 +315,52 @@ aipm init [dir]
 
 ### Directly Relevant Prior Research
 
-- [`research/docs/2026-04-12-dry-rust-architecture-audit.md`](https://github.com/TheLarkInn/aipm/blob/06bc32f/research/docs/2026-04-12-dry-rust-architecture-audit.md) -- **Primary prior work.** Comprehensive DRY audit scoped as pre-work for #363. Identifies 10 deduplication targets. Covers #363, #361, #356. Sections E.1 and E.2 directly analyze #363 and #361 dependencies. **No coverage of #417** (this is the first research on that issue).
+- [`research/docs/2026-04-12-dry-rust-architecture-audit.md`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/research/docs/2026-04-12-dry-rust-architecture-audit.md) — DRY audit identifying 10 deduplication targets including wizard consolidation (B7) and duplicate `execute_prompts` functions.
 
-- [`research/progress.txt`](https://github.com/TheLarkInn/aipm/blob/06bc32f/research/progress.txt) -- Documents completed phases of the DRY consolidation: manifest builder unification, plugin.json generation consolidation, marketplace.json and settings.json module extraction, wizard type sharing.
+- [`research/tickets/2026-04-14-0363-aipm-make-foundational-api.md`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/research/tickets/2026-04-14-0363-aipm-make-foundational-api.md) — Implementation research for the now-completed #363.
 
-- [`research/docs/2026-03-16-rust-cross-platform-release-distribution.md`](https://github.com/TheLarkInn/aipm/blob/06bc32f/research/docs/2026-03-16-rust-cross-platform-release-distribution.md) -- Documents how cargo-dist handles two binary targets as independent release artifacts.
+- [`research/feature-list.json`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/research/feature-list.json) — 22-phase implementation plan for `aipm make plugin` (#363), all phases completed.
 
-- [`research/docs/2026-03-19-cargo-dist-installer-github-releases.md`](https://github.com/TheLarkInn/aipm/blob/06bc32f/research/docs/2026-03-19-cargo-dist-installer-github-releases.md) -- Contains section "Workspace Behavior with Two Binaries" relevant to merge impact.
+- [`research/progress.txt`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/research/progress.txt) — Execution log for all 22 phases of #363, documenting completion.
 
-- [`research/docs/2026-04-06-feature-status-audit.md`](https://github.com/TheLarkInn/aipm/blob/06bc32f/research/docs/2026-04-06-feature-status-audit.md) -- Comprehensive audit of all CLI command statuses.
+- [`research/docs/2026-04-06-feature-status-audit.md`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/research/docs/2026-04-06-feature-status-audit.md) — Notes `aipm-pack pack/publish/yank/login` as NOT IMPLEMENTED.
 
-- [`research/docs/2026-03-31-110-aipm-lint-architecture-research.md`](https://github.com/TheLarkInn/aipm/blob/06bc32f/research/docs/2026-03-31-110-aipm-lint-architecture-research.md) -- Notes "No `--fix` auto-fix infrastructure" as a gap, relevant to #363's lint --fix requirement.
+- [`research/docs/2026-03-16-rust-cross-platform-release-distribution.md`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/research/docs/2026-03-16-rust-cross-platform-release-distribution.md) — Documents cargo-dist handling of two binary targets.
 
-- [`research/tickets/2026-03-28-110-aipm-lint.md`](https://github.com/TheLarkInn/aipm/blob/06bc32f/research/tickets/2026-03-28-110-aipm-lint.md) -- Documents planned `--fix` auto-fix mode with no existing infrastructure.
+- [`research/docs/2026-03-09-cargo-core-principles.md`](https://github.com/TheLarkInn/aipm/blob/2b94a6c/research/docs/2026-03-09-cargo-core-principles.md) — Cargo's single-binary-with-subcommands architectural model (precedent for consolidation).
 
-### Related Issues
+### Design Specs Referencing aipm-pack
 
-- **#361** ([cli] can starter plugin just use 'aipm' instead of random typescript?) -- Directly depends on #363. Wants to replace the TypeScript scaffold script (`workspace_init/mod.rs:342`) with `aipm make` CLI calls.
-- **#356** (Starter plugin fails default aipm lint checks) -- The `plugin.json` generated during init lacks component fields. Root cause is the DRY violation B2 (two independent plugin.json generators). Already addressed by the `generate::plugin_json` consolidation.
+The following specs contain substantive references to `aipm-pack` (these are historical design documents and do not need mechanical changes):
+
+| Spec | Ref Count | Context |
+|---|---|---|
+| `specs/2026-03-22-interactive-init-wizard.md` | ~30 | Full wizard design for aipm-pack init |
+| `specs/2026-03-09-aipm-technical-design.md` | ~20 | Original two-binary architecture rationale |
+| `specs/2026-03-16-ci-cd-release-automation.md` | ~20 | Release pipeline for both binaries |
+| `specs/2026-03-19-cargo-dist-installers.md` | ~15 | Installer scripts and archive names |
+| `specs/2026-04-14-aipm-make-plugin-command.md` | ~2 | Notes aipm-pack integration |
 
 ---
 
 ## Related Research
 
-- `research/docs/2026-04-12-dry-rust-architecture-audit.md` -- Primary prerequisite analysis
-- `research/docs/2026-04-06-plugin-system-feature-parity-analysis.md` -- Plugin lifecycle capabilities
-- `research/docs/2026-03-20-scaffold-plugin-ts-missing-features.md` -- TypeScript scaffold gaps
-- `research/docs/2026-03-24-aipm-toml-generation-in-init-and-migrate.md` -- All 5 manifest generation paths
-- `research/docs/2026-03-19-init-tool-adaptor-refactor.md` -- ToolAdaptor trait design
+- `research/docs/2026-04-12-dry-rust-architecture-audit.md` — Primary prerequisite analysis (wizard dedup target B7)
+- `research/docs/2026-04-06-plugin-system-feature-parity-analysis.md` — Plugin lifecycle capabilities
+- `research/docs/2026-03-20-scaffold-plugin-ts-missing-features.md` — TypeScript scaffold gaps (motivating #361)
+- `research/docs/2026-03-24-aipm-toml-generation-in-init-and-migrate.md` — All manifest generation paths
+- `research/docs/2026-03-19-init-tool-adaptor-refactor.md` — ToolAdaptor trait design
 
 ---
 
 ## Open Questions
 
-1. **Subcommand naming for merged init:** Should it be `aipm pack init`, `aipm init --plugin`, or something else? If `aipm make plugin new` is the long-term replacement, does it matter?
+1. **Delete vs. absorb `libaipm::init`?** With `aipm-pack` gone, should `libaipm::init` be deleted entirely (since `aipm make plugin` covers the use case), or kept and wired into `aipm` as `aipm pack init` for standalone package scaffolding? The answer depends on whether `aipm.toml`-based standalone packages are part of the near-term roadmap.
 
-2. **aipm-pack crates.io deprecation:** If `aipm-pack` is removed from the workspace, should the existing crates.io package be yanked or left with a deprecation notice pointing to `aipm`?
+2. **Crates.io deprecation:** The `aipm-pack` package on crates.io should be deprecated with a notice pointing to `aipm`. Should it be yanked or left as deprecated?
 
-3. **DRY consolidation completeness:** The `progress.txt` shows phases completed but the current codebase state needs verification against the full audit. Which of the 10 targets remain unfinished?
+3. **Wizard deduplication:** The `execute_prompts()` function is duplicated between both crates. Removing aipm-pack eliminates one copy, but the function remains in `aipm`'s `wizard_tty.rs`. The DRY audit (B7) recommends extracting it to `libaipm::wizard` — should this be done as part of #417 or separately?
 
-4. **lint --fix scope for #363:** Issue #363 mentions `aipm lint --fix` but the `Rule` trait has no fix capability. How much of the lint extension belongs to #363 vs a separate issue?
+4. **BDD feature migration:** The 6 BDD scenarios in `tests/features/manifest/init.feature` test `aipm-pack init`. Should they be rewritten to test `aipm make plugin` (the functional replacement), or dropped entirely if `aipm make plugin` already has sufficient test coverage?
 
-5. **`aipm make extension <--engine>` scope:** Issue #363 mentions engine-specific SDK integrations as future work. Should this be tracked separately to keep #363 focused?
+5. **Aspirational BDD features:** 7 feature files reference never-implemented `aipm-pack` commands (`pack`, `publish`, `yank`, `login`). These need command name updates to `aipm` subcommands when those features are eventually built.

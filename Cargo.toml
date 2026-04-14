@@ -174,9 +174,6 @@ opt-level = 0
 [profile.dev.package.aipm]
 opt-level = 0
 
-[profile.dev.package.aipm-pack]
-opt-level = 0
-
 # =============================================================================
 # RELEASE PROFILE — optimized for distribution binaries
 # =============================================================================

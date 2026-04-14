@@ -187,12 +187,12 @@ After initializing, you can:
   for quality issues
 - **Develop locally** — edit files under `.ai/starter-aipm-plugin/` and use `aipm link` /
   `aipm unlink` for local overrides
-- **Create a publishable plugin** — run `aipm-pack init` in a new directory to scaffold a
+- **Create a publishable plugin** — run `aipm pack init` in a new directory to scaffold a
   standalone plugin package
 
 ## See also
 
-- [Creating a plugin](creating-a-plugin.md) — scaffold a standalone plugin for publishing with `aipm-pack init`
+- [Creating a plugin](creating-a-plugin.md) — scaffold a standalone plugin for publishing with `aipm pack init`
 - [Migrating Existing Configurations](migrate.md) — convert `.claude/` / `.github/` configs after `aipm init`
 - [Configuring Lint](configuring-lint.md) — tune rule severity and configure editor schema support
 - [VS Code Extension](vscode-extension.md) — real-time lint diagnostics in VS Code via `aipm lsp`

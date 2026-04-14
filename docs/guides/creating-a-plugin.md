@@ -1,12 +1,12 @@
 # Creating a Plugin Package
 
-`aipm-pack init` scaffolds a new AI plugin package with an `aipm.toml` manifest and a conventional directory layout. Use it when you want to create a plugin to share with your team or publish.
+`aipm pack init` scaffolds a new AI plugin package with an `aipm.toml` manifest and a conventional directory layout. Use it when you want to create a plugin to share with your team or publish.
 
 ## Quick start
 
 ```bash
 mkdir my-skill && cd my-skill
-aipm-pack init
+aipm pack init
 ```
 
 When run on a TTY without `--yes`, an interactive wizard prompts for a name and plugin type.
@@ -30,13 +30,13 @@ Pass `--yes` to accept defaults, or supply flags directly:
 
 ```bash
 # Use directory name as package name, default type (composite)
-aipm-pack init --yes
+aipm pack init --yes
 
 # Specify name and type
-aipm-pack init --name my-linter --type skill
+aipm pack init --name my-linter --type skill
 
 # Initialize in a specific directory
-aipm-pack init --name @org/my-agent --type agent ./plugins/my-agent
+aipm pack init --name @org/my-agent --type agent ./plugins/my-agent
 ```
 
 ## What gets created
@@ -74,7 +74,7 @@ type = "skill"
 
 ### The `.claude-plugin/plugin.json` manifest
 
-`aipm-pack init` creates the plugin source package. When a plugin is installed into a workspace or migrated with `aipm migrate`, `aipm` looks for a `.claude-plugin/plugin.json` in the plugin directory to identify it.
+`aipm pack init` creates the plugin source package. When a plugin is installed into a workspace or migrated with `aipm migrate`, `aipm` looks for a `.claude-plugin/plugin.json` in the plugin directory to identify it.
 
 For plugins created with `aipm init` (workspace init) or `aipm migrate`, this file is generated automatically with all required fields. For source packages you plan to distribute, create `.claude-plugin/plugin.json` manually alongside your `aipm.toml`:
 
@@ -91,7 +91,7 @@ For plugins created with `aipm init` (workspace init) or `aipm migrate`, this fi
 }
 ```
 
-> **Note:** A future `aipm-pack pack` command will generate `plugin.json` automatically from `aipm.toml`. Until then, create it manually to avoid [`plugin/missing-manifest`](../rules/plugin/missing-manifest.md) lint errors.
+> **Note:** A future `aipm pack` command will generate `plugin.json` automatically from `aipm.toml`. Until then, create it manually to avoid [`plugin/missing-manifest`](../rules/plugin/missing-manifest.md) lint errors.
 
 ## Package name rules
 
@@ -120,12 +120,12 @@ Valid examples: `my-plugin`, `ci-tools`, `@acme/code-review`
 
 3. **Lint your plugin** — run `aipm lint` to check for quality issues.
 4. **Link for local testing** — in a consuming project, run `aipm link ../my-linter` to test without publishing.
-5. **Publishing** — `aipm-pack pack` and `aipm-pack publish` are planned but not yet implemented. Track at [#6](https://github.com/TheLarkInn/aipm/issues/6).
+5. **Publishing** — `aipm publish` is planned but not yet implemented. Track at [#6](https://github.com/TheLarkInn/aipm/issues/6).
 
 ## Flag reference
 
 ```
-aipm-pack init [OPTIONS] [DIR]
+aipm pack init [OPTIONS] [DIR]
 ```
 
 | Flag | Description |
@@ -134,4 +134,4 @@ aipm-pack init [OPTIONS] [DIR]
 | `--name <NAME>` | Package name (defaults to directory name) |
 | `--type <TYPE>` | Plugin type: `skill`, `agent`, `mcp`, `hook`, `lsp`, `composite` |
 
-See also: [`aipm-pack init`](../../README.md#aipm-pack-init), [Manifest format](../../README.md#manifest-format-aipmtoml), [`docs/guides/local-development.md`](./local-development.md).
+See also: [`aipm pack init`](../../README.md#aipm-pack-init), [Manifest format](../../README.md#manifest-format-aipmtoml), [`docs/guides/local-development.md`](./local-development.md).

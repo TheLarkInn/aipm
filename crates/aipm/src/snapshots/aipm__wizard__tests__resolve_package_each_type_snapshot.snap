@@ -1,5 +1,5 @@
 ---
-source: crates/aipm-pack/src/wizard.rs
+source: crates/aipm/src/wizard.rs
 expression: out
 ---
 index 0 -> Some(Composite) (expected Composite)

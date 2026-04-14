@@ -7,7 +7,7 @@ Feature: Local development overrides via link
   The `aipm link` command lives in the consumer binary because it's a
   development workflow tool, not a publish operation. It replaces the
   directory link for a registry dependency with a link to a local directory,
-  allowing rapid iteration without needing `aipm-pack`. Uses symlinks on
+  allowing rapid iteration without needing to publish. Uses symlinks on
   macOS/Linux, directory junctions on Windows (no elevation required).
 
   Rule: Link overrides a registry dependency with a local path
