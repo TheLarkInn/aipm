@@ -474,4 +474,27 @@ mod tests {
             "missing trailing comment: {output}"
         );
     }
+
+    #[test]
+    fn insert_string_array_ignores_some_empty_slice() {
+        // Exercises the False branch of `if !items.is_empty()` inside
+        // `insert_string_array`: when the value is `Some(&[])` (present but empty),
+        // the key must NOT be written to the table.
+        let opts = PluginManifestOpts {
+            name: "test-plugin",
+            version: "0.1.0",
+            plugin_type: None,
+            description: None,
+        };
+        let empty: Vec<String> = Vec::new();
+        let components =
+            PluginComponentsOpts { skills: Some(&empty), ..PluginComponentsOpts::default() };
+        let output = build_plugin_manifest(&opts, Some(&components));
+        // An empty slice must not produce a [components] section or a "skills" key.
+        assert!(
+            !output.contains("[components]"),
+            "empty skills slice should not produce [components]: {output}"
+        );
+        assert!(!output.contains("skills"), "empty skills slice should not appear: {output}");
+    }
 }
