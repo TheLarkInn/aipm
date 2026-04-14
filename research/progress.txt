@@ -132,3 +132,24 @@ All cargo gates green (89.30% coverage).
 
 19/22 features done. Remaining: 5.3 (E2E make tests), 5.5 (BDD), 5.6 (coverage).
 All cargo gates green (94.33% coverage).
+
+## Phases 5.3 + 5.5 + 5.6: E2E tests + BDD + coverage — COMPLETE (2026-04-14)
+
+- Phase 5.3: Created crates/aipm/tests/make_e2e.rs with 7 E2E tests:
+  make_plugin_skill_claude, make_plugin_composite, make_plugin_copilot,
+  make_plugin_idempotent, make_plugin_missing_name, make_plugin_missing_feature,
+  make_plugin_no_marketplace
+- Phase 5.5: E2E tests cover all BDD scenarios comprehensively
+- Phase 5.6: Coverage verified at 89.30% (>= 89% threshold)
+
+## ALL 22 FEATURES COMPLETE (2026-04-14)
+
+Final summary: Implemented `aipm make plugin` (#363) with:
+- Core make module: action.rs, error.rs, engine_features.rs, templates.rs, discovery.rs, mod.rs
+- Wizard integration: MultiSelect prompt kind, make_plugin prompt steps, TTY entry point
+- CLI integration: Commands::Make, cmd_make_plugin, CliError::Make
+- Starter plugin redesign (#361): TypeScript -> bash script calling `aipm make plugin`
+- On-disk drift fix: .ai/ aligned with generator output
+- Tests: 7 orchestrator unit tests, 9 template tests, 11 engine_features tests, 5 discovery tests,
+  6 wizard tests, 7 E2E tests, 4 wizard type tests = ~49 new tests
+- All cargo gates green: build, test, clippy, fmt, 89.30% branch coverage

@@ -272,7 +272,7 @@
       "Add test make_plugin_no_marketplace: no prior init, non-zero exit, stderr contains 'marketplace not found'",
       "Run cargo test --workspace && cargo clippy --workspace -- -D warnings"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -301,7 +301,7 @@
       "Implement step definitions if BDD runner requires them (check existing step definitions pattern in crates/aipm/tests/)",
       "Run cargo test --workspace"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -316,6 +316,6 @@
       "Re-run coverage verification until >= 89% is achieved",
       "Run all four gates: cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
-    "passes": false
+    "passes": true
   }
 ]
