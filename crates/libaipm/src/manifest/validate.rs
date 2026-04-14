@@ -39,7 +39,15 @@ pub fn check_name(name: &str, mode: ValidationMode) -> Result<(), String> {
     if is_valid_name(name, mode) {
         Ok(())
     } else {
-        Err("Must be lowercase alphanumeric with hyphens".to_string())
+        let msg = match mode {
+            ValidationMode::Strict => {
+                "Must be lowercase alphanumeric with hyphens, e.g. my-plugin or @org/my-plugin"
+            },
+            ValidationMode::Interactive => {
+                "Must be lowercase alphanumeric with hyphens (or empty to use the default)"
+            },
+        };
+        Err(msg.to_string())
     }
 }
 
