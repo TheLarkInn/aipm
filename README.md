@@ -210,7 +210,11 @@ aipm list [OPTIONS]
 
 ### `aipm lint`
 
-Check AI plugin configurations for quality issues across all detected source directories.
+Check AI plugin configurations and instruction files for quality issues across all detected
+source directories. `aipm lint` covers `skill/`, `agent/`, `hook/`, `plugin/`,
+`marketplace/`, `instructions/`, and `source/` categories — including checks on
+`CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, and
+`*.instructions.md` files anywhere in the project tree.
 
 ```
 aipm lint [OPTIONS] [DIR]
