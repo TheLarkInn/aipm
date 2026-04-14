@@ -133,4 +133,23 @@ aipm-pack init [OPTIONS] [DIR]
 | `--name <NAME>` | Package name (defaults to directory name) |
 | `--type <TYPE>` | Plugin type: `skill`, `agent`, `mcp`, `hook`, `lsp`, `composite` |
 
-See also: [`aipm-pack init`](../../README.md#aipm-pack-init), [Manifest format](../../README.md#manifest-format-aipmtoml), [`docs/guides/local-development.md`](./local-development.md).
+## AI-assisted scaffolding
+
+If your project was initialized with `aipm init`, it includes the **starter plugin**,
+which provides a `scaffold-plugin` skill. You can use this to create a new plugin
+through natural language instead of the CLI:
+
+> "Create a new plugin called `code-reviewer`"
+
+The AI agent will invoke the bundled `scaffold-plugin.ts` script and report the created
+file tree. The result is identical to running `aipm-pack init --name code-reviewer` but
+happens entirely through the assistant.
+
+See [`.ai/starter-aipm-plugin/README.md`](../../.ai/starter-aipm-plugin/README.md) for
+details on the starter plugin's skills, agents, and hooks.
+
+## See also
+
+- [`aipm-pack init`](../../README.md#aipm-pack-init) — CLI reference
+- [Manifest format](../../README.md#manifest-format-aipmtoml) — `aipm.toml` schema
+- [`docs/guides/local-development.md`](./local-development.md) — link and test without publishing

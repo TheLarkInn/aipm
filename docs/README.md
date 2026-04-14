@@ -8,7 +8,7 @@ How-to guides for common tasks:
 
 | Guide | Description |
 |-------|-------------|
-| [Creating a Plugin](guides/creating-a-plugin.md) | Scaffold a new plugin package with `aipm-pack init` |
+| [Creating a Plugin](guides/creating-a-plugin.md) | Scaffold a new plugin package with `aipm-pack init` or the starter plugin's `scaffold-plugin` skill |
 | [Installing from Git](guides/install-git-plugin.md) | Install plugins from GitHub or any git repository |
 | [Installing from Local Paths](guides/install-local-plugin.md) | Install plugins from your local filesystem |
 | [Installing from Marketplaces](guides/install-marketplace-plugin.md) | Install plugins from curated marketplace repos |
