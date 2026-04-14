@@ -68,4 +68,4 @@ source = "path+../my-plugin"
 
 ---
 
-See also: [`aipm install`](../../README.md#aipm-install), [`docs/guides/local-development.md`](./local-development.md), [`docs/guides/install-marketplace-plugin.md`](./install-marketplace-plugin.md), [`docs/guides/install-git-plugin.md`](./install-git-plugin.md).
+See also: [`aipm install`](../../README.md#aipm-install), [`docs/guides/local-development.md`](./local-development.md), [`docs/guides/install-marketplace-plugin.md`](./install-marketplace-plugin.md), [`docs/guides/install-git-plugin.md`](./install-git-plugin.md), [`docs/guides/uninstall.md`](./uninstall.md).
