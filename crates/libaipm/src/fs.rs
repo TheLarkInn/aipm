@@ -504,6 +504,22 @@ mod tests {
         assert!(file.exists());
     }
 
+    #[test]
+    fn write_file_with_parents_empty_parent_skips_create_dir_all() {
+        // When path has a bare filename (parent = Some("")), create_dir_all must
+        // NOT be called. Use a CWD-change guarded by a mutex so parallel tests
+        // don't interfere, and call through Real so LLVM coverage registers it.
+        static CWD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = CWD_LOCK.lock().expect("CWD_LOCK");
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let orig = std::env::current_dir().expect("current_dir");
+        std::env::set_current_dir(tmp.path()).expect("set_current_dir");
+        let result = Real.write_file_with_parents(Path::new("bare_file.txt"), b"data");
+        std::env::set_current_dir(&orig).expect("restore current_dir");
+        assert!(result.is_ok());
+        assert!(tmp.path().join("bare_file.txt").exists());
+    }
+
     // ---- read_or_default tests (JSON) ----
 
     #[derive(Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -574,6 +590,28 @@ mod tests {
         let result: std::io::Result<TestToml> = read_toml_or_default(&Real, &path);
         assert!(result.is_err());
         assert_eq!(result.err().map(|e| e.kind()), Some(std::io::ErrorKind::InvalidData));
+    }
+
+    #[test]
+    fn read_or_default_returns_err_on_non_not_found_io_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        // Reading a directory path as a file returns a non-NotFound I/O error (EISDIR).
+        let path = tmp.path().join("i_am_a_dir");
+        std::fs::create_dir_all(&path).expect("create dir");
+        let result: std::io::Result<TestJson> = read_or_default(&Real, &path);
+        assert!(result.is_err());
+        assert_ne!(result.err().map(|e| e.kind()), Some(std::io::ErrorKind::NotFound));
+    }
+
+    #[test]
+    fn read_toml_or_default_returns_err_on_non_not_found_io_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        // Reading a directory path as a file returns a non-NotFound I/O error (EISDIR).
+        let path = tmp.path().join("i_am_a_dir");
+        std::fs::create_dir_all(&path).expect("create dir");
+        let result: std::io::Result<TestToml> = read_toml_or_default(&Real, &path);
+        assert!(result.is_err());
+        assert_ne!(result.err().map(|e| e.kind()), Some(std::io::ErrorKind::NotFound));
     }
 
     #[test]
