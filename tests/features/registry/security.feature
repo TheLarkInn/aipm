@@ -7,7 +7,7 @@ Feature: Package security and integrity
   Rule: Integrity verification
 
     Scenario: Published packages include integrity checksums
-      When the user runs "aipm-pack publish"
+      When the user runs "aipm publish"
       Then the registry stores a SHA-256 checksum of the archive
       And the lockfile records the integrity hash
 
@@ -41,18 +41,18 @@ Feature: Package security and integrity
   Rule: Authentication and authorization
 
     Scenario: Login stores credentials securely
-      When the user runs "aipm-pack login"
+      When the user runs "aipm login"
       And provides valid credentials
       Then an API token is stored in the local credential store
       And the token file has restricted permissions
 
     Scenario: Publish requires authentication
       Given the user is not authenticated
-      When the user runs "aipm-pack publish"
+      When the user runs "aipm publish"
       Then the command fails with "authentication required"
 
     Scenario: Scoped packages respect org permissions
       Given the user is a member of org "myorg"
       But does not have publish permission for "@myorg/restricted"
-      When the user runs "aipm-pack publish" for "@myorg/restricted"
+      When the user runs "aipm publish" for "@myorg/restricted"
       Then the command fails with "insufficient permissions"

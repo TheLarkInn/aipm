@@ -1,7 +1,7 @@
 //! BDD test harness — cucumber-rs step implementations for all `.feature` files.
 //!
-//! Steps implemented here execute the actual `aipm` and `aipm-pack` binaries
-//! and verify their behavior against the Gherkin specifications.
+//! Steps implemented here execute the actual `aipm` binary and verify its
+//! behavior against the Gherkin specifications.
 //!
 //! Scenarios with no matching step implementation are reported as **skipped**,
 //! giving a clear progress view of what's wired up vs. pending.
@@ -105,14 +105,8 @@ fn run_command(world: &mut AipmWorld, full_cmd: &str, working_dir: Option<&str>)
     let mut cmd = Command::cargo_bin(binary)
         .unwrap_or_else(|e| panic!("cargo bin '{binary}' not found: {e}"));
 
-    // For "aipm-pack init" in a dir, pass the dir as the positional arg
-    if binary == "aipm-pack" && args.first() == Some(&"init") && working_dir.is_some() {
-        cmd.args(args);
-        cmd.arg(cwd.to_str().unwrap());
-    } else {
-        cmd.args(args);
-        cmd.current_dir(&cwd);
-    }
+    cmd.args(args);
+    cmd.current_dir(&cwd);
 
     let output = cmd.output().expect("execute command");
     world.last_stdout = String::from_utf8_lossy(&output.stdout).to_string();

@@ -49,3 +49,13 @@
   - Then the plugin.json in {string} in {string} contains {string}
   - Then the plugin {string} has a {string} directory in {string}
 - All 74 BDD scenarios pass, coverage 93.71%
+
+## Phases 5.2-5.3, 6.1-6.5: Cleanup and documentation updates — COMPLETE
+- Phase 5.2: Removed aipm-pack special-case routing in bdd.rs, updated doc comment
+- Phase 5.3: Updated 7 aspirational BDD feature files (zero aipm-pack references remaining)
+- Phase 6.1: CLAUDE.md project structure updated (aipm-pack line removed)
+- Phase 6.2: Updated doc comments in lib.rs, init.rs (wizard.rs already done)
+- Phase 6.3: README.md updated (binary table, project structure, roadmap, feature flags)
+- Phase 6.4: Updated 4 documentation guides (creating-a-plugin, make-plugin, init, docs/README)
+- Phase 6.5: Simplified update-latest-release.yml condition, removed aipm-pack from docs-updater.md
+- All tests pass, coverage 89.12%

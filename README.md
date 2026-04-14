@@ -5,14 +5,13 @@
 
 A production-grade package manager for AI plugin primitives (skills, agents, MCP servers, hooks). Think npm/Cargo, but purpose-built for the AI plugin ecosystem.
 
-AIPM ships as **two Rust binaries** with **zero runtime dependencies**:
+AIPM ships as a **single Rust binary** with **zero runtime dependencies**:
 
 | Binary | Role | Commands |
 |--------|------|----------|
-| **`aipm`** | Consumer CLI | `init`, `install`, `update`, `uninstall`, `link`, `unlink`, `list`, `lint`, `migrate`, `lsp` |
-| **`aipm-pack`** | Author CLI | `init` |
+| **`aipm`** | CLI | `init`, `install`, `update`, `uninstall`, `link`, `unlink`, `list`, `lint`, `migrate`, `make`, `pack`, `lsp` |
 
-Both work across .NET, Python, Node.js, and Rust projects with no runtime dependency.
+It works across .NET, Python, Node.js, and Rust projects with no runtime dependency.
 
 ## Install
 
@@ -311,16 +310,16 @@ See also: [`docs/guides/vscode-extension.md`](docs/guides/vscode-extension.md) f
 
 ---
 
-## `aipm-pack` — Author CLI
+## `aipm pack` — Author Commands
 
-Scaffolds new plugin packages for publishing.
+Pack commands are available under the `aipm pack` subcommand.
 
-### `aipm-pack init`
+### `aipm pack init`
 
 Create a new AI plugin package with manifest and conventional directory layout.
 
 ```
-aipm-pack init [OPTIONS] [DIR]
+aipm pack init [OPTIONS] [DIR]
 ```
 
 | Flag | Description |
@@ -337,7 +336,7 @@ See also: [`docs/guides/creating-a-plugin.md`](docs/guides/creating-a-plugin.md)
 
 ## `libaipm` — Core Library
 
-Shared library powering both CLIs. All logic lives here; the binaries are thin wrappers.
+Shared library powering the CLI. All logic lives here; the binary is a thin wrapper.
 
 ### Modules
 
@@ -346,7 +345,7 @@ Shared library powering both CLIs. All logic lives here; the binaries are thin w
 | `manifest` | Parse, validate, and load `aipm.toml` manifests |
 | `manifest::types` | Schema types: `Manifest`, `Package`, `Workspace`, `Components`, `Environment`, `DependencySpec` |
 | `manifest::validate` | Name format, semver, dependency version, component path validation |
-| `init` | Plugin package scaffolding (`aipm-pack init`) |
+| `init` | Plugin package scaffolding (`aipm pack init`) |
 | `workspace_init` | Workspace + `.ai/` marketplace scaffolding (`aipm init`) |
 | `workspace_init::adaptors` | Tool-specific config writers (Claude Code; Copilot/Cursor planned) |
 | `workspace` | Workspace root discovery and `[workspace].members` glob expansion |
@@ -372,7 +371,7 @@ Shared library powering both CLIs. All logic lives here; the binaries are thin w
 | `logging` | Layered `tracing` subscriber initialization (stderr verbosity + rotating file log) |
 | `generate` | Centralised JSON generation for `marketplace.json`, `plugin.json`, and `settings.json` (unified read-modify-write helpers used by `workspace_init` and `migrate`) |
 | `make` | Idempotent plugin scaffolding pipeline (`aipm make plugin`) — orchestrates `generate`, `manifest`, and `init` into a 9-step action sequence |
-| `wizard` | Shared wizard types and theming for interactive CLI prompts; gated behind the `wizard` feature flag (required by `aipm` and `aipm-pack`) |
+| `wizard` | Shared wizard types and theming for interactive CLI prompts; gated behind the `wizard` feature flag (required by `aipm`) |
 | `frontmatter` | YAML front-matter parsing for plugin files |
 | `fs` | Trait-based filesystem abstraction (`Real` + test mocking) |
 | `version` | Crate version constant |
@@ -495,8 +494,7 @@ See [Editor schema support](docs/guides/configuring-lint.md#editor-schema-suppor
 
 ```
 crates/
-  aipm/         Consumer CLI binary (init, install, update, uninstall, link, unlink, list, lint, migrate, lsp)
-  aipm-pack/    Author CLI binary (init)
+  aipm/         CLI binary (init, install, update, uninstall, link, unlink, list, lint, migrate, make, pack, lsp)
   libaipm/      Core library (manifest, validation, migration, scaffolding, lint, install, link, resolve)
 vscode-aipm/    VS Code extension (lint diagnostics, completions, hover for aipm.toml)
 specs/          Technical design documents
@@ -520,9 +518,9 @@ The following features are defined as BDD scenarios and tracked as open issues. 
 ### Registry
 
 - **Install** — `aipm install` with semver resolution, content-addressable store, integrity verification, strict isolation ([#5](https://github.com/TheLarkInn/aipm/issues/5))
-- **Publish** — `aipm-pack pack` / `publish` with `.aipm` archives, dry-run, file allowlist, size limits ([#6](https://github.com/TheLarkInn/aipm/issues/6))
+- **Publish** — `aipm pack` / `publish` with `.aipm` archives, dry-run, file allowlist, size limits ([#6](https://github.com/TheLarkInn/aipm/issues/6))
 - **Security** — checksums, tamper detection, `aipm audit`, auth, scoped org permissions ([#7](https://github.com/TheLarkInn/aipm/issues/7))
-- **Yank** — `aipm-pack yank` / un-yank, deprecation messages ([#8](https://github.com/TheLarkInn/aipm/issues/8))
+- **Yank** — `aipm yank` / un-yank, deprecation messages ([#8](https://github.com/TheLarkInn/aipm/issues/8))
 - **Link** — `aipm link` / `unlink` for local dev overrides ([#9](https://github.com/TheLarkInn/aipm/issues/9))
 - **Local + Registry Coexistence** — directory links, gitignore management, vendoring ([#10](https://github.com/TheLarkInn/aipm/issues/10))
 
@@ -561,7 +559,7 @@ The following features are defined as BDD scenarios and tracked as open issues. 
 
 7. **No dependency isolation.** Everything in `apm_modules/` is accessible to everything else. Phantom dependencies go undetected. AIPM enforces strict isolation — only declared dependencies are accessible.
 
-8. **Minimal security.** No lifecycle script blocking (any package runs arbitrary code), no `audit` command, no principle-of-least-privilege binary split. AIPM blocks scripts by default, ships separate consumer/author binaries, and plans advisory-based auditing.
+8. **Minimal security.** No lifecycle script blocking (any package runs arbitrary code), no `audit` command, no principle-of-least-privilege binary split. AIPM blocks scripts by default, separates consumer and author commands, and plans advisory-based auditing.
 
 9. **No transfer format.** Packages are raw git repos — no archive format, no file allowlist, no secrets exclusion. AIPM uses deterministic `.aipm` archives (gzip tar) with sorted files, zeroed timestamps, and default secrets exclusion.
 

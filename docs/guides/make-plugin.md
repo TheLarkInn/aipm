@@ -2,7 +2,7 @@
 
 `aipm make plugin` scaffolds a new plugin directly inside your workspace's existing `.ai/` marketplace. Use it when you want to add a plugin to a project that was already initialized with `aipm init`.
 
-> **Tip:** If you want to create a standalone, publishable plugin package instead, use [`aipm-pack init`](creating-a-plugin.md).
+> **Tip:** If you want to create a standalone, publishable plugin package instead, use [`aipm pack init`](creating-a-plugin.md).
 
 ## Quick start
 
@@ -134,11 +134,11 @@ Claude engine settings (`.ai/.claude/settings.json`) are updated automatically. 
 |---------|--------------|
 | `aipm init` | Creates the workspace and empty marketplace |
 | `aipm make plugin` | Adds a new plugin **inside** an existing marketplace |
-| `aipm-pack init` | Creates a standalone, publishable plugin **package** |
+| `aipm pack init` | Creates a standalone, publishable plugin **package** |
 | `aipm install` | Installs a plugin from a registry, git, or local path |
 
 ## See also
 
 - [`docs/guides/init.md`](init.md) — workspace and marketplace setup
-- [`docs/guides/creating-a-plugin.md`](creating-a-plugin.md) — authoring a publishable package with `aipm-pack init`
+- [`docs/guides/creating-a-plugin.md`](creating-a-plugin.md) — authoring a publishable package with `aipm pack init`
 - [`docs/guides/local-development.md`](local-development.md) — iterating on a plugin locally with `aipm link`

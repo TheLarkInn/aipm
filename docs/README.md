@@ -1,6 +1,6 @@
 # Documentation
 
-Reference documentation for `aipm` and `aipm-pack`.
+Reference documentation for `aipm`.
 
 ## Guides
 
@@ -10,7 +10,7 @@ How-to guides for common tasks:
 |-------|-------------|
 | [Initializing a Workspace](guides/init.md) | Bootstrap a `.ai/` marketplace and tool settings with `aipm init` |
 | [Updating Plugins](guides/update.md) | Upgrade installed plugins with `aipm update` and understand the Cargo-model lockfile |
-| [Creating a Plugin](guides/creating-a-plugin.md) | Scaffold a new plugin package with `aipm-pack init` |
+| [Creating a Plugin](guides/creating-a-plugin.md) | Scaffold a new plugin package with `aipm pack init` |
 | [Installing from Git](guides/install-git-plugin.md) | Install plugins from GitHub or any git repository |
 | [Installing from Local Paths](guides/install-local-plugin.md) | Install plugins from your local filesystem |
 | [Installing from Marketplaces](guides/install-marketplace-plugin.md) | Install plugins from curated marketplace repos |
@@ -86,6 +86,6 @@ Quality rules enforced by `aipm lint`:
 
 ## See also
 
-- [README](../README.md) — full command reference for `aipm` and `aipm-pack`
+- [README](../README.md) — full command reference for `aipm`
 - [Manifest format](../README.md#manifest-format-aipmtoml) — `aipm.toml` schema
 - [Workspace lints](../README.md#workspace-root-manifest) — `[workspace.lints]` configuration

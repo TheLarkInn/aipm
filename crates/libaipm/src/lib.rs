@@ -1,8 +1,8 @@
 //! Core library for AIPM — AI Plugin Manager.
 //!
-//! This crate contains the shared logic used by both the `aipm` consumer binary
-//! and the `aipm-pack` author binary: manifest parsing, dependency resolution,
-//! content-addressable store, lockfile management, and linking.
+//! This crate contains the shared logic used by the `aipm` binary: manifest
+//! parsing, dependency resolution, content-addressable store, lockfile
+//! management, and linking.
 
 pub mod acquirer;
 pub mod cache;

@@ -10,7 +10,7 @@ Feature: Compositional reuse of plugin internals
     Scenario: Publish a standalone skill as a package
       Given a package "code-review-skill" containing only a SKILL.md
       And the manifest declares the component type as "skill"
-      When the user runs "aipm-pack publish"
+      When the user runs "aipm publish"
       Then the package is published to the registry as a reusable skill
 
     Scenario: Depend on a published skill in another plugin
@@ -32,7 +32,7 @@ Feature: Compositional reuse of plugin internals
     Scenario: Publish a standalone agent definition
       Given a package "reviewer-agent" containing an agent markdown file
       And the manifest declares the component type as "agent"
-      When the user runs "aipm-pack publish"
+      When the user runs "aipm publish"
       Then the package is published as a reusable agent
 
     Scenario: Compose a plugin from multiple agent dependencies
@@ -48,7 +48,7 @@ Feature: Compositional reuse of plugin internals
     Scenario: Publish an MCP server configuration as a package
       Given a package "sqlite-mcp" containing an MCP server definition
       And the manifest declares the component type as "mcp"
-      When the user runs "aipm-pack publish"
+      When the user runs "aipm publish"
       Then the package is published as a reusable MCP server definition
 
     Scenario: Depend on a shared MCP server
@@ -61,7 +61,7 @@ Feature: Compositional reuse of plugin internals
     Scenario: Publish a hook configuration as a package
       Given a package "security-hooks" containing hook definitions
       And the manifest declares the component type as "hook"
-      When the user runs "aipm-pack publish"
+      When the user runs "aipm publish"
       Then the package is published as a reusable hook set
 
     Scenario: Multiple plugins can depend on the same hook package
@@ -85,7 +85,7 @@ Feature: Compositional reuse of plugin internals
         agents = ["agents/ci-runner.md"]
         hooks = ["hooks/pre-push.json"]
         """
-      When the user runs "aipm-pack publish"
+      When the user runs "aipm publish"
       Then the composite package is published with all components
 
     Scenario: Consumer selectively uses components from a composite package

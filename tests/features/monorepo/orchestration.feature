@@ -46,7 +46,7 @@ Feature: Monorepo orchestrator integration
 
     Scenario: Run a command across all workspace members
       Given a workspace with 3 plugin members
-      When the user runs "aipm-pack lint --workspace"
+      When the user runs "aipm lint --workspace"
       Then lint is executed for each workspace member
       And results are reported per-member
 
@@ -98,7 +98,7 @@ Feature: Monorepo orchestrator integration
 
     Scenario: Prevent workspace member from publishing with workspace-only deps
       Given a workspace member referencing a workspace dependency
-      When the user runs "aipm-pack publish" from the member directory
+      When the user runs "aipm publish" from the member directory
       Then the command fails unless all workspace references are resolved to real versions
 
   Rule: Workspace protocol for inter-package references
@@ -118,7 +118,7 @@ Feature: Monorepo orchestrator integration
     Scenario: Workspace protocol is replaced on publish
       Given workspace member "cli" depends on "core" with workspace protocol "*"
       And "core" is at version "2.3.0"
-      When the user runs "aipm-pack publish" from the "cli" directory
+      When the user runs "aipm publish" from the "cli" directory
       Then the published manifest replaces workspace reference with "2.3.0"
 
     Scenario: Workspace protocol with caret is rejected
@@ -176,7 +176,7 @@ Feature: Monorepo orchestrator integration
     Scenario: Catalog references are replaced on publish
       Given a member depending on "common-skill" via "catalog:"
       And the catalog defines "common-skill" as "^2.0.0"
-      When the user runs "aipm-pack publish" from the member directory
+      When the user runs "aipm publish" from the member directory
       Then the published manifest contains "common-skill" at "^2.0.0"
 
     Scenario: Catalog enforces version consistency across members
@@ -189,7 +189,7 @@ Feature: Monorepo orchestrator integration
 
     Scenario: Filter commands by package name pattern
       Given a workspace with members "plugin-auth", "plugin-lint", "plugin-format"
-      When the user runs "aipm-pack lint --filter 'plugin-*'"
+      When the user runs "aipm lint --filter 'plugin-*'"
       Then lint runs for all three members
 
     Scenario: Filter commands by directory path
@@ -216,6 +216,6 @@ Feature: Monorepo orchestrator integration
 
     Scenario: Exclude packages from filter
       Given a workspace with members "plugin-a", "plugin-b", "plugin-c"
-      When the user runs "aipm-pack lint --filter '!plugin-c'"
+      When the user runs "aipm lint --filter '!plugin-c'"
       Then lint runs for "plugin-a" and "plugin-b"
       But not for "plugin-c"

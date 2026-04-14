@@ -97,8 +97,7 @@ Verify the following in `README.md`:
 1. **Install commands** — Do the listed install URLs and scripts match the
    latest release artifacts?
 2. **CLI usage table** — Does the binary/command table match the actual
-   binaries and subcommands in `crates/aipm/src/main.rs` and
-   `crates/aipm-pack/src/main.rs`?
+   subcommands in `crates/aipm/src/main.rs`?
 3. **Feature descriptions** — Do high-level feature descriptions match the
    current capabilities in the source code?
 

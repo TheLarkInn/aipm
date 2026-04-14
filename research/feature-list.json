@@ -178,7 +178,7 @@
       "Run `cargo test -p libaipm --test bdd` to verify BDD tests still pass",
       "Run `cargo clippy --workspace -- -D warnings`"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
@@ -201,7 +201,7 @@
       "Verify no remaining references: grep -r 'aipm-pack' tests/features/ should return zero results",
       "Run `cargo test --workspace` to ensure no breakage"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
@@ -215,7 +215,7 @@
       "Run `cargo build --workspace` to verify no build impact",
       "Run `cargo fmt --check`"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
@@ -227,7 +227,7 @@
       "Run `cargo doc --workspace --no-deps` to verify docs generate cleanly",
       "Run `cargo clippy --workspace -- -D warnings`"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
@@ -242,7 +242,7 @@
       "Update the CLI table (around line 13) \u2014 remove aipm-pack row, add 'pack init' to aipm row",
       "Verify no remaining 'aipm-pack' references in README.md: grep 'aipm-pack' README.md should return zero lines"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
@@ -254,7 +254,7 @@
       "Read docs/README.md \u2014 update references to aipm-pack (3 occurrences)",
       "Verify no remaining 'aipm-pack' references in docs/: grep -r 'aipm-pack' docs/ should return zero lines"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
@@ -266,7 +266,7 @@
       "Recompile the docs-updater workflow: run `gh aw compile docs-updater` and commit both the .md source and .lock.yml together",
       "Verify no remaining 'aipm-pack' references in workflows: grep -r 'aipm-pack' .github/workflows/ (excluding .lock.yml files which are auto-generated)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
