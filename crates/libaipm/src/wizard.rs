@@ -1,8 +1,7 @@
-//! Shared wizard types and theming for interactive CLI prompts.
+//! Shared wizard types, theming, and prompt execution for interactive CLI prompts.
 //!
 //! Gated behind the `wizard` feature flag because it depends on `inquire`.
-//! Both the `aipm` and `aipm-pack` binaries enable this feature and import
-//! these types instead of defining their own.
+//! The `aipm` binary enables this feature for interactive wizard flows.
 
 /// Describes a single prompt step in the wizard.
 #[derive(Debug)]
@@ -70,6 +69,84 @@ pub fn styled_render_config() -> inquire::ui::RenderConfig<'static> {
     config
 }
 
+/// Execute a sequence of prompt steps against a real terminal via `inquire`.
+///
+/// Each [`PromptStep`] is dispatched to the corresponding `inquire` prompt type.
+/// Text prompts with `validate: true` use
+/// [`crate::manifest::validate::check_name()`] in `Interactive` mode.
+/// Returns one [`PromptAnswer`] per step, in order.
+pub fn execute_prompts(
+    steps: &[PromptStep],
+) -> Result<Vec<PromptAnswer>, Box<dyn std::error::Error>> {
+    let mut answers = Vec::with_capacity(steps.len());
+
+    for step in steps {
+        let answer = match &step.kind {
+            PromptKind::Select { options, default_index } => {
+                let mut prompt = inquire::Select::new(step.label, options.clone())
+                    .with_starting_cursor(*default_index);
+                if let Some(help) = step.help {
+                    prompt = prompt.with_help_message(help);
+                }
+                let choice = prompt.prompt()?;
+                let index = options.iter().position(|o| *o == choice).ok_or_else(|| {
+                    format!(
+                        "internal error: selected choice `{choice}` not found in options for prompt `{}`",
+                        step.label
+                    )
+                })?;
+                PromptAnswer::Selected(index)
+            },
+            PromptKind::Confirm { default } => {
+                let mut prompt = inquire::Confirm::new(step.label).with_default(*default);
+                if let Some(help) = step.help {
+                    prompt = prompt.with_help_message(help);
+                }
+                let result = prompt.prompt()?;
+                PromptAnswer::Bool(result)
+            },
+            PromptKind::Text { placeholder, validate } => {
+                let mut prompt = inquire::Text::new(step.label).with_placeholder(placeholder);
+                if let Some(help) = step.help {
+                    prompt = prompt.with_help_message(help);
+                }
+                if *validate {
+                    prompt = prompt.with_validator(|input: &str| {
+                        match crate::manifest::validate::check_name(
+                            input,
+                            crate::manifest::validate::ValidationMode::Interactive,
+                        ) {
+                            Ok(()) => Ok(inquire::validator::Validation::Valid),
+                            Err(msg) => Ok(inquire::validator::Validation::Invalid(msg.into())),
+                        }
+                    });
+                }
+                let result = prompt.prompt()?;
+                PromptAnswer::Text(result)
+            },
+            PromptKind::MultiSelect { options, defaults } => {
+                let mut prompt = inquire::MultiSelect::new(step.label, options.clone());
+                let default_indices: Vec<usize> = defaults
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, &d)| if d { Some(i) } else { None })
+                    .collect();
+                prompt = prompt.with_default(&default_indices);
+                if let Some(help) = step.help {
+                    prompt = prompt.with_help_message(help);
+                }
+                let selected = prompt.prompt()?;
+                let indices: Vec<usize> =
+                    selected.iter().filter_map(|s| options.iter().position(|o| o == s)).collect();
+                PromptAnswer::MultiSelected(indices)
+            },
+        };
+        answers.push(answer);
+    }
+
+    Ok(answers)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -116,5 +193,13 @@ mod tests {
         let config = styled_render_config();
         // Just verify it doesn't panic and returns a config
         let _ = format!("{:?}", config.prompt_prefix);
+    }
+
+    #[test]
+    fn execute_prompts_empty_steps_returns_empty_vec() {
+        let result = execute_prompts(&[]);
+        assert!(result.is_ok());
+        let answers = result.unwrap_or_default();
+        assert!(answers.is_empty());
     }
 }
