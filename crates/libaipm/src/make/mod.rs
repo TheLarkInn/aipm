@@ -662,4 +662,342 @@ mod tests {
             "both engine should produce PluginEnabled action"
         );
     }
+
+    #[test]
+    fn make_plugin_output_style_feature() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "style-plugin",
+            engine: "claude",
+            features: &[Feature::OutputStyle],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        // Verify output-styles directory was created
+        assert!(
+            result.actions.iter().any(|a| matches!(
+                a,
+                Action::DirectoryCreated { path } if path.to_string_lossy().contains("output-styles")
+            )),
+            "expected DirectoryCreated for output-styles"
+        );
+
+        // Verify the style markdown file was written
+        assert!(
+            result.actions.iter().any(|a| matches!(
+                a,
+                Action::FileWritten { description, .. } if description == "Output style"
+            )),
+            "expected FileWritten for Output style"
+        );
+
+        // Verify plugin.json was written
+        let plugin_json_path =
+            marketplace_dir.join("style-plugin").join(".claude-plugin").join("plugin.json");
+        let content = fs.get_content(&plugin_json_path);
+        assert!(content.is_some(), "plugin.json should exist");
+
+        // Verify the summary action lists output-style
+        assert!(
+            result.actions.iter().any(|a| matches!(
+                a,
+                Action::PluginCreated { features, .. } if features.contains(&"output-style".to_string())
+            )),
+            "PluginCreated should list output-style feature"
+        );
+    }
+
+    #[test]
+    fn make_plugin_lsp_feature() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "lsp-plugin",
+            engine: "copilot",
+            features: &[Feature::Lsp],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        // Verify the LSP config file was written
+        assert!(
+            result.actions.iter().any(|a| matches!(
+                a,
+                Action::FileWritten { description, .. } if description == "LSP server config"
+            )),
+            "expected FileWritten for LSP server config"
+        );
+
+        // Verify .lsp.json content
+        let lsp_path = marketplace_dir.join("lsp-plugin").join(".lsp.json");
+        let content = fs.get_content(&lsp_path);
+        assert!(content.is_some(), ".lsp.json should exist");
+        let content = content.unwrap_or_default();
+        assert!(content.contains("lspServers"), ".lsp.json should contain lspServers");
+
+        // Copilot engine should NOT produce settings actions
+        assert!(
+            !result.actions.iter().any(|a| matches!(
+                a,
+                Action::PluginEnabled { .. } | Action::PluginAlreadyEnabled { .. }
+            )),
+            "copilot engine should not produce settings actions"
+        );
+    }
+
+    #[test]
+    fn make_plugin_extension_feature() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "ext-plugin",
+            engine: "copilot",
+            features: &[Feature::Extension],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        // Verify extensions directory was created
+        assert!(
+            result.actions.iter().any(|a| matches!(
+                a,
+                Action::DirectoryCreated { path } if path.to_string_lossy().contains("extensions")
+            )),
+            "expected DirectoryCreated for extensions"
+        );
+
+        // Verify the .gitkeep placeholder was written
+        assert!(
+            result.actions.iter().any(|a| matches!(
+                a,
+                Action::FileWritten { description, .. } if description == "Extension placeholder"
+            )),
+            "expected FileWritten for Extension placeholder"
+        );
+
+        // Verify .gitkeep file exists and is empty
+        let gitkeep_path = marketplace_dir.join("ext-plugin").join("extensions").join(".gitkeep");
+        let content = fs.get_content(&gitkeep_path);
+        assert!(content.is_some(), ".gitkeep should exist");
+        assert_eq!(content.unwrap_or_default(), "", ".gitkeep should be empty");
+    }
+
+    #[test]
+    fn make_plugin_mcp_feature() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "mcp-standalone",
+            engine: "claude",
+            features: &[Feature::Mcp],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        // Verify MCP config file was written
+        assert!(
+            result.actions.iter().any(|a| matches!(
+                a,
+                Action::FileWritten { description, .. } if description == "MCP server config"
+            )),
+            "expected FileWritten for MCP server config"
+        );
+
+        // Verify .mcp.json content
+        let mcp_path = marketplace_dir.join("mcp-standalone").join(".mcp.json");
+        let content = fs.get_content(&mcp_path);
+        assert!(content.is_some(), ".mcp.json should exist");
+        let content = content.unwrap_or_default();
+        assert!(content.contains("mcpServers"), ".mcp.json should contain mcpServers");
+
+        // MCP creates only a file, no extra feature directory — only the
+        // plugin dir and .claude-plugin dir should be DirectoryCreated.
+        let dir_created_count =
+            result.actions.iter().filter(|a| matches!(a, Action::DirectoryCreated { .. })).count();
+        assert_eq!(
+            dir_created_count, 2,
+            "MCP should produce exactly 2 DirectoryCreated (plugin dir + .claude-plugin)"
+        );
+    }
+
+    #[test]
+    fn make_plugin_already_registered_in_marketplace() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+
+        // Seed marketplace.json with the plugin already registered
+        let marketplace_json = marketplace_dir.join(".claude-plugin").join("marketplace.json");
+        let content = serde_json::json!({
+            "name": "test-marketplace",
+            "version": "0.1.0",
+            "plugins": [
+                { "name": "pre-registered", "description": "Already here" }
+            ]
+        });
+        fs.seed(&marketplace_json, content.to_string().as_bytes());
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "pre-registered",
+            engine: "copilot",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        // Should see PluginAlreadyRegistered instead of PluginRegistered
+        assert!(
+            result.actions.iter().any(|a| matches!(
+                a,
+                Action::PluginAlreadyRegistered { name } if name == "pre-registered"
+            )),
+            "expected PluginAlreadyRegistered for pre-registered"
+        );
+        assert!(
+            !result.actions.iter().any(
+                |a| matches!(a, Action::PluginRegistered { name, .. } if name == "pre-registered")
+            ),
+            "should NOT see PluginRegistered for pre-registered"
+        );
+    }
+
+    #[test]
+    fn make_plugin_already_enabled_in_settings() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs, marketplace_dir);
+
+        // Pre-create settings.json with the plugin already enabled
+        let settings_path = Path::new("/project/.claude/settings.json");
+        let settings = serde_json::json!({
+            "enabledPlugins": {
+                "already-enabled@test-marketplace": true
+            }
+        });
+        fs.seed(settings_path, settings.to_string().as_bytes());
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "already-enabled",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        // Should see PluginAlreadyEnabled instead of PluginEnabled
+        assert!(
+            result.actions.iter().any(|a| matches!(
+                a,
+                Action::PluginAlreadyEnabled { plugin_key } if plugin_key.contains("already-enabled")
+            )),
+            "expected PluginAlreadyEnabled for already-enabled"
+        );
+        assert!(
+            !result.actions.iter().any(|a| matches!(a, Action::PluginEnabled { .. })),
+            "should NOT see PluginEnabled when already enabled"
+        );
+    }
+
+    #[test]
+    fn read_marketplace_name_fallback_missing_file() {
+        let fs = MockFs::new();
+        let path = Path::new("/nonexistent/marketplace.json");
+        let name = read_marketplace_name(&fs, path);
+        assert_eq!(name, "local-repo-plugins");
+    }
+
+    #[test]
+    fn read_marketplace_name_fallback_invalid_json() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/marketplace.json");
+        fs.seed(path, b"not valid json {{{");
+        let name = read_marketplace_name(&fs, path);
+        assert_eq!(name, "local-repo-plugins");
+    }
+
+    #[test]
+    fn read_marketplace_name_fallback_missing_name_field() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/marketplace.json");
+        fs.seed(path, b"{\"version\": \"1.0\"}");
+        let name = read_marketplace_name(&fs, path);
+        assert_eq!(name, "local-repo-plugins");
+    }
+
+    #[test]
+    fn read_marketplace_name_returns_actual_name() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/marketplace.json");
+        fs.seed(path, b"{\"name\": \"my-custom-marketplace\"}");
+        let name = read_marketplace_name(&fs, path);
+        assert_eq!(name, "my-custom-marketplace");
+    }
+
+    #[test]
+    fn is_plugin_registered_returns_false_for_missing_file() {
+        let fs = MockFs::new();
+        let path = Path::new("/nonexistent/marketplace.json");
+        assert!(!is_plugin_registered(&fs, path, "any-plugin"));
+    }
+
+    #[test]
+    fn is_plugin_registered_returns_false_for_invalid_json() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/marketplace.json");
+        fs.seed(path, b"not json");
+        assert!(!is_plugin_registered(&fs, path, "any-plugin"));
+    }
+
+    #[test]
+    fn is_plugin_registered_returns_false_when_not_present() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/marketplace.json");
+        let content = serde_json::json!({
+            "plugins": [
+                { "name": "other-plugin" }
+            ]
+        });
+        fs.seed(path, content.to_string().as_bytes());
+        assert!(!is_plugin_registered(&fs, path, "my-plugin"));
+    }
+
+    #[test]
+    fn is_plugin_registered_returns_true_when_present() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/marketplace.json");
+        let content = serde_json::json!({
+            "plugins": [
+                { "name": "my-plugin" }
+            ]
+        });
+        fs.seed(path, content.to_string().as_bytes());
+        assert!(is_plugin_registered(&fs, path, "my-plugin"));
+    }
 }

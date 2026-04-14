@@ -255,3 +255,62 @@ fn make_plugin_no_marketplace() {
         .assert()
         .failure();
 }
+
+// =========================================================================
+// Scenario: Invalid engine produces an error
+// =========================================================================
+#[test]
+fn make_plugin_invalid_engine() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("bad-engine");
+
+    aipm().args(["init", "-y", &dir.display().to_string()]).assert().success();
+
+    aipm()
+        .args([
+            "make",
+            "plugin",
+            "--name",
+            "foo",
+            "--engine",
+            "foobar",
+            "--feature",
+            "skill",
+            "-y",
+            "--dir",
+            &dir.display().to_string(),
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::is_match("(?i)invalid engine").unwrap());
+}
+
+// =========================================================================
+// Scenario: Feature not valid for the chosen engine
+// =========================================================================
+#[test]
+fn make_plugin_invalid_feature_for_engine() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("bad-feature");
+
+    aipm().args(["init", "-y", &dir.display().to_string()]).assert().success();
+
+    // lsp is not supported by claude engine
+    aipm()
+        .args([
+            "make",
+            "plugin",
+            "--name",
+            "foo",
+            "--engine",
+            "claude",
+            "--feature",
+            "lsp",
+            "-y",
+            "--dir",
+            &dir.display().to_string(),
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::is_match("(?i)(not supported|unsupported)").unwrap());
+}
