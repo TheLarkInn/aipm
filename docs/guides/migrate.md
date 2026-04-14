@@ -249,6 +249,19 @@ These files are not moved automatically. Resolve them manually after migration b
 copying the file into the plugin directory and updating the reference in
 `SKILL.md`.
 
+## Error Reference
+
+| Error | Cause | Resolution |
+|-------|-------|------------|
+| `marketplace directory does not exist at <path>` | `.ai/.claude-plugin/` is missing | Run `aipm init --marketplace` first |
+| `source directory does not exist: <path>` | The path passed to `--source` does not exist | Verify the path and re-run |
+| `unsupported source type '<src>'` | `--source` value is not `.claude` or `.github` | Use a supported source type |
+| `failed to parse marketplace.json at <path>: <detail>` | `marketplace.json` contains invalid JSON — `<detail>` includes the line and column | Fix the JSON manually or delete the file and re-run `aipm init --marketplace` |
+| `failed to parse SKILL.md frontmatter in <path>: <reason>` | A `SKILL.md` has malformed YAML frontmatter | Correct the frontmatter and re-run |
+| `failed to parse <path>: <reason>` | A JSON configuration file (e.g. `hooks.json`) is malformed | Fix the JSON and re-run |
+
+> **Tip**: Run `aipm migrate --dry-run` after fixing errors to confirm the plan before applying changes.
+
 ---
 
 See also: [`aipm migrate`](../../README.md#aipm-migrate), [`docs/guides/migrating-existing-configs.md`](./migrating-existing-configs.md), [`docs/guides/creating-a-plugin.md`](./creating-a-plugin.md), [`docs/guides/lint.md`](./lint.md).
