@@ -183,6 +183,123 @@ pub const fn resolve_migrate_cleanup_answer(answers: &[PromptAnswer]) -> bool {
 }
 
 // =============================================================================
+// Make plugin prompts — compiled under test until `aipm make` wires them in
+// =============================================================================
+
+/// Engine select options for `aipm make plugin`.
+#[cfg(test)]
+const ENGINE_OPTIONS: &[&str] = &["Claude Code", "Copilot CLI", "Both"];
+
+/// Build wizard prompt steps for `aipm make plugin`, skipping prompts
+/// whose values are already provided via CLI flags.
+#[cfg(test)]
+pub fn make_plugin_prompt_steps(
+    flag_name: Option<&str>,
+    flag_engine: Option<&str>,
+    flag_features: &[String],
+    engine_feature_labels: &[&'static str],
+    engine_feature_defaults: &[bool],
+) -> Vec<PromptStep> {
+    let mut steps = Vec::new();
+
+    if flag_name.is_none() {
+        steps.push(PromptStep {
+            label: "Plugin name",
+            kind: PromptKind::Text { placeholder: "my-plugin".to_string(), validate: true },
+            help: Some("Lowercase, hyphens allowed"),
+        });
+    }
+
+    if flag_engine.is_none() {
+        steps.push(PromptStep {
+            label: "Target engine",
+            kind: PromptKind::Select { options: ENGINE_OPTIONS.to_vec(), default_index: 0 },
+            help: Some("Which AI coding tool will this plugin target?"),
+        });
+    }
+
+    if flag_features.is_empty() {
+        steps.push(PromptStep {
+            label: "AI features to include",
+            kind: PromptKind::MultiSelect {
+                options: engine_feature_labels.to_vec(),
+                defaults: engine_feature_defaults.to_vec(),
+            },
+            help: Some("Select the features for your plugin"),
+        });
+    }
+
+    steps
+}
+
+/// Map an engine select index to the engine CLI string.
+#[cfg(test)]
+const fn engine_from_index(index: usize) -> &'static str {
+    match index {
+        0 => "claude",
+        1 => "copilot",
+        _ => "both",
+    }
+}
+
+/// Map raw prompt answers back to typed values for `aipm make plugin`.
+///
+/// Consumes answers in the same conditional order as
+/// [`make_plugin_prompt_steps`], using an `idx` counter that only
+/// advances for prompts that were actually shown.
+#[cfg(test)]
+pub fn resolve_make_plugin_answers(
+    answers: &[PromptAnswer],
+    flag_name: Option<&str>,
+    flag_engine: Option<&str>,
+    flag_features: &[String],
+    feature_cli_names: &[&str],
+) -> (String, String, Vec<String>) {
+    let mut idx = 0;
+
+    // Name
+    let name = flag_name.map_or_else(
+        || {
+            let result = match answers.get(idx) {
+                Some(PromptAnswer::Text(t)) => t.clone(),
+                _ => String::new(),
+            };
+            idx += 1;
+            result
+        },
+        str::to_string,
+    );
+
+    // Engine
+    let engine = flag_engine.map_or_else(
+        || {
+            let result = match answers.get(idx) {
+                Some(PromptAnswer::Selected(i)) => engine_from_index(*i).to_string(),
+                _ => "claude".to_string(),
+            };
+            idx += 1;
+            result
+        },
+        str::to_string,
+    );
+
+    // Features
+    let features = if flag_features.is_empty() {
+        match answers.get(idx) {
+            Some(PromptAnswer::MultiSelected(indices)) => indices
+                .iter()
+                .filter_map(|&i| feature_cli_names.get(i).map(|s| (*s).to_string()))
+                .collect(),
+            _ => Vec::new(),
+        }
+    } else {
+        flag_features.to_vec()
+    };
+
+    (name, engine, features)
+}
+
+// =============================================================================
 // Tests
 // =============================================================================
 
@@ -542,5 +659,78 @@ mod tests {
         assert!(!output.contains("Validate: marketplace-name"));
         assert!(!output.contains("Help:"));
         assert!(output.contains("placeholder: \"placeholder\""));
+    }
+
+    // =========================================================================
+    // Make plugin prompt steps
+    // =========================================================================
+
+    #[test]
+    fn make_plugin_steps_all_flags_set() {
+        let steps = make_plugin_prompt_steps(
+            Some("foo"),
+            Some("claude"),
+            &["skill".to_string()],
+            &["Skills"],
+            &[true],
+        );
+        assert!(steps.is_empty(), "all flags set = no prompts");
+    }
+
+    #[test]
+    fn make_plugin_steps_no_flags() {
+        let steps =
+            make_plugin_prompt_steps(None, None, &[], &["Skills", "Agents"], &[true, false]);
+        assert_eq!(steps.len(), 3);
+        assert_eq!(steps[0].label, "Plugin name");
+        assert_eq!(steps[1].label, "Target engine");
+        assert_eq!(steps[2].label, "AI features to include");
+    }
+
+    #[test]
+    fn make_plugin_steps_name_only() {
+        let steps = make_plugin_prompt_steps(Some("already-set"), None, &[], &["Skills"], &[true]);
+        assert_eq!(steps.len(), 2);
+        assert_eq!(steps[0].label, "Target engine");
+        assert_eq!(steps[1].label, "AI features to include");
+    }
+
+    #[test]
+    fn resolve_make_plugin_from_flags() {
+        let (name, engine, features) = resolve_make_plugin_answers(
+            &[],
+            Some("my-plugin"),
+            Some("copilot"),
+            &["skill".to_string(), "agent".to_string()],
+            &[],
+        );
+        assert_eq!(name, "my-plugin");
+        assert_eq!(engine, "copilot");
+        assert_eq!(features, vec!["skill", "agent"]);
+    }
+
+    #[test]
+    fn resolve_make_plugin_from_answers() {
+        let answers = vec![
+            PromptAnswer::Text("test-plug".to_string()),
+            PromptAnswer::Selected(1), // Copilot
+            PromptAnswer::MultiSelected(vec![0, 2]),
+        ];
+        let cli_names = &["skill", "agent", "mcp"];
+        let (name, engine, features) =
+            resolve_make_plugin_answers(&answers, None, None, &[], cli_names);
+        assert_eq!(name, "test-plug");
+        assert_eq!(engine, "copilot");
+        assert_eq!(features, vec!["skill", "mcp"]);
+    }
+
+    #[test]
+    fn resolve_make_plugin_engine_both() {
+        let answers = vec![
+            PromptAnswer::Selected(2), // Both
+        ];
+        let (_, engine, _) =
+            resolve_make_plugin_answers(&answers, Some("x"), None, &["skill".to_string()], &[]);
+        assert_eq!(engine, "both");
     }
 }

@@ -80,3 +80,14 @@ in libaipm::wizard. Updated match arms in 4 files:
 - crates/aipm-pack/src/wizard.rs (debug formatter)
 
 4 wizard tests passing. All cargo gates green (94.36% coverage).
+
+## Phase 2.2: make_plugin wizard prompt steps + resolver — COMPLETE (2026-04-14)
+
+Added to crates/aipm/src/wizard.rs:
+- ENGINE_OPTIONS constant ("Claude Code", "Copilot CLI", "Both")
+- make_plugin_prompt_steps() — builds wizard steps, skips flags that are set
+- engine_from_index() — maps Select index to engine CLI string
+- resolve_make_plugin_answers() — maps raw PromptAnswer to (name, engine, features)
+
+Note: Functions are #[cfg(test)] gated until the `aipm make` command is wired in.
+6 unit tests passing. All cargo gates green (94.38% coverage).
