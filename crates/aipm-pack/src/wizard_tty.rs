@@ -90,6 +90,22 @@ fn execute_prompts(steps: &[PromptStep]) -> Result<Vec<PromptAnswer>, Box<dyn st
                 })?;
                 PromptAnswer::Selected(index)
             },
+            PromptKind::MultiSelect { options, defaults } => {
+                let mut prompt = inquire::MultiSelect::new(step.label, options.clone());
+                let default_indices: Vec<usize> = defaults
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, &d)| if d { Some(i) } else { None })
+                    .collect();
+                prompt = prompt.with_default(&default_indices);
+                if let Some(help) = step.help {
+                    prompt = prompt.with_help_message(help);
+                }
+                let selected = prompt.prompt()?;
+                let indices: Vec<usize> =
+                    selected.iter().filter_map(|s| options.iter().position(|o| o == s)).collect();
+                PromptAnswer::MultiSelected(indices)
+            },
         };
         answers.push(answer);
     }

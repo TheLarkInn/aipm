@@ -46,7 +46,7 @@ Feature: Workspace initialization
     When the user runs "aipm init --marketplace" in "my-project"
     Then a file ".ai/starter-aipm-plugin/.claude-plugin/plugin.json" exists in "my-project"
     And a file ".ai/starter-aipm-plugin/skills/scaffold-plugin/SKILL.md" exists in "my-project"
-    And a file ".ai/starter-aipm-plugin/scripts/scaffold-plugin.ts" exists in "my-project"
+    And a file ".ai/starter-aipm-plugin/scripts/scaffold-plugin.sh" exists in "my-project"
     And a file ".ai/starter-aipm-plugin/agents/marketplace-scanner.md" exists in "my-project"
     And a file ".ai/starter-aipm-plugin/hooks/hooks.json" exists in "my-project"
     And a file ".ai/starter-aipm-plugin/.mcp.json" exists in "my-project"
@@ -70,7 +70,7 @@ Feature: Workspace initialization
   Scenario: Starter plugin includes a scaffold script
     Given an empty directory "my-project"
     When the user runs "aipm init --marketplace" in "my-project"
-    Then a file ".ai/starter-aipm-plugin/scripts/scaffold-plugin.ts" exists in "my-project"
+    Then a file ".ai/starter-aipm-plugin/scripts/scaffold-plugin.sh" exists in "my-project"
 
   Scenario: No-starter flag creates bare marketplace directory
     Given an empty directory "my-project"

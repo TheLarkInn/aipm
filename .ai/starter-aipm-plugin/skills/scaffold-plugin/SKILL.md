@@ -12,13 +12,13 @@ Create a new plugin in the `.ai/` marketplace directory.
 1. Ask the user for a plugin name (lowercase, hyphens allowed) if not provided.
 2. Run the scaffolding script:
    ```bash
-   node --experimental-strip-types .ai/starter-aipm-plugin/scripts/scaffold-plugin.ts <plugin-name>
+   bash .ai/starter-aipm-plugin/scripts/scaffold-plugin.sh <plugin-name>
    ```
 3. Report the created file tree to the user.
-4. Suggest next steps: edit the generated `SKILL.md`, add agents or hooks, update `aipm.toml`.
+4. Suggest next steps: edit the generated `SKILL.md`, add agents or hooks.
 
 ## Notes
 
-- The script creates `.ai/<plugin-name>/` with a valid `aipm.toml` and starter skill.
-- If the directory already exists, the script exits with an error message.
-- After scaffolding, the user should customize the generated files.
+- The script creates `.ai/<plugin-name>/` with starter plugin files, including a starter skill.
+- If the directory already exists, `aipm make plugin` is idempotent (reports existing files without failing).
+- After scaffolding, customize the scaffolded plugin files as needed.

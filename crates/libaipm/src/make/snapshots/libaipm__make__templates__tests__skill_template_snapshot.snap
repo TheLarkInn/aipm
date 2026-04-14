@@ -1,0 +1,13 @@
+---
+source: crates/libaipm/src/make/templates.rs
+assertion_line: 78
+expression: content
+---
+---
+name: my-plugin
+description: "TODO: Describe my-plugin"
+---
+
+# my-plugin
+
+Add your skill instructions here.

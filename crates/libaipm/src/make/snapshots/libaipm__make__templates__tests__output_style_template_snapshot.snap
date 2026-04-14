@@ -1,0 +1,10 @@
+---
+source: crates/libaipm/src/make/templates.rs
+assertion_line: 102
+expression: content
+---
+---
+name: my-plugin
+---
+
+Add your output style definition here.

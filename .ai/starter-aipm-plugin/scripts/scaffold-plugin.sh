@@ -1,8 +1,3 @@
----
-source: crates/libaipm/src/workspace_init/mod.rs
-assertion_line: 718
-expression: content
----
 #!/usr/bin/env bash
 set -euo pipefail
 # Scaffold a new AI plugin using the aipm CLI.

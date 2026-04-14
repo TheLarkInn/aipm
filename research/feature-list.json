@@ -1,423 +1,320 @@
 [
   {
-    "category": "refactor",
-    "description": "Phase 1.1a: Add write_file_with_parents() default method to Fs trait",
+    "category": "functional",
+    "description": "Phase 1.1: Create make/action.rs — Central Action enum with 9 variants for idempotent scaffolding actions",
     "steps": [
-      "Read crates/libaipm/src/fs.rs to understand existing Fs trait surface",
-      "Add default method write_file_with_parents(&self, path: &Path, content: &[u8]) -> io::Result<()> that calls self.create_dir_all(parent) then self.write_file(path, content)",
-      "Verify MockFs inherits the default implementation automatically",
-      "Add unit tests for write_file_with_parents: happy path, path with no parent, nested dirs",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
+      "Create new file crates/libaipm/src/make/action.rs",
+      "Define Action enum with variants: DirectoryCreated, DirectoryAlreadyExists, FileWritten, FileAlreadyExists, PluginRegistered, PluginAlreadyRegistered, PluginEnabled, PluginAlreadyEnabled, PluginCreated",
+      "Each variant carries PathBuf/String fields as specified in spec section 5.5",
+      "Derive Debug, Clone, PartialEq, Eq on the enum",
+      "Use std::path::PathBuf for path fields, String for name/description/engine fields, Vec<String> for features field on PluginCreated",
+      "Run cargo build --workspace to verify compilation",
+      "Run cargo clippy --workspace -- -D warnings to verify lint compliance",
+      "Run cargo fmt --check to verify formatting"
     ],
     "passes": true
   },
   {
-    "category": "refactor",
-    "description": "Phase 1.1b: Add read_or_default<T>() and read_toml_or_default<T>() default methods to Fs trait",
+    "category": "functional",
+    "description": "Phase 1.2: Create make/error.rs — Error enum for make operations with thiserror derives",
     "steps": [
-      "Read crates/libaipm/src/fs.rs to understand existing read methods",
-      "Add default method read_or_default<T: Default + DeserializeOwned>(&self, path) that JSON-deserializes or returns T::default() on NotFound",
-      "Add default method read_toml_or_default<T: Default + DeserializeOwned>(&self, path) that TOML-deserializes or returns T::default() on NotFound",
-      "Add serde and serde_json imports to fs.rs (verify they are already in libaipm Cargo.toml dependencies)",
-      "Add unit tests: file exists with valid JSON/TOML, file does not exist returns default, file exists with invalid content returns error",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
+      "Create new file crates/libaipm/src/make/error.rs",
+      "Define Error enum with variants: MarketplaceNotFound, InvalidName(String), UnsupportedFeature { feature, engine }, InvalidEngine(String), InvalidFeature(String), MissingFlag(String), Io(#[from] std::io::Error), Json(#[from] serde_json::Error)",
+      "Use #[derive(Debug, thiserror::Error)] and #[error(...)] attributes matching spec section 5.8",
+      "Verify thiserror is already a dependency in crates/libaipm/Cargo.toml; add if needed",
+      "Run cargo build --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
     "passes": true
   },
   {
-    "category": "refactor",
-    "description": "Phase 1.1c: Migrate lockfile/mod.rs from std::fs to &dyn Fs",
+    "category": "functional",
+    "description": "Phase 1.3: Create make/engine_features.rs — Feature enum with engine-to-feature mapping matrix and validation",
     "steps": [
-      "Read crates/libaipm/src/lockfile/mod.rs to understand current std::fs usage (read_to_string, write, create_dir_all)",
-      "Add fs: &dyn Fs parameter to pub fn read() and pub fn write() signatures",
-      "Replace std::fs::read_to_string with fs.read_to_string()",
-      "Replace std::fs::create_dir_all + std::fs::write with fs.write_file_with_parents()",
-      "Update all callers in crates/aipm/src/main.rs to pass &fs::Real",
-      "Add MockFs-based unit test verifying the filesystem interaction",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 1.1d: Migrate linker/link_state.rs from std::fs to &dyn Fs",
-    "steps": [
-      "Read crates/libaipm/src/linker/link_state.rs to understand current std::fs usage",
-      "Add fs: &dyn Fs parameter to read(), write(), add(), remove(), clear_all(), list() signatures",
-      "Replace std::fs::read_to_string + NotFound default with fs.read_toml_or_default::<State>()",
-      "Replace std::fs::create_dir_all + std::fs::write with fs.write_file_with_parents()",
-      "Update all callers in linker/ and crates/aipm/src/main.rs to pass &dyn Fs",
-      "Add MockFs-based unit tests alongside existing tempdir tests",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 1.1e: Migrate linker/gitignore.rs from std::fs to &dyn Fs",
-    "steps": [
-      "Read crates/libaipm/src/linker/gitignore.rs to understand current std::fs usage",
-      "Add fs: &dyn Fs parameter to public functions",
-      "Replace std::fs::read_to_string with fs.read_to_string()",
-      "Replace std::fs::create_dir_all + std::fs::write with fs.write_file_with_parents()",
-      "Update all callers to pass &dyn Fs",
-      "Add MockFs-based unit test for gitignore file operations",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 1.1f: Migrate installer/manifest_editor.rs and installer/pipeline.rs from std::fs to &dyn Fs",
-    "steps": [
-      "Read crates/libaipm/src/installer/manifest_editor.rs to understand current std::fs usage",
-      "Read crates/libaipm/src/installer/pipeline.rs to understand current std::fs usage",
-      "Add fs: &dyn Fs parameter to public functions in both modules",
-      "Replace std::fs::read_to_string with fs.read_to_string() and std::fs::write with fs.write_file()",
-      "Update all callers in crates/aipm/src/main.rs to pass &fs::Real",
-      "Add MockFs-based unit tests for both modules",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 1.1g: Migrate workspace/mod.rs and manifest/mod.rs from std::fs to &dyn Fs",
-    "steps": [
-      "Read crates/libaipm/src/workspace/mod.rs to understand current std::fs usage",
-      "Read crates/libaipm/src/manifest/mod.rs to understand current std::fs usage",
-      "Add fs: &dyn Fs parameter to public functions that use std::fs::read_to_string",
-      "Replace std::fs::read_to_string with fs.read_to_string()",
-      "Update all callers (main.rs, other modules) to pass &dyn Fs / &fs::Real",
-      "Add MockFs-based unit tests for both modules",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 1.1h: Migrate aipm/src/main.rs installed registry load to use fs.read_or_default()",
-    "steps": [
-      "Read crates/aipm/src/main.rs and locate load_installed_registry (around line 656)",
-      "Replace std::fs::read_to_string + manual NotFound handling with fs.read_or_default::<InstalledRegistry>(path)?",
-      "Ensure &fs::Real is available at the call site",
-      "Verify existing tests still pass",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 1.2: Create manifest/builder.rs with toml_edit-based TOML generation",
-    "steps": [
-      "Read crates/libaipm/src/manifest/types.rs to understand Manifest, Package, Components structs",
-      "Read existing TOML generation paths: init.rs:187, workspace_init/mod.rs:166+275, migrate/emitter.rs:1080-1113",
-      "Create crates/libaipm/src/manifest/builder.rs with PluginManifestOpts, PluginComponentsOpts, WorkspaceManifestOpts structs",
-      "Implement build_plugin_manifest() using toml_edit::DocumentMut with [package] and optional [components] sections",
-      "Implement build_workspace_manifest() using toml_edit::DocumentMut with [workspace] section and optional header comments",
-      "Add pub mod builder to crates/libaipm/src/manifest/mod.rs",
-      "Write snapshot-style unit tests comparing output against expected TOML strings for plugin and workspace manifests",
-      "Test edge cases: optional description absent, empty component arrays, special characters in names",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 1.2b: Migrate init.rs to use manifest/builder.rs and delete generate_manifest()",
-    "steps": [
-      "Read crates/libaipm/src/init.rs:187-203 to capture current generate_manifest() output as snapshot",
-      "Replace generate_manifest() body with call to manifest::builder::build_plugin_manifest()",
-      "Convert DocumentMut to string via .to_string() and write via fs.write_file()",
-      "Delete the old generate_manifest() function (lines 187-203)",
-      "Verify snapshot test matches (modulo intentional formatting improvements)",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 1.2c: Migrate workspace_init/mod.rs to use manifest/builder.rs",
-    "steps": [
-      "Read workspace_init/mod.rs:166-180 (generate_workspace_manifest) and capture output snapshot",
-      "Read workspace_init/mod.rs:275-290 (generate_starter_manifest) and capture output snapshot",
-      "Replace generate_workspace_manifest() with call to manifest::builder::build_workspace_manifest()",
-      "Replace generate_starter_manifest() with call to manifest::builder::build_plugin_manifest() with components",
-      "Delete old generate_workspace_manifest() and generate_starter_manifest() functions",
-      "Verify snapshot tests match for both paths",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 1.2d: Migrate migrate/emitter.rs to use manifest/builder.rs and delete PluginToml structs",
-    "steps": [
-      "Read migrate/emitter.rs:1080-1110 to understand private PluginToml, PluginPackage, PluginComponents structs",
-      "Read migrate/emitter.rs:1113 generate_plugin_manifest() and capture output snapshot",
-      "Replace generate_plugin_manifest() with call to manifest::builder::build_plugin_manifest() with components",
-      "Delete private PluginToml, PluginPackage, PluginComponents structs (lines 1080-1110)",
-      "Verify snapshot test matches for emitter TOML output",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 1.3: Consolidate name validation into manifest/validate.rs with ValidationMode",
-    "steps": [
-      "Read crates/libaipm/src/manifest/validate.rs:14-52 to understand canonical is_valid_name + is_valid_segment",
-      "Read crates/libaipm/src/init.rs:99-128 to understand duplicate is_valid_package_name",
-      "Read crates/aipm/src/wizard.rs:211 to understand validate_marketplace_name (char-set only)",
-      "Read crates/aipm-pack/src/wizard.rs:168 to understand validate_package_name (char-set only)",
-      "Add ValidationMode enum (Strict, Interactive) to manifest/validate.rs",
-      "Extend is_valid_name() to accept ValidationMode parameter: Strict applies full rules, Interactive applies char-set only and allows empty",
-      "Update init.rs to call manifest::validate::is_valid_name(name, ValidationMode::Strict) and delete is_valid_package_name + is_valid_segment (lines 99-128)",
-      "Update aipm/wizard.rs to call manifest::validate::is_valid_name(name, ValidationMode::Interactive) and delete validate_marketplace_name",
-      "Update aipm-pack/wizard.rs to call manifest::validate::is_valid_name(name, ValidationMode::Interactive) and delete validate_package_name",
-      "Add unit tests for both validation modes including edge cases",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 1.4a: Create CliError enum for aipm binary",
-    "steps": [
-      "Read crates/aipm/src/main.rs to identify all error types used in run() function and the ~15 .to_string() + io::Error::other() conversions",
-      "Create crates/aipm/src/error.rs with CliError enum containing #[from] variants for each library error type (workspace_init::Error, lint::LintError, migrate::MigrateError, installer::InstallError, linker::LinkError, io::Error, etc.)",
-      "Add mod error to crates/aipm/src/main.rs",
-      "Change run() return type from Result<(), Box<dyn std::error::Error>> to Result<(), CliError>",
-      "Replace .to_string() + io::Error::other() conversions with ? operator through #[from] conversions",
-      "Add unit tests verifying From conversions compile and work",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 1.4b: Create CliError enum for aipm-pack binary",
-    "steps": [
-      "Read crates/aipm-pack/src/main.rs to identify error types used in run()",
-      "Create crates/aipm-pack/src/error.rs with CliError enum containing #[from] variants for init::InitError, io::Error",
-      "Add mod error to crates/aipm-pack/src/main.rs",
-      "Change run() return type from Result<(), Box<dyn std::error::Error>> to Result<(), CliError>",
-      "Replace manual error conversions with ? operator",
-      "Add unit tests verifying From conversions",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 2.1: Create generate/ module directory and mod.rs",
-    "steps": [
-      "Create directory crates/libaipm/src/generate/",
-      "Create crates/libaipm/src/generate/mod.rs with pub mod plugin_json; pub mod marketplace; pub mod settings;",
-      "Add pub mod generate to crates/libaipm/src/lib.rs",
-      "Run cargo build --workspace to verify module structure compiles"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 2.2: Create unified plugin.json generation (generate/plugin_json.rs) and fix #356",
-    "steps": [
-      "Read workspace_init/mod.rs:294 generate_plugin_json() to understand minimal output (name, version, description, author only)",
-      "Read migrate/emitter.rs:1183 generate_plugin_json_multi() to understand full output (with skills, agents, hooks, etc.)",
-      "Create crates/libaipm/src/generate/plugin_json.rs with PluginJsonOpts and PluginJsonComponents structs",
-      "Implement generate_plugin_json(opts, components: Option<&PluginJsonComponents>) that builds a serde_json::Map and serializes with trailing newline",
-      "When components is Some, include skills/agents/mcp_servers/hooks/output_styles/lsp_servers/extensions arrays",
-      "Update workspace_init/mod.rs:294 to call generate::plugin_json::generate_plugin_json(opts, Some(components)) with starter plugin skill+agent — THIS FIXES #356",
-      "Update migrate/emitter.rs:1183 to call generate::plugin_json::generate_plugin_json(opts, Some(components))",
-      "Delete old generate_plugin_json() from workspace_init/mod.rs and generate_plugin_json_multi() from emitter.rs",
-      "Add unit tests: with components, without components, empty component arrays, special characters",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 2.3: Create unified marketplace.json read-modify-write (generate/marketplace.rs)",
-    "steps": [
-      "Read migrate/registrar.rs:10 register_plugins() to understand Rust marketplace.json RMW with dedup check",
-      "Read workspace_init/mod.rs:477 generate_marketplace_json() to understand init-time marketplace creation",
-      "Create crates/libaipm/src/generate/marketplace.rs with PluginEntry struct",
-      "Implement register_plugin(fs, path, entry) that reads marketplace.json (or creates default), checks for duplicate by name, adds/updates entry, writes back",
-      "Implement unregister_plugin(fs, path, plugin_name) that removes entry by name",
-      "Update migrate/registrar.rs to call generate::marketplace::register_plugin() in a loop",
-      "Update workspace_init/mod.rs:477 to call generate::marketplace::register_plugin()",
-      "Add unit tests: register new plugin, register duplicate (update), unregister existing, unregister nonexistent, create from scratch",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 2.4: Create unified settings.json read-modify-write (generate/settings.rs)",
-    "steps": [
-      "Read workspace_init/adaptors/claude.rs:61 to understand Rust settings.json handling (extraKnownMarketplaces + enabledPlugins)",
-      "Create crates/libaipm/src/generate/settings.rs",
-      "Implement add_known_marketplace(fs, settings_path, marketplace_path) that reads/creates settings.json and adds to extraKnownMarketplaces array",
-      "Implement enable_plugin(fs, settings_path, plugin_name) that adds to enabledPlugins array",
-      "Both functions handle file-not-exists by creating default structure",
-      "Update workspace_init/adaptors/claude.rs:61 to call generate::settings functions instead of inline JSON manipulation",
-      "Add unit tests: add marketplace to empty file, add to existing, add duplicate (no-op), enable plugin",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 2.5: Unify YAML frontmatter parsing — migrate/skill_common.rs delegates to frontmatter.rs",
-    "steps": [
-      "Read crates/libaipm/src/frontmatter.rs:39 to understand canonical parser (returns Frontmatter with all fields, line numbers, body)",
-      "Read crates/libaipm/src/migrate/skill_common.rs:13 to understand independent parser (returns ArtifactMetadata with name, description, hooks, disable-model-invocation)",
-      "Identify all callers of skill_common.rs parse functions in migrate/",
-      "Refactor callers to use frontmatter::parse() and extract the 4 needed fields (name, description, hooks, disable-model-invocation) from the Frontmatter result",
-      "Delete the independent parsing logic from skill_common.rs (or delete skill_common.rs entirely if no non-parsing helpers remain)",
-      "Add tests verifying the migrated callers produce identical ArtifactMetadata from frontmatter::parse()",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 3.1a: Verify check_file() parity with check() across all lint rules",
-    "steps": [
-      "Run grep -r 'fn check(' crates/libaipm/src/lint/rules/ to count exact number of rules implementing check()",
-      "Read crates/libaipm/src/lint/discovery.rs discover_features() to verify it classifies all file types that scan.rs would find",
-      "Run the full test suite: cargo test --workspace to confirm all existing tests pass",
-      "Compare check() and check_file() outputs by examining test coverage for each rule",
-      "Document any discrepancies found between check() and check_file() results",
-      "If discrepancies exist, fix check_file() implementations to match check() before proceeding"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 3.1b: Remove check() from Rule trait and delete scan.rs",
-    "steps": [
-      "Read crates/libaipm/src/lint/rule.rs to understand current Rule trait with both check() and check_file()",
-      "Remove the check() method from the Rule trait definition in rule.rs",
-      "Read crates/libaipm/src/lint/mod.rs to find the check() dispatch path and remove it",
-      "Delete all check() implementations from each lint rule file (18 rules)",
-      "Delete crates/libaipm/src/lint/rules/scan.rs entirely",
-      "Remove mod scan from crates/libaipm/src/lint/rules/mod.rs",
-      "Remove any scan.rs imports from rule files",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check",
-      "Verify branch coverage is still >= 89%"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 3.2: Consolidate lint rule helpers — shared locate_json_key() and diag() in rules/mod.rs",
-    "passes": true,
-    "steps": [
-      "Read crates/libaipm/src/lint/rules/hook_unknown_event.rs:21 to capture locate_json_key() implementation",
-      "Read crates/libaipm/src/lint/rules/hook_legacy_event.rs:15 to confirm identical implementation",
-      "Move locate_json_key() to crates/libaipm/src/lint/rules/mod.rs as pub(crate)",
-      "Read 4 marketplace/plugin rules to identify private diag() helpers",
-      "Create shared pub(crate) fn diag(rule_id, message, path, range, severity) -> Diagnostic in rules/mod.rs",
-      "Update hook_unknown_event.rs and hook_legacy_event.rs to import locate_json_key from mod.rs",
-      "Update 4 marketplace/plugin rules to import shared diag() from mod.rs",
-      "Delete the duplicate locate_json_key() from both hook rule files",
-      "Delete the 4 private diag() helpers from marketplace/plugin rules",
-      "Replace legacy inline MockFs in skill_missing_name.rs:125 with shared test_helpers::MockFs",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ]
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 3.3: Extract shared check_file() preamble helpers for skill, agent, and hook rules",
-    "steps": [
-      "Read 7 skill rules to identify the common preamble: source_type check + frontmatter::parse()",
-      "Create pub(crate) fn parse_skill_frontmatter(content, source_type) -> Option<Frontmatter> in rules/mod.rs",
-      "Create similar parse_agent_frontmatter() and parse_hook_json() helpers for agent and hook rules",
-      "Refactor 7 skill rules to use parse_skill_frontmatter() at the top of check_file()",
-      "Refactor agent rules to use parse_agent_frontmatter()",
-      "Refactor hook rules to use parse_hook_json()",
-      "Verify all lint rule tests still pass",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 4.1: Move wizard types to libaipm behind 'wizard' feature flag",
-    "steps": [
-      "Read crates/aipm/src/wizard.rs to capture PromptStep, PromptKind, PromptAnswer definitions and styled_render_config()",
-      "Read crates/aipm-pack/src/wizard.rs to confirm types are structurally identical",
-      "Add wizard feature flag to crates/libaipm/Cargo.toml: [features] wizard = ['dep:inquire'] and inquire = { workspace = true, optional = true }",
-      "Update crates/aipm/Cargo.toml and crates/aipm-pack/Cargo.toml to: libaipm = { path = '../libaipm', features = ['wizard'] }",
-      "Create crates/libaipm/src/wizard.rs gated with #[cfg(feature = 'wizard')]",
-      "Move PromptStep, PromptKind, PromptAnswer, and styled_render_config() into the new wizard.rs",
-      "Add #[cfg(feature = 'wizard')] pub mod wizard to crates/libaipm/src/lib.rs",
-      "Update crates/aipm/src/wizard.rs to import from libaipm::wizard and delete local type definitions",
-      "Update crates/aipm-pack/src/wizard.rs to import from libaipm::wizard and delete local type definitions",
-      "Delete validate_marketplace_name from aipm/wizard.rs and validate_package_name from aipm-pack/wizard.rs (replaced by manifest::validate calls)",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 4.2: Standardize error modules — move large inline error enums to dedicated error.rs files",
-    "steps": [
-      "Read crates/libaipm/src/lint/mod.rs to count LintError variants and determine if 3+ (needs error.rs)",
-      "Read crates/libaipm/src/migrate/mod.rs to count error variants",
-      "Read crates/libaipm/src/workspace_init/mod.rs to count error variants",
-      "For modules with 3+ variants: create dedicated error.rs, move the error enum there, add pub mod error and pub use error::Error re-export",
-      "For lint/mod.rs: create lint/error.rs and move LintError there",
-      "For migrate/mod.rs: create migrate/error.rs if 3+ variants",
-      "For workspace_init/mod.rs: create workspace_init/error.rs if 3+ variants",
-      "For all modules touched in this spec: replace explicit .map_err(|e| Error::Variant{...}) with #[from] where it's a 1:1 conversion",
-      "Verify init.rs and cache.rs keep inline errors (1-2 variants)",
-      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 4.3: Consolidate read-or-default pattern using Fs trait helpers",
-    "steps": [
-      "Read crates/aipm/src/main.rs around line 656 to verify load_installed_registry was migrated in Phase 1.1h",
-      "Read crates/libaipm/src/linker/link_state.rs:37 to verify it was migrated to fs.read_toml_or_default in Phase 1.1d",
-      "Confirm cache.rs:376 is documented as whole-module exception (no change needed)",
-      "Confirm linker/gitignore.rs:90 is documented as plain-text exception (no change needed)",
-      "Verify all B9 locations are now using shared helpers or documented as exceptions",
+      "Create new file crates/libaipm/src/make/engine_features.rs",
+      "Define Feature enum with 7 variants: Skill, Agent, Mcp, Hook, OutputStyle, Lsp, Extension",
+      "Derive Debug, Clone, Copy, PartialEq, Eq on Feature",
+      "Implement cli_name() returning static str: skill, agent, mcp, hook, output-style, lsp, extension",
+      "Implement label() returning static str for wizard prompts: 'Skills (prompt templates)', 'Agents (autonomous sub-agents)', 'MCP Servers (tool providers)', 'Hooks (lifecycle events)', 'Output Styles (response formatting)', 'LSP Servers (language intelligence)', 'Extensions (Copilot extensions)'",
+      "Implement from_cli_name(s: &str) -> Option<Feature> parsing CLI flag values",
+      "Implement features_for_engine(engine: &str) -> Vec<Feature> per the engine-feature matrix in spec section 5.3 — Claude: Skill/Agent/Mcp/Hook/OutputStyle; Copilot: Skill/Agent/Mcp/Hook/Lsp/Extension; Both: all 7",
+      "Implement validate_features(engine: &str, features: &[Feature]) -> Result<(), Vec<Feature>> that checks each feature is in the engine's supported set",
+      "Add unit tests: engine_features_claude, engine_features_copilot, engine_features_both, validate_features_rejects_lsp_for_claude, from_cli_name_roundtrip",
       "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Integration test: aipm init followed by aipm lint produces zero diagnostics (verifies #356 fix)",
+    "description": "Phase 1.4: Create make/templates.rs — Minimal lint-passing component template generators",
     "steps": [
-      "Create an integration test or cucumber feature that runs aipm init in a temp directory",
-      "Run aipm lint on the initialized workspace",
-      "Assert zero diagnostics are returned",
-      "Verify specifically that plugin.json contains component arrays (skills, agents) for the starter plugin",
-      "Verify that the starter plugin's SKILL.md and agent .md files have proper frontmatter",
-      "Run cargo test --workspace to verify integration test passes"
+      "Create new file crates/libaipm/src/make/templates.rs",
+      "Implement skill_template(name: &str) -> String — YAML frontmatter with name + description ('TODO: Describe <name>'), placeholder body instructions",
+      "Implement agent_template(name: &str) -> String — YAML frontmatter with name + description + tools: [], placeholder body",
+      "Implement mcp_template() -> String — JSON: {\"mcpServers\": {}}",
+      "Implement hook_template() -> String — JSON: {\"hooks\": []}",
+      "Implement output_style_template(name: &str) -> String — YAML frontmatter with name, placeholder body",
+      "Implement lsp_template() -> String — JSON: {\"lspServers\": {}}",
+      "Ensure all templates pass corresponding lint rules: skill/missing-name, skill/missing-description, skill/name-too-long, skill/description-too-long, hook/legacy-event-name, plugin/required-fields",
+      "Add snapshot tests: skill_template_snapshot, agent_template_snapshot, mcp_template_snapshot, hook_template_snapshot, output_style_template_snapshot, lsp_template_snapshot",
+      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
     "passes": true
   },
   {
-    "category": "refactor",
-    "description": "Final verification: full workspace health check with branch coverage gate",
+    "category": "functional",
+    "description": "Phase 1.5: Create make/discovery.rs — Walk-up marketplace finder that searches parent directories for .ai/",
     "steps": [
-      "Run cargo build --workspace",
-      "Run cargo test --workspace",
-      "Run cargo clippy --workspace -- -D warnings",
-      "Run cargo fmt --check",
-      "Run cargo +nightly llvm-cov clean --workspace",
-      "Run cargo +nightly llvm-cov --no-report --workspace --branch",
-      "Run cargo +nightly llvm-cov --no-report --doc",
-      "Run cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs|lsp\\.rs)'",
-      "Verify TOTAL branch column shows >= 89%",
-      "If coverage dropped below 89%, add targeted tests for uncovered branches in new/refactored code"
+      "Create new file crates/libaipm/src/make/discovery.rs",
+      "Implement find_marketplace(start_dir: &Path, fs: &dyn Fs) -> Result<PathBuf, Error>",
+      "Walk up from start_dir checking for .ai/.claude-plugin/marketplace.json at each level",
+      "Handle edge cases per spec section 5.4: .ai/ without marketplace.json (skip), permission denied (stop), root reached (MarketplaceNotFound with helpful error suggesting 'aipm init')",
+      "Add unit tests: find_marketplace_walks_up (MockFs with .ai/ two levels up), find_marketplace_not_found (MockFs with no .ai/), find_marketplace_skips_incomplete (MockFs with .ai/ but no marketplace.json)",
+      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Phase 1.6: Create make/mod.rs — MakePluginOpts, MakeResult structs and make_plugin() orchestrator function",
+    "steps": [
+      "Create new file crates/libaipm/src/make/mod.rs with pub mod declarations for action, error, engine_features, templates, discovery",
+      "Define MakePluginOpts<'a> struct: marketplace_dir, name, engine, features (as specified in spec section 5.6)",
+      "Define MakeResult struct with actions: Vec<Action>",
+      "Implement make_plugin(opts, fs) -> Result<MakeResult, Error> following the 10-step execution sequence in spec section 5.6",
+      "Step 1-2: Resolve plugin_dir, guard existing dir with DirectoryAlreadyExists idempotent early return",
+      "Step 3-4: Create plugin_dir and .claude-plugin/ subdirectory via fs.create_dir_all",
+      "Step 5: For each feature, create feature-specific directory and write template using templates module",
+      "Step 6: Generate and write plugin.json via generate::plugin_json::generate() with component paths for selected features",
+      "Step 7: Register in marketplace.json via generate::marketplace::register(), push PluginRegistered or PluginAlreadyRegistered",
+      "Step 8: If engine is claude or both, read/create .claude/settings.json, call generate::settings::enable_plugin(), push PluginEnabled. If copilot, no-op per NG4",
+      "Step 9: Push PluginCreated summary action",
+      "Add unit tests: make_plugin_creates_skill_plugin, make_plugin_creates_composite, make_plugin_idempotent, make_plugin_registers_in_marketplace, make_plugin_enables_in_settings, make_plugin_copilot_no_settings, make_plugin_both_engines",
+      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Phase 1.7: Register make module in lib.rs — Add pub mod make to crates/libaipm/src/lib.rs",
+    "steps": [
+      "Read crates/libaipm/src/lib.rs to find the module declaration section",
+      "Add 'pub mod make;' alongside existing module declarations",
+      "Ensure the module is unconditionally compiled (not feature-gated)",
+      "Run cargo build --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Phase 2.1: Add MultiSelect variant to PromptKind and MultiSelected to PromptAnswer in libaipm::wizard",
+    "steps": [
+      "Read crates/libaipm/src/wizard.rs to understand current PromptKind and PromptAnswer enums",
+      "Add MultiSelect { options: Vec<&'static str>, defaults: Vec<bool> } variant to PromptKind enum",
+      "Add MultiSelected(Vec<usize>) variant to PromptAnswer enum",
+      "Update existing tests in wizard.rs: add prompt_kind_variants test case for MultiSelect, add prompt_answer test case for MultiSelected",
+      "Ensure Debug derive still works for new variants",
+      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Phase 2.2: Add make_plugin wizard prompt steps and answer resolver to aipm::wizard",
+    "steps": [
+      "Read crates/aipm/src/wizard.rs to understand existing prompt step patterns (workspace_prompt_steps, resolve_workspace_answers)",
+      "Add ENGINE_OPTIONS constant: ['Claude Code', 'Copilot CLI', 'Both']",
+      "Implement make_plugin_prompt_steps(flag_name, flag_engine, flag_features, engine_feature_labels, engine_feature_defaults) -> Vec<PromptStep> per spec section 5.2.2",
+      "Conditionally include Name (Text, validate=true) if flag_name.is_none()",
+      "Conditionally include Engine (Select with ENGINE_OPTIONS, default_index 0) if flag_engine.is_none()",
+      "Conditionally include Features (MultiSelect with engine-filtered options) if flag_features.is_empty()",
+      "Implement resolve_make_plugin_answers(answers, flag_name, flag_engine, flag_features) -> (String, String, Vec<String>) using idx counter pattern",
+      "Map engine Select index to string: 0->claude, 1->copilot, 2->both",
+      "Map feature MultiSelected indices back to feature cli_name strings",
+      "Add unit tests: make_plugin_steps_all_flags_set, make_plugin_steps_no_flags, make_plugin_steps_name_only, resolve_make_plugin_from_flags, resolve_make_plugin_from_answers, resolve_make_plugin_claude_features, resolve_make_plugin_copilot_features",
+      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Phase 2.3: Add MultiSelect handler to wizard_tty.rs and resolve_make_plugin() entry point",
+    "steps": [
+      "Read crates/aipm/src/wizard_tty.rs to understand execute_prompts() dispatch pattern",
+      "Add PromptKind::MultiSelect branch to execute_prompts() per spec section 5.2.3: create inquire::MultiSelect, set defaults, handle help message, map selected labels back to indices, return PromptAnswer::MultiSelected",
+      "Implement resolve_make_plugin(interactive, flag_name, flag_engine, flag_features) -> Result<(String, String, Vec<String>), ...> entry point",
+      "Interactive path: two-phase execution — (1) execute name + engine prompts, resolve engine, (2) compute engine-filtered feature options via engine_features::features_for_engine, build feature MultiSelect step, execute, resolve all",
+      "Non-interactive path: validate required flags present (name, feature), default engine to 'claude', return directly",
+      "Return make::Error::MissingFlag for missing --name or --feature in non-interactive mode",
+      "Run cargo build --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Phase 3.1: Add Commands::Make variant to main.rs with positional arg and flat flags",
+    "steps": [
+      "Read crates/aipm/src/main.rs Commands enum to understand existing variant patterns",
+      "Add Make variant to Commands enum per spec section 5.1: what: String (#[arg(value_parser = [\"plugin\"])]), name: Option<String> (#[arg(long)]), engine: Option<String> (#[arg(long)]), feature: Vec<String> (#[arg(long)]), yes: bool (#[arg(short = 'y', long)]), dir: PathBuf (#[arg(long, default_value = \".\")])",
+      "Add #[command(about = \"Create new plugins and components\")] on the variant",
+      "Run cargo build --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Phase 3.2: Add Make variant to CliError enum",
+    "steps": [
+      "Read crates/aipm/src/error.rs to understand existing CliError variants and #[from] pattern",
+      "Add Make(#[from] libaipm::make::Error) variant with #[error(transparent)]",
+      "Run cargo build --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Phase 3.3: Implement cmd_make_plugin() handler and wire into run() dispatch",
+    "steps": [
+      "Read crates/aipm/src/main.rs cmd_init() (lines 329-376) as the pattern model",
+      "Implement cmd_make_plugin(name, engine, features, yes, dir) -> Result<(), CliError> following spec section 5.9",
+      "Step 1: resolve_dir(dir), compute interactive = !yes && stdin.is_terminal()",
+      "Step 2: Call wizard_tty::resolve_make_plugin() for value resolution",
+      "Step 3: Validate name via manifest::validate::check_name with ValidationMode::Strict",
+      "Step 4: Parse features via Feature::from_cli_name, validate via engine_features::validate_features",
+      "Step 5: Call make::discovery::find_marketplace() for marketplace discovery",
+      "Step 6: Construct MakePluginOpts and call make::make_plugin()",
+      "Step 7: Render actions to stdout using writeln! with match on each Action variant per spec section 5.9",
+      "Add match arm in run() for Some(Commands::Make { what, name, engine, feature, yes, dir }) per spec section 5.11: dispatch 'plugin' to cmd_make_plugin, error on unknown target",
+      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Phase 4.1: Replace generate_scaffold_script() TypeScript with bash script in workspace_init/mod.rs",
+    "steps": [
+      "Read crates/libaipm/src/workspace_init/mod.rs generate_scaffold_script() function (lines 327-416)",
+      "Replace the 88-line TypeScript string literal with the ~5-line bash script from spec section 5.10: #!/usr/bin/env bash, set -euo pipefail, aipm make plugin call",
+      "Update the file path in scaffold_marketplace() from scripts/scaffold-plugin.ts to scripts/scaffold-plugin.sh (line 234-236)",
+      "Update generate_starter_manifest() to change scripts component from scaffold-plugin.ts to scaffold-plugin.sh",
+      "Update plugin.json generation call if any component paths reference .ts",
+      "Update the existing scaffold_script_snapshot snap file to match new bash content",
+      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Phase 4.2: Update generate_skill_template() SKILL.md to reference aipm make plugin instead of node script",
+    "steps": [
+      "Read crates/libaipm/src/workspace_init/mod.rs generate_skill_template() function (lines 299-324)",
+      "Replace the SKILL.md content that instructs LLM to run 'node --experimental-strip-types scaffold-plugin.ts' with content from spec section 5.10: frontmatter (name: scaffold-plugin, description), body with aipm make plugin usage instructions and flag examples",
+      "Update the skill_definition_snapshot snap file to match the new SKILL.md content",
+      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Phase 4.3: Fix on-disk .ai/starter-aipm-plugin/ drift to match generator output",
+    "steps": [
+      "Read the current on-disk .ai/ files: .ai/.claude-plugin/marketplace.json, .ai/starter-aipm-plugin/.claude-plugin/plugin.json, .ai/starter-aipm-plugin/scripts/scaffold-plugin.ts, .ai/starter-aipm-plugin/skills/scaffold-plugin/SKILL.md",
+      "Replace .ai/starter-aipm-plugin/scripts/scaffold-plugin.ts with scripts/scaffold-plugin.sh containing the new bash script content",
+      "Update .ai/starter-aipm-plugin/skills/scaffold-plugin/SKILL.md to match the updated generate_skill_template() output",
+      "Update .ai/starter-aipm-plugin/.claude-plugin/plugin.json to add component keys (skills, agents, hooks paths) matching what the generator produces",
+      "Align .ai/.claude-plugin/marketplace.json marketplace name if it differs from the generator default",
+      "Remove the old .ai/starter-aipm-plugin/scripts/scaffold-plugin.ts file",
+      "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Phase 5.1: Add unit tests for make module — orchestrator, marketplace registration, settings enablement",
+    "steps": [
+      "Add test make_plugin_creates_skill_plugin in make/mod.rs: MockFs, call make_plugin with feature Skill, verify directory structure (.ai/<name>/, skills/<name>/SKILL.md, .claude-plugin/plugin.json), verify action list contains DirectoryCreated, FileWritten, PluginRegistered, PluginEnabled, PluginCreated",
+      "Add test make_plugin_creates_composite: features [Skill, Agent, Hook], verify all 3 feature directories created, plugin.json has all component paths",
+      "Add test make_plugin_idempotent: pre-create plugin dir in MockFs, call make_plugin, verify DirectoryAlreadyExists action returned, no other actions",
+      "Add test make_plugin_registers_in_marketplace: pre-create .ai/.claude-plugin/marketplace.json with empty plugins array, verify after make_plugin it contains the new entry",
+      "Add test make_plugin_enables_in_settings: pre-create .claude/settings.json, verify enabledPlugins key added",
+      "Add test make_plugin_copilot_no_settings: engine copilot, verify no .github/copilot/ files created",
+      "Add test make_plugin_both_engines: engine both, verify Claude settings written and all features available",
+      "Run cargo test --workspace && cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Phase 5.2: Add unit test templates_pass_lint — verify generated templates pass corresponding lint rules",
+    "steps": [
+      "In make/templates.rs tests, add templates_pass_lint test",
+      "Generate each template (skill, agent, mcp, hook, output-style, lsp) using the template functions",
+      "Write templates to a MockFs in the expected directory structure",
+      "Run the relevant lint rules against each template file using the lint module's check_file() method",
+      "Assert zero diagnostics with Severity::Error for each template",
+      "Run cargo test --workspace && cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Phase 5.3: Add E2E tests for aipm make plugin command in crates/aipm/tests/make_e2e.rs",
+    "steps": [
+      "Create new file crates/aipm/tests/make_e2e.rs",
+      "Add test make_plugin_skill_claude: aipm init -y, then aipm make plugin --name foo --engine claude --feature skill -y, assert .ai/foo/ exists, skills/foo/SKILL.md has frontmatter, plugin.json valid, marketplace.json has entry, .claude/settings.json has enabledPlugins",
+      "Add test make_plugin_composite: aipm init -y, then aipm make plugin --name bar --engine claude --feature skill --feature agent --feature hook -y, assert all 3 feature directories created",
+      "Add test make_plugin_copilot: aipm init -y, then aipm make plugin --name baz --engine copilot --feature skill -y, assert .ai/baz/ created, no .github/copilot/ files",
+      "Add test make_plugin_both_engines: aipm init -y, then aipm make plugin --name qux --engine both --feature skill --feature lsp -y, assert both features created, Claude settings updated",
+      "Add test make_plugin_idempotent: run aipm make plugin twice, second run exits 0, stdout contains 'exists'",
+      "Add test make_plugin_lint_clean: aipm init -y, aipm make plugin, then aipm lint — zero diagnostics",
+      "Add test make_plugin_missing_name: aipm make plugin --engine claude --feature skill -y (no --name), non-zero exit, stderr contains 'missing required flag: --name'",
+      "Add test make_plugin_missing_feature: aipm make plugin --name foo --engine claude -y (no --feature), non-zero exit, stderr contains 'missing required flag: --feature'",
+      "Add test make_plugin_invalid_feature_for_engine: --engine claude --feature lsp, non-zero exit, stderr contains 'not supported by engine'",
+      "Add test make_plugin_no_marketplace: no prior init, non-zero exit, stderr contains 'marketplace not found'",
+      "Run cargo test --workspace && cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Phase 5.4: Update existing starter plugin E2E tests in init_e2e.rs for bash replacement",
+    "steps": [
+      "Read crates/aipm/tests/init_e2e.rs lines 255-311 to find the three scaffold script tests",
+      "Update run_scaffold() helper: change from Command::new('node').args(['--experimental-strip-types', &script, plugin_name]) to invoke the bash script or aipm make plugin directly",
+      "Update scaffold_script_registers_in_marketplace_json test: invoke bash script, assert same marketplace.json result",
+      "Update scaffold_script_enables_in_settings_json test: invoke bash script, assert same settings.json result",
+      "Update scaffold_script_creates_plugin_directory test: invoke bash script, assert directory structure",
+      "Remove any has_node_with_strip_types() gate if present since bash is universally available",
+      "Run cargo test --workspace && cargo clippy --workspace -- -D warnings"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Phase 5.5: Add BDD feature file tests/features/make.feature for aipm make plugin scenarios",
+    "steps": [
+      "Create new file tests/features/make.feature",
+      "Add Scenario: Create a skill plugin for Claude — Given initialized workspace, When aipm make plugin --name my-skill --engine claude --feature skill -y, Then assert plugin directory, SKILL.md content, marketplace entry, settings entry, lint clean",
+      "Add Scenario: Create a composite plugin with multiple features — skill + agent + hook, verify all directories",
+      "Add Scenario: Idempotent re-run — create plugin twice, second exits 0, stdout contains 'exists'",
+      "Add Scenario: Missing feature flag in non-interactive mode — -y without --feature, non-zero exit",
+      "Add Scenario: Unsupported feature for engine — claude + lsp, non-zero exit with error message",
+      "Implement step definitions if BDD runner requires them (check existing step definitions pattern in crates/aipm/tests/)",
+      "Run cargo test --workspace"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Phase 5.6: Verify 89% branch coverage across workspace and fix any coverage gaps",
+    "steps": [
+      "Run: cargo +nightly llvm-cov clean --workspace",
+      "Run: cargo +nightly llvm-cov --no-report --workspace --branch",
+      "Run: cargo +nightly llvm-cov --no-report --doc",
+      "Run: cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs|lsp\\.rs)'",
+      "Check TOTAL branch column shows >= 89%",
+      "If below 89%, identify uncovered branches in the new make/ module and add targeted tests",
+      "Re-run coverage verification until >= 89% is achieved",
+      "Run all four gates: cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
     "passes": true
   }

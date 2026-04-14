@@ -1,9 +1,12 @@
 {
   "name": "starter-aipm-plugin",
   "version": "0.1.0",
-  "description": "Default starter plugin — scaffold new plugins, scan your marketplace, and log tool usage",
+  "description": "Default starter plugin \u2014 scaffold new plugins, scan your marketplace, and log tool usage",
   "author": {
     "name": "Sean Larkin",
     "email": "thelarkinn@users.noreply.github.com"
-  }
+  },
+  "skills": "./skills/",
+  "agents": "./agents/",
+  "hooks": "./hooks/hooks.json"
 }
