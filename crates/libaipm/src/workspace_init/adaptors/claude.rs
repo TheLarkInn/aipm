@@ -327,10 +327,37 @@ mod tests {
         cleanup(&tmp);
     }
 
-    /// A MockFs that fails all reads with PermissionDenied.
-    struct FailReadFs;
+    /// Configurable Fs stub for testing error paths in `apply()` without touching
+    /// the filesystem.  Using function-pointer fields means all method bodies are
+    /// shared across configurations, so a single struct covers every failure scenario.
+    struct TestFs {
+        read: fn() -> std::io::Result<String>,
+        write: fn() -> std::io::Result<()>,
+    }
 
-    impl crate::fs::Fs for FailReadFs {
+    impl TestFs {
+        /// Simulates a non-NotFound read error (e.g., PermissionDenied).
+        fn read_denied() -> Self {
+            Self {
+                read: || {
+                    Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "read denied"))
+                },
+                write: || Ok(()),
+            }
+        }
+
+        /// Simulates a missing settings file (NotFound read) followed by a write failure.
+        fn write_denied() -> Self {
+            Self {
+                read: || Err(std::io::Error::new(std::io::ErrorKind::NotFound, "not found")),
+                write: || {
+                    Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "write denied"))
+                },
+            }
+        }
+    }
+
+    impl crate::fs::Fs for TestFs {
         fn exists(&self, _: &Path) -> bool {
             false
         }
@@ -340,11 +367,11 @@ mod tests {
         }
 
         fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
-            Ok(())
+            (self.write)()
         }
 
         fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
-            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "access denied"))
+            (self.read)()
         }
 
         fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
@@ -356,11 +383,39 @@ mod tests {
     fn claude_settings_io_error_on_read_propagates_as_io_variant() {
         // Covers the `Err(e)` (non-NotFound) arm of the read_to_string match.
         let adaptor = Adaptor;
-        let result = adaptor.apply(Path::new("/tmp"), false, "test", &FailReadFs);
-        assert!(result.is_err());
+        let result = adaptor.apply(Path::new("/tmp"), false, "test", &TestFs::read_denied());
         assert!(
             result.is_err_and(|e| matches!(e, Error::Io(_))),
             "non-NotFound I/O error should produce Error::Io"
         );
+    }
+
+    #[test]
+    fn claude_settings_write_failure_propagates_as_io_variant() {
+        // Covers the Err branch of `generate::settings::write(…)?` in apply().
+        // The file is absent (NotFound → default empty object), so apply() proceeds
+        // to the write step and hits the injected write failure.
+        let adaptor = Adaptor;
+        let result = adaptor.apply(Path::new("/tmp"), false, "test", &TestFs::write_denied());
+        assert!(
+            result.is_err_and(|e| matches!(e, Error::Io(_))),
+            "write failure should produce Error::Io"
+        );
+    }
+
+    #[test]
+    fn claude_settings_create_dir_failure_propagates_as_io_variant() {
+        // Covers the Err branch of `fs.create_dir_all(…)?` in apply().
+        // Passing a regular file as the workspace root forces create_dir_all to fail
+        // because it cannot create a directory inside a file.
+        let tmp = make_temp_dir("create-dir-fail");
+        std::fs::write(tmp.join("not-a-dir"), b"").ok();
+        let adaptor = Adaptor;
+        let result = adaptor.apply(&tmp.join("not-a-dir"), false, "test", &Real);
+        assert!(
+            result.is_err_and(|e| matches!(e, Error::Io(_))),
+            "create_dir_all failure should produce Error::Io"
+        );
+        cleanup(&tmp);
     }
 }

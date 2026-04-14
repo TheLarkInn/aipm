@@ -29,18 +29,25 @@ pub fn register_plugins(ai_dir: &Path, entries: &[PluginEntry], fs: &dyn Fs) -> 
             if e.kind() != std::io::ErrorKind::InvalidData {
                 return Error::Io(e);
             }
-            // For InvalidData: try to extract a real serde_json::Error (JSON parse failure).
-            // Structural issues (missing/non-array "plugins" key) have string sources that
-            // won't downcast and fall through to Error::Io.
-            e.into_inner().and_then(|s| s.downcast::<serde_json::Error>().ok()).map_or_else(
-                || {
-                    Error::Io(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
-                        "marketplace structure error",
-                    ))
-                },
-                |b| Error::MarketplaceJsonParse { path: marketplace_path.clone(), source: *b },
-            )
+            // Check whether the inner cause is a real serde_json::Error *before* consuming
+            // `e` with into_inner().  Structural issues (missing/non-array "plugins" key)
+            // carry String sources that won't downcast — preserving `e` as Error::Io keeps
+            // the original diagnostic message (e.g., "missing 'plugins' array in …").
+            if e.get_ref()
+                .is_some_and(<dyn std::error::Error + Send + Sync>::is::<serde_json::Error>)
+            {
+                e.into_inner().and_then(|s| s.downcast::<serde_json::Error>().ok()).map_or_else(
+                    || {
+                        Error::Io(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "marketplace json parse error",
+                        ))
+                    },
+                    |b| Error::MarketplaceJsonParse { path: marketplace_path.clone(), source: *b },
+                )
+            } else {
+                Error::Io(e)
+            }
         },
     )?;
 
@@ -292,25 +299,33 @@ mod tests {
     #[test]
     fn register_returns_error_when_plugins_key_missing() {
         // marketplace.json exists and is valid JSON, but has no "plugins" array.
-        // This covers the ok_or_else branch that returns Error::Io with InvalidData.
+        // This is a structural error (not a parse error) so it must be Error::Io,
+        // not Error::MarketplaceJsonParse — the original error message is preserved.
         let fs = MockFs::new();
         fs.set_file(marketplace_path(), r#"{"name":"my-marketplace"}"#.to_string());
 
         let entries = vec![entry("deploy", None)];
         let result = register_plugins(Path::new("/ai"), &entries, &fs);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(Error::Io(_))),
+            "missing 'plugins' key should produce Error::Io, not Error::MarketplaceJsonParse"
+        );
     }
 
     #[test]
     fn register_returns_error_when_plugins_is_not_array() {
         // marketplace.json has "plugins" but it's a string, not an array.
         // This also hits the ok_or_else branch (as_array_mut returns None).
+        // Structural error → must be Error::Io, not Error::MarketplaceJsonParse.
         let fs = MockFs::new();
         fs.set_file(marketplace_path(), r#"{"plugins":"not-an-array"}"#.to_string());
 
         let entries = vec![entry("deploy", None)];
         let result = register_plugins(Path::new("/ai"), &entries, &fs);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(Error::Io(_))),
+            "'plugins' as non-array should produce Error::Io, not Error::MarketplaceJsonParse"
+        );
     }
 
     #[test]
@@ -339,14 +354,18 @@ mod tests {
 
     #[test]
     fn register_returns_error_when_marketplace_json_invalid() {
-        // marketplace.json content is not valid JSON, causing from_str to fail
-        // and covering the Err branch of the `?` on the serde_json::from_str call.
+        // marketplace.json content is not valid JSON, causing from_str to fail.
+        // register_all preserves the serde_json::Error as the io::Error source, so
+        // the mapping in register_plugins must produce Error::MarketplaceJsonParse.
         let fs = MockFs::new();
         fs.set_file(marketplace_path(), "not valid json {{{".to_string());
 
         let entries = vec![entry("deploy", None)];
         let result = register_plugins(Path::new("/ai"), &entries, &fs);
-        assert!(result.is_err());
+        assert!(
+            matches!(result, Err(Error::MarketplaceJsonParse { .. })),
+            "invalid JSON should produce Error::MarketplaceJsonParse, not Error::Io"
+        );
     }
 
     #[test]
