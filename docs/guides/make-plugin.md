@@ -46,18 +46,18 @@ Specifying `--engine both` makes all seven feature types available.
 
 ## How it works
 
-`aipm make plugin` runs an **idempotent 8-step action pipeline**:
+`aipm make plugin` runs an **idempotent 9-step action pipeline**:
 
-1. Guard — returns immediately if the plugin directory already exists (outputs `Already exists: <path>`).
-2. Create the plugin directory (`.ai/<marketplace>/<name>/`).
-3. Create the `.claude-plugin/` metadata subdirectory.
-4. Scaffold each requested feature (creates subdirectories and starter files).
-5. Generate and write `plugin.json`.
-6. Register the plugin in `marketplace.json`.
-7. Update `.claude/settings.json` — only when `--engine` is `claude` or `both`; no settings file is written for `--engine copilot`.
-8. Emit a summary `PluginCreated` action.
+1–2. Guard — checks whether the plugin directory already exists; if found, records `Already exists: <path>` and returns immediately without making further changes.
+3. Create the plugin directory (`.ai/<marketplace>/<name>/`).
+4. Create the `.claude-plugin/` metadata subdirectory.
+5. Scaffold each requested feature (creates subdirectories and starter files).
+6. Generate and write `plugin.json`.
+7. Register the plugin in `marketplace.json`.
+8. Update `.claude/settings.json` — only when `--engine` is `claude` or `both`; no settings file is written for `--engine copilot`.
+9. Emit a summary `PluginCreated` action.
 
-Each step is tracked as an `Action` variant. Re-running the command on an existing plugin directory is safe — it exits at step 1 with `Already exists: <path>` and makes no further changes.
+Each step is tracked as an `Action` variant. Re-running the command on an existing plugin directory is safe — it exits at steps 1–2 with `Already exists: <path>` and makes no further changes.
 
 ## Non-interactive usage
 
