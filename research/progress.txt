@@ -35,3 +35,8 @@
 - Removed [profile.dev.package.aipm-pack] from workspace Cargo.toml
 - Workspace now has 2 crates: aipm, libaipm (down from 3)
 - cargo build/test/clippy/fmt all pass, coverage 89.10%
+
+## Phase 4: Migrate E2E tests from aipm-pack to aipm — COMPLETE
+- Created crates/aipm/tests/pack_init_e2e.rs with 20 tests (dropped 1 aipm-pack-specific bare invocation test)
+- All tests retargeted from cargo_bin("aipm-pack") to cargo_bin("aipm") with ["pack", "init", ...] args
+- All 20 E2E tests pass, coverage 93.71%
