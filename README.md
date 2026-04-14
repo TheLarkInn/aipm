@@ -337,7 +337,7 @@ Generates an `aipm.toml` manifest and type-appropriate directory structure.
 
 See also: [`docs/guides/creating-a-plugin.md`](docs/guides/creating-a-plugin.md) for a full authoring walkthrough.
 
-> **ℹ️ Planned commands:** `aipm-pack pack`, `aipm-pack publish`, `aipm-pack yank`, and `aipm-pack login` are defined in the roadmap but not yet implemented. The `aipm-pack init` command is the only one available today. Track at [#6](https://github.com/TheLarkInn/aipm/issues/6) and [#8](https://github.com/TheLarkInn/aipm/issues/8).
+> **ℹ️ Planned commands:** `aipm publish`, `aipm yank`, and `aipm login` are defined in the roadmap but not yet implemented. Track at [#6](https://github.com/TheLarkInn/aipm/issues/6) and [#8](https://github.com/TheLarkInn/aipm/issues/8).
 
 ---
 

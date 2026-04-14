@@ -120,7 +120,7 @@ Valid examples: `my-plugin`, `ci-tools`, `@acme/code-review`
 
 3. **Lint your plugin** — run `aipm lint` to check for quality issues.
 4. **Link for local testing** — in a consuming project, run `aipm link ../my-linter` to test without publishing.
-5. **Publishing** — `aipm-pack pack` and `aipm-pack publish` are planned but not yet implemented. Track at [#6](https://github.com/TheLarkInn/aipm/issues/6).
+5. **Publishing** — `aipm publish` is planned but not yet implemented. Track at [#6](https://github.com/TheLarkInn/aipm/issues/6).
 
 ## Flag reference
 
