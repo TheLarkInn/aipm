@@ -12,3 +12,12 @@ Also created:
 - Registered `pub mod make;` in `crates/libaipm/src/lib.rs`
 
 4 unit tests passing. All cargo gates green (build, test, clippy, fmt, 89.48% coverage).
+
+## Phase 1.2: make/error.rs — COMPLETE (2026-04-14)
+
+Created `crates/libaipm/src/make/error.rs` with Error enum (8 variants):
+- MarketplaceNotFound, InvalidName, UnsupportedFeature, InvalidEngine,
+  InvalidFeature, MissingFlag, Io (#[from]), Json (#[from])
+
+Registered in make/mod.rs with `pub use error::Error`.
+8 unit tests passing. All cargo gates green (89.50% coverage).

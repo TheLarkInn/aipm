@@ -24,7 +24,7 @@
       "Verify thiserror is already a dependency in crates/libaipm/Cargo.toml; add if needed",
       "Run cargo build --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
