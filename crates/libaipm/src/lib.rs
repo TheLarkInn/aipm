@@ -19,6 +19,7 @@ pub mod lint;
 pub mod locked_file;
 pub mod lockfile;
 pub mod logging;
+pub mod make;
 pub mod manifest;
 pub mod marketplace;
 pub mod migrate;
