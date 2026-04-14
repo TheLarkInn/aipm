@@ -6,6 +6,7 @@
 use std::path::{Path, PathBuf};
 
 use super::error::Error;
+use crate::fs::Fs;
 
 /// A single dev link override entry.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
@@ -33,15 +34,9 @@ pub struct State {
 /// # Errors
 ///
 /// Returns [`Error::Io`] if the file exists but cannot be read or parsed.
-pub fn read(links_toml: &Path) -> Result<State, Error> {
-    match std::fs::read_to_string(links_toml) {
-        Ok(content) => toml::from_str::<State>(&content).map_err(|e| Error::Io {
-            path: links_toml.to_path_buf(),
-            source: std::io::Error::other(e.to_string()),
-        }),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(State::default()),
-        Err(e) => Err(Error::Io { path: links_toml.to_path_buf(), source: e }),
-    }
+pub fn read(fs: &dyn Fs, links_toml: &Path) -> Result<State, Error> {
+    crate::fs::read_toml_or_default::<State>(fs, links_toml)
+        .map_err(|source| Error::Io { path: links_toml.to_path_buf(), source })
 }
 
 /// Write the link state to `.aipm/links.toml`.
@@ -51,12 +46,7 @@ pub fn read(links_toml: &Path) -> Result<State, Error> {
 /// # Errors
 ///
 /// Returns [`Error::Io`] if writing fails.
-pub fn write(links_toml: &Path, state: &State) -> Result<(), Error> {
-    if let Some(parent) = links_toml.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| Error::Io { path: parent.to_path_buf(), source: e })?;
-    }
-
+pub fn write(fs: &dyn Fs, links_toml: &Path, state: &State) -> Result<(), Error> {
     let toml_str = toml::to_string_pretty(state).map_err(|e| Error::Io {
         path: links_toml.to_path_buf(),
         source: std::io::Error::other(e.to_string()),
@@ -64,8 +54,8 @@ pub fn write(links_toml: &Path, state: &State) -> Result<(), Error> {
 
     let content =
         format!("# Managed by aipm \u{2014} tracks active dev link overrides\n{toml_str}");
-    std::fs::write(links_toml, content)
-        .map_err(|e| Error::Io { path: links_toml.to_path_buf(), source: e })
+    fs.write_file_with_parents(links_toml, content.as_bytes())
+        .map_err(|source| Error::Io { path: links_toml.to_path_buf(), source })
 }
 
 /// Add a link entry for a package. Replaces any existing entry for the same name.
@@ -73,11 +63,11 @@ pub fn write(links_toml: &Path, state: &State) -> Result<(), Error> {
 /// # Errors
 ///
 /// Returns [`Error::Io`] if read/write fails.
-pub fn add(links_toml: &Path, entry: LinkEntry) -> Result<(), Error> {
-    let mut state = read(links_toml)?;
+pub fn add(fs: &dyn Fs, links_toml: &Path, entry: LinkEntry) -> Result<(), Error> {
+    let mut state = read(fs, links_toml)?;
     state.link.retain(|e| e.name != entry.name);
     state.link.push(entry);
-    write(links_toml, &state)
+    write(fs, links_toml, &state)
 }
 
 /// Remove a link entry by package name.
@@ -85,10 +75,10 @@ pub fn add(links_toml: &Path, entry: LinkEntry) -> Result<(), Error> {
 /// # Errors
 ///
 /// Returns [`Error::Io`] if read/write fails.
-pub fn remove(links_toml: &Path, package_name: &str) -> Result<(), Error> {
-    let mut state = read(links_toml)?;
+pub fn remove(fs: &dyn Fs, links_toml: &Path, package_name: &str) -> Result<(), Error> {
+    let mut state = read(fs, links_toml)?;
     state.link.retain(|e| e.name != package_name);
-    write(links_toml, &state)
+    write(fs, links_toml, &state)
 }
 
 /// Clear all link entries (used by `aipm install --locked`).
@@ -96,8 +86,8 @@ pub fn remove(links_toml: &Path, package_name: &str) -> Result<(), Error> {
 /// # Errors
 ///
 /// Returns [`Error::Io`] if read/write fails.
-pub fn clear_all(links_toml: &Path) -> Result<(), Error> {
-    write(links_toml, &State::default())
+pub fn clear_all(fs: &dyn Fs, links_toml: &Path) -> Result<(), Error> {
+    write(fs, links_toml, &State::default())
 }
 
 /// List all active link entries.
@@ -105,14 +95,16 @@ pub fn clear_all(links_toml: &Path) -> Result<(), Error> {
 /// # Errors
 ///
 /// Returns [`Error::Io`] if read fails.
-pub fn list(links_toml: &Path) -> Result<Vec<LinkEntry>, Error> {
-    let state = read(links_toml)?;
+pub fn list(fs: &dyn Fs, links_toml: &Path) -> Result<Vec<LinkEntry>, Error> {
+    let state = read(fs, links_toml)?;
     Ok(state.link)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const FS: &crate::fs::Real = &crate::fs::Real;
 
     fn make_entry(name: &str, path: &str) -> LinkEntry {
         LinkEntry {
@@ -127,7 +119,7 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let path = tmp.path().join(".aipm/links.toml");
 
-        let state = read(&path).expect("read");
+        let state = read(FS, &path).expect("read");
         assert!(state.link.is_empty());
     }
 
@@ -138,9 +130,9 @@ mod tests {
 
         let state = State { link: vec![make_entry("code-review", "/work/code-review")] };
 
-        assert!(write(&path, &state).is_ok());
+        assert!(write(FS, &path, &state).is_ok());
 
-        let read_back = read(&path).expect("read back");
+        let read_back = read(FS, &path).expect("read back");
         assert_eq!(read_back.link.len(), 1);
         assert_eq!(read_back.link.first().map(|e| e.name.as_str()), Some("code-review"));
     }
@@ -150,9 +142,9 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let path = tmp.path().join(".aipm/links.toml");
 
-        assert!(add(&path, make_entry("pkg-a", "/work/pkg-a")).is_ok());
+        assert!(add(FS, &path, make_entry("pkg-a", "/work/pkg-a")).is_ok());
 
-        let entries = list(&path).expect("list");
+        let entries = list(FS, &path).expect("list");
         assert_eq!(entries.len(), 1);
         assert_eq!(entries.first().map(|e| e.name.as_str()), Some("pkg-a"));
     }
@@ -162,10 +154,10 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let path = tmp.path().join(".aipm/links.toml");
 
-        assert!(add(&path, make_entry("pkg-a", "/old/path")).is_ok());
-        assert!(add(&path, make_entry("pkg-a", "/new/path")).is_ok());
+        assert!(add(FS, &path, make_entry("pkg-a", "/old/path")).is_ok());
+        assert!(add(FS, &path, make_entry("pkg-a", "/new/path")).is_ok());
 
-        let entries = list(&path).expect("list");
+        let entries = list(FS, &path).expect("list");
         assert_eq!(entries.len(), 1);
         assert_eq!(
             entries.first().map(|e| e.path.to_string_lossy().into_owned()),
@@ -178,11 +170,11 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let path = tmp.path().join(".aipm/links.toml");
 
-        assert!(add(&path, make_entry("pkg-a", "/work/a")).is_ok());
-        assert!(add(&path, make_entry("pkg-b", "/work/b")).is_ok());
-        assert!(remove(&path, "pkg-a").is_ok());
+        assert!(add(FS, &path, make_entry("pkg-a", "/work/a")).is_ok());
+        assert!(add(FS, &path, make_entry("pkg-b", "/work/b")).is_ok());
+        assert!(remove(FS, &path, "pkg-a").is_ok());
 
-        let entries = list(&path).expect("list");
+        let entries = list(FS, &path).expect("list");
         assert_eq!(entries.len(), 1);
         assert_eq!(entries.first().map(|e| e.name.as_str()), Some("pkg-b"));
     }
@@ -192,11 +184,11 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let path = tmp.path().join(".aipm/links.toml");
 
-        assert!(add(&path, make_entry("pkg-a", "/work/a")).is_ok());
-        assert!(add(&path, make_entry("pkg-b", "/work/b")).is_ok());
-        assert!(clear_all(&path).is_ok());
+        assert!(add(FS, &path, make_entry("pkg-a", "/work/a")).is_ok());
+        assert!(add(FS, &path, make_entry("pkg-b", "/work/b")).is_ok());
+        assert!(clear_all(FS, &path).is_ok());
 
-        let entries = list(&path).expect("list");
+        let entries = list(FS, &path).expect("list");
         assert!(entries.is_empty());
     }
 
@@ -205,10 +197,10 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let path = tmp.path().join(".aipm/links.toml");
 
-        assert!(add(&path, make_entry("pkg-a", "/work/a")).is_ok());
-        assert!(remove(&path, "nonexistent").is_ok());
+        assert!(add(FS, &path, make_entry("pkg-a", "/work/a")).is_ok());
+        assert!(remove(FS, &path, "nonexistent").is_ok());
 
-        let entries = list(&path).expect("list");
+        let entries = list(FS, &path).expect("list");
         assert_eq!(entries.len(), 1);
     }
 
@@ -217,7 +209,7 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let path = tmp.path().join(".aipm/links.toml");
 
-        assert!(write(&path, &State::default()).is_ok());
+        assert!(write(FS, &path, &State::default()).is_ok());
 
         let content = std::fs::read_to_string(&path).expect("read");
         assert!(content.starts_with("# Managed by aipm"));
@@ -231,7 +223,7 @@ mod tests {
         // Write invalid TOML content
         std::fs::write(&path, "[[link]\nNOT VALID TOML :::").expect("write");
 
-        let result = read(&path);
+        let result = read(FS, &path);
         assert!(result.is_err());
     }
 
@@ -240,15 +232,14 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         // Use a directory path as a file path — read_to_string will fail with EISDIR
         let dir_as_file = tmp.path().to_path_buf();
-        let result = read(&dir_as_file);
+        let result = read(FS, &dir_as_file);
         assert!(result.is_err());
     }
 
     #[test]
-    fn write_path_without_parent_skips_create_dir_all() {
-        // Path::new("/").parent() returns None, so the create_dir_all branch is skipped.
-        // Writing to "/" itself fails with EISDIR, confirming the None arm is reached.
-        let result = write(Path::new("/"), &State::default());
+    fn write_to_root_returns_error() {
+        // write_file_with_parents on "/" fails with EISDIR or permission error.
+        let result = write(FS, Path::new("/"), &State::default());
         assert!(result.is_err());
     }
 }

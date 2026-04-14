@@ -36,15 +36,6 @@ impl Rule for RequiredFields {
         )
     }
 
-    fn check(
-        &self,
-        source_dir: &Path,
-        fs: &dyn Fs,
-    ) -> Result<Vec<Diagnostic>, super::super::Error> {
-        let pj_path = source_dir.join(".claude-plugin").join("plugin.json");
-        Ok(check_required_fields(&pj_path, fs))
-    }
-
     fn check_file(
         &self,
         file_path: &Path,
@@ -55,19 +46,7 @@ impl Rule for RequiredFields {
 }
 
 fn diag(pj_path: &Path, source_type: &str, message: String) -> Diagnostic {
-    Diagnostic {
-        rule_id: "plugin/required-fields".to_string(),
-        severity: Severity::Error,
-        message,
-        file_path: pj_path.to_path_buf(),
-        line: None,
-        col: None,
-        end_line: None,
-        end_col: None,
-        source_type: source_type.to_string(),
-        help_text: None,
-        help_url: None,
-    }
+    super::simple_diag("plugin/required-fields", Severity::Error, message, pj_path, source_type)
 }
 
 fn check_top_level(
@@ -300,15 +279,6 @@ mod tests {
     fn nonexistent_file_returns_empty() {
         let fs = MockFs::new();
         let result = RequiredFields.check_file(Path::new(".ai/p/.claude-plugin/plugin.json"), &fs);
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_empty());
-    }
-
-    #[test]
-    fn check_directory_level() {
-        let mut fs = MockFs::new();
-        fs.add_plugin_json("p", FULL_VALID);
-        let result = RequiredFields.check(Path::new(".ai/p"), &fs);
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
     }

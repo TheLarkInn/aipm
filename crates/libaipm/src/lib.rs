@@ -10,6 +10,7 @@ pub mod discovery;
 pub mod engine;
 pub mod frontmatter;
 pub mod fs;
+pub mod generate;
 pub mod init;
 pub mod installed;
 pub mod installer;
@@ -29,6 +30,8 @@ pub mod security;
 pub mod spec;
 pub mod store;
 pub mod version;
+#[cfg(feature = "wizard")]
+pub mod wizard;
 pub mod workspace;
 pub mod workspace_init;
 

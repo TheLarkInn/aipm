@@ -8,7 +8,7 @@ use crate::fs::Fs;
 
 use super::detector::Detector;
 use super::skill_common::extract_script_references;
-use super::{strip_yaml_quotes, Artifact, ArtifactKind, ArtifactMetadata, Error};
+use super::{Artifact, ArtifactKind, ArtifactMetadata, Error};
 
 /// Scans `.github/agents/` for `.md` and `.agent.md` files.
 /// When both `foo.md` and `foo.agent.md` exist, `.agent.md` takes precedence.
@@ -67,7 +67,7 @@ impl Detector for CopilotAgentDetector {
             };
 
             let content = fs.read_to_string(agent_path)?;
-            let metadata = parse_copilot_agent_frontmatter(&content, agent_path)?;
+            let metadata = super::skill_common::parse_frontmatter(&content, agent_path)?;
 
             let name = metadata.name.clone().unwrap_or_else(|| name_key.clone());
 
@@ -94,44 +94,6 @@ impl Detector for CopilotAgentDetector {
 fn has_agent_md_suffix(name: &str) -> bool {
     name.len() > ".agent.md".len()
         && name[name.len() - ".agent.md".len()..].eq_ignore_ascii_case(".agent.md")
-}
-
-/// Parse YAML frontmatter from a Copilot agent `.md` or `.agent.md` file.
-///
-/// Extracts `name` and `description` fields. All other Copilot-specific fields
-/// (tools, model, target, user-invocable, mcp-servers, github) are preserved
-/// in `raw_content`.
-fn parse_copilot_agent_frontmatter(content: &str, path: &Path) -> Result<ArtifactMetadata, Error> {
-    let mut metadata = ArtifactMetadata::default();
-
-    let trimmed = content.trim_start();
-    if !trimmed.starts_with("---") {
-        return Ok(metadata);
-    }
-
-    let after_first = &trimmed[3..];
-    let rest = after_first.trim_start_matches(['\r', '\n']);
-    let closing = rest.find("\n---");
-    let yaml_block = match closing {
-        Some(pos) => &rest[..pos],
-        None => {
-            return Err(Error::FrontmatterParse {
-                path: path.to_path_buf(),
-                reason: "missing closing --- delimiter".to_string(),
-            });
-        },
-    };
-
-    for line in yaml_block.lines() {
-        let trimmed_line = line.trim();
-        if let Some(value) = trimmed_line.strip_prefix("name:") {
-            metadata.name = Some(strip_yaml_quotes(value.trim()).to_string());
-        } else if let Some(value) = trimmed_line.strip_prefix("description:") {
-            metadata.description = Some(strip_yaml_quotes(value.trim()).to_string());
-        }
-    }
-
-    Ok(metadata)
 }
 
 #[cfg(test)]

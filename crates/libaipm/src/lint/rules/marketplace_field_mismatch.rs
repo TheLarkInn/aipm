@@ -33,15 +33,6 @@ impl Rule for FieldMismatch {
         Some("update marketplace.json or plugin.json so the name and description fields match")
     }
 
-    fn check(
-        &self,
-        source_dir: &Path,
-        fs: &dyn Fs,
-    ) -> Result<Vec<Diagnostic>, super::super::Error> {
-        let mp_path = source_dir.join(".claude-plugin").join("marketplace.json");
-        Ok(check_mismatch(&mp_path, source_dir, fs))
-    }
-
     fn check_file(
         &self,
         file_path: &Path,
@@ -55,19 +46,13 @@ impl Rule for FieldMismatch {
 }
 
 fn diag(mp_path: &Path, source_type: &str, message: String) -> Diagnostic {
-    Diagnostic {
-        rule_id: "marketplace/plugin-field-mismatch".to_string(),
-        severity: Severity::Error,
+    super::simple_diag(
+        "marketplace/plugin-field-mismatch",
+        Severity::Error,
         message,
-        file_path: mp_path.to_path_buf(),
-        line: None,
-        col: None,
-        end_line: None,
-        end_col: None,
-        source_type: source_type.to_string(),
-        help_text: None,
-        help_url: None,
-    }
+        mp_path,
+        source_type,
+    )
 }
 
 fn check_mismatch(mp_path: &Path, ai_dir: &Path, fs: &dyn Fs) -> Vec<Diagnostic> {
@@ -301,16 +286,6 @@ mod tests {
         fs.add_marketplace_json(r#"{"plugins":[{"name":"foo"}]}"#);
         let result =
             FieldMismatch.check_file(Path::new(".ai/.claude-plugin/marketplace.json"), &fs);
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_empty());
-    }
-
-    #[test]
-    fn check_directory_level() {
-        let mut fs = MockFs::new();
-        fs.add_marketplace_json(&make_marketplace("foo", "same", "./foo"));
-        fs.add_plugin_json("foo", &make_plugin_json("foo", "same"));
-        let result = FieldMismatch.check(Path::new(".ai"), &fs);
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
     }

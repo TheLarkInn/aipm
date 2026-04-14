@@ -6,7 +6,7 @@ use crate::fs::Fs;
 
 use super::detector::Detector;
 use super::skill_common::extract_script_references;
-use super::{strip_yaml_quotes, Artifact, ArtifactKind, ArtifactMetadata, Error};
+use super::{Artifact, ArtifactKind, Error};
 
 /// Scans `.claude/agents/` for `.md` files (subagent definitions).
 pub struct AgentDetector;
@@ -36,7 +36,7 @@ impl Detector for AgentDetector {
 
             let agent_path = agents_dir.join(&entry.name);
             let content = fs.read_to_string(&agent_path)?;
-            let metadata = parse_agent_frontmatter(&content, &agent_path)?;
+            let metadata = super::skill_common::parse_frontmatter(&content, &agent_path)?;
 
             let name = metadata.name.clone().unwrap_or_else(|| {
                 Path::new(&entry.name)
@@ -56,43 +56,6 @@ impl Detector for AgentDetector {
 
         Ok(artifacts)
     }
-}
-
-/// Parse YAML frontmatter from an agent `.md` file.
-///
-/// Extracts `name` and `description` fields only. All other agent-specific
-/// fields (tools, model, etc.) are preserved in the raw `.md` content.
-fn parse_agent_frontmatter(content: &str, path: &Path) -> Result<ArtifactMetadata, Error> {
-    let mut metadata = ArtifactMetadata::default();
-
-    let trimmed = content.trim_start();
-    if !trimmed.starts_with("---") {
-        return Ok(metadata);
-    }
-
-    let after_first = &trimmed[3..];
-    let rest = after_first.trim_start_matches(['\r', '\n']);
-    let closing = rest.find("\n---");
-    let yaml_block = match closing {
-        Some(pos) => &rest[..pos],
-        None => {
-            return Err(Error::FrontmatterParse {
-                path: path.to_path_buf(),
-                reason: "missing closing --- delimiter".to_string(),
-            });
-        },
-    };
-
-    for line in yaml_block.lines() {
-        let trimmed_line = line.trim();
-        if let Some(value) = trimmed_line.strip_prefix("name:") {
-            metadata.name = Some(strip_yaml_quotes(value.trim()).to_string());
-        } else if let Some(value) = trimmed_line.strip_prefix("description:") {
-            metadata.description = Some(strip_yaml_quotes(value.trim()).to_string());
-        }
-    }
-
-    Ok(metadata)
 }
 
 #[cfg(test)]

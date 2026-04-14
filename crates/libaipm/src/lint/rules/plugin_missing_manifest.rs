@@ -34,14 +34,6 @@ impl Rule for MissingManifest {
         Some("create a .claude-plugin/plugin.json file in the plugin directory")
     }
 
-    fn check(
-        &self,
-        source_dir: &Path,
-        fs: &dyn Fs,
-    ) -> Result<Vec<Diagnostic>, super::super::Error> {
-        Ok(check_manifests(source_dir, fs))
-    }
-
     fn check_file(
         &self,
         file_path: &Path,
@@ -59,19 +51,13 @@ fn check_manifests(ai_dir: &Path, fs: &dyn Fs) -> Vec<Diagnostic> {
     for name in super::scan::list_plugin_dirs(ai_dir, fs) {
         let pj_path = ai_dir.join(&name).join(".claude-plugin").join("plugin.json");
         if !fs.exists(&pj_path) {
-            diagnostics.push(Diagnostic {
-                rule_id: "plugin/missing-manifest".to_string(),
-                severity: Severity::Error,
-                message: format!("plugin '{name}' is missing .claude-plugin/plugin.json"),
-                file_path: pj_path,
-                line: None,
-                col: None,
-                end_line: None,
-                end_col: None,
-                source_type: ".ai".to_string(),
-                help_text: None,
-                help_url: None,
-            });
+            diagnostics.push(super::simple_diag(
+                "plugin/missing-manifest",
+                Severity::Error,
+                format!("plugin '{name}' is missing .claude-plugin/plugin.json"),
+                &pj_path,
+                ".ai",
+            ));
         }
     }
     diagnostics
@@ -159,17 +145,6 @@ mod tests {
         let fs = MockFs::new();
         let result =
             MissingManifest.check_file(Path::new(".ai/.claude-plugin/marketplace.json"), &fs);
-        assert!(result.is_ok());
-        assert!(result.unwrap().is_empty());
-    }
-
-    #[test]
-    fn check_directory_level() {
-        let mut fs = MockFs::new();
-        let ai_path = PathBuf::from(".ai");
-        fs.dirs.entry(ai_path).or_default().push(DirEntry { name: "p".to_string(), is_dir: true });
-        fs.add_plugin_json("p", r#"{"name":"p","version":"0.1.0"}"#);
-        let result = MissingManifest.check(Path::new(".ai"), &fs);
         assert!(result.is_ok());
         assert!(result.unwrap().is_empty());
     }

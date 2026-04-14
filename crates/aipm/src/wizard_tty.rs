@@ -9,8 +9,8 @@
 
 use super::wizard::{
     migrate_cleanup_prompt_steps, resolve_defaults, resolve_migrate_cleanup_answer,
-    resolve_workspace_answers, styled_render_config, validate_marketplace_name,
-    workspace_prompt_steps, PromptAnswer, PromptKind, PromptStep,
+    resolve_workspace_answers, styled_render_config, workspace_prompt_steps, PromptAnswer,
+    PromptKind, PromptStep,
 };
 
 /// Resolved wizard output: `(workspace, marketplace, no_starter, marketplace_name)`.
@@ -101,7 +101,10 @@ fn execute_prompts(steps: &[PromptStep]) -> Result<Vec<PromptAnswer>, Box<dyn st
                 }
                 if *validate {
                     prompt = prompt.with_validator(|input: &str| {
-                        match validate_marketplace_name(input) {
+                        match libaipm::manifest::validate::check_name(
+                            input,
+                            libaipm::manifest::validate::ValidationMode::Interactive,
+                        ) {
                             Ok(()) => Ok(inquire::validator::Validation::Valid),
                             Err(msg) => Ok(inquire::validator::Validation::Invalid(msg.into())),
                         }

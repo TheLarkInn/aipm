@@ -1,6 +1,13 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.21.0] - 2026-04-14
+
+### Refactoring
+- DRY Rust architecture — eliminate duplication across workspace ([#494](https://github.com/TheLarkInn/aipm/pull/494)) (1d27d3d)
+
+## [0.20.6] - 2026-04-13
+
 ## [0.20.5] - 2026-04-13
 
 ### Testing

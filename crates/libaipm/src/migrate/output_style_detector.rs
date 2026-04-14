@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use crate::fs::Fs;
 
 use super::detector::Detector;
-use super::{strip_yaml_quotes, Artifact, ArtifactKind, ArtifactMetadata, Error};
+use super::{Artifact, ArtifactKind, Error};
 
 /// Scans `.claude/output-styles/` for `.md` files.
 pub struct OutputStyleDetector;
@@ -35,7 +35,7 @@ impl Detector for OutputStyleDetector {
 
             let style_path = styles_dir.join(&entry.name);
             let content = fs.read_to_string(&style_path)?;
-            let metadata = parse_output_style_frontmatter(&content);
+            let metadata = super::skill_common::parse_frontmatter_lenient(&content);
 
             let name = metadata.name.clone().unwrap_or_else(|| {
                 Path::new(&entry.name)
@@ -55,37 +55,6 @@ impl Detector for OutputStyleDetector {
 
         Ok(artifacts)
     }
-}
-
-/// Parse optional YAML frontmatter from an output style `.md` file.
-///
-/// Extracts `name` and `description` fields only. The `keep-coding-instructions`
-/// field and the entire `.md` body are preserved verbatim when copied.
-fn parse_output_style_frontmatter(content: &str) -> ArtifactMetadata {
-    let mut metadata = ArtifactMetadata::default();
-
-    let trimmed = content.trim_start();
-    if !trimmed.starts_with("---") {
-        return metadata;
-    }
-
-    let after_first = &trimmed[3..];
-    let rest = after_first.trim_start_matches(['\r', '\n']);
-    let yaml_block = match rest.find("\n---") {
-        Some(pos) => &rest[..pos],
-        None => return metadata,
-    };
-
-    for line in yaml_block.lines() {
-        let trimmed_line = line.trim();
-        if let Some(value) = trimmed_line.strip_prefix("name:") {
-            metadata.name = Some(strip_yaml_quotes(value.trim()).to_string());
-        } else if let Some(value) = trimmed_line.strip_prefix("description:") {
-            metadata.description = Some(strip_yaml_quotes(value.trim()).to_string());
-        }
-    }
-
-    metadata
 }
 
 #[cfg(test)]

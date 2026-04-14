@@ -15,40 +15,17 @@ pub fn register_plugins(ai_dir: &Path, entries: &[PluginEntry], fs: &dyn Fs) -> 
     tracing::debug!(count = entries.len(), "registering plugins in marketplace.json");
 
     let marketplace_path = ai_dir.join(".claude-plugin").join("marketplace.json");
-    let content = fs.read_to_string(&marketplace_path)?;
-    let mut json: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| Error::MarketplaceJsonParse { path: marketplace_path.clone(), source: e })?;
 
-    let plugins =
-        json.get_mut("plugins").and_then(serde_json::Value::as_array_mut).ok_or_else(|| {
-            Error::Io(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("missing 'plugins' array in {}", marketplace_path.display()),
-            ))
-        })?;
+    let gen_entries: Vec<crate::generate::marketplace::Entry<'_>> = entries
+        .iter()
+        .map(|e| crate::generate::marketplace::Entry {
+            name: &e.name,
+            description: e.description.as_deref().unwrap_or("Migrated from .claude/ configuration"),
+        })
+        .collect();
 
-    for entry in entries {
-        let already_registered = plugins.iter().any(|p| {
-            p.get("name").and_then(serde_json::Value::as_str) == Some(entry.name.as_str())
-        });
-        if already_registered {
-            continue;
-        }
+    crate::generate::marketplace::register_all(fs, &marketplace_path, &gen_entries)?;
 
-        let name = &entry.name;
-        let description =
-            entry.description.as_deref().unwrap_or("Migrated from .claude/ configuration");
-
-        plugins.push(serde_json::json!({
-            "name": name,
-            "source": format!("./{name}"),
-            "description": description
-        }));
-    }
-
-    let output = serde_json::to_string_pretty(&json)
-        .map_err(|e| Error::MarketplaceJsonParse { path: marketplace_path.clone(), source: e })?;
-    fs.write_file(&marketplace_path, format!("{output}\n").as_bytes())?;
     Ok(())
 }
 
@@ -113,6 +90,13 @@ mod tests {
                 .lock()
                 .expect("MockFs::write_file: mutex poisoned")
                 .insert(path.to_path_buf(), content.to_vec());
+            // Keep files map in sync so subsequent reads see the latest write.
+            if let Ok(s) = String::from_utf8(content.to_vec()) {
+                self.files
+                    .lock()
+                    .expect("MockFs::write_file: mutex poisoned")
+                    .insert(path.to_path_buf(), s);
+            }
             Ok(())
         }
 
@@ -176,18 +160,22 @@ mod tests {
 
     #[test]
     fn register_skips_already_registered() {
+        let original = r#"{"plugins":[{"name":"deploy","source":"./deploy"}]}"#;
         let fs = MockFs::new();
-        fs.set_file(
-            marketplace_path(),
-            r#"{"plugins":[{"name":"deploy","source":"./deploy"}]}"#.to_string(),
-        );
+        fs.set_file(marketplace_path(), original.to_string());
 
         let entries = vec![entry("deploy", None)];
         let result = register_plugins(Path::new("/ai"), &entries, &fs);
         assert!(result.is_ok());
 
-        let content =
-            fs.get_written(&marketplace_path()).expect("marketplace.json should have been written");
+        // No write should occur when all entries are already registered (no unnecessary I/O).
+        assert!(
+            fs.get_written(&marketplace_path()).is_none(),
+            "marketplace.json should not be rewritten when no changes are needed"
+        );
+
+        // Original content is preserved — still has exactly 1 plugin.
+        let content = fs.read_to_string(&marketplace_path()).unwrap();
         let parsed: serde_json::Value =
             serde_json::from_str(&content).expect("marketplace.json should be valid JSON");
         let plugins = parsed.get("plugins").and_then(|v| v.as_array()).map(Vec::len).unwrap_or(0);

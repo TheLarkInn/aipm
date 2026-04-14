@@ -73,10 +73,14 @@ pub struct InstallResult {
 /// # Errors
 ///
 /// Returns [`Error`] if any step fails.
-pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<InstallResult, Error> {
+pub fn install(
+    fs: &dyn crate::fs::Fs,
+    config: &InstallConfig,
+    registry: &dyn Registry,
+) -> Result<InstallResult, Error> {
     // Step 1: Load manifest
     tracing::info!(manifest = %config.manifest_path.display(), "loading manifest");
-    let manifest_content = std::fs::read_to_string(&config.manifest_path)?;
+    let manifest_content = fs.read_to_string(&config.manifest_path)?;
     let manifest = manifest::parse_and_validate(&manifest_content, config.manifest_path.parent())
         .map_err(|e| Error::Manifest { reason: e.to_string() })?;
 
@@ -88,12 +92,12 @@ pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<Instal
             version = version_req.as_str(),
             "adding dependency to manifest"
         );
-        manifest_editor::add_dependency(&config.manifest_path, &name, &version_req)?;
+        manifest_editor::add_dependency(fs, &config.manifest_path, &name, &version_req)?;
     }
 
     // Re-read manifest if we just modified it, otherwise use existing
     let manifest = if config.add_package.is_some() {
-        let content = std::fs::read_to_string(&config.manifest_path)?;
+        let content = fs.read_to_string(&config.manifest_path)?;
         manifest::parse_and_validate(&content, config.manifest_path.parent())
             .map_err(|e| Error::Manifest { reason: e.to_string() })?
     } else {
@@ -107,7 +111,7 @@ pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<Instal
     let existing_lockfile = if config.lockfile_path.exists() {
         tracing::info!(lockfile = %config.lockfile_path.display(), "loading existing lockfile");
         Some(
-            lockfile::read(&config.lockfile_path)
+            lockfile::read(fs, &config.lockfile_path)
                 .map_err(|e| Error::Manifest { reason: format!("lockfile read error: {e}") })?,
         )
     } else {
@@ -124,11 +128,11 @@ pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<Instal
     }
 
     // Step 4a: Discover workspace context
-    let members = discover_workspace_members(config, &manifest)?;
+    let members = discover_workspace_members(fs, config, &manifest)?;
 
     // Step 4b: Load link overrides (aipm link takes priority over workspace deps)
     let link_overrides: BTreeSet<String> = if config.link_state_path.exists() {
-        let entries = linker::link_state::list(&config.link_state_path)
+        let entries = linker::link_state::list(fs, &config.link_state_path)
             .map_err(|e| Error::Io(std::io::Error::other(format!("link state read error: {e}"))))?;
         entries.iter().map(|e| e.name.clone()).collect()
     } else {
@@ -166,6 +170,7 @@ pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<Instal
 
     // Steps 5-8: Fetch, store, and link resolved packages
     let (installed, up_to_date) = link_resolved_packages(
+        fs,
         config,
         &resolution,
         &members,
@@ -176,6 +181,7 @@ pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<Instal
 
     // Handle removed packages
     let removed = handle_removals(
+        fs,
         existing_lockfile.as_ref(),
         &resolution,
         &config.links_dir,
@@ -185,12 +191,12 @@ pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<Instal
 
     // Step 9: If --locked, clear dev link overrides
     if config.locked {
-        clear_dev_links(&config.link_state_path)?;
+        clear_dev_links(fs, &config.link_state_path)?;
     }
 
     // Step 10: Write lockfile
     let new_lockfile = build_lockfile(&resolution, &config.generated_by);
-    lockfile::write(&config.lockfile_path, &new_lockfile)
+    lockfile::write(fs, &config.lockfile_path, &new_lockfile)
         .map_err(|e| Error::Manifest { reason: format!("lockfile write error: {e}") })?;
 
     tracing::info!(
@@ -207,6 +213,7 @@ pub fn install(config: &InstallConfig, registry: &dyn Registry) -> Result<Instal
 ///
 /// Returns `(installed, up_to_date)` counts.
 fn link_resolved_packages(
+    fs: &dyn crate::fs::Fs,
     config: &InstallConfig,
     resolution: &resolver::Resolution,
     members: &BTreeMap<String, workspace::Member>,
@@ -238,7 +245,7 @@ fn link_resolved_packages(
                          workspace member was found"
                     ))
                 })?;
-                std::fs::create_dir_all(&config.plugins_dir)?;
+                fs.create_dir_all(&config.plugins_dir)?;
                 let link_target = config.plugins_dir.join(pkg_name);
 
                 // If the member already lives inside the plugins directory, no
@@ -258,7 +265,7 @@ fn link_resolved_packages(
                 } else {
                     linker::directory_link::create(&member.path, &link_target)
                         .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
-                    linker::gitignore::add_entry(&config.gitignore_path, pkg_name)
+                    linker::gitignore::add_entry(fs, &config.gitignore_path, pkg_name)
                         .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
                 }
                 installed += 1;
@@ -283,7 +290,7 @@ fn link_resolved_packages(
                     &config.plugins_dir,
                 )
                 .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
-                linker::gitignore::add_entry(&config.gitignore_path, pkg_name)
+                linker::gitignore::add_entry(fs, &config.gitignore_path, pkg_name)
                     .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
                 installed += 1;
             },
@@ -538,6 +545,7 @@ fn collect_transitive_registry_deps(
 
 /// Discover workspace members if the manifest is in a workspace context.
 fn discover_workspace_members(
+    fs: &dyn crate::fs::Fs,
     config: &InstallConfig,
     manifest: &manifest::types::Manifest,
 ) -> Result<BTreeMap<String, workspace::Member>, Error> {
@@ -547,7 +555,7 @@ fn discover_workspace_members(
             .manifest_path
             .parent()
             .ok_or_else(|| Error::Manifest { reason: "manifest has no parent dir".to_string() })?;
-        return workspace::discover_members(ws_root, &ws.members)
+        return workspace::discover_members(fs, ws_root, &ws.members)
             .map_err(|e| Error::Manifest { reason: format!("workspace discovery error: {e}") });
     }
 
@@ -555,13 +563,13 @@ fn discover_workspace_members(
     if let Some(ref ws_root) = config.workspace_root {
         let ws_manifest_path = ws_root.join("aipm.toml");
         if ws_manifest_path.exists() {
-            let content = std::fs::read_to_string(&ws_manifest_path)?;
+            let content = fs.read_to_string(&ws_manifest_path)?;
             let ws_manifest =
                 manifest::parse_and_validate(&content, Some(ws_root)).map_err(|e| {
                     Error::Manifest { reason: format!("workspace manifest error: {e}") }
                 })?;
             if let Some(ref ws) = ws_manifest.workspace {
-                return workspace::discover_members(ws_root, &ws.members).map_err(|e| {
+                return workspace::discover_members(fs, ws_root, &ws.members).map_err(|e| {
                     Error::Manifest { reason: format!("workspace discovery error: {e}") }
                 });
             }
@@ -735,6 +743,7 @@ fn store_tarball_contents(
 
 /// Handle removal of packages that were in the old lockfile but not in the new resolution.
 fn handle_removals(
+    fs: &dyn crate::fs::Fs,
     existing_lockfile: Option<&lockfile::types::Lockfile>,
     resolution: &resolver::Resolution,
     links_dir: &Path,
@@ -752,7 +761,7 @@ fn handle_removals(
             linker::pipeline::unlink_package(&pkg.name, links_dir, plugins_dir)
                 .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
 
-            linker::gitignore::remove_entry(gitignore_path, &pkg.name)
+            linker::gitignore::remove_entry(fs, gitignore_path, &pkg.name)
                 .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
 
             removed += 1;
@@ -763,9 +772,9 @@ fn handle_removals(
 }
 
 /// Clear all dev link overrides (for --locked mode).
-fn clear_dev_links(link_state_path: &Path) -> Result<(), Error> {
+fn clear_dev_links(fs: &dyn crate::fs::Fs, link_state_path: &Path) -> Result<(), Error> {
     if link_state_path.exists() {
-        let entries = linker::link_state::list(link_state_path)
+        let entries = linker::link_state::list(fs, link_state_path)
             .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
 
         for link in &entries {
@@ -776,7 +785,7 @@ fn clear_dev_links(link_state_path: &Path) -> Result<(), Error> {
             );
         }
 
-        linker::link_state::clear_all(link_state_path)
+        linker::link_state::clear_all(fs, link_state_path)
             .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
     }
     Ok(())
@@ -847,17 +856,21 @@ pub struct UpdateConfig {
 /// # Errors
 ///
 /// Returns [`Error`] if any step fails.
-pub fn update(config: &UpdateConfig, registry: &dyn Registry) -> Result<InstallResult, Error> {
+pub fn update(
+    fs: &dyn crate::fs::Fs,
+    config: &UpdateConfig,
+    registry: &dyn Registry,
+) -> Result<InstallResult, Error> {
     // Load manifest
     tracing::info!(manifest = %config.manifest_path.display(), "loading manifest for update");
-    let manifest_content = std::fs::read_to_string(&config.manifest_path)?;
+    let manifest_content = fs.read_to_string(&config.manifest_path)?;
     let manifest = manifest::parse_and_validate(&manifest_content, config.manifest_path.parent())
         .map_err(|e| Error::Manifest { reason: e.to_string() })?;
 
     // Load existing lockfile
     let existing_lockfile = if config.lockfile_path.exists() {
         Some(
-            lockfile::read(&config.lockfile_path)
+            lockfile::read(fs, &config.lockfile_path)
                 .map_err(|e| Error::Manifest { reason: format!("lockfile read error: {e}") })?,
         )
     } else {
@@ -931,7 +944,7 @@ pub fn update(config: &UpdateConfig, registry: &dyn Registry) -> Result<InstallR
         )
         .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
 
-        linker::gitignore::add_entry(&config.gitignore_path, pkg_name)
+        linker::gitignore::add_entry(fs, &config.gitignore_path, pkg_name)
             .map_err(|e| Error::Io(std::io::Error::other(e.to_string())))?;
 
         installed += 1;
@@ -939,6 +952,7 @@ pub fn update(config: &UpdateConfig, registry: &dyn Registry) -> Result<InstallR
 
     // Handle removals
     let removed = handle_removals(
+        fs,
         existing_lockfile.as_ref(),
         &resolution,
         &config.links_dir,
@@ -948,7 +962,7 @@ pub fn update(config: &UpdateConfig, registry: &dyn Registry) -> Result<InstallR
 
     // Write updated lockfile
     let new_lockfile = build_lockfile(&resolution, &config.generated_by);
-    lockfile::write(&config.lockfile_path, &new_lockfile)
+    lockfile::write(fs, &config.lockfile_path, &new_lockfile)
         .map_err(|e| Error::Manifest { reason: format!("lockfile write error: {e}") })?;
 
     tracing::info!(
@@ -1320,14 +1334,14 @@ features = ["json"]
         let config = setup_project(tmp.path());
         let registry = make_registry();
 
-        let result = install(&config, &registry);
+        let result = install(&crate::fs::Real, &config, &registry);
         assert!(result.is_ok(), "install failed: {result:?}");
 
         // Lockfile should exist
         assert!(config.lockfile_path.exists());
 
         // Read back and verify
-        let lf = lockfile::read(&config.lockfile_path).unwrap();
+        let lf = lockfile::read(&crate::fs::Real, &config.lockfile_path).unwrap();
         assert!(!lf.packages.is_empty());
     }
 
@@ -1358,7 +1372,7 @@ features = ["json"]
         };
         let registry = make_registry(); // doesn't have "missing-pkg"
 
-        let result = install(&config, &registry);
+        let result = install(&crate::fs::Real, &config, &registry);
         assert!(result.is_err());
     }
 
@@ -1369,7 +1383,7 @@ features = ["json"]
         config.locked = true;
         let registry = make_registry();
 
-        let result = install(&config, &registry);
+        let result = install(&crate::fs::Real, &config, &registry);
         assert!(result.is_err());
         let err = format!("{}", result.err().unwrap());
         assert!(err.contains("lockfile") || err.contains("locked"));
@@ -1383,10 +1397,10 @@ features = ["json"]
 
         // Write a lockfile that's missing "pkg-a"
         let lf = lockfile::types::Lockfile::new("test".to_string());
-        lockfile::write(&config.lockfile_path, &lf).unwrap();
+        lockfile::write(&crate::fs::Real, &config.lockfile_path, &lf).unwrap();
 
         let registry = make_registry();
-        let result = install(&config, &registry);
+        let result = install(&crate::fs::Real, &config, &registry);
         assert!(result.is_err());
     }
 
@@ -1421,7 +1435,7 @@ features = ["json"]
         config.add_package = Some("pkg-b@^2.0".to_string());
         let registry = make_registry();
 
-        let result = install(&config, &registry);
+        let result = install(&crate::fs::Real, &config, &registry);
         assert!(result.is_ok(), "install failed: {result:?}");
 
         // Manifest should contain pkg-b
@@ -1434,7 +1448,7 @@ features = ["json"]
         let tmp = tempfile::tempdir().expect("tempdir");
         let state_path = tmp.path().join("links.toml");
         // Should be a no-op when file doesn't exist
-        assert!(clear_dev_links(&state_path).is_ok());
+        assert!(clear_dev_links(&crate::fs::Real, &state_path).is_ok());
     }
 
     #[test]
@@ -1448,12 +1462,12 @@ features = ["json"]
             path: std::path::PathBuf::from("/work/my-plugin"),
             linked_at: "2026-03-26T12:00:00Z".to_string(),
         };
-        linker::link_state::add(&state_path, entry).expect("add entry");
+        linker::link_state::add(&crate::fs::Real, &state_path, entry).expect("add entry");
 
-        assert!(clear_dev_links(&state_path).is_ok());
+        assert!(clear_dev_links(&crate::fs::Real, &state_path).is_ok());
 
         // Entries should be cleared
-        let remaining = linker::link_state::list(&state_path).expect("list");
+        let remaining = linker::link_state::list(&crate::fs::Real, &state_path).expect("list");
         assert!(remaining.is_empty());
     }
 
@@ -1461,6 +1475,7 @@ features = ["json"]
     fn handle_removals_no_existing_lockfile() {
         let resolution = resolver::Resolution { packages: vec![] };
         let result = handle_removals(
+            &crate::fs::Real,
             None,
             &resolution,
             Path::new("/tmp/links"),
@@ -1501,7 +1516,7 @@ pkg-a = "^1.0"
         let config = make_update_config(tmp.path());
         let registry = make_registry();
 
-        let result = update(&config, &registry);
+        let result = update(&crate::fs::Real, &config, &registry);
         assert!(result.is_ok(), "update failed: {result:?}");
 
         // Should create lockfile
@@ -1517,10 +1532,10 @@ pkg-a = "^1.0"
 
         // First install
         let install_config = setup_project(tmp.path());
-        let _ = install(&install_config, &registry);
+        let _ = install(&crate::fs::Real, &install_config, &registry);
 
         // Now update pkg-a
-        let result = update(&config, &registry);
+        let result = update(&crate::fs::Real, &config, &registry);
         assert!(result.is_ok(), "update failed: {result:?}");
     }
 
@@ -1532,14 +1547,14 @@ pkg-a = "^1.0"
 
         // First install
         let install_config = setup_project(tmp.path());
-        let _ = install(&install_config, &registry);
+        let _ = install(&crate::fs::Real, &install_config, &registry);
 
         // Full update (no specific package)
-        let result = update(&config, &registry);
+        let result = update(&crate::fs::Real, &config, &registry);
         assert!(result.is_ok(), "update failed: {result:?}");
 
         // Lockfile should be updated
-        let lf = lockfile::read(&config.lockfile_path).unwrap();
+        let lf = lockfile::read(&crate::fs::Real, &config.lockfile_path).unwrap();
         assert!(!lf.packages.is_empty());
     }
 
@@ -1672,7 +1687,7 @@ features = ["extra"]
         let registry = make_registry();
 
         // First do an unlocked install to create the lockfile
-        let result = install(&config, &registry);
+        let result = install(&crate::fs::Real, &config, &registry);
         assert!(result.is_ok(), "first install failed: {result:?}");
 
         // Add a link entry to the state file
@@ -1681,19 +1696,22 @@ features = ["extra"]
             path: std::path::PathBuf::from("/dev/path"),
             linked_at: "2026-01-01T00:00:00Z".to_string(),
         };
-        crate::linker::link_state::add(&config.link_state_path, link_entry).unwrap();
+        crate::linker::link_state::add(&crate::fs::Real, &config.link_state_path, link_entry)
+            .unwrap();
 
         // Verify entry was added
-        let entries = crate::linker::link_state::list(&config.link_state_path).unwrap();
+        let entries =
+            crate::linker::link_state::list(&crate::fs::Real, &config.link_state_path).unwrap();
         assert_eq!(entries.len(), 1);
 
         // Now install in --locked mode — should clear dev links
         config.locked = true;
-        let result = install(&config, &registry);
+        let result = install(&crate::fs::Real, &config, &registry);
         assert!(result.is_ok(), "locked install failed: {result:?}");
 
         // Dev links should be cleared
-        let entries = crate::linker::link_state::list(&config.link_state_path).unwrap();
+        let entries =
+            crate::linker::link_state::list(&crate::fs::Real, &config.link_state_path).unwrap();
         assert!(entries.is_empty());
     }
 
@@ -1728,7 +1746,7 @@ pkg-a = "^1.0"
         };
 
         let registry = make_registry();
-        let result = install(&config, &registry);
+        let result = install(&crate::fs::Real, &config, &registry);
         assert!(result.is_ok(), "install with overrides failed: {result:?}");
     }
 
@@ -1740,12 +1758,12 @@ pkg-a = "^1.0"
         let registry = make_registry();
 
         // First install to create lockfile
-        let result = install(&config, &registry);
+        let result = install(&crate::fs::Real, &config, &registry);
         assert!(result.is_ok());
 
         // Now install again in locked mode
         config.locked = true;
-        let result = install(&config, &registry);
+        let result = install(&crate::fs::Real, &config, &registry);
         assert!(result.is_ok(), "locked install failed: {result:?}");
     }
 
@@ -1762,13 +1780,13 @@ pkg-a = "^1.0"
 
         // First install (creates lockfile with pkg-a)
         let config = setup_project(tmp.path());
-        let result = install(&config, &registry);
+        let result = install(&crate::fs::Real, &config, &registry);
         assert!(result.is_ok(), "first install failed: {result:?}");
 
         // Second install without changes: reconcile finds nothing changed →
         // build_resolution_from_lockfile is called.
         let config2 = setup_project(tmp.path());
-        let result2 = install(&config2, &registry);
+        let result2 = install(&crate::fs::Real, &config2, &registry);
         assert!(result2.is_ok(), "second install failed: {result2:?}");
     }
 
@@ -1783,12 +1801,12 @@ pkg-a = "^1.0"
         let config = setup_project(tmp.path());
 
         // First install builds the assembled dir
-        let r1 = install(&config, &registry);
+        let r1 = install(&crate::fs::Real, &config, &registry);
         assert!(r1.is_ok(), "first install: {r1:?}");
 
         // Second install: assembled dir already exists AND lockfile matches →
         // up_to_date counter is incremented.
-        let r2 = install(&config, &registry);
+        let r2 = install(&crate::fs::Real, &config, &registry);
         assert!(r2.is_ok(), "second install: {r2:?}");
         let stats = r2.unwrap();
         assert_eq!(stats.up_to_date, 1, "expected 1 up-to-date package");
@@ -1846,9 +1864,15 @@ pkg-a = "^1.0"
         std::fs::create_dir_all(&plugins_dir).unwrap();
 
         // pkg-old is not in the new resolution, so it should be removed (count = 1)
-        let removed =
-            handle_removals(Some(&old_lf), &resolution, &links_dir, &plugins_dir, &gitignore_path)
-                .unwrap();
+        let removed = handle_removals(
+            &crate::fs::Real,
+            Some(&old_lf),
+            &resolution,
+            &links_dir,
+            &plugins_dir,
+            &gitignore_path,
+        )
+        .unwrap();
 
         assert_eq!(removed, 1);
     }
@@ -1873,16 +1897,16 @@ pkg-a = "^1.0"
             path: std::path::PathBuf::from("/dev/tool-b"),
             linked_at: "2026-01-02T00:00:00Z".to_string(),
         };
-        crate::linker::link_state::add(&state_path, entry_a).unwrap();
-        crate::linker::link_state::add(&state_path, entry_b).unwrap();
+        crate::linker::link_state::add(&crate::fs::Real, &state_path, entry_a).unwrap();
+        crate::linker::link_state::add(&crate::fs::Real, &state_path, entry_b).unwrap();
 
-        let before = crate::linker::link_state::list(&state_path).unwrap();
+        let before = crate::linker::link_state::list(&crate::fs::Real, &state_path).unwrap();
         assert_eq!(before.len(), 2);
 
         // clear_dev_links should empty the file
-        clear_dev_links(&state_path).unwrap();
+        clear_dev_links(&crate::fs::Real, &state_path).unwrap();
 
-        let after = crate::linker::link_state::list(&state_path).unwrap();
+        let after = crate::linker::link_state::list(&crate::fs::Real, &state_path).unwrap();
         assert!(after.is_empty(), "expected empty state after clear_dev_links");
     }
 
@@ -1898,7 +1922,7 @@ pkg-a = "^1.0"
         // No lockfile written — config.lockfile_path does not exist
         let registry = make_registry();
 
-        let result = install(&config, &registry);
+        let result = install(&crate::fs::Real, &config, &registry);
         assert!(result.is_err());
         let msg = format!("{}", result.unwrap_err());
         assert!(msg.contains("lockfile") || msg.contains("locked"), "unexpected error: {msg}");
@@ -1915,16 +1939,16 @@ pkg-a = "^1.0"
 
         // Install first
         let install_config = setup_project(tmp.path());
-        let r = install(&install_config, &registry);
+        let r = install(&crate::fs::Real, &install_config, &registry);
         assert!(r.is_ok(), "install: {r:?}");
 
         // Full update with an existing lockfile
         let mut config = make_update_config(tmp.path());
         config.package = None; // full update
-        let result = update(&config, &registry);
+        let result = update(&crate::fs::Real, &config, &registry);
         assert!(result.is_ok(), "full update: {result:?}");
 
-        let lf = lockfile::read(&config.lockfile_path).unwrap();
+        let lf = lockfile::read(&crate::fs::Real, &config.lockfile_path).unwrap();
         assert!(!lf.packages.is_empty());
     }
 
@@ -1989,7 +2013,7 @@ version = "0.1.0"
         let registry = make_registry();
 
         let config = setup_project(tmp.path());
-        let r1 = install(&config, &registry);
+        let r1 = install(&crate::fs::Real, &config, &registry);
         assert!(r1.is_ok(), "first install: {r1:?}");
 
         // Now update the manifest to add pkg-b
@@ -2018,10 +2042,10 @@ pkg-b = "^2.0"
             generated_by: "aipm-test 0.1.0".to_string(),
         };
 
-        let r2 = install(&config2, &registry);
+        let r2 = install(&crate::fs::Real, &config2, &registry);
         assert!(r2.is_ok(), "second install with added dep: {r2:?}");
 
-        let lf = lockfile::read(&config2.lockfile_path).unwrap();
+        let lf = lockfile::read(&crate::fs::Real, &config2.lockfile_path).unwrap();
         let names: Vec<_> = lf.packages.iter().map(|p| p.name.as_str()).collect();
         assert!(names.contains(&"pkg-b"), "pkg-b should be in lockfile after re-install");
     }
@@ -2039,19 +2063,19 @@ pkg-b = "^2.0"
 
         // First install to create lockfile and assembled dirs
         let install_config = setup_project(tmp.path());
-        let r1 = install(&install_config, &registry);
+        let r1 = install(&crate::fs::Real, &install_config, &registry);
         assert!(r1.is_ok(), "install: {r1:?}");
 
         // First update (with existing lockfile — covers L495 True)
         let mut config = make_update_config(tmp.path());
         config.package = None;
-        let r2 = update(&config, &registry);
+        let r2 = update(&crate::fs::Real, &config, &registry);
         assert!(r2.is_ok(), "first update: {r2:?}");
 
         // Second update: assembled dirs exist AND version matches lockfile
         // → assembled_dir.exists() == True && !needs_update == True
         // This covers L539:12 True and L539:38 True (up-to-date branch)
-        let r3 = update(&config, &registry);
+        let r3 = update(&crate::fs::Real, &config, &registry);
         assert!(r3.is_ok(), "second update: {r3:?}");
         let stats = r3.unwrap();
         assert_eq!(stats.up_to_date, 1, "expected 1 up-to-date package on second update");
@@ -2074,7 +2098,7 @@ pkg-b = "^2.0"
 
         // Step 1: install to create the assembled dir and a correct lockfile
         let install_config = setup_project(tmp.path());
-        let r1 = install(&install_config, &registry);
+        let r1 = install(&crate::fs::Real, &install_config, &registry);
         assert!(r1.is_ok(), "initial install: {r1:?}");
         assert!(install_config.lockfile_path.exists(), "lockfile must exist after install");
         assert!(
@@ -2084,20 +2108,21 @@ pkg-b = "^2.0"
 
         // Step 2: read the real lockfile and tamper with the checksum so that
         // needs_update will return true even though the version matches
-        let mut lf =
-            lockfile::read(&install_config.lockfile_path).expect("lockfile must be readable");
+        let mut lf = lockfile::read(&crate::fs::Real, &install_config.lockfile_path)
+            .expect("lockfile must be readable");
         for pkg in &mut lf.packages {
             if pkg.name == "pkg-a" {
                 pkg.checksum = "sha512-tampered-checksum".to_string();
             }
         }
-        lockfile::write(&install_config.lockfile_path, &lf).expect("lockfile must be writable");
+        lockfile::write(&crate::fs::Real, &install_config.lockfile_path, &lf)
+            .expect("lockfile must be writable");
 
         // Step 3: run update — assembled_dir exists but checksum mismatch means
         // needs_update returns true, so the condition at L907 is false and the
         // package is re-fetched (covering the previously-missed False branch).
         let config = make_update_config(tmp.path());
-        let result = update(&config, &registry);
+        let result = update(&crate::fs::Real, &config, &registry);
         assert!(result.is_ok(), "update with stale checksum: {result:?}");
         let stats = result.unwrap();
         assert_eq!(stats.installed, 1, "package with stale checksum must be re-installed");
@@ -2259,9 +2284,15 @@ pkg-a = "^1.0"
         std::fs::create_dir_all(&plugins_dir).unwrap();
 
         // No packages removed → result should be 0
-        let removed =
-            handle_removals(Some(&old_lf), &resolution, &links_dir, &plugins_dir, &gitignore_path)
-                .unwrap();
+        let removed = handle_removals(
+            &crate::fs::Real,
+            Some(&old_lf),
+            &resolution,
+            &links_dir,
+            &plugins_dir,
+            &gitignore_path,
+        )
+        .unwrap();
         assert_eq!(removed, 0, "no packages should be removed when all are still present");
     }
 
@@ -2278,7 +2309,7 @@ pkg-a = "^1.0"
 
         // Install to create lockfile
         let install_config = setup_project(tmp.path());
-        let r = install(&install_config, &registry);
+        let r = install(&crate::fs::Real, &install_config, &registry);
         assert!(r.is_ok(), "install: {r:?}");
         assert!(install_config.lockfile_path.exists(), "lockfile must exist");
 
@@ -2286,10 +2317,10 @@ pkg-a = "^1.0"
         let mut config = make_update_config(tmp.path());
         config.package = Some("pkg-a".to_string());
 
-        let result = update(&config, &registry);
+        let result = update(&crate::fs::Real, &config, &registry);
         assert!(result.is_ok(), "targeted update with existing lockfile: {result:?}");
 
-        let lf = lockfile::read(&config.lockfile_path).unwrap();
+        let lf = lockfile::read(&crate::fs::Real, &config.lockfile_path).unwrap();
         assert!(!lf.packages.is_empty());
     }
 
@@ -2734,7 +2765,7 @@ members = [".ai/*"]
             generated_by: "test".to_string(),
         };
 
-        let members = discover_workspace_members(&config, &parsed);
+        let members = discover_workspace_members(&crate::fs::Real, &config, &parsed);
         assert!(members.is_ok(), "should discover members: {:?}", members.err());
         let members = members.unwrap();
         assert_eq!(members.len(), 1);
@@ -2791,7 +2822,7 @@ members = [".ai/*"]
             generated_by: "test".to_string(),
         };
 
-        let members = discover_workspace_members(&config, &parsed);
+        let members = discover_workspace_members(&crate::fs::Real, &config, &parsed);
         assert!(members.is_ok(), "should find members via workspace_root: {:?}", members.err());
         let members = members.unwrap();
         assert_eq!(members.len(), 1);
@@ -2844,7 +2875,7 @@ plugin-b = { workspace = "*" }
         };
 
         let registry = StubRegistry;
-        let result = install(&config, &registry);
+        let result = install(&crate::fs::Real, &config, &registry);
         assert!(result.is_ok(), "workspace install should succeed: {:?}", result.err());
 
         let res = result.unwrap();
@@ -2860,7 +2891,7 @@ plugin-b = { workspace = "*" }
         assert_eq!(marker.unwrap(), "hello");
 
         // Verify lockfile was written with workspace source
-        let lf = lockfile::read(&config.lockfile_path).unwrap();
+        let lf = lockfile::read(&crate::fs::Real, &config.lockfile_path).unwrap();
         assert_eq!(lf.packages.len(), 1);
         assert_eq!(lf.packages[0].name, "plugin-b");
         assert_eq!(lf.packages[0].source, "workspace");
@@ -2932,7 +2963,7 @@ plugin-b = { workspace = "*" }
             generated_by: "test".to_string(),
         };
 
-        let members = discover_workspace_members(&config, &parsed).unwrap();
+        let members = discover_workspace_members(&crate::fs::Real, &config, &parsed).unwrap();
         assert!(members.is_empty(), "no workspace section → no members");
     }
 
@@ -2968,7 +2999,7 @@ plugin-b = { workspace = "*" }
             generated_by: "test".to_string(),
         };
 
-        let members = discover_workspace_members(&config, &parsed).unwrap();
+        let members = discover_workspace_members(&crate::fs::Real, &config, &parsed).unwrap();
         assert!(members.is_empty());
     }
 
@@ -3068,8 +3099,15 @@ plugin-b = { workspace = "*" }
 
         let members = BTreeMap::new();
         let stub = StubRegistry;
-        let result =
-            link_resolved_packages(&config, &resolution, &members, &BTreeSet::new(), None, &stub);
+        let result = link_resolved_packages(
+            &crate::fs::Real,
+            &config,
+            &resolution,
+            &members,
+            &BTreeSet::new(),
+            None,
+            &stub,
+        );
         assert!(result.is_ok());
         let (installed, up_to_date) = result.unwrap();
         assert_eq!(installed, 0, "path deps should not be installed");
@@ -3133,8 +3171,15 @@ plugin-b = { workspace = "*" }
         );
 
         let stub = StubRegistry;
-        let result =
-            link_resolved_packages(&config, &resolution, &members, &BTreeSet::new(), None, &stub);
+        let result = link_resolved_packages(
+            &crate::fs::Real,
+            &config,
+            &resolution,
+            &members,
+            &BTreeSet::new(),
+            None,
+            &stub,
+        );
         assert!(result.is_ok(), "workspace linking should succeed: {:?}", result.err());
         let (installed, _) = result.unwrap();
         assert_eq!(installed, 1);
@@ -3187,8 +3232,15 @@ plugin-b = { workspace = "*" }
         link_overrides.insert("linked-pkg".to_string());
 
         let stub = StubRegistry;
-        let result =
-            link_resolved_packages(&config, &resolution, &members, &link_overrides, None, &stub);
+        let result = link_resolved_packages(
+            &crate::fs::Real,
+            &config,
+            &resolution,
+            &members,
+            &link_overrides,
+            None,
+            &stub,
+        );
         assert!(result.is_ok(), "link override should cause the package to be skipped: {result:?}");
         let (installed, up_to_date) = result.unwrap();
         assert_eq!(installed, 0, "link-overridden package must not be installed");
@@ -3243,7 +3295,7 @@ plugin-b = { workspace = "*" }
             generated_by: "test".to_string(),
         };
 
-        let members = discover_workspace_members(&config, &parsed).unwrap();
+        let members = discover_workspace_members(&crate::fs::Real, &config, &parsed).unwrap();
         assert!(members.is_empty(), "no aipm.toml at workspace_root → no members");
     }
 
@@ -3313,7 +3365,7 @@ plugin-a = { workspace = "*" }
         };
 
         let registry = StubRegistry;
-        let result = install(&config, &registry);
+        let result = install(&crate::fs::Real, &config, &registry);
         assert!(
             result.is_ok(),
             "should succeed when member is already in plugins dir: {:?}",
@@ -3336,7 +3388,7 @@ plugin-a = { workspace = "*" }
         assert_eq!(content.unwrap(), "world");
 
         // Verify lockfile was written
-        let lf = lockfile::read(&config.lockfile_path).unwrap();
+        let lf = lockfile::read(&crate::fs::Real, &config.lockfile_path).unwrap();
         assert_eq!(lf.packages.len(), 1);
         assert_eq!(lf.packages[0].name, "plugin-a");
         assert_eq!(lf.packages[0].source, "workspace");
@@ -3395,7 +3447,7 @@ print-clock = { workspace = "*" }
         };
 
         let registry = StubRegistry;
-        let result = install(&config, &registry);
+        let result = install(&crate::fs::Real, &config, &registry);
         assert!(
             result.is_ok(),
             "transitive workspace install should succeed when members are in plugins dir: {:?}",
@@ -3412,7 +3464,7 @@ print-clock = { workspace = "*" }
         assert!(!linker::directory_link::is_link(&clock_dir));
 
         // Lockfile should have both packages
-        let lf = lockfile::read(&config.lockfile_path).unwrap();
+        let lf = lockfile::read(&crate::fs::Real, &config.lockfile_path).unwrap();
         assert_eq!(lf.packages.len(), 2);
         let names: Vec<&str> = lf.packages.iter().map(|p| p.name.as_str()).collect();
         assert!(names.contains(&"get-current-time"));
@@ -3444,7 +3496,7 @@ print-clock = { workspace = "*" }
         };
 
         let registry = make_registry();
-        let result = install(&config, &registry);
+        let result = install(&crate::fs::Real, &config, &registry);
         assert!(result.is_err(), "expected an error for invalid manifest TOML");
         assert!(
             matches!(result.unwrap_err(), Error::Manifest { .. }),
@@ -3467,7 +3519,7 @@ print-clock = { workspace = "*" }
             .expect("write lockfile");
 
         let registry = make_registry();
-        let result = install(&config, &registry);
+        let result = install(&crate::fs::Real, &config, &registry);
         assert!(result.is_err(), "expected an error for malformed lockfile");
         assert!(
             matches!(result.unwrap_err(), Error::Manifest { .. }),

@@ -3,6 +3,7 @@
 //! This module provides the complete manifest schema used by both workspace
 //! root manifests and plugin member manifests.
 
+pub mod builder;
 pub mod error;
 pub mod types;
 pub mod validate;
@@ -42,8 +43,8 @@ pub fn parse_and_validate(toml_str: &str, base_dir: Option<&Path>) -> Result<Man
 ///
 /// Returns `Error::Io` if the file cannot be read, or any validation
 /// error from `parse_and_validate`.
-pub fn load(manifest_path: &Path) -> Result<Manifest, Error> {
-    let content = std::fs::read_to_string(manifest_path).map_err(|source| Error::Io { source })?;
+pub fn load(fs: &dyn crate::fs::Fs, manifest_path: &Path) -> Result<Manifest, Error> {
+    let content = fs.read_to_string(manifest_path).map_err(|source| Error::Io { source })?;
     let base_dir = manifest_path.parent();
     parse_and_validate(&content, base_dir)
 }
@@ -512,7 +513,7 @@ type = "lsp"
         let manifest_path = tmp_dir.path().join("aipm.toml");
         std::fs::write(&manifest_path, "not valid toml [[[")
             .expect("failed to write manifest file");
-        let result = load(&manifest_path);
+        let result = load(&crate::fs::Real, &manifest_path);
         assert!(result.is_err());
     }
 
@@ -520,7 +521,7 @@ type = "lsp"
     fn load_nonexistent_file_returns_io_error() {
         let tmp_dir = tempfile::tempdir().expect("failed to create temporary directory");
         let nonexistent_path = tmp_dir.path().join("nonexistent").join("aipm.toml");
-        let result = load(&nonexistent_path);
+        let result = load(&crate::fs::Real, &nonexistent_path);
         assert!(matches!(result, Err(Error::Io { .. })));
     }
 
@@ -530,7 +531,7 @@ type = "lsp"
         let manifest_path = tmp_dir.path().join("aipm.toml");
         let toml_content = "[package]\nname = \"my-plugin\"\nversion = \"0.1.0\"\n";
         std::fs::write(&manifest_path, toml_content).expect("failed to write manifest file");
-        let result = load(&manifest_path);
+        let result = load(&crate::fs::Real, &manifest_path);
         assert!(result.is_ok());
         let manifest = result.ok();
         assert!(manifest.is_some_and(|m| m.package.is_some_and(|p| p.name == "my-plugin")));

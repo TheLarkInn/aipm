@@ -44,12 +44,26 @@ Validates that a plugin's `.claude-plugin/plugin.json` contains all required fie
 
 Add the missing fields to `.claude-plugin/plugin.json`. All five required fields must be present and non-empty strings.
 
-Run `aipm-pack init` to scaffold a new plugin with all required fields pre-populated.
+**For plugins created with `aipm init`:** As of the DRY architecture refactor, `aipm init` generates a complete `plugin.json` for the starter plugin, including placeholder `author.name` and `author.email` values set to `"TODO"`. Replace these placeholders with real values:
+
+```json
+{
+  "name": "my-plugin",
+  "description": "What this plugin does",
+  "version": "0.1.0",
+  "author": {
+    "name": "Your Name",
+    "email": "you@example.com"
+  }
+}
+```
+
+**For manually created or migrated plugins:** Create or update `.claude-plugin/plugin.json` with all five required fields.
 
 ## See also
 
 - [plugin/missing-manifest](missing-manifest.md) — validates that `plugin.json` exists
 - [plugin/missing-registration](missing-registration.md) — validates the plugin is listed in `marketplace.json`
-- [Creating a plugin](../../guides/creating-a-plugin.md) — how to scaffold a new plugin with all required fields pre-populated
+- [Creating a plugin](../../guides/creating-a-plugin.md) — how to create a plugin package
 - [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system
 - [Configuring lint](../../guides/configuring-lint.md) — override rule severity or suppress rules per path

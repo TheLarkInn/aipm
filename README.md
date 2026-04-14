@@ -211,7 +211,7 @@ aipm list [OPTIONS]
 ### `aipm lint`
 
 Check AI plugin configurations and instruction files for quality issues across all detected
-source directories. `aipm lint` applies 18 rules across `skill/`, `agent/`, `hook/`, `plugin/`,
+source directories. `aipm lint` covers `skill/`, `agent/`, `hook/`, `plugin/`,
 `marketplace/`, `instructions/`, and `source/` categories — including checks on
 `CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, and
 `*.instructions.md` files anywhere in the project tree.
@@ -392,7 +392,8 @@ common-skill = "^2.0"
 "skill/oversized" = "allow"
 # Per-rule ignore paths (lint ignore matching uses full file paths, so use `**/` to match anywhere)
 "source/misplaced-features" = { level = "warn", ignore = ["**/.claude/skills/legacy-*/**"] }
-# Per-rule options (instructions/oversized supports lines, characters, and resolve-imports)
+# instructions/oversized — relax size limits for large monorepo instruction files
+# (also supports `resolve-imports = true` to count imported content toward the limit)
 "instructions/oversized" = { lines = 200, characters = 20000 }
 
 [workspace.lints.ignore]

@@ -6,6 +6,8 @@
 
 use std::path::Path;
 
+use serde::de::DeserializeOwned;
+
 /// A directory entry returned by `Fs::read_dir`.
 #[derive(Debug, Clone)]
 pub struct DirEntry {
@@ -85,6 +87,26 @@ pub trait Fs: Send + Sync {
     /// Atomically write a file (write to temp, then rename).
     fn atomic_write(&self, _path: &Path, _content: &[u8]) -> std::io::Result<()> {
         Err(std::io::Error::other("atomic_write not implemented"))
+    }
+
+    // -----------------------------------------------------------------
+    // Convenience defaults (compose required methods above)
+    // -----------------------------------------------------------------
+
+    /// Creates parent directories if needed, then writes the file.
+    ///
+    /// Equivalent to `create_dir_all(parent) + write_file(path, content)`.
+    /// All 6+ locations in the codebase that do this manually can call
+    /// this method instead.
+    fn write_file_with_parents(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+        if let Some(parent) = path.parent() {
+            // Only call create_dir_all when the parent is a non-empty path
+            // (path.parent() returns Some("") for a bare filename).
+            if !parent.as_os_str().is_empty() {
+                self.create_dir_all(parent)?;
+            }
+        }
+        self.write_file(path, content)
     }
 }
 
@@ -232,6 +254,44 @@ impl Fs for Real {
                 fs::rename(&tmp_path, path)
             }
         }
+    }
+}
+
+// -----------------------------------------------------------------
+// Read-or-default helpers (free functions so they remain dyn-compatible)
+// -----------------------------------------------------------------
+
+/// Reads and JSON-deserializes a file via `fs`, returning `T::default()` if
+/// the file does not exist.
+///
+/// Returns an error if the file exists but cannot be read or contains invalid
+/// JSON.
+pub fn read_or_default<T>(fs: &dyn Fs, path: &Path) -> std::io::Result<T>
+where
+    T: Default + DeserializeOwned,
+{
+    match fs.read_to_string(path) {
+        Ok(content) => serde_json::from_str(&content)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(T::default()),
+        Err(e) => Err(e),
+    }
+}
+
+/// Reads and TOML-deserializes a file via `fs`, returning `T::default()` if
+/// the file does not exist.
+///
+/// Returns an error if the file exists but cannot be read or contains invalid
+/// TOML.
+pub fn read_toml_or_default<T>(fs: &dyn Fs, path: &Path) -> std::io::Result<T>
+where
+    T: Default + DeserializeOwned,
+{
+    match fs.read_to_string(path) {
+        Ok(content) => toml::from_str(&content)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(T::default()),
+        Err(e) => Err(e),
     }
 }
 
@@ -399,6 +459,121 @@ mod tests {
     #[test]
     fn real_is_file_returns_false_for_nonexistent() {
         assert!(!Real.is_file(Path::new("/nonexistent/path/that/does/not/exist")));
+    }
+
+    #[test]
+    fn write_file_with_parents_creates_nested_dirs_and_file() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let nested = tmp.path().join("a").join("b").join("c").join("output.txt");
+
+        assert!(Real.write_file_with_parents(&nested, b"hello nested").is_ok());
+        assert!(nested.exists());
+        assert_eq!(std::fs::read_to_string(&nested).expect("read"), "hello nested");
+    }
+
+    #[test]
+    fn write_file_with_parents_bare_filename_no_parent_create() {
+        // A bare filename has no meaningful parent directory — write_file_with_parents
+        // must not call create_dir_all with an empty path (which would be a no-op
+        // on most OSes but is semantically wrong). We test via a tmp dir cd-less
+        // approach: just check the call succeeds when parent is empty.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let file = tmp.path().join("just_a_file.txt");
+
+        // Parent exists (tmp dir), so create_dir_all is a no-op; file is created.
+        assert!(Real.write_file_with_parents(&file, b"bare").is_ok());
+        assert_eq!(std::fs::read_to_string(&file).expect("read"), "bare");
+    }
+
+    #[test]
+    fn write_file_with_parents_overwrites_existing_file() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let file = tmp.path().join("sub").join("overwrite.txt");
+
+        assert!(Real.write_file_with_parents(&file, b"first").is_ok());
+        assert!(Real.write_file_with_parents(&file, b"second").is_ok());
+        assert_eq!(std::fs::read_to_string(&file).expect("read"), "second");
+    }
+
+    #[test]
+    fn write_file_with_parents_single_level_parent() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let file = tmp.path().join("one_level").join("file.txt");
+
+        assert!(Real.write_file_with_parents(&file, b"content").is_ok());
+        assert!(file.exists());
+    }
+
+    // ---- read_or_default tests (JSON) ----
+
+    #[derive(Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+    struct TestJson {
+        value: u32,
+    }
+
+    #[test]
+    fn read_or_default_returns_default_when_file_missing() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("missing.json");
+        let result: std::io::Result<TestJson> = read_or_default(&Real, &path);
+        assert!(result.is_ok());
+        assert_eq!(result.expect("ok"), TestJson::default());
+    }
+
+    #[test]
+    fn read_or_default_deserializes_valid_json() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("data.json");
+        std::fs::write(&path, r#"{"value": 42}"#).expect("write");
+        let result: std::io::Result<TestJson> = read_or_default(&Real, &path);
+        assert!(result.is_ok());
+        assert_eq!(result.expect("ok"), TestJson { value: 42 });
+    }
+
+    #[test]
+    fn read_or_default_errors_on_invalid_json() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("bad.json");
+        std::fs::write(&path, "not json at all :::").expect("write");
+        let result: std::io::Result<TestJson> = read_or_default(&Real, &path);
+        assert!(result.is_err());
+        assert_eq!(result.err().map(|e| e.kind()), Some(std::io::ErrorKind::InvalidData));
+    }
+
+    // ---- read_toml_or_default tests ----
+
+    #[derive(Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+    struct TestToml {
+        count: u32,
+    }
+
+    #[test]
+    fn read_toml_or_default_returns_default_when_file_missing() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("missing.toml");
+        let result: std::io::Result<TestToml> = read_toml_or_default(&Real, &path);
+        assert!(result.is_ok());
+        assert_eq!(result.expect("ok"), TestToml::default());
+    }
+
+    #[test]
+    fn read_toml_or_default_deserializes_valid_toml() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("data.toml");
+        std::fs::write(&path, "count = 7\n").expect("write");
+        let result: std::io::Result<TestToml> = read_toml_or_default(&Real, &path);
+        assert!(result.is_ok());
+        assert_eq!(result.expect("ok"), TestToml { count: 7 });
+    }
+
+    #[test]
+    fn read_toml_or_default_errors_on_invalid_toml() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("bad.toml");
+        std::fs::write(&path, "[[not valid toml :::").expect("write");
+        let result: std::io::Result<TestToml> = read_toml_or_default(&Real, &path);
+        assert!(result.is_err());
+        assert_eq!(result.err().map(|e| e.kind()), Some(std::io::ErrorKind::InvalidData));
     }
 
     #[test]

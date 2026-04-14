@@ -6,7 +6,7 @@ use crate::fs::Fs;
 
 use super::detector::Detector;
 use super::skill_detector::extract_script_references;
-use super::{strip_yaml_quotes, Artifact, ArtifactKind, ArtifactMetadata, Error};
+use super::{Artifact, ArtifactKind, Error};
 
 /// Scans `.claude/commands/` for `.md` files (legacy command format).
 pub struct CommandDetector;
@@ -44,7 +44,7 @@ impl Detector for CommandDetector {
                 .file_stem()
                 .map_or_else(|| entry.name.clone(), |s| s.to_string_lossy().into_owned());
 
-            let mut metadata = parse_command_frontmatter(&content);
+            let mut metadata = super::skill_common::parse_frontmatter_lenient(&content);
             metadata.model_invocation_disabled = true;
 
             let referenced_scripts = extract_script_references(&content);
@@ -61,35 +61,6 @@ impl Detector for CommandDetector {
 
         Ok(artifacts)
     }
-}
-
-/// Parse optional frontmatter from a command `.md` file.
-fn parse_command_frontmatter(content: &str) -> ArtifactMetadata {
-    let mut metadata = ArtifactMetadata::default();
-
-    let trimmed = content.trim_start();
-    if !trimmed.starts_with("---") {
-        return metadata;
-    }
-
-    let after_first = &trimmed[3..];
-    let rest = after_first.trim_start_matches(['\r', '\n']);
-    let closing = rest.find("\n---");
-    let yaml_block = match closing {
-        Some(pos) => &rest[..pos],
-        None => return metadata,
-    };
-
-    for line in yaml_block.lines() {
-        let trimmed_line = line.trim();
-        if let Some(value) = trimmed_line.strip_prefix("name:") {
-            metadata.name = Some(strip_yaml_quotes(value.trim()).to_string());
-        } else if let Some(value) = trimmed_line.strip_prefix("description:") {
-            metadata.description = Some(strip_yaml_quotes(value.trim()).to_string());
-        }
-    }
-
-    metadata
 }
 
 #[cfg(test)]

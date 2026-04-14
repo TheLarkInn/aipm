@@ -8,48 +8,7 @@ use std::path::Path;
 
 use libaipm::manifest::types::PluginType;
 
-// =============================================================================
-// Types — shared between definition and execution layers
-// =============================================================================
-
-/// Describes a single prompt step in the wizard.
-#[derive(Debug)]
-pub struct PromptStep {
-    /// Human-readable label shown to the user.
-    pub label: &'static str,
-    /// The kind of prompt (select, confirm, text).
-    pub kind: PromptKind,
-    /// Optional help message shown below the prompt.
-    pub help: Option<&'static str>,
-}
-
-/// The kind of interactive prompt.
-#[derive(Debug)]
-pub enum PromptKind {
-    /// Single-choice list.
-    Select {
-        /// Option labels.
-        options: Vec<&'static str>,
-        /// Index of the default selection.
-        default_index: usize,
-    },
-    /// Free-form text input.
-    Text {
-        /// Grey placeholder text (shown when input is empty).
-        placeholder: String,
-        /// Whether to apply package-name validation to this input.
-        validate: bool,
-    },
-}
-
-/// Raw answer collected from a prompt.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PromptAnswer {
-    /// Index of the selected option.
-    Selected(usize),
-    /// Text input.
-    Text(String),
-}
+pub use libaipm::wizard::{styled_render_config, PromptAnswer, PromptKind, PromptStep};
 
 // =============================================================================
 // Prompt definitions — fully testable, no terminal dependency
@@ -161,39 +120,6 @@ pub fn resolve_package_answers(
     (name, plugin_type)
 }
 
-/// Validate a package name input.
-///
-/// Empty string is valid (means "use default").
-/// Otherwise must be lowercase alphanumeric with hyphens, optionally `@org/name`.
-pub fn validate_package_name(input: &str) -> Result<(), String> {
-    if input.is_empty() {
-        return Ok(());
-    }
-
-    for c in input.chars() {
-        if !(c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '@' || c == '/') {
-            return Err("Must be lowercase alphanumeric with hyphens".to_string());
-        }
-    }
-
-    Ok(())
-}
-
-// =============================================================================
-// Theming
-// =============================================================================
-
-/// Build a styled `RenderConfig` for a modern prompt appearance.
-pub fn styled_render_config() -> inquire::ui::RenderConfig<'static> {
-    use inquire::ui::{Color, RenderConfig, StyleSheet, Styled};
-
-    let mut config = RenderConfig::default_colored();
-    config.prompt_prefix = Styled::new("?").with_fg(Color::LightCyan);
-    config.answered_prompt_prefix = Styled::new("\u{2713}").with_fg(Color::LightGreen);
-    config.placeholder = StyleSheet::new().with_fg(Color::DarkGrey);
-    config
-}
-
 // =============================================================================
 // Tests
 // =============================================================================
@@ -219,6 +145,9 @@ mod tests {
                         let marker = if j == *default_index { " *" } else { "  " };
                         out.push_str(&format!("  {}[{}] {}\n", marker, j, opt));
                     }
+                },
+                PromptKind::Confirm { default } => {
+                    out.push_str(&format!("  Kind: Confirm (default: {})\n", default));
                 },
                 PromptKind::Text { placeholder, validate } => {
                     out.push_str(&format!("  Kind: Text (placeholder: \"{}\")\n", placeholder));
@@ -354,47 +283,54 @@ mod tests {
     }
 
     // =========================================================================
-    // Validator unit tests
+    // Validator unit tests (now delegates to shared validator)
     // =========================================================================
+
+    fn validate_name_interactive(input: &str) -> Result<(), String> {
+        libaipm::manifest::validate::check_name(
+            input,
+            libaipm::manifest::validate::ValidationMode::Interactive,
+        )
+    }
 
     #[test]
     fn validate_package_name_accepts_lowercase() {
-        assert!(validate_package_name("my-plugin").is_ok());
+        assert!(validate_name_interactive("my-plugin").is_ok());
     }
 
     #[test]
     fn validate_package_name_accepts_scoped() {
-        assert!(validate_package_name("@org/my-plugin").is_ok());
+        assert!(validate_name_interactive("@org/my-plugin").is_ok());
     }
 
     #[test]
     fn validate_package_name_accepts_empty_for_default() {
-        assert!(validate_package_name("").is_ok());
+        assert!(validate_name_interactive("").is_ok());
     }
 
     #[test]
     fn validate_package_name_accepts_digits() {
-        assert!(validate_package_name("123abc").is_ok());
+        assert!(validate_name_interactive("123abc").is_ok());
     }
 
     #[test]
     fn validate_package_name_rejects_uppercase() {
-        assert!(validate_package_name("MyPlugin").is_err());
+        assert!(validate_name_interactive("MyPlugin").is_err());
     }
 
     #[test]
     fn validate_package_name_rejects_spaces() {
-        assert!(validate_package_name("my plugin").is_err());
+        assert!(validate_name_interactive("my plugin").is_err());
     }
 
     #[test]
     fn validate_package_name_rejects_special_chars() {
-        assert!(validate_package_name("my_plugin!").is_err());
+        assert!(validate_name_interactive("my_plugin!").is_err());
     }
 
     #[test]
     fn validate_package_name_rejects_underscores() {
-        assert!(validate_package_name("my_plugin").is_err());
+        assert!(validate_name_interactive("my_plugin").is_err());
     }
 
     // =========================================================================

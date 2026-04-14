@@ -28,11 +28,94 @@ pub mod skill_oversized;
 #[cfg(test)]
 pub(crate) mod test_helpers;
 
+use std::path::Path;
+
 use crate::discovery::{DiscoveredFeature, FeatureKind};
+use crate::lint::diagnostic::{Diagnostic, Severity};
 use misplaced_features::MisplacedFeatures;
 
 use super::config::Config;
 use super::rule::Rule;
+
+/// Return `(line_num, col, end_col)` for a JSON key in a string of JSON content.
+///
+/// Searches for the first line containing `"key"` and returns:
+/// - `line_num`: 1-based line number
+/// - `col`: 1-based column of the opening `"`
+/// - `end_col`: 1-based exclusive column past the closing `"`
+pub(crate) fn locate_json_key(content: &str, key: &str) -> Option<(usize, usize, usize)> {
+    let needle = format!("\"{key}\"");
+    for (i, line) in content.lines().enumerate() {
+        if let Some(pos) = line.find(&needle) {
+            return Some((i + 1, pos + 1, pos + needle.len() + 1));
+        }
+    }
+    None
+}
+
+/// Create a simple diagnostic with no line/col information.
+///
+/// Shared by marketplace and plugin rules that produce diagnostics
+/// without precise source positions.
+pub(crate) fn simple_diag(
+    rule_id: &str,
+    severity: Severity,
+    message: String,
+    file_path: &Path,
+    source_type: &str,
+) -> Diagnostic {
+    Diagnostic {
+        rule_id: rule_id.to_string(),
+        severity,
+        message,
+        file_path: file_path.to_path_buf(),
+        line: None,
+        col: None,
+        end_line: None,
+        end_col: None,
+        source_type: source_type.to_string(),
+        help_text: None,
+        help_url: None,
+    }
+}
+
+use crate::fs::Fs;
+
+/// Read a skill file and compute its source type in one call.
+///
+/// Returns `None` if the file cannot be read, matching the early-return
+/// pattern used by all skill lint rules.
+pub(crate) fn read_skill_preamble(
+    file_path: &Path,
+    fs: &dyn Fs,
+) -> Option<(String, scan::FoundSkill)> {
+    let source_type = scan::source_type_from_path(file_path).to_string();
+    let skill = scan::read_skill(file_path, fs)?;
+    Some((source_type, skill))
+}
+
+/// Read an agent file and compute its source type in one call.
+///
+/// Returns `None` if the file cannot be read, matching the early-return
+/// pattern used by agent lint rules.
+pub(crate) fn read_agent_preamble(
+    file_path: &Path,
+    fs: &dyn Fs,
+) -> Option<(String, scan::FoundAgent)> {
+    let source_type = scan::source_type_from_path(file_path).to_string();
+    let agent = scan::read_agent(file_path, fs)?;
+    Some((source_type, agent))
+}
+
+/// Read a hook file and compute its source type in one call.
+///
+/// Returns `None` if the file cannot be read, matching the early-return
+/// pattern used by hook lint rules.
+pub(crate) fn read_hook_preamble(file_path: &Path, fs: &dyn Fs) -> Option<(String, String)> {
+    let source_type = scan::source_type_from_path(file_path).to_string();
+    let (_path, content) = scan::read_hook(file_path, fs)?;
+    Some((source_type, content))
+}
 
 /// Get quality rules applicable to a feature kind.
 ///
@@ -127,6 +210,118 @@ pub(crate) const fn misplaced_features_rule(
 mod tests {
     use super::*;
     use crate::lint::config::Config;
+
+    #[test]
+    fn locate_json_key_finds_key_on_first_line() {
+        let content = r#"{"event": []}"#;
+        let result = locate_json_key(content, "event");
+        // "event" starts at col 2 (after '{'), col+len("\"event\"")=2+7=9
+        assert_eq!(result, Some((1, 2, 9)));
+    }
+
+    #[test]
+    fn locate_json_key_finds_key_on_later_line() {
+        let content = "{\n  \"event\": []\n}";
+        let result = locate_json_key(content, "event");
+        assert_eq!(result, Some((2, 3, 10)));
+    }
+
+    #[test]
+    fn locate_json_key_returns_none_for_missing_key() {
+        let content = r#"{"other": []}"#;
+        assert_eq!(locate_json_key(content, "event"), None);
+    }
+
+    #[test]
+    fn locate_json_key_empty_content() {
+        assert_eq!(locate_json_key("", "key"), None);
+    }
+
+    #[test]
+    fn simple_diag_creates_diagnostic_with_no_positions() {
+        let d = simple_diag(
+            "test/rule",
+            Severity::Error,
+            "test message".to_string(),
+            Path::new("test.json"),
+            ".ai",
+        );
+        assert_eq!(d.rule_id, "test/rule");
+        assert_eq!(d.severity, Severity::Error);
+        assert_eq!(d.message, "test message");
+        assert_eq!(d.file_path, Path::new("test.json"));
+        assert_eq!(d.source_type, ".ai");
+        assert_eq!(d.line, None);
+        assert_eq!(d.col, None);
+        assert_eq!(d.end_line, None);
+        assert_eq!(d.end_col, None);
+        assert!(d.help_text.is_none());
+        assert!(d.help_url.is_none());
+    }
+
+    #[test]
+    fn simple_diag_warning_severity() {
+        let d = simple_diag(
+            "test/warn",
+            Severity::Warning,
+            "warn msg".to_string(),
+            Path::new("f.json"),
+            ".claude",
+        );
+        assert_eq!(d.severity, Severity::Warning);
+        assert_eq!(d.source_type, ".claude");
+    }
+
+    #[test]
+    fn read_skill_preamble_returns_some_for_existing_file() {
+        let mut fs = test_helpers::MockFs::new();
+        fs.add_skill("p", "s", "---\nname: s\n---\nbody");
+        let result = read_skill_preamble(Path::new(".ai/p/skills/s/SKILL.md"), &fs);
+        assert!(result.is_some());
+        let (source_type, skill) = result.unwrap();
+        assert_eq!(source_type, ".ai");
+        assert!(skill.frontmatter.is_some());
+    }
+
+    #[test]
+    fn read_skill_preamble_returns_none_for_missing_file() {
+        let fs = test_helpers::MockFs::new();
+        assert!(read_skill_preamble(Path::new(".ai/p/skills/s/SKILL.md"), &fs).is_none());
+    }
+
+    #[test]
+    fn read_agent_preamble_returns_some_for_existing_file() {
+        let mut fs = test_helpers::MockFs::new();
+        fs.add_agent("p", "reviewer", "---\nname: reviewer\ntools: Read\n---\nprompt");
+        let result = read_agent_preamble(Path::new(".ai/p/agents/reviewer.md"), &fs);
+        assert!(result.is_some());
+        let (source_type, agent) = result.unwrap();
+        assert_eq!(source_type, ".ai");
+        assert!(agent.frontmatter.is_some());
+    }
+
+    #[test]
+    fn read_agent_preamble_returns_none_for_missing_file() {
+        let fs = test_helpers::MockFs::new();
+        assert!(read_agent_preamble(Path::new(".ai/p/agents/reviewer.md"), &fs).is_none());
+    }
+
+    #[test]
+    fn read_hook_preamble_returns_some_for_existing_file() {
+        let mut fs = test_helpers::MockFs::new();
+        fs.add_hooks("p", r#"{"preToolUse": []}"#);
+        let result = read_hook_preamble(Path::new(".ai/p/hooks/hooks.json"), &fs);
+        assert!(result.is_some());
+        let (source_type, content) = result.unwrap();
+        assert_eq!(source_type, ".ai");
+        assert!(content.contains("preToolUse"));
+    }
+
+    #[test]
+    fn read_hook_preamble_returns_none_for_missing_file() {
+        let fs = test_helpers::MockFs::new();
+        assert!(read_hook_preamble(Path::new(".ai/p/hooks/hooks.json"), &fs).is_none());
+    }
 
     #[test]
     fn quality_rules_for_skill_kind() {

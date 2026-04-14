@@ -59,12 +59,6 @@ impl Rule for Oversized {
         Some("reduce instruction file size below the configured line and character limits")
     }
 
-    fn check(&self, _source_dir: &Path, _fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
-        // The unified discovery pipeline dispatches via check_file(); the legacy
-        // check() path is unused for instruction files.
-        Ok(vec![])
-    }
-
     fn check_file(&self, file_path: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
         let Ok(content) = fs.read_to_string(file_path) else { return Ok(vec![]) };
 
@@ -382,15 +376,6 @@ mod tests {
     fn resolve_imports_disabled_by_default() {
         let rule = Oversized::default();
         assert!(!rule.resolve_imports);
-    }
-
-    #[test]
-    fn check_method_returns_empty() {
-        let rule = make_rule();
-        let fs = MockFs::new();
-        let result = rule.check(Path::new("."), &fs);
-        assert!(result.is_ok());
-        assert!(result.ok().unwrap_or_default().is_empty());
     }
 
     #[test]

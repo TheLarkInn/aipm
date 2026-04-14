@@ -72,6 +72,27 @@ version = "0.1.0"
 type = "skill"
 ```
 
+### The `.claude-plugin/plugin.json` manifest
+
+`aipm-pack init` creates the plugin source package. When a plugin is installed into a workspace or migrated with `aipm migrate`, `aipm` looks for a `.claude-plugin/plugin.json` in the plugin directory to identify it.
+
+For plugins created with `aipm init` (workspace init) or `aipm migrate`, this file is generated automatically with all required fields. For source packages you plan to distribute, create `.claude-plugin/plugin.json` manually alongside your `aipm.toml`:
+
+```json
+{
+  "name": "my-linter",
+  "description": "Runs project-specific lint checks",
+  "version": "0.1.0",
+  "author": {
+    "name": "Your Name",
+    "email": "you@example.com"
+  },
+  "skills": "./skills/"
+}
+```
+
+> **Note:** A future `aipm-pack pack` command will generate `plugin.json` automatically from `aipm.toml`. Until then, create it manually to avoid [`plugin/missing-manifest`](../rules/plugin/missing-manifest.md) lint errors.
+
 ## Package name rules
 
 Package names must be:
