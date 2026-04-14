@@ -9,7 +9,7 @@ AIPM ships as **two Rust binaries** with **zero runtime dependencies**:
 
 | Binary | Role | Commands |
 |--------|------|----------|
-| **`aipm`** | Consumer CLI | `init`, `install`, `update`, `uninstall`, `link`, `unlink`, `list`, `lint`, `migrate`, `lsp` |
+| **`aipm`** | Consumer CLI | `init`, `install`, `update`, `uninstall`, `link`, `unlink`, `list`, `lint`, `migrate`, `make`, `lsp` |
 | **`aipm-pack`** | Author CLI | `init` |
 
 Both work across .NET, Python, Node.js, and Rust projects with no runtime dependency.
@@ -200,6 +200,8 @@ aipm unlink [OPTIONS] <PACKAGE>
 |------|-------------|
 | `--dir <DIR>` | Project directory (default: `.`) |
 
+See also: [`docs/guides/local-development.md`](docs/guides/local-development.md) for the full link/unlink workflow and how to restore the registry version.
+
 ### `aipm list`
 
 Show installed plugins or active development link overrides.
@@ -213,6 +215,8 @@ aipm list [OPTIONS]
 | `--linked` | Show only active dev link overrides |
 | `--global` | Show globally installed plugins |
 | `--dir <DIR>` | Project directory (default: `.`) |
+
+See also: [`docs/guides/local-development.md`](docs/guides/local-development.md) for using `aipm list` during the local development workflow.
 
 ### `aipm lint`
 
@@ -495,7 +499,7 @@ See [Editor schema support](docs/guides/configuring-lint.md#editor-schema-suppor
 
 ```
 crates/
-  aipm/         Consumer CLI binary (init, install, update, uninstall, link, unlink, list, lint, migrate, lsp)
+  aipm/         Consumer CLI binary (init, install, update, uninstall, link, unlink, list, lint, migrate, make, lsp)
   aipm-pack/    Author CLI binary (init)
   libaipm/      Core library (manifest, validation, migration, scaffolding, lint, install, link, resolve)
 vscode-aipm/    VS Code extension (lint diagnostics, completions, hover for aipm.toml)
