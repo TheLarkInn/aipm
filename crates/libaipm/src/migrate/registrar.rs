@@ -29,15 +29,22 @@ pub fn register_plugins(ai_dir: &Path, entries: &[PluginEntry], fs: &dyn Fs) -> 
             if e.kind() != std::io::ErrorKind::InvalidData {
                 return Error::Io(e);
             }
-            // Attempt to recover a typed serde_json::Error.  Save the display string
-            // first so that structural-error messages ("missing 'plugins' array in …")
-            // are preserved even after into_inner() consumes the original io::Error.
-            // The None arm is reached for structural issues (String-sourced errors
-            // that don't downcast to serde_json::Error); the Some arm for real parse
-            // failures where register_all stored the serde_json::Error as the source.
-            let display = e.to_string();
+            // Non-consuming type check: return Error::Io(e) unchanged for structural
+            // failures (missing/non-array "plugins" key) to preserve the full inner
+            // error value.  Only consume e via into_inner() once the type is confirmed.
+            if !e
+                .get_ref()
+                .is_some_and(<dyn std::error::Error + Send + Sync>::is::<serde_json::Error>)
+            {
+                return Error::Io(e);
+            }
             e.into_inner().and_then(|s| s.downcast::<serde_json::Error>().ok()).map_or_else(
-                || Error::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, display)),
+                || {
+                    Error::Io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "marketplace json parse error",
+                    ))
+                },
                 |b| Error::MarketplaceJsonParse { path: marketplace_path.clone(), source: *b },
             )
         },
