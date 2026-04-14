@@ -49,3 +49,12 @@ Created `crates/libaipm/src/make/templates.rs` with 6 template generators:
 
 6 insta snapshot tests + 3 validation tests = 9 tests passing.
 All cargo gates green (89.58% coverage).
+
+## Phase 1.5: make/discovery.rs — COMPLETE (2026-04-14)
+
+Created `crates/libaipm/src/make/discovery.rs` with:
+- find_marketplace(start_dir, fs) walk-up search for .ai/.claude-plugin/marketplace.json
+- Skips incomplete .ai/ directories (without marketplace.json marker)
+- Returns MarketplaceNotFound when root reached
+
+5 unit tests passing. All cargo gates green (94.97% coverage).
