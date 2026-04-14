@@ -235,6 +235,54 @@ Exits with a non-zero status code when violations are found, making it safe to u
 
 See also: [`docs/guides/lint.md`](docs/guides/lint.md) for full CLI usage, output formats, and CI integration; [`docs/guides/configuring-lint.md`](docs/guides/configuring-lint.md) for rule severity overrides, path ignores, and per-rule configuration.
 
+### `aipm make`
+
+Scaffold new plugins directly inside an existing workspace marketplace.
+
+#### `aipm make plugin`
+
+Create a new plugin in the `.ai/` marketplace directory discovered from the current (or specified) project directory.
+
+```
+aipm make plugin [OPTIONS]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--name <NAME>` | Plugin name (required in non-interactive mode) |
+| `--engine <ENGINE>` | Target engine: `claude` (default), `copilot`, or `both` |
+| `--feature <FEATURE>` | Feature type to include — repeatable (required in non-interactive mode) |
+| `-y, --yes` | Skip interactive prompts, accept defaults |
+| `--dir <DIR>` | Project directory (default: `.`) |
+
+**Available feature types:**
+
+| `--feature` value | Description | Claude | Copilot |
+|-------------------|-------------|:------:|:-------:|
+| `skill` | Prompt templates (`SKILL.md`) | ✓ | ✓ |
+| `agent` | Autonomous sub-agents | ✓ | ✓ |
+| `mcp` | MCP server configuration | ✓ | ✓ |
+| `hook` | Lifecycle event hooks | ✓ | ✓ |
+| `output-style` | Response formatting rules | ✓ | — |
+| `lsp` | Language Server integration | — | ✓ |
+| `extension` | Copilot extensions | — | ✓ |
+
+The command runs an **idempotent** action pipeline — re-running it on an existing plugin directory is safe and makes no changes.
+
+When run on a TTY without `--yes`, launches a two-phase interactive wizard (name + engine, then feature multi-select).
+
+```bash
+# Interactive wizard
+aipm make plugin
+
+# Non-interactive examples
+aipm make plugin --name code-review --feature skill
+aipm make plugin --name dev-tools --engine claude --feature skill --feature agent
+aipm make plugin --name ide-helper --engine copilot --feature skill --feature lsp
+```
+
+See also: [`docs/guides/make-plugin.md`](docs/guides/make-plugin.md) for a full walkthrough, feature matrix, and what gets created.
+
 ### `aipm lsp`
 
 Start the `aipm` Language Server Protocol (LSP) server on stdio.
@@ -321,6 +369,7 @@ Shared library powering both CLIs. All logic lives here; the binaries are thin w
 | `security` | Configurable source allowlist with CI enforcement |
 | `logging` | Layered `tracing` subscriber initialization (stderr verbosity + rotating file log) |
 | `generate` | Centralised JSON generation for `marketplace.json`, `plugin.json`, and `settings.json` (unified read-modify-write helpers used by `workspace_init` and `migrate`) |
+| `make` | Idempotent plugin scaffolding pipeline (`aipm make plugin`) — orchestrates `generate`, `manifest`, and `init` into a 9-step action sequence |
 | `wizard` | Shared wizard types and theming for interactive CLI prompts; gated behind the `wizard` feature flag (required by `aipm` and `aipm-pack`) |
 | `frontmatter` | YAML front-matter parsing for plugin files |
 | `fs` | Trait-based filesystem abstraction (`Real` + test mocking) |
