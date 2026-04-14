@@ -283,6 +283,6 @@
       "Verify `aipm pack init --help` shows: --yes/-y, --name, --type, and positional dir argument",
       "Verify `aipm pack init --name test-verify --type skill -y /tmp/verify-merge` creates aipm.toml with correct content"
     ],
-    "passes": false
+    "passes": true
   }
 ]
