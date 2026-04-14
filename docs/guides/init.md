@@ -41,7 +41,7 @@ Running `aipm init` (the default, no-flag invocation) creates:
     hooks/
       hooks.json                          # example hooks
     scripts/
-      scaffold-plugin.ts                  # scaffold helper script
+      scaffold-plugin.sh                  # scaffold helper script
     .mcp.json                             # MCP server stub
 .claude/
   settings.json                           # registers the marketplace + enables starter plugin

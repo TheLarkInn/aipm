@@ -46,18 +46,18 @@ Specifying `--engine both` makes all seven feature types available.
 
 ## How it works
 
-`aipm make plugin` runs an **idempotent 9-step action pipeline**:
+`aipm make plugin` runs an **idempotent 8-step action pipeline**:
 
-1. Guard — returns immediately if the plugin directory already exists.
+1. Guard — returns immediately if the plugin directory already exists (outputs `Already exists: <path>`).
 2. Create the plugin directory (`.ai/<marketplace>/<name>/`).
 3. Create the `.claude-plugin/` metadata subdirectory.
 4. Scaffold each requested feature (creates subdirectories and starter files).
 5. Generate and write `plugin.json`.
 6. Register the plugin in `marketplace.json`.
-7. Update engine settings (Claude and/or Copilot).
+7. Update `.claude/settings.json` — only when `--engine` is `claude` or `both`; no settings file is written for `--engine copilot`.
 8. Emit a summary `PluginCreated` action.
 
-Each step is tracked as an `Action` variant. Re-running the command on an existing plugin directory is safe — it exits at step 1 with `DirectoryAlreadyExists` and makes no further changes.
+Each step is tracked as an `Action` variant. Re-running the command on an existing plugin directory is safe — it exits at step 1 with `Already exists: <path>` and makes no further changes.
 
 ## Non-interactive usage
 
@@ -99,30 +99,35 @@ When run on a TTY without `--yes`, the wizard runs in two phases:
 For `aipm make plugin --name my-skill --engine claude --feature skill`:
 
 ```
-.ai/<marketplace>/
+.ai/
   my-skill/
     .claude-plugin/
       plugin.json          # plugin metadata
     skills/
-      SKILL.md             # starter skill template
+      my-skill/
+        SKILL.md           # starter skill template
   .claude-plugin/
     marketplace.json       # updated to include my-skill
+.claude/
+  settings.json            # updated: enabledPlugins["my-skill@<marketplace>"] = true
 ```
 
 For `--engine copilot --feature skill --feature lsp`:
 
 ```
-.ai/<marketplace>/
+.ai/
   my-plugin/
     .claude-plugin/
       plugin.json
     skills/
-      SKILL.md
-    lsp/
-      <lsp-config>
+      my-plugin/
+        SKILL.md
+    .lsp.json              # LSP server config (root of plugin directory)
+  .claude-plugin/
+    marketplace.json       # updated to include my-plugin
 ```
 
-Claude engine settings (`.ai/.claude/settings.json`) are updated automatically. Copilot settings support is deferred to a future release.
+Claude engine settings (`.claude/settings.json` at the project root) are updated automatically. Copilot settings support is deferred to a future release.
 
 ## Discovery
 

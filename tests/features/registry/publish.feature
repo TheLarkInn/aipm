@@ -4,9 +4,9 @@ Feature: Package publishing
   I want to pack and publish my package to a registry using the aipm binary,
   so that others can discover and install it.
 
-  Publishing is handled by the "aipm" binary's publish subcommand. This follows
-  the principle of least privilege: consumers who only install plugins never need
-  the publish subcommand, reducing attack surface.
+  Publishing is handled by `aipm pack` and `aipm publish` subcommands.
+  These author-oriented commands live alongside consumer commands in the
+  single `aipm` binary.
 
   Background:
     Given the user is authenticated with the registry
@@ -118,14 +118,9 @@ Feature: Package publishing
       When the user runs "aipm publish"
       Then the package is published under the "@myorg" scope
 
-  Rule: Consumer binary cannot publish
+  Rule: Unimplemented publish subcommands give helpful errors
 
-    Scenario: The aipm consumer binary does not have publish commands
-      When the user runs "aipm publish"
-      Then the command fails with "unknown command: publish"
-      And the output suggests "did you mean: aipm publish?"
-
-    Scenario: The aipm consumer binary does not have pack commands
-      When the user runs "aipm pack"
-      Then the command fails with "unknown command: pack"
-      And the output suggests "did you mean: aipm pack?"
+    # Note: publish is not yet implemented. These scenarios describe the
+    # expected error behavior when the subcommand is eventually added.
+    # With the single-binary architecture, `aipm pack` and `aipm publish`
+    # are author commands living alongside consumer commands.
