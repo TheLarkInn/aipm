@@ -91,7 +91,7 @@ For plugins created with `aipm init` (workspace init) or `aipm migrate`, this fi
 }
 ```
 
-> **Note:** A future `aipm pack` command will generate `plugin.json` automatically from `aipm.toml`. Until then, create it manually to avoid [`plugin/missing-manifest`](../rules/plugin/missing-manifest.md) lint errors.
+> **Note:** A future `aipm publish` command will generate `plugin.json` automatically from `aipm.toml`. Until then, create it manually to avoid [`plugin/missing-manifest`](../rules/plugin/missing-manifest.md) lint errors.
 
 ## Package name rules
 
