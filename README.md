@@ -83,6 +83,8 @@ When run on a TTY without `--yes`, launches an interactive wizard.
 - `.ai/.copilot/` — Copilot agent settings (if detected)
 - `aipm.toml` — workspace manifest (with `--workspace`)
 
+See also: [`docs/guides/init.md`](docs/guides/init.md) for a full walkthrough of initialization modes, tool settings integration, and next steps.
+
 ### `aipm migrate`
 
 Migrate existing AI tool configurations into marketplace plugins. Supports two source ecosystems: Claude Code (`.claude/`) and Copilot CLI (`.github/`). Detects skills, agents, MCP servers, hooks, commands, output styles, extensions, and LSP servers.
