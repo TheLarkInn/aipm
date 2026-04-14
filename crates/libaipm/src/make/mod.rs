@@ -266,10 +266,11 @@ fn write_plugin_json(
     components: &crate::generate::plugin_json::Components<'_>,
     actions: &mut Vec<Action>,
 ) -> Result<(), Error> {
+    let description = format!("TODO: Describe {}", opts.name);
     let plugin_json_opts = crate::generate::plugin_json::Opts {
         name: opts.name,
         version: "0.1.0",
-        description: &format!("TODO: Describe {}", opts.name),
+        description: &description,
     };
     let plugin_json_content =
         crate::generate::plugin_json::generate(&plugin_json_opts, Some(components));
@@ -289,10 +290,8 @@ fn register_in_marketplace(
     marketplace_json: &Path,
     actions: &mut Vec<Action>,
 ) -> Result<(), Error> {
-    let entry = crate::generate::marketplace::Entry {
-        name: opts.name,
-        description: &format!("TODO: Describe {}", opts.name),
-    };
+    let description = format!("TODO: Describe {}", opts.name);
+    let entry = crate::generate::marketplace::Entry { name: opts.name, description: &description };
     let was_registered = is_plugin_registered(fs, marketplace_json, opts.name);
     crate::generate::marketplace::register(fs, marketplace_json, &entry)?;
     if was_registered {

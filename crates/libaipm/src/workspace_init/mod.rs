@@ -314,13 +314,13 @@ fn generate_skill_template() -> String {
      \x20  bash .ai/starter-aipm-plugin/scripts/scaffold-plugin.sh <plugin-name>\n\
      \x20  ```\n\
      3. Report the created file tree to the user.\n\
-     4. Suggest next steps: edit the generated `SKILL.md`, add agents or hooks, update `aipm.toml`.\n\
+     4. Suggest next steps: edit the generated `SKILL.md`, add agents or hooks.\n\
      \n\
      ## Notes\n\
      \n\
-     - The script creates `.ai/<plugin-name>/` with a valid `aipm.toml` and starter skill.\n\
-     - If the directory already exists, the script exits with an error message.\n\
-     - After scaffolding, the user should customize the generated files.\n"
+     - The script creates `.ai/<plugin-name>/` with starter plugin files, including a starter skill.\n\
+     - If the directory already exists, `aipm make plugin` is idempotent (reports existing files without failing).\n\
+     - After scaffolding, customize the scaffolded plugin files as needed.\n"
         .to_string()
 }
 
@@ -328,7 +328,7 @@ fn generate_scaffold_script() -> String {
     "#!/usr/bin/env bash\n\
      set -euo pipefail\n\
      # Scaffold a new AI plugin using the aipm CLI.\n\
-     # Usage: bash scaffold-plugin.sh <plugin-name> [--engine claude|copilot|both]\n\
+     # Usage: bash scaffold-plugin.sh <plugin-name> [claude|copilot|both]\n\
      aipm make plugin --name \"${1:?Plugin name required}\" --engine \"${2:-claude}\" --feature skill -y\n"
         .to_string()
 }
