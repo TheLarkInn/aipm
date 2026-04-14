@@ -147,7 +147,7 @@
       "Return make::Error::MissingFlag for missing --name or --feature in non-interactive mode",
       "Run cargo build --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -158,7 +158,7 @@
       "Add #[command(about = \"Create new plugins and components\")] on the variant",
       "Run cargo build --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -168,7 +168,7 @@
       "Add Make(#[from] libaipm::make::Error) variant with #[error(transparent)]",
       "Run cargo build --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -186,7 +186,7 @@
       "Add match arm in run() for Some(Commands::Make { what, name, engine, feature, yes, dir }) per spec section 5.11: dispatch 'plugin' to cmd_make_plugin, error on unknown target",
       "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

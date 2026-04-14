@@ -43,6 +43,10 @@ pub enum CliError {
     #[error(transparent)]
     Linker(#[from] libaipm::linker::error::Error),
 
+    /// Make (scaffolding) errors.
+    #[error(transparent)]
+    Make(#[from] libaipm::make::Error),
+
     /// Lockfile parse / version errors.
     #[error(transparent)]
     Lockfile(#[from] libaipm::lockfile::error::Error),

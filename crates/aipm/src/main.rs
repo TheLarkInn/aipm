@@ -212,8 +212,40 @@ enum Commands {
         dir: PathBuf,
     },
 
+    /// Scaffold new plugins in a marketplace directory.
+    Make {
+        #[command(subcommand)]
+        subcommand: MakeSubcommand,
+    },
+
     /// Start the Language Server Protocol server (for VS Code / IDE integration).
     Lsp,
+}
+
+#[derive(Subcommand)]
+enum MakeSubcommand {
+    /// Create a new plugin in the marketplace directory.
+    Plugin {
+        /// Plugin name (required or prompted).
+        #[arg(long)]
+        name: Option<String>,
+
+        /// Target engine: claude, copilot, both (default: claude).
+        #[arg(long)]
+        engine: Option<String>,
+
+        /// AI feature types to include (repeatable).
+        #[arg(long = "feature")]
+        features: Vec<String>,
+
+        /// Skip interactive prompts, use defaults.
+        #[arg(short = 'y', long)]
+        yes: bool,
+
+        /// Project directory.
+        #[arg(long, default_value = ".")]
+        dir: PathBuf,
+    },
 }
 
 // =========================================================================
@@ -931,6 +963,78 @@ fn cmd_migrate(
     Ok(())
 }
 
+fn cmd_make_plugin(
+    name: Option<&str>,
+    engine: Option<&str>,
+    features: &[String],
+    yes: bool,
+    dir: PathBuf,
+) -> Result<(), error::CliError> {
+    let dir = resolve_dir(dir)?;
+    let interactive = !yes && std::io::stdin().is_terminal();
+
+    let (resolved_name, resolved_engine, resolved_features) =
+        wizard_tty::resolve_make_plugin(interactive, name, engine, features)?;
+
+    // Discover marketplace directory
+    let plugins_dir = resolve_plugins_dir(&dir);
+
+    // Convert feature CLI names to Feature enum values
+    let parsed_features: Vec<libaipm::make::Feature> = resolved_features
+        .iter()
+        .map(|f| {
+            libaipm::make::Feature::from_cli_name(f)
+                .ok_or_else(|| libaipm::make::Error::InvalidFeature(f.clone()))
+        })
+        .collect::<Result<_, _>>()?;
+
+    let opts = libaipm::make::PluginOpts {
+        marketplace_dir: &plugins_dir,
+        name: &resolved_name,
+        engine: &resolved_engine,
+        features: &parsed_features,
+    };
+
+    let result = libaipm::make::plugin(&opts, &libaipm::fs::Real)?;
+
+    let mut stdout = std::io::stdout();
+    for action in &result.actions {
+        match action {
+            libaipm::make::Action::DirectoryCreated { path } => {
+                let _ = writeln!(stdout, "Created {}", path.display());
+            },
+            libaipm::make::Action::DirectoryAlreadyExists { path }
+            | libaipm::make::Action::FileAlreadyExists { path } => {
+                let _ = writeln!(stdout, "Already exists: {}", path.display());
+            },
+            libaipm::make::Action::FileWritten { path, description } => {
+                let _ = writeln!(stdout, "Wrote {description}: {}", path.display());
+            },
+            libaipm::make::Action::PluginRegistered { name, .. } => {
+                let _ = writeln!(stdout, "Registered '{name}' in marketplace");
+            },
+            libaipm::make::Action::PluginAlreadyRegistered { name } => {
+                let _ = writeln!(stdout, "Plugin '{name}' already registered");
+            },
+            libaipm::make::Action::PluginEnabled { plugin_key, .. } => {
+                let _ = writeln!(stdout, "Enabled {plugin_key} in settings");
+            },
+            libaipm::make::Action::PluginAlreadyEnabled { plugin_key } => {
+                let _ = writeln!(stdout, "Plugin {plugin_key} already enabled");
+            },
+            libaipm::make::Action::PluginCreated { name, features, engine, .. } => {
+                let _ = writeln!(
+                    stdout,
+                    "Created plugin '{name}' (engine: {engine}, features: {})",
+                    features.join(", ")
+                );
+            },
+        }
+    }
+
+    Ok(())
+}
+
 // =========================================================================
 // Entry point
 // =========================================================================
@@ -996,6 +1100,11 @@ fn run() -> Result<(), error::CliError> {
         },
         Some(Commands::Migrate { dry_run, destructive, source, max_depth, manifest, dir }) => {
             cmd_migrate(dry_run, destructive, source.as_deref(), max_depth, manifest, dir)
+        },
+        Some(Commands::Make { subcommand }) => match subcommand {
+            MakeSubcommand::Plugin { name, engine, features, yes, dir } => {
+                cmd_make_plugin(name.as_deref(), engine.as_deref(), &features, yes, dir)
+            },
         },
         Some(Commands::Lsp) => Ok(lsp::run()?),
         None => {

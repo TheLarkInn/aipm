@@ -187,8 +187,7 @@ pub const fn resolve_migrate_cleanup_answer(answers: &[PromptAnswer]) -> bool {
 // =============================================================================
 
 /// Engine select options for `aipm make plugin`.
-#[cfg(test)]
-const ENGINE_OPTIONS: &[&str] = &["Claude Code", "Copilot CLI", "Both"];
+pub const ENGINE_OPTIONS: &[&str] = &["Claude Code", "Copilot CLI", "Both"];
 
 /// Build wizard prompt steps for `aipm make plugin`, skipping prompts
 /// whose values are already provided via CLI flags.
@@ -233,8 +232,7 @@ pub fn make_plugin_prompt_steps(
 }
 
 /// Map an engine select index to the engine CLI string.
-#[cfg(test)]
-const fn engine_from_index(index: usize) -> &'static str {
+pub const fn engine_from_index(index: usize) -> &'static str {
     match index {
         0 => "claude",
         1 => "copilot",

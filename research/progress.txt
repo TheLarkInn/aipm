@@ -91,3 +91,16 @@ Added to crates/aipm/src/wizard.rs:
 
 Note: Functions are #[cfg(test)] gated until the `aipm make` command is wired in.
 6 unit tests passing. All cargo gates green (94.38% coverage).
+
+## Phases 2.3 + 3.1 + 3.2 + 3.3: CLI integration — COMPLETE (2026-04-14)
+
+Implemented in one batch by sub-agent:
+- Phase 2.3: resolve_make_plugin() in wizard_tty.rs — two-phase interactive wizard
+  (name+engine first, then engine-filtered features). Non-interactive validates flags.
+  Removed #[cfg(test)] from ENGINE_OPTIONS and engine_from_index in wizard.rs.
+- Phase 3.1: Commands::Make variant in main.rs with MakeSubcommand::Plugin enum
+- Phase 3.2: CliError::Make variant in error.rs
+- Phase 3.3: cmd_make_plugin() handler + run() dispatch wiring
+
+`aipm make plugin --name foo --engine claude --feature skill -y` is now a working command.
+All cargo gates green (94.29% coverage).
