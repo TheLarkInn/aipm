@@ -999,4 +999,42 @@ mod tests {
         fs.seed(path, content.to_string().as_bytes());
         assert!(is_plugin_registered(&fs, path, "my-plugin"));
     }
+
+    #[test]
+    fn make_plugin_marketplace_dir_at_root_skips_settings() {
+        // When marketplace_dir has no parent (e.g. "/"), update_engine_settings
+        // must silently skip the settings update rather than panicking.
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "root-plugin",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        // Plugin should still be created.
+        assert!(
+            result
+                .actions
+                .iter()
+                .any(|a| matches!(a, Action::PluginCreated { name, .. } if name == "root-plugin")),
+            "expected PluginCreated for root-plugin"
+        );
+
+        // No settings actions because marketplace_dir.parent() is None.
+        assert!(
+            !result.actions.iter().any(|a| matches!(
+                a,
+                Action::PluginEnabled { .. } | Action::PluginAlreadyEnabled { .. }
+            )),
+            "should not produce settings actions when marketplace_dir has no parent"
+        );
+    }
 }

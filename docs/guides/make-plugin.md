@@ -127,7 +127,7 @@ For `--engine copilot --feature skill --feature lsp`:
     marketplace.json       # updated to include my-plugin
 ```
 
-Claude engine settings (`.claude/settings.json`, a sibling of `.ai/` at the project root) are updated automatically. Copilot settings support is deferred to a future release.
+Claude engine settings (`.claude/settings.json` at the project root) are updated automatically. Copilot settings support is deferred to a future release.
 
 ## Discovery
 
