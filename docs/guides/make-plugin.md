@@ -123,7 +123,7 @@ For `--engine copilot --feature skill --feature lsp`:
     .lsp.json              # LSP server config (root of plugin directory)
 ```
 
-Claude engine settings (`.ai/.claude/settings.json`) are updated automatically. Copilot settings support is deferred to a future release.
+Claude engine settings (`.claude/settings.json` at the project root) are updated automatically. Copilot settings support is deferred to a future release.
 
 ## Discovery
 
