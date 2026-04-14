@@ -232,7 +232,7 @@ fn scaffold_marketplace(
         generate_skill_template().as_bytes(),
     )?;
     fs.write_file(
-        &starter.join("scripts").join("scaffold-plugin.ts"),
+        &starter.join("scripts").join("scaffold-plugin.sh"),
         generate_scaffold_script().as_bytes(),
     )?;
     fs.write_file(
@@ -277,7 +277,7 @@ fn generate_starter_manifest() -> String {
     let skills = vec!["skills/scaffold-plugin/SKILL.md".to_string()];
     let agents = vec!["agents/marketplace-scanner.md".to_string()];
     let hooks = vec!["hooks/hooks.json".to_string()];
-    let scripts = vec!["scripts/scaffold-plugin.ts".to_string()];
+    let scripts = vec!["scripts/scaffold-plugin.sh".to_string()];
 
     crate::manifest::builder::build_plugin_manifest(
         &crate::manifest::builder::PluginManifestOpts {
@@ -311,7 +311,7 @@ fn generate_skill_template() -> String {
      1. Ask the user for a plugin name (lowercase, hyphens allowed) if not provided.\n\
      2. Run the scaffolding script:\n\
      \x20  ```bash\n\
-     \x20  node --experimental-strip-types .ai/starter-aipm-plugin/scripts/scaffold-plugin.ts <plugin-name>\n\
+     \x20  bash .ai/starter-aipm-plugin/scripts/scaffold-plugin.sh <plugin-name>\n\
      \x20  ```\n\
      3. Report the created file tree to the user.\n\
      4. Suggest next steps: edit the generated `SKILL.md`, add agents or hooks, update `aipm.toml`.\n\
@@ -325,93 +325,11 @@ fn generate_skill_template() -> String {
 }
 
 fn generate_scaffold_script() -> String {
-    "import { mkdirSync, writeFileSync, readFileSync, existsSync } from \"fs\";\n\
-     import { join } from \"path\";\n\
-     \n\
-     const name = process.argv[2];\n\
-     if (!name) {\n\
-     \x20 process.stderr.write(\"Usage: node --experimental-strip-types scaffold-plugin.ts <plugin-name>\\n\");\n\
-     \x20 process.exit(1);\n\
-     }\n\
-     \n\
-     const aiDir = join(process.cwd(), \".ai\");\n\
-     const pluginDir = join(aiDir, name);\n\
-     \n\
-     if (existsSync(pluginDir)) {\n\
-     \x20 process.stderr.write(`Error: .ai/${name}/ already exists\\n`);\n\
-     \x20 process.exit(1);\n\
-     }\n\
-     \n\
-     mkdirSync(join(pluginDir, \".claude-plugin\"), { recursive: true });\n\
-     mkdirSync(join(pluginDir, \"skills\", name), { recursive: true });\n\
-     mkdirSync(join(pluginDir, \"agents\"), { recursive: true });\n\
-     mkdirSync(join(pluginDir, \"hooks\"), { recursive: true });\n\
-     \n\
-     writeFileSync(\n\
-     \x20 join(pluginDir, \"aipm.toml\"),\n\
-     \x20 `[package]\\nname = \"${name}\"\\nversion = \"0.1.0\"\\ntype = \"composite\"\\ndescription = \"TODO: describe ${name}\"\\n\\n[components]\\nskills = [\"skills/${name}/SKILL.md\"]\\n`\n\
-     );\n\
-     \n\
-     writeFileSync(\n\
-     \x20 join(pluginDir, \"skills\", name, \"SKILL.md\"),\n\
-     \x20 `---\\ndescription: TODO — describe when this skill should be invoked\\n---\\n\\n# ${name}\\n\\nReplace this with instructions for the AI agent.\\n`\n\
-     );\n\
-     \n\
-     writeFileSync(\n\
-     \x20 join(pluginDir, \".claude-plugin\", \"plugin.json\"),\n\
-     \x20 JSON.stringify({ name, version: \"0.1.0\", description: `TODO: describe ${name}`, author: { name: \"TODO\", email: \"TODO\" } }, null, 2) + \"\\n\"\n\
-     );\n\
-     \n\
-     // Read or create marketplace.json (hoisted for use in settings section)\n\
-     const marketplacePath = join(aiDir, \".claude-plugin\", \"marketplace.json\");\n\
-     let marketplace: { name: string; owner: { name: string }; metadata: { description: string }; plugins: Array<{ name: string; source: string; description: string }> } = {\n\
-     \x20 name: \"local-repo-plugins\",\n\
-     \x20 owner: { name: \"local\" },\n\
-     \x20 metadata: { description: \"Local plugins for this repository\" },\n\
-     \x20 plugins: []\n\
-     };\n\
-     try {\n\
-     \x20 if (existsSync(marketplacePath)) {\n\
-     \x20   marketplace = JSON.parse(readFileSync(marketplacePath, \"utf-8\"));\n\
-     \x20 } else {\n\
-     \x20   mkdirSync(join(aiDir, \".claude-plugin\"), { recursive: true });\n\
-     \x20 }\n\
-     \x20 if (!marketplace.plugins.some((p: { name: string }) => p.name === name)) {\n\
-     \x20   marketplace.plugins.push({\n\
-     \x20     name,\n\
-     \x20     source: `./${name}`,\n\
-     \x20     description: `TODO: describe ${name}`\n\
-     \x20   });\n\
-     \x20   writeFileSync(marketplacePath, JSON.stringify(marketplace, null, 2) + \"\\n\");\n\
-     \x20 }\n\
-     } catch (e) {\n\
-     \x20 process.stderr.write(`Warning: could not update marketplace.json: ${e}\\n`);\n\
-     }\n\
-     \n\
-     // Auto-enable in .claude/settings.json\n\
-     try {\n\
-     \x20 const settingsPath = join(process.cwd(), \".claude\", \"settings.json\");\n\
-     \x20 let settings: Record<string, unknown>;\n\
-     \x20 if (existsSync(settingsPath)) {\n\
-     \x20   settings = JSON.parse(readFileSync(settingsPath, \"utf-8\"));\n\
-     \x20 } else {\n\
-     \x20   mkdirSync(join(process.cwd(), \".claude\"), { recursive: true });\n\
-     \x20   settings = {};\n\
-     \x20 }\n\
-     \x20 if (!settings.enabledPlugins || typeof settings.enabledPlugins !== \"object\") {\n\
-     \x20   settings.enabledPlugins = {};\n\
-     \x20 }\n\
-     \x20 const pluginKey = `${name}@${marketplace.name}`;\n\
-     \x20 const enabled = settings.enabledPlugins as Record<string, boolean>;\n\
-     \x20 if (!(pluginKey in enabled)) {\n\
-     \x20   enabled[pluginKey] = true;\n\
-     \x20   writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + \"\\n\");\n\
-     \x20 }\n\
-     } catch (e) {\n\
-     \x20 process.stderr.write(`Warning: could not update settings.json: ${e}\\n`);\n\
-     }\n\
-     \n\
-     process.stdout.write(`Created .ai/${name}/ with starter structure\\n`);\n"
+    "#!/usr/bin/env bash\n\
+     set -euo pipefail\n\
+     # Scaffold a new AI plugin using the aipm CLI.\n\
+     # Usage: bash scaffold-plugin.sh <plugin-name> [--engine claude|copilot|both]\n\
+     aipm make plugin --name \"${1:?Plugin name required}\" --engine \"${2:-claude}\" --feature skill -y\n"
         .to_string()
 }
 
@@ -524,7 +442,7 @@ mod tests {
 
         let scripts_dir = tmp.join("scripts");
         std::fs::create_dir_all(&scripts_dir).ok();
-        std::fs::File::create(scripts_dir.join("scaffold-plugin.ts")).ok();
+        std::fs::File::create(scripts_dir.join("scaffold-plugin.sh")).ok();
 
         let content = generate_starter_manifest();
         let result = crate::manifest::parse_and_validate(&content, Some(&tmp));
@@ -576,7 +494,7 @@ mod tests {
         assert!(tmp.join(".ai/starter-aipm-plugin/aipm.toml").exists());
         assert!(tmp.join(".ai/starter-aipm-plugin/.claude-plugin/plugin.json").exists());
         assert!(tmp.join(".ai/starter-aipm-plugin/skills/scaffold-plugin/SKILL.md").exists());
-        assert!(tmp.join(".ai/starter-aipm-plugin/scripts/scaffold-plugin.ts").exists());
+        assert!(tmp.join(".ai/starter-aipm-plugin/scripts/scaffold-plugin.sh").exists());
         assert!(tmp.join(".ai/starter-aipm-plugin/agents/marketplace-scanner.md").exists());
         assert!(tmp.join(".ai/starter-aipm-plugin/hooks/hooks.json").exists());
         assert!(tmp.join(".ai/starter-aipm-plugin/.mcp.json").exists());
@@ -788,14 +706,10 @@ mod tests {
     fn scaffold_script_is_nonempty() {
         let content = generate_scaffold_script();
         assert!(!content.is_empty());
-        assert!(content.contains("mkdirSync"));
-        assert!(content.contains("writeFileSync"));
-        assert!(content.contains("readFileSync"));
-        assert!(content.contains("experimental-strip-types"));
-        assert!(content.contains("marketplace.json"));
-        assert!(content.contains("settings.json"));
-        assert!(content.contains("enabledPlugins"));
-        assert!(content.contains("local-repo-plugins"));
+        assert!(content.contains("#!/usr/bin/env bash"));
+        assert!(content.contains("set -euo pipefail"));
+        assert!(content.contains("aipm make plugin"));
+        assert!(content.contains("Plugin name required"));
     }
 
     #[test]
@@ -805,53 +719,13 @@ mod tests {
     }
 
     #[test]
-    fn scaffold_script_registers_in_marketplace() {
+    fn scaffold_script_delegates_to_aipm_cli() {
         let content = generate_scaffold_script();
-        // marketplace.json path construction
-        assert!(content.contains("marketplace.json"));
-        assert!(content.contains(".claude-plugin"));
-        // Duplicate detection
-        assert!(content.contains(".some("));
-        // Array append
-        assert!(content.contains(".push("));
-        // Source format
-        assert!(content.contains("`./${name}`"));
-        // Marketplace name
-        assert!(content.contains("local-repo-plugins"));
-    }
-
-    #[test]
-    fn scaffold_script_enables_in_settings() {
-        let content = generate_scaffold_script();
-        // settings.json path construction
-        assert!(content.contains("settings.json"));
-        assert!(content.contains(".claude"));
-        // Key format — reads marketplace name dynamically
-        assert!(content.contains("${marketplace.name}"));
-        // enabledPlugins object handling
-        assert!(content.contains("enabledPlugins"));
-        // Write-back
-        assert!(content.contains("writeFileSync(settingsPath"));
-    }
-
-    #[test]
-    fn scaffold_script_marketplace_name_matches_generator() {
-        let starter = crate::generate::marketplace::Entry {
-            name: "starter-aipm-plugin",
-            description: "Default starter plugin",
-        };
-        let marketplace_json =
-            crate::generate::marketplace::create("local-repo-plugins", &[starter]);
-        let parsed: serde_json::Value =
-            serde_json::from_str(&marketplace_json).ok().unwrap_or_default();
-        let marketplace_name = parsed.get("name").and_then(|n| n.as_str()).unwrap_or("");
-        assert!(!marketplace_name.is_empty());
-
-        let script = generate_scaffold_script();
-        assert!(
-            script.contains(marketplace_name),
-            "scaffold script should contain marketplace name '{marketplace_name}'"
-        );
+        // Delegates to aipm CLI instead of doing manual fs operations
+        assert!(content.contains("aipm make plugin"));
+        assert!(content.contains("--name"));
+        assert!(content.contains("--engine"));
+        assert!(content.contains("-y"));
     }
 
     #[test]

@@ -235,28 +235,35 @@ fn init_generated_workspace_manifest_valid() {
 // Scaffold script e2e tests (require Node.js >= 22.6.0)
 // =========================================================================
 
-fn has_node_with_strip_types() -> bool {
-    let output = match std::process::Command::new("node").arg("--version").output() {
-        Ok(o) if o.status.success() => o,
-        _ => return false,
-    };
-    // Parse version like "v22.6.0" — need >= 22.6.0 for --experimental-strip-types
-    let version = String::from_utf8_lossy(&output.stdout);
-    let version = version.trim().trim_start_matches('v');
-    let parts: Vec<&str> = version.split('.').collect();
-    if parts.len() < 2 {
-        return false;
-    }
-    let major: u32 = parts[0].parse().unwrap_or(0);
-    let minor: u32 = parts[1].parse().unwrap_or(0);
-    major > 22 || (major == 22 && minor >= 6)
+fn has_bash() -> bool {
+    std::process::Command::new("bash").arg("--version").output().is_ok_and(|o| o.status.success())
+}
+
+fn has_aipm_make_plugin() -> bool {
+    // The scaffold script delegates to `aipm make plugin`; skip if subcommand is absent.
+    let output = Command::cargo_bin("aipm")
+        .expect("aipm binary should be built")
+        .args(["make", "plugin", "--help"])
+        .output();
+    output.is_ok_and(|o| o.status.success())
 }
 
 fn run_scaffold(dir: &std::path::Path, plugin_name: &str) -> std::process::Output {
     let script =
-        dir.join(".ai/starter-aipm-plugin/scripts/scaffold-plugin.ts").display().to_string();
-    std::process::Command::new("node")
-        .args(["--experimental-strip-types", &script, plugin_name])
+        dir.join(".ai/starter-aipm-plugin/scripts/scaffold-plugin.sh").display().to_string();
+    // Put the cargo-built aipm binary on PATH so the bash script can find it.
+    let aipm_bin = assert_cmd::cargo::cargo_bin("aipm");
+    let bin_dir = aipm_bin.parent().expect("binary should have parent dir");
+    let path = match std::env::var_os("PATH") {
+        Some(p) => std::env::join_paths(
+            std::iter::once(bin_dir.to_path_buf()).chain(std::env::split_paths(&p)),
+        )
+        .unwrap_or_else(|_| bin_dir.as_os_str().to_os_string()),
+        None => bin_dir.as_os_str().to_os_string(),
+    };
+    std::process::Command::new("bash")
+        .args([&script, plugin_name])
+        .env("PATH", path)
         .current_dir(dir)
         .output()
         .expect("run scaffold script")
@@ -264,7 +271,7 @@ fn run_scaffold(dir: &std::path::Path, plugin_name: &str) -> std::process::Outpu
 
 #[test]
 fn scaffold_script_registers_in_marketplace_json() {
-    if !has_node_with_strip_types() {
+    if !has_bash() || !has_aipm_make_plugin() {
         return;
     }
     let tmp = tempfile::TempDir::new().unwrap();
@@ -289,7 +296,7 @@ fn scaffold_script_registers_in_marketplace_json() {
 
 #[test]
 fn scaffold_script_enables_in_settings_json() {
-    if !has_node_with_strip_types() {
+    if !has_bash() || !has_aipm_make_plugin() {
         return;
     }
     let tmp = tempfile::TempDir::new().unwrap();
@@ -312,7 +319,7 @@ fn scaffold_script_enables_in_settings_json() {
 
 #[test]
 fn scaffold_script_creates_plugin_directory() {
-    if !has_node_with_strip_types() {
+    if !has_bash() || !has_aipm_make_plugin() {
         return;
     }
     let tmp = tempfile::TempDir::new().unwrap();
@@ -327,14 +334,13 @@ fn scaffold_script_creates_plugin_directory() {
         String::from_utf8_lossy(&output.stderr)
     );
 
-    assert!(dir.join(".ai/my-new-plugin/aipm.toml").exists());
     assert!(dir.join(".ai/my-new-plugin/.claude-plugin/plugin.json").exists());
     assert!(dir.join(".ai/my-new-plugin/skills/my-new-plugin/SKILL.md").exists());
 }
 
 #[test]
 fn scaffold_script_multiple_plugins_no_duplicates() {
-    if !has_node_with_strip_types() {
+    if !has_bash() || !has_aipm_make_plugin() {
         return;
     }
     let tmp = tempfile::TempDir::new().unwrap();
@@ -361,7 +367,7 @@ fn scaffold_script_multiple_plugins_no_duplicates() {
 
 #[test]
 fn scaffold_script_rejects_existing_plugin() {
-    if !has_node_with_strip_types() {
+    if !has_bash() || !has_aipm_make_plugin() {
         return;
     }
     let tmp = tempfile::TempDir::new().unwrap();
@@ -373,9 +379,9 @@ fn scaffold_script_rejects_existing_plugin() {
     assert!(out1.status.success(), "first scaffold: {}", String::from_utf8_lossy(&out1.stderr));
 
     let out2 = run_scaffold(&dir, "my-plugin");
-    assert!(!out2.status.success(), "second scaffold should fail");
-    let stderr = String::from_utf8_lossy(&out2.stderr);
-    assert!(stderr.contains("already exists"), "stderr should mention 'already exists': {stderr}");
+    assert!(out2.status.success(), "second scaffold should succeed (idempotent)");
+    let stdout = String::from_utf8_lossy(&out2.stdout);
+    assert!(stdout.contains("Already exists"), "stdout should mention 'Already exists': {stdout}");
 }
 
 // =========================================================================

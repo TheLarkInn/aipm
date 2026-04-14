@@ -200,7 +200,7 @@
       "Update the existing scaffold_script_snapshot snap file to match new bash content",
       "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -211,7 +211,7 @@
       "Update the skill_definition_snapshot snap file to match the new SKILL.md content",
       "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
