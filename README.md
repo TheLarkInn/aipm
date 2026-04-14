@@ -154,6 +154,8 @@ aipm update [OPTIONS] [PACKAGE]
 
 Omit `PACKAGE` to update all dependencies. Unlike `install`, `update` resolves the latest version within the declared version range and rewrites the lockfile.
 
+See also: [`docs/guides/update.md`](docs/guides/update.md) for the Cargo-model lockfile semantics, CI mode, and version-range upgrade patterns.
+
 ### `aipm uninstall`
 
 Remove an installed plugin from the project or the global registry.
