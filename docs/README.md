@@ -9,7 +9,6 @@ How-to guides for common tasks:
 | Guide | Description |
 |-------|-------------|
 | [Initializing a Workspace](guides/init.md) | Bootstrap a `.ai/` marketplace and tool settings with `aipm init` |
-| [Creating a Plugin with `aipm make plugin`](guides/make-plugin.md) | Scaffold a new plugin inside an existing marketplace with `aipm make plugin` |
 | [Updating Plugins](guides/update.md) | Upgrade installed plugins with `aipm update` and understand the Cargo-model lockfile |
 | [Creating a Plugin](guides/creating-a-plugin.md) | Scaffold a new plugin package with `aipm pack init` |
 | [Scaffolding a Workspace Plugin](guides/make-plugin.md) | Add a new plugin to an existing workspace with `aipm make plugin` |
