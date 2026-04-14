@@ -1,6 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.21.1] - 2026-04-14
+
+### Bug Fixes
+- Preserve real serde errors in settings and marketplace parse paths ([#496](https://github.com/TheLarkInn/aipm/pull/496)) (06bc32f)
+
+### Documentation
+- Add `instructions/oversized` example to workspace lints in README ([#492](https://github.com/TheLarkInn/aipm/pull/492)) (46c94fb)
+- Update README to reflect 18-rule lint coverage and `instructions/oversized` example ([#487](https://github.com/TheLarkInn/aipm/pull/487)) (3c88808)
+
 ## [0.21.0] - 2026-04-14
 
 ### Refactoring
