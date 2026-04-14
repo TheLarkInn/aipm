@@ -326,4 +326,41 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    /// A MockFs that fails all reads with PermissionDenied.
+    struct FailReadFs;
+
+    impl crate::fs::Fs for FailReadFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "access denied"))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn claude_settings_io_error_on_read_propagates_as_io_variant() {
+        // Covers the `Err(e)` (non-NotFound) arm of the read_to_string match.
+        let adaptor = Adaptor;
+        let result = adaptor.apply(Path::new("/tmp"), false, "test", &FailReadFs);
+        assert!(result.is_err());
+        assert!(
+            result.is_err_and(|e| matches!(e, Error::Io(_))),
+            "non-NotFound I/O error should produce Error::Io"
+        );
+    }
 }

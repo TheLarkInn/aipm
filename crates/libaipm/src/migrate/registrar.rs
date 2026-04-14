@@ -26,26 +26,21 @@ pub fn register_plugins(ai_dir: &Path, entries: &[PluginEntry], fs: &dyn Fs) -> 
 
     crate::generate::marketplace::register_all(fs, &marketplace_path, &gen_entries).map_err(
         |e| {
-            // Only map to MarketplaceJsonParse when the underlying cause is a real
-            // serde_json::Error (JSON parse failure). Structural issues like a missing
-            // or non-array "plugins" key, and I/O errors, map to Error::Io.
-            let is_json_parse = e.kind() == std::io::ErrorKind::InvalidData
-                && e.get_ref().and_then(|s| s.downcast_ref::<serde_json::Error>()).is_some();
-            if !is_json_parse {
+            if e.kind() != std::io::ErrorKind::InvalidData {
                 return Error::Io(e);
             }
-            e.into_inner()
-                .and_then(|s| s.downcast::<serde_json::Error>().ok())
-                .map(|b| *b)
-                .map_or_else(
-                    || {
-                        Error::Io(std::io::Error::new(
-                            std::io::ErrorKind::InvalidData,
-                            "marketplace JSON parse error",
-                        ))
-                    },
-                    |source| Error::MarketplaceJsonParse { path: marketplace_path.clone(), source },
-                )
+            // For InvalidData: try to extract a real serde_json::Error (JSON parse failure).
+            // Structural issues (missing/non-array "plugins" key) have string sources that
+            // won't downcast and fall through to Error::Io.
+            e.into_inner().and_then(|s| s.downcast::<serde_json::Error>().ok()).map_or_else(
+                || {
+                    Error::Io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "marketplace structure error",
+                    ))
+                },
+                |b| Error::MarketplaceJsonParse { path: marketplace_path.clone(), source: *b },
+            )
         },
     )?;
 
