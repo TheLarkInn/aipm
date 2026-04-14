@@ -21,3 +21,18 @@ Created `crates/libaipm/src/make/error.rs` with Error enum (8 variants):
 
 Registered in make/mod.rs with `pub use error::Error`.
 8 unit tests passing. All cargo gates green (89.50% coverage).
+
+## Phase 1.3: make/engine_features.rs — COMPLETE (2026-04-14)
+
+Created `crates/libaipm/src/make/engine_features.rs` with:
+- Feature enum (7 variants: Skill, Agent, Mcp, Hook, OutputStyle, Lsp, Extension)
+- cli_name(), label(), from_cli_name() methods
+- features_for_engine() returning engine-filtered feature sets
+- validate_features() checking features against engine support
+
+Engine-feature matrix:
+- Claude: Skill, Agent, Mcp, Hook, OutputStyle
+- Copilot: Skill, Agent, Mcp, Hook, Lsp, Extension
+- Both: all 7
+
+11 unit tests passing. All cargo gates green (95.01% coverage).

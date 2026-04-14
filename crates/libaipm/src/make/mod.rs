@@ -5,7 +5,9 @@
 //! action pipeline exposed through the `aipm make` CLI command.
 
 pub mod action;
+pub mod engine_features;
 pub mod error;
 
 pub use action::Action;
+pub use engine_features::Feature;
 pub use error::Error;

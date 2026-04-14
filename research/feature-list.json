@@ -41,7 +41,7 @@
       "Add unit tests: engine_features_claude, engine_features_copilot, engine_features_both, validate_features_rejects_lsp_for_claude, from_cli_name_roundtrip",
       "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
