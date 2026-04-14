@@ -58,7 +58,7 @@
       "Add snapshot tests: skill_template_snapshot, agent_template_snapshot, mcp_template_snapshot, hook_template_snapshot, output_style_template_snapshot, lsp_template_snapshot",
       "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

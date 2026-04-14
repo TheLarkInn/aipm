@@ -1,0 +1,8 @@
+---
+source: crates/libaipm/src/make/templates.rs
+assertion_line: 108
+expression: content
+---
+{
+  "lspServers": {}
+}

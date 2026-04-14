@@ -1,0 +1,14 @@
+---
+source: crates/libaipm/src/make/templates.rs
+assertion_line: 84
+expression: content
+---
+---
+name: my-plugin
+description: "TODO: Describe my-plugin"
+tools: []
+---
+
+# my-plugin
+
+Add your agent instructions here.

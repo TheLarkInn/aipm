@@ -36,3 +36,16 @@ Engine-feature matrix:
 - Both: all 7
 
 11 unit tests passing. All cargo gates green (95.01% coverage).
+
+## Phase 1.4: make/templates.rs — COMPLETE (2026-04-14)
+
+Created `crates/libaipm/src/make/templates.rs` with 6 template generators:
+- skill_template(name) — YAML frontmatter with name + description, placeholder body
+- agent_template(name) — YAML frontmatter with name + description + tools, placeholder body
+- mcp_template() — JSON {"mcpServers": {}}
+- hook_template() — JSON {"hooks": []}
+- output_style_template(name) — YAML frontmatter with name, placeholder body
+- lsp_template() — JSON {"lspServers": {}}
+
+6 insta snapshot tests + 3 validation tests = 9 tests passing.
+All cargo gates green (89.58% coverage).

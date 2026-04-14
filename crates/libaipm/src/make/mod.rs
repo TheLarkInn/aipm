@@ -7,6 +7,7 @@
 pub mod action;
 pub mod engine_features;
 pub mod error;
+pub mod templates;
 
 pub use action::Action;
 pub use engine_features::Feature;
