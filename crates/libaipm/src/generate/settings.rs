@@ -335,6 +335,38 @@ mod tests {
     }
 
     #[test]
+    fn read_or_create_propagates_non_not_found_error() {
+        // Covers the `Err(e) => Err(e)` arm (line 24) where the I/O error
+        // is NOT a NotFound — e.g. PermissionDenied.
+        struct PermissionDeniedFs;
+        impl crate::fs::Fs for PermissionDeniedFs {
+            fn exists(&self, _: &Path) -> bool {
+                false
+            }
+
+            fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+                Ok(())
+            }
+
+            fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+                Ok(())
+            }
+
+            fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+                Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "permission denied"))
+            }
+
+            fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+                Ok(Vec::new())
+            }
+        }
+
+        let result = read_or_create(&PermissionDeniedFs, Path::new("/settings.json"));
+        assert!(result.is_err());
+        assert_eq!(result.err().map(|e| e.kind()), Some(std::io::ErrorKind::PermissionDenied));
+    }
+
+    #[test]
     fn full_rmw_cycle_preserves_existing_keys() {
         let fs = MockFs::new();
         let path = Path::new("/settings.json");
