@@ -32,8 +32,9 @@ pub fn register_plugins(ai_dir: &Path, entries: &[PluginEntry], fs: &dyn Fs) -> 
             // Attempt to recover a typed serde_json::Error.  Save the display string
             // first so that structural-error messages ("missing 'plugins' array in …")
             // are preserved even after into_inner() consumes the original io::Error.
-            // The None arm is reached for structural issues (String-sourced errors
-            // that don't downcast to serde_json::Error); the Some arm for real parse
+            // The None arm is reached for structural issues where into_inner() returns
+            // Some but the downcast to serde_json::Error fails (the source is a plain
+            // string message, not a typed parse error); the Some arm for real parse
             // failures where register_all stored the serde_json::Error as the source.
             let display = e.to_string();
             e.into_inner().and_then(|s| s.downcast::<serde_json::Error>().ok()).map_or_else(
