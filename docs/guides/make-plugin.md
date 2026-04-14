@@ -99,7 +99,7 @@ When run on a TTY without `--yes`, the wizard runs in two phases:
 For `aipm make plugin --name my-skill --engine claude --feature skill`:
 
 ```
-.ai/<marketplace>/
+.ai/
   my-skill/
     .claude-plugin/
       plugin.json          # plugin metadata
@@ -108,12 +108,14 @@ For `aipm make plugin --name my-skill --engine claude --feature skill`:
         SKILL.md           # starter skill template
   .claude-plugin/
     marketplace.json       # updated to include my-skill
+.claude/
+  settings.json            # updated: my-skill@<marketplace> added to plugins
 ```
 
 For `--engine copilot --feature skill --feature lsp`:
 
 ```
-.ai/<marketplace>/
+.ai/
   my-plugin/
     .claude-plugin/
       plugin.json
@@ -121,9 +123,11 @@ For `--engine copilot --feature skill --feature lsp`:
       my-plugin/
         SKILL.md
     .lsp.json              # LSP server config (root of plugin directory)
+  .claude-plugin/
+    marketplace.json       # updated to include my-plugin
 ```
 
-Claude engine settings (`.ai/.claude/settings.json`) are updated automatically. Copilot settings support is deferred to a future release.
+Claude engine settings (`.claude/settings.json`, a sibling of `.ai/` at the project root) are updated automatically. Copilot settings support is deferred to a future release.
 
 ## Discovery
 
