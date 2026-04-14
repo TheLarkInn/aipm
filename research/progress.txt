@@ -29,3 +29,9 @@
 - Accepted 10 new snapshot files for pack-init wizard tests
 - Functional test: `aipm pack init --name test-pkg --type skill -y /tmp/test` creates correct aipm.toml
 - All 56 wizard tests pass, full workspace tests pass, coverage 89.18%
+
+## Phase 3: Delete crates/aipm-pack/ directory — COMPLETE
+- Removed entire crates/aipm-pack/ directory (Cargo.toml, CHANGELOG.md, src/, tests/)
+- Removed [profile.dev.package.aipm-pack] from workspace Cargo.toml
+- Workspace now has 2 crates: aipm, libaipm (down from 3)
+- cargo build/test/clippy/fmt all pass, coverage 89.10%

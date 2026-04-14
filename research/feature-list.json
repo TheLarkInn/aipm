@@ -129,7 +129,7 @@
       "Run `cargo clippy --workspace -- -D warnings`",
       "Run `cargo fmt --check`"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

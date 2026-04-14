@@ -40,25 +40,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aipm-pack"
-version = "0.22.0"
-dependencies = [
- "assert_cmd",
- "clap",
- "inquire",
- "insta",
- "libaipm",
- "predicates",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.18",
- "toml",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "annotate-snippets"
 version = "0.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
