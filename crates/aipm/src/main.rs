@@ -976,10 +976,20 @@ fn cmd_make_plugin(
     let (resolved_name, resolved_engine, resolved_features) =
         wizard_tty::resolve_make_plugin(interactive, name, engine, features)?;
 
-    // Discover marketplace directory
-    let plugins_dir = resolve_plugins_dir(&dir);
+    // Validate name
+    libaipm::manifest::validate::check_name(
+        &resolved_name,
+        libaipm::manifest::validate::ValidationMode::Strict,
+    )
+    .map_err(libaipm::make::Error::InvalidName)?;
 
-    // Convert feature CLI names to Feature enum values
+    // Validate engine
+    match resolved_engine.as_str() {
+        "claude" | "copilot" | "both" => {},
+        _ => return Err(libaipm::make::Error::InvalidEngine(resolved_engine).into()),
+    }
+
+    // Parse and validate features
     let parsed_features: Vec<libaipm::make::Feature> = resolved_features
         .iter()
         .map(|f| {
@@ -987,6 +997,21 @@ fn cmd_make_plugin(
                 .ok_or_else(|| libaipm::make::Error::InvalidFeature(f.clone()))
         })
         .collect::<Result<_, _>>()?;
+
+    if let Err(unsupported) =
+        libaipm::make::engine_features::validate_features(&resolved_engine, &parsed_features)
+    {
+        if let Some(first) = unsupported.first() {
+            return Err(libaipm::make::Error::UnsupportedFeature {
+                feature: first.cli_name().to_string(),
+                engine: resolved_engine,
+            }
+            .into());
+        }
+    }
+
+    // Discover marketplace directory
+    let plugins_dir = libaipm::make::discovery::find_marketplace(&dir, &libaipm::fs::Real)?;
 
     let opts = libaipm::make::PluginOpts {
         marketplace_dir: &plugins_dir,

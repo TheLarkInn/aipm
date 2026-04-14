@@ -134,6 +134,12 @@ pub fn resolve_make_plugin(
         str::to_string,
     );
 
+    // Validate the resolved engine before using it to filter features
+    match engine.as_str() {
+        "claude" | "copilot" | "both" => {},
+        _ => return Err(Box::new(libaipm::make::Error::InvalidEngine(engine.clone()))),
+    }
+
     // Phase 2: Features (filtered by resolved engine)
     if flag_features.is_empty() {
         let available = libaipm::make::engine_features::features_for_engine(&engine);
@@ -149,12 +155,15 @@ pub fn resolve_make_plugin(
         };
         let feature_answers = execute_prompts(&[feature_step])?;
 
-        let features = match feature_answers.first() {
+        let features: Vec<String> = match feature_answers.first() {
             Some(PromptAnswer::MultiSelected(indices)) => {
                 indices.iter().filter_map(|&i| cli_names.get(i).map(|s| (*s).to_string())).collect()
             },
             _ => Vec::new(),
         };
+        if features.is_empty() {
+            return Err(Box::new(libaipm::make::Error::MissingFlag("feature".to_string())));
+        }
         Ok((name, engine, features))
     } else {
         Ok((name, engine, flag_features.to_vec()))
