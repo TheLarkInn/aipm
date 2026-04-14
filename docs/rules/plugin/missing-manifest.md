@@ -46,12 +46,12 @@ Create a `.claude-plugin/plugin.json` file inside the plugin directory with at m
 }
 ```
 
-Run `aipm-pack init` to scaffold a new plugin with the correct layout automatically.
+Plugins created with `aipm init` (workspace init) automatically generate a complete `plugin.json` for the starter plugin. For plugins created with `aipm migrate`, a `plugin.json` is generated from the detected artifact metadata. For manually created plugins, create the file as shown above.
 
 ## See also
 
 - [plugin/required-fields](required-fields.md) — validates the contents of `plugin.json`
 - [plugin/missing-registration](missing-registration.md) — validates the plugin is listed in `marketplace.json`
-- [Creating a plugin](../../guides/creating-a-plugin.md) — how to scaffold a new plugin with the correct directory layout
+- [Creating a plugin](../../guides/creating-a-plugin.md) — how to create a plugin package
 - [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system
 - [Configuring lint](../../guides/configuring-lint.md) — override rule severity or suppress rules per path
