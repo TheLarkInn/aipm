@@ -28,16 +28,15 @@ impl ToolAdaptor for Adaptor {
 
         fs.create_dir_all(&settings_dir)?;
 
-        let content = match fs.read_to_string(&settings_path) {
-            Ok(s) => s,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        // Read and parse settings.json. Only default to an empty object when the file
+        // does not exist yet; an existing but empty or malformed file is a parse error.
+        let mut settings: serde_json::Value = match fs.read_to_string(&settings_path) {
+            Ok(content) => serde_json::from_str(&content)
+                .map_err(|source| Error::JsonParse { path: settings_path.clone(), source })?,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                serde_json::Value::Object(serde_json::Map::new())
+            },
             Err(e) => return Err(Error::Io(e)),
-        };
-        let mut settings: serde_json::Value = if content.is_empty() {
-            serde_json::Value::Object(serde_json::Map::new())
-        } else {
-            serde_json::from_str(&content)
-                .map_err(|source| Error::JsonParse { path: settings_path.clone(), source })?
         };
 
         // For merge path: reject non-object root

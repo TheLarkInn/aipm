@@ -97,8 +97,10 @@ pub fn register_all(fs: &dyn Fs, path: &Path, entries: &[Entry<'_>]) -> std::io:
     }
 
     let content = fs.read_to_string(path)?;
+    // Preserve serde_json::Error as the io::Error source so callers can downcast
+    // and distinguish parse failures from structural issues.
     let mut json: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
 
     let plugins =
         json.get_mut("plugins").and_then(serde_json::Value::as_array_mut).ok_or_else(|| {
