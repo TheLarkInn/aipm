@@ -28,10 +28,17 @@ impl ToolAdaptor for Adaptor {
 
         fs.create_dir_all(&settings_dir)?;
 
-        let mut settings =
-            crate::generate::settings::read_or_create(fs, &settings_path).map_err(|e| {
-                Error::JsonParse { path: settings_path.clone(), source: serde_json::Error::io(e) }
-            })?;
+        let content = match fs.read_to_string(&settings_path) {
+            Ok(s) => s,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+            Err(e) => return Err(Error::Io(e)),
+        };
+        let mut settings: serde_json::Value = if content.is_empty() {
+            serde_json::Value::Object(serde_json::Map::new())
+        } else {
+            serde_json::from_str(&content)
+                .map_err(|source| Error::JsonParse { path: settings_path.clone(), source })?
+        };
 
         // For merge path: reject non-object root
         if !settings.is_object() {
