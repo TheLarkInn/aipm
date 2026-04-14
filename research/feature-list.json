@@ -3,13 +3,13 @@
     "category": "refactor",
     "description": "Phase 1.1: Extract execute_prompts() function into libaipm::wizard",
     "steps": [
-      "Read crates/aipm/src/wizard_tty.rs lines 176-244 — this is the canonical execute_prompts() implementation",
-      "Read crates/libaipm/src/wizard.rs — understand existing types (PromptStep, PromptKind, PromptAnswer, styled_render_config) at lines 1-71",
+      "Read crates/aipm/src/wizard_tty.rs lines 176-244 \u2014 this is the canonical execute_prompts() implementation",
+      "Read crates/libaipm/src/wizard.rs \u2014 understand existing types (PromptStep, PromptKind, PromptAnswer, styled_render_config) at lines 1-71",
       "Add imports to crates/libaipm/src/wizard.rs: `use crate::manifest::validate::{self, ValidationMode};` and `use inquire::{Confirm, MultiSelect, Select, Text};`",
       "Copy the execute_prompts() function body from crates/aipm/src/wizard_tty.rs:176-244 into crates/libaipm/src/wizard.rs, placing it after styled_render_config() (after line 71)",
       "Make the function public: `pub fn execute_prompts(steps: &[PromptStep]) -> Result<Vec<PromptAnswer>, Box<dyn std::error::Error>>`",
       "Add doc comment: `/// Execute a sequence of prompt steps against a real terminal via inquire.`",
-      "Verify imports resolve correctly — inquire is already conditionally available via the wizard feature flag in crates/libaipm/Cargo.toml:39-44",
+      "Verify imports resolve correctly \u2014 inquire is already conditionally available via the wizard feature flag in crates/libaipm/Cargo.toml:39-44",
       "Run `cargo build --workspace` to verify the new function compiles",
       "Run `cargo clippy --workspace -- -D warnings` to ensure no lint warnings"
     ],
@@ -19,8 +19,8 @@
     "category": "refactor",
     "description": "Phase 1.2: Update aipm's wizard_tty.rs to call libaipm::wizard::execute_prompts()",
     "steps": [
-      "Read crates/aipm/src/wizard_tty.rs — note the 4 call sites of local execute_prompts(): line 39 (resolve), line 66 (resolve_migrate_cleanup), line 113 (resolve_make_plugin phase 1), line 156 (resolve_make_plugin phase 2)",
-      "Replace each call to `execute_prompts(&steps)` with `libaipm::wizard::execute_prompts(&steps)?` — the function signature is identical so no other changes needed",
+      "Read crates/aipm/src/wizard_tty.rs \u2014 note the 4 call sites of local execute_prompts(): line 39 (resolve), line 66 (resolve_migrate_cleanup), line 113 (resolve_make_plugin phase 1), line 156 (resolve_make_plugin phase 2)",
+      "Replace each call to `execute_prompts(&steps)` with `libaipm::wizard::execute_prompts(&steps)?` \u2014 the function signature is identical so no other changes needed",
       "Also replace `execute_prompts(&[feature_step])` at line 156 with `libaipm::wizard::execute_prompts(&[feature_step])?`",
       "Delete the local execute_prompts() function definition at lines 176-244",
       "Remove any now-unused imports from the file header (inquire types that were only used by the deleted function)",
@@ -37,7 +37,7 @@
     "steps": [
       "Read crates/libaipm/src/wizard.rs tests section (lines 73-120) to understand existing test patterns",
       "Add a test that verifies execute_prompts() with an empty steps slice returns Ok(empty vec)",
-      "Since inquire requires a real TTY, interactive tests cannot run in CI — the empty-steps test is the primary unit test",
+      "Since inquire requires a real TTY, interactive tests cannot run in CI \u2014 the empty-steps test is the primary unit test",
       "Verify the function signature is correct by adding a compile-time test that references the function type",
       "Run `cargo test --workspace` to confirm the new tests pass",
       "Run `cargo clippy --workspace -- -D warnings`"
@@ -48,65 +48,65 @@
     "category": "functional",
     "description": "Phase 2.1: Add Pack subcommand and PackSubcommand enum to aipm CLI",
     "steps": [
-      "Read crates/aipm/src/main.rs — note the Commands enum (lines 32-223) and MakeSubcommand pattern (lines 225-249)",
+      "Read crates/aipm/src/main.rs \u2014 note the Commands enum (lines 32-223) and MakeSubcommand pattern (lines 225-249)",
       "Add PackSubcommand enum after MakeSubcommand with an Init variant containing: yes (bool, -y/--yes), name (Option<String>, --name), r#type (Option<String>, --type with rename_all kebab-case and value_name TYPE), dir (PathBuf, default_value '.')",
       "Add Pack variant to Commands enum (after Make): `Pack { #[command(subcommand)] subcommand: PackSubcommand }`",
       "The doc comment for Pack should be: `/// Author commands for plugin packages.`",
       "The doc comment for Init should be: `/// Initialize a new AI plugin package.`",
-      "Run `cargo build --workspace` to verify the enum compiles (the match in run() will need updating too — see next phase)",
+      "Run `cargo build --workspace` to verify the enum compiles (the match in run() will need updating too \u2014 see next phase)",
       "Run `cargo clippy --workspace -- -D warnings`"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Phase 2.2: Add Init error variant to aipm's CliError",
     "steps": [
-      "Read crates/aipm/src/error.rs — note the existing CliError enum with 13 variants (lines 8-65)",
+      "Read crates/aipm/src/error.rs \u2014 note the existing CliError enum with 13 variants (lines 8-65)",
       "Add a new variant after Make: `/// Package init errors.` / `#[error(transparent)]` / `Init(#[from] libaipm::init::Error)`",
-      "Verify libaipm::init::Error is accessible — check crates/libaipm/src/init.rs for the Error enum definition",
+      "Verify libaipm::init::Error is accessible \u2014 check crates/libaipm/src/init.rs for the Error enum definition",
       "Run `cargo build --workspace` to verify the error variant compiles",
       "Run `cargo clippy --workspace -- -D warnings`"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Phase 2.3: Move wizard functions from aipm-pack to aipm",
     "steps": [
-      "Read crates/aipm-pack/src/wizard.rs lines 1-121 — the production code that needs to move: PLUGIN_TYPE_OPTIONS (line 18), plugin_type_from_index (line 28), package_prompt_steps (line 43), resolve_package_answers (line 87)",
-      "Read crates/aipm/src/wizard.rs — understand the current structure and imports",
+      "Read crates/aipm-pack/src/wizard.rs lines 1-121 \u2014 the production code that needs to move: PLUGIN_TYPE_OPTIONS (line 18), plugin_type_from_index (line 28), package_prompt_steps (line 43), resolve_package_answers (line 87)",
+      "Read crates/aipm/src/wizard.rs \u2014 understand the current structure and imports",
       "Add `use libaipm::manifest::types::PluginType;` to crates/aipm/src/wizard.rs imports",
       "Copy PLUGIN_TYPE_OPTIONS constant (6-element array) into crates/aipm/src/wizard.rs",
       "Copy plugin_type_from_index() const fn into crates/aipm/src/wizard.rs",
-      "Copy package_prompt_steps() function into crates/aipm/src/wizard.rs — it depends on PLUGIN_TYPE_OPTIONS, PromptStep, PromptKind (all available via imports)",
-      "Copy resolve_package_answers() function into crates/aipm/src/wizard.rs — it depends on PromptAnswer, plugin_type_from_index, PluginType",
+      "Copy package_prompt_steps() function into crates/aipm/src/wizard.rs \u2014 it depends on PLUGIN_TYPE_OPTIONS, PromptStep, PromptKind (all available via imports)",
+      "Copy resolve_package_answers() function into crates/aipm/src/wizard.rs \u2014 it depends on PromptAnswer, plugin_type_from_index, PluginType",
       "Make all four items pub (package_prompt_steps and resolve_package_answers already are; PLUGIN_TYPE_OPTIONS should stay const; plugin_type_from_index should stay const fn)",
       "Copy the associated test functions from crates/aipm-pack/src/wizard.rs tests module (lines 127-389) into crates/aipm/src/wizard.rs tests module",
       "Run `cargo build --workspace` to verify everything compiles",
-      "Run `cargo test -p aipm` to verify the moved tests pass — snapshot tests will need regeneration via `cargo insta test --accept -p aipm` since the module path prefix changes from aipm_pack__wizard__tests__ to aipm__wizard__tests__",
+      "Run `cargo test -p aipm` to verify the moved tests pass \u2014 snapshot tests will need regeneration via `cargo insta test --accept -p aipm` since the module path prefix changes from aipm_pack__wizard__tests__ to aipm__wizard__tests__",
       "Run `cargo clippy --workspace -- -D warnings`"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Phase 2.4: Add resolve_pack_init() TTY bridge to aipm's wizard_tty.rs",
     "steps": [
-      "Read crates/aipm/src/wizard_tty.rs — understand the pattern from resolve() (lines 30-44) and resolve_make_plugin() (lines 78-171)",
+      "Read crates/aipm/src/wizard_tty.rs \u2014 understand the pattern from resolve() (lines 30-44) and resolve_make_plugin() (lines 78-171)",
       "Add `use std::path::Path;` and `use libaipm::manifest::types::PluginType;` to imports if not already present",
       "Add resolve_pack_init() public function following the same pattern: check interactive, if true: set_global_render_config, call wizard::package_prompt_steps(), call libaipm::wizard::execute_prompts(), call wizard::resolve_package_answers(). If false: return (flag_name, flag_type) as-is",
       "Function signature: `pub fn resolve_pack_init(interactive: bool, dir: &Path, flag_name: Option<String>, flag_type: Option<PluginType>) -> Result<(Option<String>, Option<PluginType>), Box<dyn std::error::Error>>`",
       "Run `cargo build --workspace` to verify compilation",
       "Run `cargo clippy --workspace -- -D warnings`"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
     "description": "Phase 2.5: Add cmd_pack_init() handler and match arm to aipm main.rs",
     "steps": [
-      "Read crates/aipm/src/main.rs — understand the pattern from cmd_make_plugin() (lines 966-1061) and the run() match block (lines 1067-1141)",
+      "Read crates/aipm/src/main.rs \u2014 understand the pattern from cmd_make_plugin() (lines 966-1061) and the run() match block (lines 1067-1141)",
       "Add cmd_pack_init() function following the spec: parse PluginType from --type string via str::parse, call resolve_dir(), check interactive, call wizard_tty::resolve_pack_init(), construct libaipm::init::Options, call libaipm::init::init(), print success message",
       "Add match arm in run() for Commands::Pack: `Some(Commands::Pack { subcommand }) => match subcommand { PackSubcommand::Init { yes, name, r#type, dir } => cmd_pack_init(yes, name.as_deref(), r#type.as_deref(), dir) }`",
       "Place the match arm after the Make arm (around line 1133)",
@@ -115,7 +115,7 @@
       "Run `cargo clippy --workspace -- -D warnings`",
       "Manually test: create a temp dir and run `cargo run -p aipm -- pack init --name test-pkg --type skill -y /tmp/test-pack-init` to verify it creates aipm.toml"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
@@ -135,13 +135,13 @@
     "category": "functional",
     "description": "Phase 4: Migrate E2E tests from aipm-pack to aipm",
     "steps": [
-      "Read the deleted crates/aipm-pack/tests/init_e2e.rs (from git or spec reference) — it has 21 tests that invoke Command::cargo_bin('aipm-pack')",
+      "Read the deleted crates/aipm-pack/tests/init_e2e.rs (from git or spec reference) \u2014 it has 21 tests that invoke Command::cargo_bin('aipm-pack')",
       "Create crates/aipm/tests/pack_init_e2e.rs with the same test structure",
       "Replace the helper `fn aipm_pack() -> Command` with `fn aipm() -> Command { Command::cargo_bin(\"aipm\").expect(\"binary exists\") }`",
       "In every test, replace `.arg(\"init\")` with `.arg(\"pack\").arg(\"init\")`",
       "Rename test functions from `init_*` to `pack_init_*` for clarity",
       "The assertions (checking aipm.toml exists, directory layout, error messages) remain identical since libaipm::init is unchanged",
-      "For the `init_defaults_to_current_directory` test, the new command path is `aipm pack init` — the positional dir default of '.' still applies",
+      "For the `init_defaults_to_current_directory` test, the new command path is `aipm pack init` \u2014 the positional dir default of '.' still applies",
       "Run `cargo test -p aipm --test pack_init_e2e` to verify all 21 migrated tests pass",
       "Run `cargo test --workspace` for full test suite",
       "Run `cargo clippy --workspace -- -D warnings`"
@@ -152,15 +152,15 @@
     "category": "refactor",
     "description": "Phase 5.1: Rewrite BDD init.feature scenarios for aipm make plugin",
     "steps": [
-      "Read tests/features/manifest/init.feature — 6 scenarios currently testing 'aipm-pack init'",
+      "Read tests/features/manifest/init.feature \u2014 6 scenarios currently testing 'aipm-pack init'",
       "Read crates/libaipm/tests/bdd.rs to understand the BDD step definitions and how commands are dispatched (lines 100-121)",
       "Rewrite the feature file to test 'aipm make plugin' instead. Each scenario needs a Given step that creates an initialized marketplace (e.g., 'Given an initialized workspace with marketplace')",
-      "Scenario 1: 'Create a new plugin in an initialized marketplace' — run 'aipm make plugin --name my-plugin --engine claude --feature skill -y', verify plugin directory and plugin.json exist",
-      "Scenario 2: 'Create a plugin with --name flag' — run 'aipm make plugin --name hello-world --engine claude --feature skill -y', verify plugin.json contains 'hello-world'",
-      "Scenario 3: 'Creating a plugin in existing directory succeeds idempotently' — create plugin, run again, verify no error (make is idempotent unlike init)",
-      "Scenario 4: 'Plugin scaffold includes feature directories' — run make plugin with --feature skill, verify skills/ directory exists inside plugin dir",
-      "Scenario 5: 'Plugin scaffold with specific features' (Scenario Outline) — parametrize over skill, agent, mcp, hook features, verify appropriate directories/files exist",
-      "Scenario 6: 'Plugin name must follow naming conventions' — run 'aipm make plugin --name INVALID_Name! ...', verify failure with naming error",
+      "Scenario 1: 'Create a new plugin in an initialized marketplace' \u2014 run 'aipm make plugin --name my-plugin --engine claude --feature skill -y', verify plugin directory and plugin.json exist",
+      "Scenario 2: 'Create a plugin with --name flag' \u2014 run 'aipm make plugin --name hello-world --engine claude --feature skill -y', verify plugin.json contains 'hello-world'",
+      "Scenario 3: 'Creating a plugin in existing directory succeeds idempotently' \u2014 create plugin, run again, verify no error (make is idempotent unlike init)",
+      "Scenario 4: 'Plugin scaffold includes feature directories' \u2014 run make plugin with --feature skill, verify skills/ directory exists inside plugin dir",
+      "Scenario 5: 'Plugin scaffold with specific features' (Scenario Outline) \u2014 parametrize over skill, agent, mcp, hook features, verify appropriate directories/files exist",
+      "Scenario 6: 'Plugin name must follow naming conventions' \u2014 run 'aipm make plugin --name INVALID_Name! ...', verify failure with naming error",
       "Ensure any required BDD step definitions exist in bdd.rs (may need 'Given an initialized workspace with marketplace' step)",
       "Run the BDD test suite: `cargo test -p libaipm --test bdd` to verify scenarios pass",
       "Run `cargo test --workspace`"
@@ -171,7 +171,7 @@
     "category": "refactor",
     "description": "Phase 5.2: Remove aipm-pack special-case routing in BDD test runner",
     "steps": [
-      "Read crates/libaipm/tests/bdd.rs lines 108-111 — the special-case block: `if binary == \"aipm-pack\" && args.first() == Some(&\"init\") && working_dir.is_some()`",
+      "Read crates/libaipm/tests/bdd.rs lines 108-111 \u2014 the special-case block: `if binary == \"aipm-pack\" && args.first() == Some(&\"init\") && working_dir.is_some()`",
       "Remove this entire if-block since 'aipm-pack' is no longer a binary target",
       "Keep the else branch logic (cmd.args(args); cmd.current_dir(&cwd);) as the only path",
       "Also remove the comment on line 108: '// For \"aipm-pack init\" in a dir, pass the dir as the positional arg'",
@@ -207,9 +207,9 @@
     "category": "refactor",
     "description": "Phase 6.1: Update workspace Cargo.toml and CLAUDE.md",
     "steps": [
-      "Read Cargo.toml lines 175-180 — find the [profile.dev.package.aipm-pack] section",
+      "Read Cargo.toml lines 175-180 \u2014 find the [profile.dev.package.aipm-pack] section",
       "Remove lines 177-178: `[profile.dev.package.aipm-pack]` and `opt-level = 0`",
-      "Read CLAUDE.md — find line referencing 'crates/aipm-pack/'",
+      "Read CLAUDE.md \u2014 find line referencing 'crates/aipm-pack/'",
       "Update the project structure section: remove the aipm-pack line or replace with a note that it was merged into aipm",
       "Also update the Build Commands section if it references aipm-pack (it currently lists aipm as the only consumer CLI)",
       "Run `cargo build --workspace` to verify no build impact",
@@ -221,9 +221,9 @@
     "category": "refactor",
     "description": "Phase 6.2: Update libaipm doc comments",
     "steps": [
-      "Read crates/libaipm/src/lib.rs line 4 — update from 'and the aipm-pack author binary' to remove the aipm-pack reference",
-      "Read crates/libaipm/src/init.rs line 1 — update from 'aipm-pack init' to 'aipm pack init'",
-      "Read crates/libaipm/src/wizard.rs lines 1-5 — update from 'Both the aipm and aipm-pack binaries' to 'The aipm binary enables this feature'",
+      "Read crates/libaipm/src/lib.rs line 4 \u2014 update from 'and the aipm-pack author binary' to remove the aipm-pack reference",
+      "Read crates/libaipm/src/init.rs line 1 \u2014 update from 'aipm-pack init' to 'aipm pack init'",
+      "Read crates/libaipm/src/wizard.rs lines 1-5 \u2014 update from 'Both the aipm and aipm-pack binaries' to 'The aipm binary enables this feature'",
       "Run `cargo doc --workspace --no-deps` to verify docs generate cleanly",
       "Run `cargo clippy --workspace -- -D warnings`"
     ],
@@ -233,13 +233,13 @@
     "category": "refactor",
     "description": "Phase 6.3: Update README.md",
     "steps": [
-      "Read README.md — find the 'aipm-pack' CLI section (around line 314-323)",
-      "Remove the 'aipm-pack — Author CLI' section entirely or replace with a note that it is now 'aipm pack'",
-      "Update the module table (around line 349) — change init description from 'aipm-pack init' to 'aipm pack init'",
-      "Update the feature flag table (around line 375) — wizard is now 'required by aipm' only (not 'aipm and aipm-pack')",
-      "Update the project structure tree (around line 499) — remove 'aipm-pack/ Author CLI binary (init)'",
-      "Update the roadmap section (around lines 523-525) — change 'aipm-pack pack / publish' and 'aipm-pack yank' to 'aipm pack / publish' and 'aipm yank'",
-      "Update the CLI table (around line 13) — remove aipm-pack row, add 'pack init' to aipm row",
+      "Read README.md \u2014 find the 'aipm-pack' CLI section (around line 314-323)",
+      "Remove the 'aipm-pack \u2014 Author CLI' section entirely or replace with a note that it is now 'aipm pack'",
+      "Update the module table (around line 349) \u2014 change init description from 'aipm-pack init' to 'aipm pack init'",
+      "Update the feature flag table (around line 375) \u2014 wizard is now 'required by aipm' only (not 'aipm and aipm-pack')",
+      "Update the project structure tree (around line 499) \u2014 remove 'aipm-pack/ Author CLI binary (init)'",
+      "Update the roadmap section (around lines 523-525) \u2014 change 'aipm-pack pack / publish' and 'aipm-pack yank' to 'aipm pack / publish' and 'aipm yank'",
+      "Update the CLI table (around line 13) \u2014 remove aipm-pack row, add 'pack init' to aipm row",
       "Verify no remaining 'aipm-pack' references in README.md: grep 'aipm-pack' README.md should return zero lines"
     ],
     "passes": false
@@ -248,10 +248,10 @@
     "category": "refactor",
     "description": "Phase 6.4: Update documentation guides",
     "steps": [
-      "Read docs/guides/creating-a-plugin.md — find all 9 occurrences of 'aipm-pack init' and replace with 'aipm pack init'",
-      "Read docs/guides/make-plugin.md — update the comparison table and see-also links (3 occurrences)",
-      "Read docs/guides/init.md — update cross-references to aipm-pack init (2 occurrences)",
-      "Read docs/README.md — update references to aipm-pack (3 occurrences)",
+      "Read docs/guides/creating-a-plugin.md \u2014 find all 9 occurrences of 'aipm-pack init' and replace with 'aipm pack init'",
+      "Read docs/guides/make-plugin.md \u2014 update the comparison table and see-also links (3 occurrences)",
+      "Read docs/guides/init.md \u2014 update cross-references to aipm-pack init (2 occurrences)",
+      "Read docs/README.md \u2014 update references to aipm-pack (3 occurrences)",
       "Verify no remaining 'aipm-pack' references in docs/: grep -r 'aipm-pack' docs/ should return zero lines"
     ],
     "passes": false
@@ -260,9 +260,9 @@
     "category": "refactor",
     "description": "Phase 6.5: Update CI/CD workflows",
     "steps": [
-      "Read .github/workflows/update-latest-release.yml line 20 — remove the '&& !startsWith(github.event.release.tag_name, 'aipm-pack-v')' guard from the if condition",
+      "Read .github/workflows/update-latest-release.yml line 20 \u2014 remove the '&& !startsWith(github.event.release.tag_name, 'aipm-pack-v')' guard from the if condition",
       "The simplified condition should be: `if: startsWith(github.event.release.tag_name, 'aipm-v') && !github.event.release.prerelease`",
-      "Read .github/workflows/docs-updater.md around line 101 — remove the reference to 'crates/aipm-pack/src/main.rs'",
+      "Read .github/workflows/docs-updater.md around line 101 \u2014 remove the reference to 'crates/aipm-pack/src/main.rs'",
       "Recompile the docs-updater workflow: run `gh aw compile docs-updater` and commit both the .md source and .lock.yml together",
       "Verify no remaining 'aipm-pack' references in workflows: grep -r 'aipm-pack' .github/workflows/ (excluding .lock.yml files which are auto-generated)"
     ],
@@ -272,11 +272,11 @@
     "category": "functional",
     "description": "Phase 7: Final verification and coverage gate",
     "steps": [
-      "Run `cargo build --workspace` — must pass with zero errors",
-      "Run `cargo test --workspace` — must pass with zero failures",
-      "Run `cargo clippy --workspace -- -D warnings` — must pass with zero warnings",
-      "Run `cargo fmt --check` — must pass",
-      "Run coverage: `cargo +nightly llvm-cov clean --workspace && cargo +nightly llvm-cov --no-report --workspace --branch && cargo +nightly llvm-cov --no-report --doc && cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs|lsp\\.rs)'` — TOTAL branch must show >= 89%",
+      "Run `cargo build --workspace` \u2014 must pass with zero errors",
+      "Run `cargo test --workspace` \u2014 must pass with zero failures",
+      "Run `cargo clippy --workspace -- -D warnings` \u2014 must pass with zero warnings",
+      "Run `cargo fmt --check` \u2014 must pass",
+      "Run coverage: `cargo +nightly llvm-cov clean --workspace && cargo +nightly llvm-cov --no-report --workspace --branch && cargo +nightly llvm-cov --no-report --doc && cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs|lsp\\.rs)'` \u2014 TOTAL branch must show >= 89%",
       "Verify grep -r 'aipm-pack' crates/ returns zero matches in source files",
       "Verify grep -r 'aipm-pack' tests/features/ returns zero matches",
       "Verify `aipm --help` shows the 'pack' subcommand",

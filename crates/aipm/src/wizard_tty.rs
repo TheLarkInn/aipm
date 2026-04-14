@@ -7,6 +7,10 @@
 //! All logic (prompt definitions, answer resolution, theming) lives in
 //! [`super::wizard`] and is fully tested (snapshot + unit tests).
 
+use std::path::Path;
+
+use libaipm::manifest::types::PluginType;
+
 use super::wizard;
 use super::wizard::{
     migrate_cleanup_prompt_steps, resolve_defaults, resolve_migrate_cleanup_answer,
@@ -19,6 +23,9 @@ type WizardResult = (bool, bool, bool, String);
 
 /// Resolved make-plugin output: `(name, engine, features)`.
 type MakePluginResult = (String, String, Vec<String>);
+
+/// Resolved pack-init output: `(name, plugin_type)`.
+type PackInitResult = (Option<String>, Option<PluginType>);
 
 /// Resolve workspace init options, launching the interactive wizard if needed.
 ///
@@ -168,4 +175,24 @@ pub fn resolve_make_plugin(
     } else {
         Ok((name, engine, flag_features.to_vec()))
     }
+}
+
+/// Resolve `aipm pack init` wizard values.
+///
+/// In interactive mode, prompts for package name, description, and plugin type
+/// (skipping prompts for values already supplied via CLI flags).
+/// In non-interactive mode, returns the flag values as-is.
+pub fn resolve_pack_init(
+    interactive: bool,
+    dir: &Path,
+    flag_name: Option<String>,
+    flag_type: Option<PluginType>,
+) -> Result<PackInitResult, Box<dyn std::error::Error>> {
+    if !interactive {
+        return Ok((flag_name, flag_type));
+    }
+    inquire::set_global_render_config(styled_render_config());
+    let steps = wizard::package_prompt_steps(dir, flag_name.as_deref(), flag_type);
+    let answers = libaipm::wizard::execute_prompts(&steps)?;
+    Ok(wizard::resolve_package_answers(&answers, flag_name.as_deref(), flag_type))
 }

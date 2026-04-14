@@ -1,0 +1,13 @@
+---
+source: crates/aipm/src/wizard.rs
+expression: format_steps(&steps)
+---
+Step 1:
+  Label: Package name:
+  Kind: Text (placeholder: "my-cool-project")
+  Validate: marketplace-name
+  Help: Lowercase alphanumeric with hyphens, or @org/name
+
+Step 2:
+  Label: Description:
+  Kind: Text (placeholder: "An AI plugin package")

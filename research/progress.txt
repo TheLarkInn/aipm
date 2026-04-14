@@ -19,3 +19,13 @@
 - Updated module doc comment
 - All imports still needed (PromptAnswer/PromptKind/PromptStep used in resolve_make_plugin inline logic)
 - cargo build/test/clippy/fmt all pass, coverage 89.17%
+
+## Phases 2.1-2.5: Add aipm pack init subcommand — COMPLETE
+- Added PackSubcommand enum with Init variant to main.rs (Phase 2.1)
+- Added Init(libaipm::init::Error) variant to CliError (Phase 2.2)
+- Moved PLUGIN_TYPE_OPTIONS, plugin_type_from_index, package_prompt_steps, resolve_package_answers from aipm-pack/wizard.rs to aipm/wizard.rs (Phase 2.3)
+- Added resolve_pack_init() TTY bridge + PackInitResult type alias to wizard_tty.rs (Phase 2.4)
+- Added cmd_pack_init() handler + match arm in run() (Phase 2.5)
+- Accepted 10 new snapshot files for pack-init wizard tests
+- Functional test: `aipm pack init --name test-pkg --type skill -y /tmp/test` creates correct aipm.toml
+- All 56 wizard tests pass, full workspace tests pass, coverage 89.18%
