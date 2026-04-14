@@ -17,7 +17,7 @@ use crate::fs::Fs;
 pub fn read_or_create(fs: &dyn Fs, path: &Path) -> std::io::Result<serde_json::Value> {
     match fs.read_to_string(path) {
         Ok(content) => serde_json::from_str(&content)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())),
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e)),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             Ok(serde_json::Value::Object(serde_json::Map::new()))
         },
@@ -33,7 +33,7 @@ pub fn read_or_create(fs: &dyn Fs, path: &Path) -> std::io::Result<serde_json::V
 /// Returns `io::Error` if the file cannot be written.
 pub fn write(fs: &dyn Fs, path: &Path, value: &serde_json::Value) -> std::io::Result<()> {
     let mut output = serde_json::to_string_pretty(value)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
     output.push('\n');
     fs.write_file(path, output.as_bytes())
 }
