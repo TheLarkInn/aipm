@@ -1,8 +1,8 @@
-//! TTY bridge for `aipm init` wizard.
+//! TTY bridge for `aipm` wizard flows (init, migrate, make plugin).
 //!
-//! This module contains **only** the terminal-dependent code that calls
-//! `inquire::*.prompt()`. It is excluded from the coverage gate because
-//! it requires a real TTY and cannot run in CI.
+//! This module wires up interactive wizard flows by calling
+//! [`libaipm::wizard::execute_prompts()`] for TTY prompt execution.
+//! It is excluded from the coverage gate because it requires a real TTY.
 //!
 //! All logic (prompt definitions, answer resolution, theming) lives in
 //! [`super::wizard`] and is fully tested (snapshot + unit tests).
@@ -36,7 +36,7 @@ pub fn resolve(
     if interactive {
         inquire::set_global_render_config(styled_render_config());
         let steps = workspace_prompt_steps(workspace, marketplace, no_starter, flag_name);
-        let answers = execute_prompts(&steps)?;
+        let answers = libaipm::wizard::execute_prompts(&steps)?;
         Ok(resolve_workspace_answers(&answers, workspace, marketplace, no_starter, flag_name))
     } else {
         Ok(resolve_defaults(workspace, marketplace, no_starter, flag_name))
@@ -63,7 +63,7 @@ pub fn resolve_migrate_cleanup(
     }
 
     inquire::set_global_render_config(styled_render_config());
-    let answers = execute_prompts(&steps)?;
+    let answers = libaipm::wizard::execute_prompts(&steps)?;
     Ok(resolve_migrate_cleanup_answer(&answers))
 }
 
@@ -110,7 +110,7 @@ pub fn resolve_make_plugin(
             help: Some("Which AI coding tool will this plugin target?"),
         });
     }
-    let phase1_answers = execute_prompts(&phase1_steps)?;
+    let phase1_answers = libaipm::wizard::execute_prompts(&phase1_steps)?;
 
     // Resolve name + engine from phase 1 answers
     let mut idx = 0;
@@ -153,7 +153,7 @@ pub fn resolve_make_plugin(
             kind: PromptKind::MultiSelect { options: labels, defaults },
             help: Some("Select the features for your plugin"),
         };
-        let feature_answers = execute_prompts(&[feature_step])?;
+        let feature_answers = libaipm::wizard::execute_prompts(&[feature_step])?;
 
         let features: Vec<String> = match feature_answers.first() {
             Some(PromptAnswer::MultiSelected(indices)) => {
@@ -168,77 +168,4 @@ pub fn resolve_make_plugin(
     } else {
         Ok((name, engine, flag_features.to_vec()))
     }
-}
-
-/// Execute prompt steps against the real terminal via `inquire`.
-///
-/// Returns one [`PromptAnswer`] per step, in order.
-fn execute_prompts(steps: &[PromptStep]) -> Result<Vec<PromptAnswer>, Box<dyn std::error::Error>> {
-    let mut answers = Vec::with_capacity(steps.len());
-
-    for step in steps {
-        let answer = match &step.kind {
-            PromptKind::Select { options, default_index } => {
-                let mut prompt = inquire::Select::new(step.label, options.clone())
-                    .with_starting_cursor(*default_index);
-                if let Some(help) = step.help {
-                    prompt = prompt.with_help_message(help);
-                }
-                let choice = prompt.prompt()?;
-                let index = options.iter().position(|o| *o == choice).ok_or_else(|| {
-                    format!(
-                        "internal error: selected choice `{choice}` not found in options for prompt `{}`",
-                        step.label
-                    )
-                })?;
-                PromptAnswer::Selected(index)
-            },
-            PromptKind::Confirm { default } => {
-                let mut prompt = inquire::Confirm::new(step.label).with_default(*default);
-                if let Some(help) = step.help {
-                    prompt = prompt.with_help_message(help);
-                }
-                let result = prompt.prompt()?;
-                PromptAnswer::Bool(result)
-            },
-            PromptKind::Text { placeholder, validate } => {
-                let mut prompt = inquire::Text::new(step.label).with_placeholder(placeholder);
-                if let Some(help) = step.help {
-                    prompt = prompt.with_help_message(help);
-                }
-                if *validate {
-                    prompt = prompt.with_validator(|input: &str| {
-                        match libaipm::manifest::validate::check_name(
-                            input,
-                            libaipm::manifest::validate::ValidationMode::Interactive,
-                        ) {
-                            Ok(()) => Ok(inquire::validator::Validation::Valid),
-                            Err(msg) => Ok(inquire::validator::Validation::Invalid(msg.into())),
-                        }
-                    });
-                }
-                let result = prompt.prompt()?;
-                PromptAnswer::Text(result)
-            },
-            PromptKind::MultiSelect { options, defaults } => {
-                let mut prompt = inquire::MultiSelect::new(step.label, options.clone());
-                let default_indices: Vec<usize> = defaults
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, &d)| if d { Some(i) } else { None })
-                    .collect();
-                prompt = prompt.with_default(&default_indices);
-                if let Some(help) = step.help {
-                    prompt = prompt.with_help_message(help);
-                }
-                let selected = prompt.prompt()?;
-                let indices: Vec<usize> =
-                    selected.iter().filter_map(|s| options.iter().position(|o| o == s)).collect();
-                PromptAnswer::MultiSelected(indices)
-            },
-        };
-        answers.push(answer);
-    }
-
-    Ok(answers)
 }

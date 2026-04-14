@@ -12,3 +12,10 @@
 ## Phase 1.3: Add unit tests for execute_prompts() — COMPLETE (done with 1.1)
 - Added execute_prompts_empty_steps_returns_empty_vec test
 - Interactive tests cannot run in CI (inquire needs real TTY)
+
+## Phase 1.2: Update aipm wizard_tty.rs to use libaipm::wizard::execute_prompts() — COMPLETE
+- Replaced 4 call sites with libaipm::wizard::execute_prompts()
+- Deleted local execute_prompts() function (69 lines removed)
+- Updated module doc comment
+- All imports still needed (PromptAnswer/PromptKind/PromptStep used in resolve_make_plugin inline logic)
+- cargo build/test/clippy/fmt all pass, coverage 89.17%
