@@ -13,6 +13,7 @@ How-to guides for common tasks:
 | [Installing from Git](guides/install-git-plugin.md) | Install plugins from GitHub or any git repository |
 | [Installing from Local Paths](guides/install-local-plugin.md) | Install plugins from your local filesystem |
 | [Installing from Marketplaces](guides/install-marketplace-plugin.md) | Install plugins from curated marketplace repos |
+| [Updating Plugins](guides/update.md) | Update installed plugins to the latest compatible version |
 | [Global Plugin Installation](guides/global-plugins.md) | Install plugins globally across all projects |
 | [Uninstalling Plugins](guides/uninstall.md) | Remove a plugin from a project or the global registry |
 | [Local Development](guides/local-development.md) | Develop plugins locally with `aipm link` / `aipm unlink` |

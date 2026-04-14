@@ -154,6 +154,8 @@ aipm update [OPTIONS] [PACKAGE]
 
 Omit `PACKAGE` to update all dependencies. Unlike `install`, `update` resolves the latest version within the declared version range and rewrites the lockfile.
 
+See also: [`docs/guides/update.md`](docs/guides/update.md) for examples, a comparison with `aipm install`, and output field explanations.
+
 ### `aipm uninstall`
 
 Remove an installed plugin from the project or the global registry.
@@ -198,6 +200,8 @@ aipm unlink [OPTIONS] <PACKAGE>
 |------|-------------|
 | `--dir <DIR>` | Project directory (default: `.`) |
 
+See also: [`docs/guides/local-development.md`](docs/guides/local-development.md) for the full link/unlink workflow and how to restore the registry version.
+
 ### `aipm list`
 
 Show installed plugins or active development link overrides.
@@ -211,6 +215,8 @@ aipm list [OPTIONS]
 | `--linked` | Show only active dev link overrides |
 | `--global` | Show globally installed plugins |
 | `--dir <DIR>` | Project directory (default: `.`) |
+
+See also: [`docs/guides/local-development.md`](docs/guides/local-development.md) for using `aipm list` during the local development workflow.
 
 ### `aipm lint`
 
