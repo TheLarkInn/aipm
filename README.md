@@ -166,6 +166,8 @@ aipm uninstall [OPTIONS] <PACKAGE>
 | `--engine <ENGINE>` | Remove from a specific engine only (global installs) |
 | `--dir <DIR>` | Project directory (default: `.`; ignored with `--global`) |
 
+See also: [`docs/guides/uninstall.md`](docs/guides/uninstall.md) for project-level and global uninstall examples.
+
 ### `aipm link`
 
 Link a local plugin directory for development, overriding the registry version.
