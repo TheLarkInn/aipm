@@ -12,8 +12,8 @@ use std::path::Path;
 use libaipm::manifest::types::PluginType;
 
 use super::wizard::{
-    package_prompt_steps, resolve_package_answers, styled_render_config, validate_package_name,
-    PromptAnswer, PromptKind, PromptStep,
+    package_prompt_steps, resolve_package_answers, styled_render_config, PromptAnswer, PromptKind,
+    PromptStep,
 };
 
 /// Resolved wizard output: `(name, plugin_type)`.
@@ -54,14 +54,26 @@ fn execute_prompts(steps: &[PromptStep]) -> Result<Vec<PromptAnswer>, Box<dyn st
                     prompt = prompt.with_help_message(help);
                 }
                 if *validate {
-                    prompt =
-                        prompt.with_validator(|input: &str| match validate_package_name(input) {
+                    prompt = prompt.with_validator(|input: &str| {
+                        match libaipm::manifest::validate::check_name(
+                            input,
+                            libaipm::manifest::validate::ValidationMode::Interactive,
+                        ) {
                             Ok(()) => Ok(inquire::validator::Validation::Valid),
                             Err(msg) => Ok(inquire::validator::Validation::Invalid(msg.into())),
-                        });
+                        }
+                    });
                 }
                 let result = prompt.prompt()?;
                 PromptAnswer::Text(result)
+            },
+            PromptKind::Confirm { default } => {
+                let mut prompt = inquire::Confirm::new(step.label).with_default(*default);
+                if let Some(help) = step.help {
+                    prompt = prompt.with_help_message(help);
+                }
+                let result = prompt.prompt()?;
+                PromptAnswer::Bool(result)
             },
             PromptKind::Select { options, default_index } => {
                 let mut prompt = inquire::Select::new(step.label, options.clone())

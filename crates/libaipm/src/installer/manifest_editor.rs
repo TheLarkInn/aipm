@@ -6,6 +6,7 @@
 use std::path::Path;
 
 use super::error::Error;
+use crate::fs::Fs;
 
 /// Add a dependency to `aipm.toml`, preserving comments and formatting.
 ///
@@ -22,8 +23,13 @@ use super::error::Error;
 ///
 /// Returns [`Error::Io`] if the file cannot be read or written.
 /// Returns [`Error::Manifest`] if the TOML is invalid.
-pub fn add_dependency(manifest_path: &Path, name: &str, version_req: &str) -> Result<(), Error> {
-    let content = std::fs::read_to_string(manifest_path)?;
+pub fn add_dependency(
+    fs: &dyn Fs,
+    manifest_path: &Path,
+    name: &str,
+    version_req: &str,
+) -> Result<(), Error> {
+    let content = fs.read_to_string(manifest_path)?;
     let mut doc = content
         .parse::<toml_edit::DocumentMut>()
         .map_err(|e| Error::Manifest { reason: e.to_string() })?;
@@ -40,7 +46,7 @@ pub fn add_dependency(manifest_path: &Path, name: &str, version_req: &str) -> Re
     // Set the dependency.
     deps.insert(name, toml_edit::value(version_req));
 
-    std::fs::write(manifest_path, doc.to_string())?;
+    fs.write_file(manifest_path, doc.to_string().as_bytes())?;
     Ok(())
 }
 
@@ -52,8 +58,8 @@ pub fn add_dependency(manifest_path: &Path, name: &str, version_req: &str) -> Re
 ///
 /// Returns [`Error::Io`] if the file cannot be read or written.
 /// Returns [`Error::Manifest`] if the TOML is invalid.
-pub fn remove_dependency(manifest_path: &Path, name: &str) -> Result<(), Error> {
-    let content = std::fs::read_to_string(manifest_path)?;
+pub fn remove_dependency(fs: &dyn Fs, manifest_path: &Path, name: &str) -> Result<(), Error> {
+    let content = fs.read_to_string(manifest_path)?;
     let mut doc = content
         .parse::<toml_edit::DocumentMut>()
         .map_err(|e| Error::Manifest { reason: e.to_string() })?;
@@ -62,7 +68,7 @@ pub fn remove_dependency(manifest_path: &Path, name: &str) -> Result<(), Error> 
         deps.remove(name);
     }
 
-    std::fs::write(manifest_path, doc.to_string())?;
+    fs.write_file(manifest_path, doc.to_string().as_bytes())?;
     Ok(())
 }
 
@@ -80,6 +86,8 @@ pub fn parse_package_spec(spec: &str) -> (String, String) {
 mod tests {
     use super::*;
 
+    const FS: &crate::fs::Real = &crate::fs::Real;
+
     const SAMPLE_MANIFEST: &str = r#"# My project
 [package]
 name = "my-project"
@@ -96,7 +104,7 @@ existing-pkg = "^1.0"
         let manifest = tmp.path().join("aipm.toml");
         std::fs::write(&manifest, SAMPLE_MANIFEST).expect("write");
 
-        let result = add_dependency(&manifest, "new-pkg", "^2.0");
+        let result = add_dependency(FS, &manifest, "new-pkg", "^2.0");
         assert!(result.is_ok(), "add_dependency failed: {result:?}");
 
         let content = std::fs::read_to_string(&manifest).expect("read");
@@ -115,7 +123,7 @@ existing-pkg = "^1.0"
         let manifest = tmp.path().join("aipm.toml");
         std::fs::write(&manifest, "[package]\nname = \"test\"\n").expect("write");
 
-        let result = add_dependency(&manifest, "new-pkg", "^1.0");
+        let result = add_dependency(FS, &manifest, "new-pkg", "^1.0");
         assert!(result.is_ok());
 
         let content = std::fs::read_to_string(&manifest).expect("read");
@@ -129,7 +137,7 @@ existing-pkg = "^1.0"
         let manifest = tmp.path().join("aipm.toml");
         std::fs::write(&manifest, SAMPLE_MANIFEST).expect("write");
 
-        let result = add_dependency(&manifest, "existing-pkg", "^2.0");
+        let result = add_dependency(FS, &manifest, "existing-pkg", "^2.0");
         assert!(result.is_ok());
 
         let content = std::fs::read_to_string(&manifest).expect("read");
@@ -143,7 +151,7 @@ existing-pkg = "^1.0"
         let manifest = tmp.path().join("aipm.toml");
         std::fs::write(&manifest, SAMPLE_MANIFEST).expect("write");
 
-        let result = remove_dependency(&manifest, "existing-pkg");
+        let result = remove_dependency(FS, &manifest, "existing-pkg");
         assert!(result.is_ok());
 
         let content = std::fs::read_to_string(&manifest).expect("read");
@@ -158,7 +166,7 @@ existing-pkg = "^1.0"
         let manifest = tmp.path().join("aipm.toml");
         std::fs::write(&manifest, SAMPLE_MANIFEST).expect("write");
 
-        let result = remove_dependency(&manifest, "nonexistent");
+        let result = remove_dependency(FS, &manifest, "nonexistent");
         assert!(result.is_ok());
 
         let content = std::fs::read_to_string(&manifest).expect("read");
@@ -188,15 +196,11 @@ existing-pkg = "^1.0"
 
     #[test]
     fn add_dependency_fails_when_dependencies_is_scalar() {
-        // When `dependencies` key exists but is a scalar value (not a table),
-        // `as_table_mut()` returns None → ok_or_else error path (lines 37-38) is triggered.
         let tmp = tempfile::tempdir().expect("tempdir");
         let manifest = tmp.path().join("aipm.toml");
-        // Put `dependencies` at the DOCUMENT ROOT (not inside [package]) so that
-        // `doc.get("dependencies")` finds it as a scalar and `as_table_mut()` returns None.
         std::fs::write(&manifest, "dependencies = \"not-a-table\"\n").expect("write");
 
-        let result = add_dependency(&manifest, "new-pkg", "^1.0");
+        let result = add_dependency(FS, &manifest, "new-pkg", "^1.0");
         assert!(result.is_err());
         let err = format!("{result:?}");
         assert!(err.contains("dependencies"));
@@ -204,17 +208,14 @@ existing-pkg = "^1.0"
 
     #[test]
     fn remove_dependency_no_deps_table_is_noop() {
-        // Covers the None branch of `if let Some(deps) = doc.get_mut("dependencies")…`
-        // in remove_dependency — when the manifest has no [dependencies] table at all.
         let tmp = tempfile::tempdir().expect("tempdir");
         let manifest = tmp.path().join("aipm.toml");
         std::fs::write(&manifest, "[package]\nname = \"test\"\nversion = \"0.1.0\"\n")
             .expect("write");
 
-        let result = remove_dependency(&manifest, "nonexistent-pkg");
+        let result = remove_dependency(FS, &manifest, "nonexistent-pkg");
         assert!(result.is_ok());
 
-        // File should be unchanged (still no [dependencies])
         let content = std::fs::read_to_string(&manifest).expect("read");
         assert!(!content.contains("[dependencies]"));
     }

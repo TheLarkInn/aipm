@@ -91,3 +91,46 @@ Use the "Gang of Four" patterns as a shared vocabulary to solve recurring proble
     - Tip: this can be useful to revert bad code changes and recover working states of the codebase
 - Note: you are competing with another coding agent that also implements features. The one who does a better job implementing features will be promoted. Focus on quality, correctness, and thorough testing. The agent who breaks the rules for implementation will be fired.
 
+## Quality Gate (runs after EVERY successfully implemented feature)
+
+After setting `passes: true` for the feature, run this gate before stopping.
+
+### Step 1 — Spawn the cargo-verifier subagent
+
+Use the `Agent` tool to invoke a subagent with:
+- `subagent_type`: `cargo-verifier`
+- `prompt`: `Run all cargo quality gate checks and return your CARGO_VERIFIER_REPORT.`
+
+Wait for the `CARGO_VERIFIER_REPORT` to come back. The subagent is isolated — its verbose cargo and coverage output will NOT pollute your context window.
+
+### Step 2 — Act on the report
+
+**If `overall: FAIL`:**
+
+1. Add a new entry at the **top** of `research/feature-list.json` (highest priority, `passes: false`):
+   ```json
+   {
+     "category": "fix",
+     "description": "Fix cargo quality gate failures: <one-line summary of which checks failed>",
+     "steps": ["<paste the FAILURES section from the report verbatim>"],
+     "passes": false
+   }
+   ```
+2. Append the full `CARGO_VERIFIER_REPORT` to `research/progress.txt`.
+3. Run `/commit` via the `SlashCommand` tool with a message describing the failure.
+4. **STOP** — the ralph loop will re-enter for the next iteration (fixing the failure).
+
+**If `overall: PASS`:**
+
+1. Check whether ALL entries in `research/feature-list.json` have `passes: true`.
+
+   - **If features remain** (`passes: false` entries exist):
+     Run `/commit`, append a short progress note to `research/progress.txt`, then **STOP** — the ralph loop will continue with the next feature.
+
+   - **If ALL features are complete** (every entry has `passes: true`):
+     Run `/commit`, append a final summary to `research/progress.txt`, then output the completion promise:
+
+     ```
+     <promise>ALL FEATURES COMPLETE</promise>
+     ```
+

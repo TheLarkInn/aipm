@@ -12,6 +12,7 @@ pub mod copilot_skill_detector;
 pub mod detector;
 pub mod dry_run;
 pub mod emitter;
+pub mod error;
 pub mod hook_detector;
 pub mod mcp_detector;
 pub mod output_style_detector;
@@ -24,6 +25,8 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::fs::Fs;
+
+pub use error::Error;
 
 /// What kind of artifact was detected.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -76,20 +79,6 @@ pub struct ArtifactMetadata {
     /// Raw file content for config-based artifacts (MCP JSON, hooks JSON, etc.).
     /// Used by the emitter for pass-through without re-serialization.
     pub raw_content: Option<String>,
-}
-
-/// Strip matching surrounding YAML quote delimiters from a scalar value.
-///
-/// Handles both double-quoted (`"..."`) and single-quoted (`'...'`) YAML scalars.
-/// Returns the inner content if delimiters match, otherwise returns the input unchanged.
-pub(crate) fn strip_yaml_quotes(s: &str) -> &str {
-    let bytes = s.as_bytes();
-    match (bytes.first(), bytes.last()) {
-        (Some(b'"'), Some(b'"')) | (Some(b'\''), Some(b'\'')) if bytes.len() >= 2 => {
-            &s[1..s.len() - 1]
-        },
-        _ => s,
-    }
 }
 
 /// A single detected artifact from a source folder.
@@ -241,57 +230,6 @@ impl Outcome {
             })
             .collect()
     }
-}
-
-/// Errors specific to migration.
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    /// The `.ai/` marketplace directory does not exist.
-    #[error("marketplace directory does not exist at {0} — run `aipm init --marketplace` first")]
-    MarketplaceNotFound(PathBuf),
-
-    /// The source directory does not exist.
-    #[error("source directory does not exist: {0}")]
-    SourceNotFound(PathBuf),
-
-    /// The source type is not supported.
-    #[error("unsupported source type '{0}' — supported sources: .claude, .github")]
-    UnsupportedSource(String),
-
-    /// Failed to parse marketplace.json.
-    #[error("failed to parse marketplace.json at {path}: {source}")]
-    MarketplaceJsonParse {
-        /// Path to the marketplace.json file.
-        path: PathBuf,
-        /// The underlying parse error.
-        source: serde_json::Error,
-    },
-
-    /// Failed to parse SKILL.md frontmatter.
-    #[error("failed to parse SKILL.md frontmatter in {path}: {reason}")]
-    FrontmatterParse {
-        /// Path to the SKILL.md file.
-        path: PathBuf,
-        /// Description of the parse failure.
-        reason: String,
-    },
-
-    /// Failed to parse a JSON configuration file.
-    #[error("failed to parse {path}: {reason}")]
-    ConfigParse {
-        /// Path to the configuration file.
-        path: PathBuf,
-        /// Description of the parse failure.
-        reason: String,
-    },
-
-    /// Discovery failed during recursive directory walking.
-    #[error("failed to discover source directories: {0}")]
-    DiscoveryFailed(#[from] crate::discovery::Error),
-
-    /// An I/O error occurred.
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
 }
 
 /// Data needed to register a plugin in `marketplace.json`.
@@ -995,50 +933,6 @@ mod tests {
         assert!(sources[0].1); // is_dir
         assert_eq!(sources[1].0, Path::new("/project/.claude/commands/review.md"));
         assert!(!sources[1].1); // not is_dir
-    }
-
-    #[test]
-    fn strip_yaml_quotes_double() {
-        assert_eq!(strip_yaml_quotes(r#""hello""#), "hello");
-    }
-
-    #[test]
-    fn strip_yaml_quotes_single() {
-        assert_eq!(strip_yaml_quotes("'hello'"), "hello");
-    }
-
-    #[test]
-    fn strip_yaml_quotes_no_quotes() {
-        assert_eq!(strip_yaml_quotes("hello"), "hello");
-    }
-
-    #[test]
-    fn strip_yaml_quotes_mismatched() {
-        assert_eq!(strip_yaml_quotes("\"hello'"), "\"hello'");
-    }
-
-    #[test]
-    fn strip_yaml_quotes_empty_quoted() {
-        assert_eq!(strip_yaml_quotes("\"\""), "");
-    }
-
-    #[test]
-    fn strip_yaml_quotes_single_char() {
-        assert_eq!(strip_yaml_quotes("x"), "x");
-    }
-
-    #[test]
-    fn strip_yaml_quotes_empty() {
-        assert_eq!(strip_yaml_quotes(""), "");
-    }
-
-    #[test]
-    fn strip_yaml_quotes_lone_quote_char_unchanged() {
-        // A string containing only a single quote character (either '"' or '\''):
-        // first == last == quote, but bytes.len() == 1 < 2, so the guard fails and
-        // the input is returned as-is.
-        assert_eq!(strip_yaml_quotes("\""), "\"");
-        assert_eq!(strip_yaml_quotes("'"), "'");
     }
 
     #[test]

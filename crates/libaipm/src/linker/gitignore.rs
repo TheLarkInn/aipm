@@ -6,6 +6,7 @@
 use std::path::Path;
 
 use super::error::Error;
+use crate::fs::Fs;
 
 /// Start marker for the AIPM-managed section.
 const MARKER_START: &str = "# === aipm managed start ===";
@@ -22,8 +23,8 @@ const HEADER: &str = "# Managed by aipm — do not edit between markers";
 /// # Errors
 ///
 /// Returns [`Error::Io`] if file read/write fails.
-pub fn add_entry(gitignore_path: &Path, package_name: &str) -> Result<(), Error> {
-    let content = read_or_default(gitignore_path)?;
+pub fn add_entry(fs: &dyn Fs, gitignore_path: &Path, package_name: &str) -> Result<(), Error> {
+    let content = read_or_default(fs, gitignore_path)?;
     let (before, mut managed, after) = split_sections(&content);
 
     // Add the package name if not already present.
@@ -43,7 +44,7 @@ pub fn add_entry(gitignore_path: &Path, package_name: &str) -> Result<(), Error>
     managed.dedup();
 
     let output = build_content(&before, &managed, &after);
-    write_gitignore(gitignore_path, &output)
+    write_gitignore(fs, gitignore_path, &output)
 }
 
 /// Remove a package entry from the managed section.
@@ -51,8 +52,8 @@ pub fn add_entry(gitignore_path: &Path, package_name: &str) -> Result<(), Error>
 /// # Errors
 ///
 /// Returns [`Error::Io`] if file read/write fails.
-pub fn remove_entry(gitignore_path: &Path, package_name: &str) -> Result<(), Error> {
-    let content = read_or_default(gitignore_path)?;
+pub fn remove_entry(fs: &dyn Fs, gitignore_path: &Path, package_name: &str) -> Result<(), Error> {
+    let content = read_or_default(fs, gitignore_path)?;
     let (before, mut managed, after) = split_sections(&content);
 
     managed.retain(|e| e != package_name);
@@ -68,7 +69,7 @@ pub fn remove_entry(gitignore_path: &Path, package_name: &str) -> Result<(), Err
     }
 
     let output = build_content(&before, &managed, &after);
-    write_gitignore(gitignore_path, &output)
+    write_gitignore(fs, gitignore_path, &output)
 }
 
 /// Read the managed entries from a `.gitignore` file.
@@ -76,8 +77,8 @@ pub fn remove_entry(gitignore_path: &Path, package_name: &str) -> Result<(), Err
 /// # Errors
 ///
 /// Returns [`Error::Io`] if file read fails.
-pub fn read_entries(gitignore_path: &Path) -> Result<Vec<String>, Error> {
-    let content = read_or_default(gitignore_path)?;
+pub fn read_entries(fs: &dyn Fs, gitignore_path: &Path) -> Result<Vec<String>, Error> {
+    let content = read_or_default(fs, gitignore_path)?;
     let (_, managed, _) = split_sections(&content);
     Ok(managed)
 }
@@ -87,8 +88,8 @@ pub fn read_entries(gitignore_path: &Path) -> Result<Vec<String>, Error> {
 // ---------------------------------------------------------------------------
 
 /// Read gitignore content, returning empty string if file doesn't exist.
-fn read_or_default(path: &Path) -> Result<String, Error> {
-    match std::fs::read_to_string(path) {
+fn read_or_default(fs: &dyn Fs, path: &Path) -> Result<String, Error> {
+    match fs.read_to_string(path) {
         Ok(content) => Ok(content),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
         Err(e) => Err(Error::Io { path: path.to_path_buf(), source: e }),
@@ -170,24 +171,23 @@ fn extract_scope(name: &str) -> Option<&str> {
 }
 
 /// Write content to the gitignore file, creating parent dirs if needed.
-fn write_gitignore(path: &Path, content: &str) -> Result<(), Error> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| Error::Io { path: parent.to_path_buf(), source: e })?;
-    }
-    std::fs::write(path, content).map_err(|e| Error::Io { path: path.to_path_buf(), source: e })
+fn write_gitignore(fs: &dyn Fs, path: &Path, content: &str) -> Result<(), Error> {
+    fs.write_file_with_parents(path, content.as_bytes())
+        .map_err(|source| Error::Io { path: path.to_path_buf(), source })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    const FS: &crate::fs::Real = &crate::fs::Real;
+
     #[test]
     fn add_entry_creates_file_with_markers() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let gitignore = tmp.path().join(".gitignore");
 
-        assert!(add_entry(&gitignore, "code-review").is_ok());
+        assert!(add_entry(FS, &gitignore, "code-review").is_ok());
 
         let content = std::fs::read_to_string(&gitignore).expect("read");
         assert!(content.contains(MARKER_START));
@@ -202,7 +202,7 @@ mod tests {
 
         std::fs::write(&gitignore, "node_modules/\n.env\n").expect("write");
 
-        assert!(add_entry(&gitignore, "my-plugin").is_ok());
+        assert!(add_entry(FS, &gitignore, "my-plugin").is_ok());
 
         let content = std::fs::read_to_string(&gitignore).expect("read");
         assert!(content.contains("node_modules/"));
@@ -215,10 +215,10 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let gitignore = tmp.path().join(".gitignore");
 
-        assert!(add_entry(&gitignore, "pkg").is_ok());
-        assert!(add_entry(&gitignore, "pkg").is_ok());
+        assert!(add_entry(FS, &gitignore, "pkg").is_ok());
+        assert!(add_entry(FS, &gitignore, "pkg").is_ok());
 
-        let entries = read_entries(&gitignore).expect("read");
+        let entries = read_entries(FS, &gitignore).expect("read");
         assert_eq!(entries.iter().filter(|e| *e == "pkg").count(), 1);
     }
 
@@ -227,9 +227,9 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let gitignore = tmp.path().join(".gitignore");
 
-        assert!(add_entry(&gitignore, "@company/review-plugin").is_ok());
+        assert!(add_entry(FS, &gitignore, "@company/review-plugin").is_ok());
 
-        let entries = read_entries(&gitignore).expect("read");
+        let entries = read_entries(FS, &gitignore).expect("read");
         assert!(entries.contains(&"@company/review-plugin".to_string()));
         assert!(entries.contains(&"@company/".to_string()));
     }
@@ -239,11 +239,11 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let gitignore = tmp.path().join(".gitignore");
 
-        assert!(add_entry(&gitignore, "pkg-a").is_ok());
-        assert!(add_entry(&gitignore, "pkg-b").is_ok());
-        assert!(remove_entry(&gitignore, "pkg-a").is_ok());
+        assert!(add_entry(FS, &gitignore, "pkg-a").is_ok());
+        assert!(add_entry(FS, &gitignore, "pkg-b").is_ok());
+        assert!(remove_entry(FS, &gitignore, "pkg-a").is_ok());
 
-        let entries = read_entries(&gitignore).expect("read");
+        let entries = read_entries(FS, &gitignore).expect("read");
         assert!(!entries.contains(&"pkg-a".to_string()));
         assert!(entries.contains(&"pkg-b".to_string()));
     }
@@ -253,10 +253,10 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let gitignore = tmp.path().join(".gitignore");
 
-        assert!(add_entry(&gitignore, "@company/plugin-a").is_ok());
-        assert!(remove_entry(&gitignore, "@company/plugin-a").is_ok());
+        assert!(add_entry(FS, &gitignore, "@company/plugin-a").is_ok());
+        assert!(remove_entry(FS, &gitignore, "@company/plugin-a").is_ok());
 
-        let entries = read_entries(&gitignore).expect("read");
+        let entries = read_entries(FS, &gitignore).expect("read");
         assert!(!entries.contains(&"@company/".to_string()));
     }
 
@@ -265,11 +265,11 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let gitignore = tmp.path().join(".gitignore");
 
-        assert!(add_entry(&gitignore, "@company/plugin-a").is_ok());
-        assert!(add_entry(&gitignore, "@company/plugin-b").is_ok());
-        assert!(remove_entry(&gitignore, "@company/plugin-a").is_ok());
+        assert!(add_entry(FS, &gitignore, "@company/plugin-a").is_ok());
+        assert!(add_entry(FS, &gitignore, "@company/plugin-b").is_ok());
+        assert!(remove_entry(FS, &gitignore, "@company/plugin-a").is_ok());
 
-        let entries = read_entries(&gitignore).expect("read");
+        let entries = read_entries(FS, &gitignore).expect("read");
         assert!(!entries.contains(&"@company/plugin-a".to_string()));
         assert!(entries.contains(&"@company/plugin-b".to_string()));
         // Scope dir still needed for plugin-b.
@@ -281,10 +281,10 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let gitignore = tmp.path().join(".gitignore");
 
-        assert!(add_entry(&gitignore, "existing").is_ok());
-        assert!(remove_entry(&gitignore, "nonexistent").is_ok());
+        assert!(add_entry(FS, &gitignore, "existing").is_ok());
+        assert!(remove_entry(FS, &gitignore, "nonexistent").is_ok());
 
-        let entries = read_entries(&gitignore).expect("read");
+        let entries = read_entries(FS, &gitignore).expect("read");
         assert!(entries.contains(&"existing".to_string()));
     }
 
@@ -293,7 +293,7 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let gitignore = tmp.path().join(".gitignore");
 
-        let entries = read_entries(&gitignore).expect("read");
+        let entries = read_entries(FS, &gitignore).expect("read");
         assert!(entries.is_empty());
     }
 
@@ -306,7 +306,7 @@ mod tests {
             format!("before\n{HEADER}\n{MARKER_START}\nold-pkg\n{MARKER_END}\nafter-content\n");
         std::fs::write(&gitignore, &initial).expect("write");
 
-        assert!(add_entry(&gitignore, "new-pkg").is_ok());
+        assert!(add_entry(FS, &gitignore, "new-pkg").is_ok());
 
         let content = std::fs::read_to_string(&gitignore).expect("read");
         assert!(content.contains("before"));
@@ -324,7 +324,7 @@ mod tests {
         let content = format!("line1\n{MARKER_END}\nline2\n{MARKER_START}\nline3\n");
         std::fs::write(&gitignore, &content).expect("write");
 
-        let entries = read_entries(&gitignore).expect("read");
+        let entries = read_entries(FS, &gitignore).expect("read");
         // No managed entries since markers are reversed
         assert!(entries.is_empty());
     }
@@ -338,7 +338,7 @@ mod tests {
         let content = format!("line1\n{MARKER_START}\nsome-pkg\n");
         std::fs::write(&gitignore, &content).expect("write");
 
-        let entries = read_entries(&gitignore).expect("read");
+        let entries = read_entries(FS, &gitignore).expect("read");
         assert!(entries.is_empty());
     }
 
@@ -348,10 +348,10 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let gitignore = tmp.path().join(".gitignore");
 
-        assert!(add_entry(&gitignore, "@company/plugin-a").is_ok());
-        assert!(add_entry(&gitignore, "@company/plugin-b").is_ok());
+        assert!(add_entry(FS, &gitignore, "@company/plugin-a").is_ok());
+        assert!(add_entry(FS, &gitignore, "@company/plugin-b").is_ok());
 
-        let entries = read_entries(&gitignore).expect("read");
+        let entries = read_entries(FS, &gitignore).expect("read");
         let scope_count = entries.iter().filter(|e| *e == "@company/").count();
         assert_eq!(scope_count, 1, "scope directory should appear exactly once");
     }
@@ -363,11 +363,11 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         let gitignore = tmp.path().join(".gitignore");
 
-        assert!(add_entry(&gitignore, "@company/plugin-a").is_ok());
-        assert!(add_entry(&gitignore, "@company/plugin-b").is_ok());
-        assert!(remove_entry(&gitignore, "@company/plugin-a").is_ok());
+        assert!(add_entry(FS, &gitignore, "@company/plugin-a").is_ok());
+        assert!(add_entry(FS, &gitignore, "@company/plugin-b").is_ok());
+        assert!(remove_entry(FS, &gitignore, "@company/plugin-a").is_ok());
 
-        let entries = read_entries(&gitignore).expect("read");
+        let entries = read_entries(FS, &gitignore).expect("read");
         assert!(entries.contains(&"@company/".to_string()));
         assert!(!entries.contains(&"@company/plugin-a".to_string()));
         assert!(entries.contains(&"@company/plugin-b".to_string()));
@@ -382,7 +382,7 @@ mod tests {
         let content = format!("{HEADER}\n{MARKER_START}\n# a comment\nreal-pkg\n{MARKER_END}\n");
         std::fs::write(&gitignore, &content).expect("write");
 
-        let entries = read_entries(&gitignore).expect("read");
+        let entries = read_entries(FS, &gitignore).expect("read");
         assert_eq!(entries.len(), 1);
         assert!(entries.contains(&"real-pkg".to_string()));
     }
@@ -395,7 +395,7 @@ mod tests {
         let tmp = tempfile::tempdir().expect("tempdir");
         // A directory path passed as a file should yield an error (IsADirectory)
         let dir_as_file = tmp.path().to_path_buf();
-        let result = read_entries(&dir_as_file);
+        let result = read_entries(FS, &dir_as_file);
         // On Linux reading a directory with read_to_string fails with EISDIR
         // which is not NotFound, so it should propagate as Err
         assert!(result.is_err());
@@ -409,9 +409,9 @@ mod tests {
         let gitignore = tmp.path().join(".gitignore");
 
         // "@company" has no '/', so extract_scope returns None — no scope dir added.
-        assert!(add_entry(&gitignore, "@company").is_ok());
+        assert!(add_entry(FS, &gitignore, "@company").is_ok());
 
-        let entries = read_entries(&gitignore).expect("read");
+        let entries = read_entries(FS, &gitignore).expect("read");
         assert!(entries.contains(&"@company".to_string()));
         // No scope directory should be added since there is no '/'.
         assert!(!entries.iter().any(|e| e.ends_with('/')));
@@ -428,7 +428,7 @@ mod tests {
         let content = format!("{HEADER}\n{MARKER_START}\n\nreal-pkg\n{MARKER_END}\n");
         std::fs::write(&gitignore, &content).expect("write");
 
-        let entries = read_entries(&gitignore).expect("read");
+        let entries = read_entries(FS, &gitignore).expect("read");
         // Only real-pkg should appear; the blank line is filtered out.
         assert_eq!(entries.len(), 1);
         assert!(entries.contains(&"real-pkg".to_string()));
@@ -448,7 +448,7 @@ mod tests {
         std::fs::write(&gitignore, &content).expect("write");
 
         // Adding an entry round-trips through build_content.
-        assert!(add_entry(&gitignore, "new-pkg").is_ok());
+        assert!(add_entry(FS, &gitignore, "new-pkg").is_ok());
 
         let written = std::fs::read_to_string(&gitignore).expect("read");
         // Must end with exactly one newline (not two).
@@ -458,22 +458,14 @@ mod tests {
 
     #[test]
     fn remove_scoped_entry_scope_removed_when_non_scoped_packages_also_present() {
-        // Covers the `e.starts_with(scope/)` false branch inside the `.any()` closure
-        // at the top of `remove_entry`. When the managed list contains non-scoped entries
-        // alongside scoped ones, iterating them causes `starts_with` to return false for
-        // non-scoped entries, exercising the short-circuit (False) arm of the `&&`.
-        //
-        // Scenario: "plain-pkg" (non-scoped) and "@company/plugin-a" (scoped) coexist.
-        // Removing "@company/plugin-a" should clean up the "@company/" scope dir because
-        // "plain-pkg" does not count as another package in the @company scope.
         let tmp = tempfile::tempdir().expect("tempdir");
         let gitignore = tmp.path().join(".gitignore");
 
-        assert!(add_entry(&gitignore, "plain-pkg").is_ok());
-        assert!(add_entry(&gitignore, "@company/plugin-a").is_ok());
-        assert!(remove_entry(&gitignore, "@company/plugin-a").is_ok());
+        assert!(add_entry(FS, &gitignore, "plain-pkg").is_ok());
+        assert!(add_entry(FS, &gitignore, "@company/plugin-a").is_ok());
+        assert!(remove_entry(FS, &gitignore, "@company/plugin-a").is_ok());
 
-        let entries = read_entries(&gitignore).expect("read entries");
+        let entries = read_entries(FS, &gitignore).expect("read entries");
         // Non-scoped package must survive.
         assert!(entries.contains(&"plain-pkg".to_string()));
         // Removed package must be gone.
@@ -483,12 +475,9 @@ mod tests {
     }
 
     #[test]
-    fn write_gitignore_parentless_path_returns_io_error() {
-        // An empty path has no parent component, so path.parent() returns None.
-        // This covers the None branch of `if let Some(parent) = path.parent()` in
-        // write_gitignore, skipping the create_dir_all call.  The subsequent
-        // std::fs::write on an empty path fails with an I/O error.
-        let result = write_gitignore(Path::new(""), "content");
+    fn write_gitignore_empty_path_returns_io_error() {
+        // write_file_with_parents on an empty path fails with an I/O error.
+        let result = write_gitignore(FS, Path::new(""), "content");
         assert!(result.is_err());
     }
 }

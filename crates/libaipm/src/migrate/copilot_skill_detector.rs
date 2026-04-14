@@ -45,7 +45,7 @@ impl Detector for CopilotSkillDetector {
                 }
 
                 let content = fs.read_to_string(&skill_md)?;
-                let metadata = skill_common::parse_skill_frontmatter(&content, &skill_md)?;
+                let metadata = skill_common::parse_frontmatter(&content, &skill_md)?;
                 let files = skill_common::collect_files_recursive(&entry_dir, &entry_dir, fs)?;
 
                 // Search for both Copilot and Claude skill dir variable references

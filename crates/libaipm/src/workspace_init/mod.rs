@@ -5,10 +5,13 @@
 //! applied by [`ToolAdaptor`] implementations in the [`adaptors`] module.
 
 pub mod adaptors;
+pub mod error;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::fs::Fs;
+
+pub use error::Error;
 
 /// An adaptor integrates aipm's `.ai/` marketplace with a specific AI coding tool.
 ///
@@ -81,31 +84,6 @@ pub struct InitResult {
     pub actions: Vec<InitAction>,
 }
 
-/// Errors specific to workspace init.
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    /// The directory already has an `aipm.toml`.
-    #[error("already initialized: aipm.toml already exists in {}", .0.display())]
-    WorkspaceAlreadyInitialized(PathBuf),
-
-    /// The `.ai/` marketplace directory already exists.
-    #[error(".ai/ marketplace already exists in {}", .0.display())]
-    MarketplaceAlreadyExists(PathBuf),
-
-    /// I/O error.
-    #[error("I/O error: {0}")]
-    Io(#[from] std::io::Error),
-
-    /// JSON parse error in an existing settings file.
-    #[error("JSON parse error in {}: {source}", path.display())]
-    JsonParse {
-        /// Path to the file that failed to parse.
-        path: PathBuf,
-        /// The underlying `serde_json` error.
-        source: serde_json::Error,
-    },
-}
-
 /// Initialize workspace and/or marketplace.
 ///
 /// Tool-specific settings are applied by the provided adaptors after
@@ -164,24 +142,29 @@ fn init_workspace(dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
 }
 
 fn generate_workspace_manifest() -> String {
-    "# AI Plugin Manager — Workspace Configuration\n\
-     # Docs: https://github.com/thelarkinn/aipm\n\
-     \n\
-     [workspace]\n\
-     members = [\".ai/*\"]\n\
-     plugins_dir = \".ai\"\n\
-     \n\
-     # Shared dependency versions for all workspace members.\n\
-     # Members reference these via: dep = { workspace = \"*\" }\n\
-     # [workspace.dependencies]\n\
-     \n\
-     # Direct registry installs (available project-wide).\n\
-     # [dependencies]\n\
-     \n\
-     # Environment requirements for all plugins in this workspace.\n\
-     # [environment]\n\
-     # requires = [\"git\"]\n"
-        .to_string()
+    let members = vec![".ai/*".to_string()];
+    crate::manifest::builder::build_workspace_manifest(
+        &crate::manifest::builder::WorkspaceManifestOpts {
+            members: &members,
+            plugins_dir: Some(".ai"),
+            header_comments: Some(&[
+                "AI Plugin Manager — Workspace Configuration",
+                "Docs: https://github.com/thelarkinn/aipm",
+            ]),
+            trailing_comments: Some(&[
+                "Shared dependency versions for all workspace members.",
+                "Members reference these via: dep = { workspace = \"*\" }",
+                "[workspace.dependencies]",
+                "",
+                "Direct registry installs (available project-wide).",
+                "[dependencies]",
+                "",
+                "Environment requirements for all plugins in this workspace.",
+                "[environment]",
+                "requires = [\"git\"]",
+            ]),
+        },
+    )
 }
 
 // =============================================================================
@@ -217,9 +200,17 @@ fn scaffold_marketplace(
 
     // Create marketplace.json in .ai/.claude-plugin/
     fs.create_dir_all(&ai_dir.join(".claude-plugin"))?;
+    let initial_plugins = if no_starter {
+        Vec::new()
+    } else {
+        vec![crate::generate::marketplace::Entry {
+            name: "starter-aipm-plugin",
+            description: "Default starter plugin \u{2014} scaffold new plugins, scan your marketplace, and log tool usage",
+        }]
+    };
     fs.write_file(
         &ai_dir.join(".claude-plugin").join("marketplace.json"),
-        generate_marketplace_json(marketplace_name, no_starter).as_bytes(),
+        crate::generate::marketplace::create(marketplace_name, &initial_plugins).as_bytes(),
     )?;
 
     if no_starter {
@@ -261,10 +252,20 @@ fn scaffold_marketplace(
     }
 
     // .ai/starter-aipm-plugin/.claude-plugin/plugin.json
-    fs.write_file(
-        &starter.join(".claude-plugin").join("plugin.json"),
-        generate_plugin_json().as_bytes(),
-    )?;
+    let plugin_json = crate::generate::plugin_json::generate(
+        &crate::generate::plugin_json::Opts {
+            name: "starter-aipm-plugin",
+            version: "0.1.0",
+            description: "Default starter plugin \u{2014} scaffold new plugins, scan your marketplace, and log tool usage",
+        },
+        Some(&crate::generate::plugin_json::Components {
+            skills: Some("./skills/"),
+            agents: Some("./agents/"),
+            hooks: Some("./hooks/hooks.json"),
+            ..crate::generate::plugin_json::Components::default()
+        }),
+    );
+    fs.write_file(&starter.join(".claude-plugin").join("plugin.json"), plugin_json.as_bytes())?;
 
     // .ai/starter-aipm-plugin/.mcp.json
     fs.write_file(&starter.join(".mcp.json"), generate_mcp_stub().as_bytes())?;
@@ -273,47 +274,31 @@ fn scaffold_marketplace(
 }
 
 fn generate_starter_manifest() -> String {
-    "[package]\n\
-     name = \"starter-aipm-plugin\"\n\
-     version = \"0.1.0\"\n\
-     type = \"composite\"\n\
-     description = \"Default starter plugin — scaffold new plugins, scan your marketplace, and log tool usage\"\n\
-     \n\
-     # [dependencies]\n\
-     # Add registry dependencies here, e.g.:\n\
-     # shared-skill = \"^1.0\"\n\
-     \n\
-     [components]\n\
-     skills = [\"skills/scaffold-plugin/SKILL.md\"]\n\
-     agents = [\"agents/marketplace-scanner.md\"]\n\
-     hooks = [\"hooks/hooks.json\"]\n\
-     scripts = [\"scripts/scaffold-plugin.ts\"]\n"
-        .to_string()
-}
+    let skills = vec!["skills/scaffold-plugin/SKILL.md".to_string()];
+    let agents = vec!["agents/marketplace-scanner.md".to_string()];
+    let hooks = vec!["hooks/hooks.json".to_string()];
+    let scripts = vec!["scripts/scaffold-plugin.ts".to_string()];
 
-fn generate_plugin_json() -> String {
-    let mut map = serde_json::Map::new();
-    map.insert("name".to_string(), serde_json::Value::String("starter-aipm-plugin".to_string()));
-    map.insert("version".to_string(), serde_json::Value::String("0.1.0".to_string()));
-    map.insert(
-        "description".to_string(),
-        serde_json::Value::String(
-            "Default starter plugin \u{2014} scaffold new plugins, scan your marketplace, and log tool usage"
-                .to_string(),
-        ),
-    );
-    let mut author = serde_json::Map::new();
-    author.insert("name".to_string(), serde_json::Value::String("TODO".to_string()));
-    author.insert("email".to_string(), serde_json::Value::String("TODO".to_string()));
-    map.insert("author".to_string(), serde_json::Value::Object(author));
-    let obj = serde_json::Value::Object(map);
-    let mut output = serde_json::to_string_pretty(&obj).unwrap_or_default();
-    output.push('\n');
-    output
+    crate::manifest::builder::build_plugin_manifest(
+        &crate::manifest::builder::PluginManifestOpts {
+            name: "starter-aipm-plugin",
+            version: "0.1.0",
+            plugin_type: Some("composite"),
+            description: Some("Default starter plugin \u{2014} scaffold new plugins, scan your marketplace, and log tool usage"),
+        },
+        Some(&crate::manifest::builder::PluginComponentsOpts {
+            skills: Some(&skills),
+            agents: Some(&agents),
+            hooks: Some(&hooks),
+            scripts: Some(&scripts),
+            ..crate::manifest::builder::PluginComponentsOpts::default()
+        }),
+    )
 }
 
 fn generate_skill_template() -> String {
     "---\n\
+     name: scaffold-plugin\n\
      description: Scaffold a new AI plugin in the .ai/ marketplace directory. Use when the user wants to create a new plugin, skill, agent, or hook package.\n\
      ---\n\
      \n\
@@ -472,31 +457,6 @@ fn generate_hook_template() -> String {
      \x20 ]\n\
      }\n"
     .to_string()
-}
-
-fn generate_marketplace_json(marketplace_name: &str, no_starter: bool) -> String {
-    let plugins = if no_starter {
-        serde_json::json!([])
-    } else {
-        serde_json::json!([
-            {
-                "name": "starter-aipm-plugin",
-                "source": "./starter-aipm-plugin",
-                "description": "Default starter plugin \u{2014} scaffold new plugins, scan your marketplace, and log tool usage"
-            }
-        ])
-    };
-
-    let obj = serde_json::json!({
-        "name": marketplace_name,
-        "owner": { "name": "local" },
-        "metadata": { "description": "Local plugins for this repository" },
-        "plugins": plugins
-    });
-
-    let mut output = serde_json::to_string_pretty(&obj).unwrap_or_default();
-    output.push('\n');
-    output
 }
 
 fn generate_mcp_stub() -> String {
@@ -761,13 +721,28 @@ mod tests {
 
     #[test]
     fn plugin_json_is_valid() {
-        let json = generate_plugin_json();
+        let json = crate::generate::plugin_json::generate(
+            &crate::generate::plugin_json::Opts {
+                name: "starter-aipm-plugin",
+                version: "0.1.0",
+                description: "Default starter plugin",
+            },
+            Some(&crate::generate::plugin_json::Components {
+                skills: Some("./skills/"),
+                agents: Some("./agents/"),
+                hooks: Some("./hooks/hooks.json"),
+                ..crate::generate::plugin_json::Components::default()
+            }),
+        );
         let parsed: Result<serde_json::Value, _> = serde_json::from_str(&json);
         assert!(parsed.is_ok());
         let v = parsed.ok();
         assert!(v.as_ref().is_some_and(|v| v.get("name").is_some()));
         assert!(v.as_ref().is_some_and(|v| v.get("version").is_some()));
-        assert!(v.is_some_and(|v| v.get("description").is_some()));
+        assert!(v.as_ref().is_some_and(|v| v.get("description").is_some()));
+        // Component keys should be present (fixes #356)
+        assert!(v.as_ref().is_some_and(|v| v.get("skills").is_some()));
+        assert!(v.is_some_and(|v| v.get("agents").is_some()));
     }
 
     #[test]
@@ -861,7 +836,12 @@ mod tests {
 
     #[test]
     fn scaffold_script_marketplace_name_matches_generator() {
-        let marketplace_json = generate_marketplace_json("local-repo-plugins", false);
+        let starter = crate::generate::marketplace::Entry {
+            name: "starter-aipm-plugin",
+            description: "Default starter plugin",
+        };
+        let marketplace_json =
+            crate::generate::marketplace::create("local-repo-plugins", &[starter]);
         let parsed: serde_json::Value =
             serde_json::from_str(&marketplace_json).ok().unwrap_or_default();
         let marketplace_name = parsed.get("name").and_then(|n| n.as_str()).unwrap_or("");
@@ -901,7 +881,11 @@ mod tests {
 
     #[test]
     fn marketplace_json_with_starter_is_valid() {
-        let json = generate_marketplace_json("local-repo-plugins", false);
+        let starter = crate::generate::marketplace::Entry {
+            name: "starter-aipm-plugin",
+            description: "Default starter plugin",
+        };
+        let json = crate::generate::marketplace::create("local-repo-plugins", &[starter]);
         let parsed: Result<serde_json::Value, _> = serde_json::from_str(&json);
         assert!(parsed.is_ok(), "marketplace.json should be valid JSON: {parsed:?}");
         let v = parsed.ok();
@@ -926,7 +910,7 @@ mod tests {
 
     #[test]
     fn marketplace_json_no_starter_has_empty_plugins() {
-        let json = generate_marketplace_json("local-repo-plugins", true);
+        let json = crate::generate::marketplace::create("local-repo-plugins", &[]);
         let parsed: Result<serde_json::Value, _> = serde_json::from_str(&json);
         assert!(parsed.is_ok(), "marketplace.json should be valid JSON: {parsed:?}");
         let v = parsed.ok();
