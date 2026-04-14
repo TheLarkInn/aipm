@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.22.0] - 2026-04-14
+
+### Documentation
+- Add uninstall guide cross-reference to README `aipm uninstall` section ([#500](https://github.com/TheLarkInn/aipm/pull/500)) (0acf52a)
+- Add `generate` and `wizard` modules to libaipm reference table ([#503](https://github.com/TheLarkInn/aipm/pull/503)) (2de0d46)
+- Add `aipm init` workspace initialization guide ([#505](https://github.com/TheLarkInn/aipm/pull/505)) (3d38565)
+
+### Features
+- Implement `aipm make plugin` foundational scaffolding command ([#363](https://github.com/TheLarkInn/aipm/pull/363)) ([#511](https://github.com/TheLarkInn/aipm/pull/511)) (3440a0f)
+
 ## [0.21.1] - 2026-04-14
 
 ### Documentation
