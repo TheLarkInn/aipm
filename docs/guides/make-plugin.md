@@ -109,7 +109,7 @@ For `aipm make plugin --name my-skill --engine claude --feature skill`:
   .claude-plugin/
     marketplace.json       # updated to include my-skill
 .claude/
-  settings.json            # updated: my-skill@<marketplace> added to plugins
+  settings.json            # updated: enabledPlugins["my-skill@<marketplace>"] = true
 ```
 
 For `--engine copilot --feature skill --feature lsp`:
