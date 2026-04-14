@@ -46,7 +46,7 @@ Specifying `--engine both` makes all seven feature types available.
 
 ## How it works
 
-`aipm make plugin` runs an **idempotent 9-step action pipeline**:
+`aipm make plugin` runs an **idempotent 8-step action pipeline**:
 
 1. Guard — returns immediately if the plugin directory already exists (outputs `Already exists: <path>`).
 2. Create the plugin directory (`.ai/<marketplace>/<name>/`).
@@ -104,7 +104,8 @@ For `aipm make plugin --name my-skill --engine claude --feature skill`:
     .claude-plugin/
       plugin.json          # plugin metadata
     skills/
-      SKILL.md             # starter skill template
+      my-skill/
+        SKILL.md           # starter skill template
   .claude-plugin/
     marketplace.json       # updated to include my-skill
 ```
@@ -117,7 +118,8 @@ For `--engine copilot --feature skill --feature lsp`:
     .claude-plugin/
       plugin.json
     skills/
-      SKILL.md
+      my-plugin/
+        SKILL.md
     .lsp.json              # LSP server config (root of plugin directory)
 ```
 
