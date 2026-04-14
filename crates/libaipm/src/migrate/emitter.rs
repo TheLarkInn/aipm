@@ -1435,6 +1435,35 @@ mod tests {
     }
 
     #[test]
+    fn emit_skill_files_absolute_path_skips_parent_dir_creation() {
+        // When artifact.files contains an absolute path (e.g. PathBuf::from("/")),
+        // joining it to the skill dest produces a root path whose parent() is None.
+        // This test covers the None arm of `if let Some(parent) = dest.parent()` in
+        // emit_skill_files.  The file is not a regular file in MockFs so it is skipped
+        // after the parent-dir check, and emit_plugin should still succeed.
+        let fs = MockFs::new();
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let artifact = Artifact {
+            kind: ArtifactKind::Skill,
+            name: "deploy".to_string(),
+            source_path: PathBuf::from("/src/skills/deploy"),
+            // Absolute path: plugin_dir.join("skills").join("deploy").join("/") == "/"
+            // whose parent() is None.
+            files: vec![PathBuf::from("/")],
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata {
+                name: Some("deploy".to_string()),
+                description: Some("Deploy app".to_string()),
+                ..ArtifactMetadata::default()
+            },
+        };
+
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok(), "emit_plugin should succeed even with an absolute file entry");
+    }
+
+    #[test]
     fn emit_copies_referenced_scripts() {
         let mut fs = MockFs::new();
         fs.files.insert(
@@ -3462,6 +3491,41 @@ mod tests {
         // index.js was NOT written (it was silently skipped)
         let index = fs.get_written(Path::new("/ai/my-ext/extensions/my-ext/index.js"));
         assert!(index.is_none(), "unreadable file should not be written");
+    }
+
+    #[test]
+    fn emit_extension_files_absolute_path_dest_has_no_parent() {
+        // When artifact.files contains an absolute path (e.g. PathBuf::from("/")),
+        // Rust's Path::join replaces the base, so ext_dir.join("/") == PathBuf::from("/").
+        // PathBuf::from("/").parent() is None, which covers the False (None) branch of
+        // `if let Some(parent) = dest.parent()` in emit_extension_files.
+        let mut fs = MockFs::new();
+        // Make the absolute "source" path readable so we enter the Ok(content) branch.
+        fs.files.insert(PathBuf::from("/"), "root content".to_string());
+
+        let artifact = Artifact {
+            kind: ArtifactKind::Extension,
+            name: "my-ext".to_string(),
+            source_path: PathBuf::from("/project/.github/extensions/my-ext"),
+            // Absolute path: source_path.join("/") == "/" (readable),
+            // ext_dir.join("/") == "/" (no parent → False branch at line 671).
+            files: vec![PathBuf::from("/")],
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata {
+                name: Some("my-ext".to_string()),
+                description: Some("Extension with absolute file entry".to_string()),
+                raw_content: None,
+                ..ArtifactMetadata::default()
+            },
+        };
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(
+            result.is_ok(),
+            "emit_plugin should succeed even when dest.parent() is None: {result:?}"
+        );
     }
 
     #[test]

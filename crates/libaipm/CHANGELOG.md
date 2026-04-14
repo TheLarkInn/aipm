@@ -1,6 +1,28 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.20.6] - 2026-04-13
+
+## [0.20.5] - 2026-04-13
+
+### Testing
+- Cover Deserialize error path when input is not a string (46d6087)
+- Cover acquire_git clone-failure and git_ref branches (31b0026)
+- Cover emit_extension_files dest.parent() None branch (4d753f0)
+- Cover run_git_clone success path via local repo clone (8202817)
+- Cover acquire_git subdirectory path branches (e399d30)
+- Eliminate dead None-arm branch in register_skips_already_registered (96663da)
+- Cover Error::Manifest branches for invalid manifest and malformed lockfile (1087889)
+
+## [0.20.4] - 2026-04-12
+
+### Documentation
+- Add instruction file patterns to VS Code LSP document selector ([#466](https://github.com/TheLarkInn/aipm/pull/466)) (8497d8d)
+
+### Testing
+- Cover None branch of dest.parent() in emit_skill_files (227c4f5)
+- Cover False branches of .any() closures in MockFs test helpers (5b76bc6)
+
 ## [0.20.3] - 2026-04-12
 
 ## [0.20.2] - 2026-04-12

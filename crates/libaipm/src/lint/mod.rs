@@ -1292,13 +1292,16 @@ mod tests {
             outcome.diagnostics,
         );
 
-        // Step 4: verify starter plugin has component arrays in plugin.json
+        // Step 4: verify starter plugin has skills and agents fields in plugin.json
         let plugin_json_path =
             root.join(".ai").join("starter-aipm-plugin").join(".claude-plugin").join("plugin.json");
         let plugin_json_content = std::fs::read_to_string(&plugin_json_path).unwrap();
         let plugin_json: serde_json::Value = serde_json::from_str(&plugin_json_content).unwrap();
-        assert!(plugin_json.get("skills").is_some(), "plugin.json should contain 'skills' array");
-        assert!(plugin_json.get("agents").is_some(), "plugin.json should contain 'agents' array");
+        assert!(plugin_json.get("skills").is_some(), "plugin.json should contain a 'skills' field");
+        assert!(
+            plugin_json.get("agents").is_some(),
+            "plugin.json should contain an 'agents' field"
+        );
 
         // Step 5: verify starter skill and agent have proper frontmatter
         let skill_path = root

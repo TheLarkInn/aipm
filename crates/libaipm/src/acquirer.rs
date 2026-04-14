@@ -628,4 +628,217 @@ mod tests {
         crate::engine::validate_plugin(&dest, engine)?;
         Ok(dest)
     }
+
+    /// Covers the clone-failure path in `acquire_git`: when `run_git_clone`
+    /// fails (invalid URL → non-zero exit), the error propagates and the temp
+    /// directory is cleaned up.
+    #[test]
+    fn acquire_git_invalid_url_returns_error() {
+        let temp = make_temp();
+        let source = crate::spec::GitSource {
+            url: "not-a-valid-url://nowhere".to_string(),
+            path: None,
+            git_ref: None,
+        };
+        let result = acquire_git(&source, temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::GitClone { .. })),
+            "expected GitClone error, got: {result:?}",
+        );
+    }
+
+    /// Covers the `git_ref` branch in `run_git_clone`: passing a `git_ref`
+    /// causes `--branch <ref>` to be appended to the git command, which still
+    /// fails for an invalid URL.
+    #[test]
+    fn acquire_git_with_ref_invalid_url_returns_error() {
+        let temp = make_temp();
+        let source = crate::spec::GitSource {
+            url: "not-a-valid-url://nowhere".to_string(),
+            path: None,
+            git_ref: Some("main".to_string()),
+        };
+        let result = acquire_git(&source, temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::GitClone { .. })),
+            "expected GitClone error, got: {result:?}",
+        );
+    }
+
+    /// Covers the `output.status.success()` True branch in `run_git_clone`
+    /// and the `if let Err(e) = clone_result` False branch in `acquire_git`:
+    /// a successful clone from a local git repository.
+    #[test]
+    fn acquire_git_local_repo_success() {
+        // Build a minimal local git repository with valid plugin structure.
+        let source_temp = make_temp();
+        let src = source_temp.path();
+
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+
+        // Initialise repo; skip test if git is unavailable.
+        let Ok(init) = git(&["init", "-b", "main"]) else { return };
+        if !init.status.success() {
+            return;
+        }
+        std::fs::create_dir_all(src.join(".claude-plugin")).unwrap();
+        std::fs::write(src.join(".claude-plugin/plugin.json"), "{}").unwrap();
+        git(&["add", "."]).unwrap();
+        git(&["commit", "-m", "init"]).unwrap();
+
+        let dest_temp = make_temp();
+        let git_source = crate::spec::GitSource {
+            url: src.to_string_lossy().to_string(),
+            path: None,
+            git_ref: None,
+        };
+
+        let result = acquire_git(&git_source, dest_temp.path(), Engine::Claude);
+        assert!(result.is_ok(), "expected Ok from local git clone, got: {result:?}");
+    }
+
+    /// Covers the `Some(ref sub_path)` True branch of `acquire_git` (line 127):
+    /// when `source.path` is set, the function copies just that subdirectory
+    /// from the clone instead of the whole repository root.
+    #[test]
+    fn acquire_git_with_valid_subpath() {
+        let source_temp = make_temp();
+        let src = source_temp.path();
+
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+
+        let Ok(init) = git(&["init", "-b", "main"]) else { return };
+        if !init.status.success() {
+            return;
+        }
+
+        // Create subdirectory with valid Claude plugin structure
+        let sub = src.join("plugins").join("my-plugin");
+        std::fs::create_dir_all(sub.join(".claude-plugin")).unwrap();
+        std::fs::write(sub.join(".claude-plugin/plugin.json"), "{}").unwrap();
+        std::fs::write(sub.join("README.md"), "hello").unwrap();
+
+        git(&["add", "."]).unwrap();
+        git(&["commit", "-m", "init"]).unwrap();
+
+        let dest_temp = make_temp();
+        let sub_path = ValidatedPath::new("plugins/my-plugin").unwrap();
+        let git_source = crate::spec::GitSource {
+            url: src.to_string_lossy().to_string(),
+            path: Some(sub_path),
+            git_ref: None,
+        };
+
+        let result = acquire_git(&git_source, dest_temp.path(), Engine::Claude);
+        assert!(result.is_ok(), "expected Ok for valid subpath, got: {result:?}");
+        let dest = result.unwrap();
+        assert!(dest.join(".claude-plugin/plugin.json").exists());
+    }
+
+    /// Covers the `PathNotFound` error branch inside the `Some(ref sub_path)` arm:
+    /// when the specified subdirectory does not exist in the cloned repository,
+    /// `acquire_git` returns `Error::PathNotFound`.
+    #[test]
+    fn acquire_git_with_nonexistent_subpath() {
+        let source_temp = make_temp();
+        let src = source_temp.path();
+
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+
+        let Ok(init) = git(&["init", "-b", "main"]) else { return };
+        if !init.status.success() {
+            return;
+        }
+
+        // Only a top-level plugin — no "plugins/my-plugin" subdirectory
+        std::fs::create_dir_all(src.join(".claude-plugin")).unwrap();
+        std::fs::write(src.join(".claude-plugin/plugin.json"), "{}").unwrap();
+        git(&["add", "."]).unwrap();
+        git(&["commit", "-m", "init"]).unwrap();
+
+        let dest_temp = make_temp();
+        let sub_path = ValidatedPath::new("nonexistent-subdir").unwrap();
+        let git_source = crate::spec::GitSource {
+            url: src.to_string_lossy().to_string(),
+            path: Some(sub_path),
+            git_ref: None,
+        };
+
+        let result = acquire_git(&git_source, dest_temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::PathNotFound { .. })),
+            "expected PathNotFound error, got: {result:?}"
+        );
+    }
+
+    /// Covers the `!sub.is_dir()` True branch (block 1, branch 2) at line 129:
+    /// when the specified path exists in the clone but is a file rather than a
+    /// directory, `acquire_git` returns `Error::PathNotFound`.
+    #[test]
+    fn acquire_git_with_subpath_is_file_not_dir() {
+        let source_temp = make_temp();
+        let src = source_temp.path();
+
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+
+        let Ok(init) = git(&["init", "-b", "main"]) else { return };
+        if !init.status.success() {
+            return;
+        }
+
+        // Commit a regular file at the subpath location (not a directory)
+        std::fs::write(src.join("my-plugin"), "not a directory").unwrap();
+        git(&["add", "."]).unwrap();
+        git(&["commit", "-m", "init"]).unwrap();
+
+        let dest_temp = make_temp();
+        let sub_path = ValidatedPath::new("my-plugin").unwrap();
+        let git_source = crate::spec::GitSource {
+            url: src.to_string_lossy().to_string(),
+            path: Some(sub_path),
+            git_ref: None,
+        };
+
+        let result = acquire_git(&git_source, dest_temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::PathNotFound { .. })),
+            "expected PathNotFound error when subpath is a file, got: {result:?}"
+        );
+    }
 }

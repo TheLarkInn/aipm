@@ -33,7 +33,7 @@ pub fn find_workspace_root(fs: &dyn crate::fs::Fs, start_dir: &Path) -> Option<P
     let mut current = start_dir.to_path_buf();
     loop {
         let manifest_path = current.join("aipm.toml");
-        if manifest_path.exists() {
+        if fs.exists(&manifest_path) {
             match fs.read_to_string(&manifest_path) {
                 Ok(content) => match toml::from_str::<manifest::types::Manifest>(&content) {
                     Ok(m) => {
@@ -97,7 +97,7 @@ pub fn discover_members(
             }
 
             let manifest_path = dir.join("aipm.toml");
-            if !manifest_path.exists() {
+            if !fs.exists(&manifest_path) {
                 tracing::warn!(
                     path = %dir.display(),
                     "directory matches workspace member glob but has no aipm.toml — skipping"

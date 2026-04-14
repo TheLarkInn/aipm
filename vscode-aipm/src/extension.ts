@@ -38,6 +38,14 @@ export function activate(context: ExtensionContext): void {
       { scheme: 'file', pattern: '**/.ai/*/.claude-plugin/plugin.json' },
       // Marketplace manifest — .ai/.claude-plugin/marketplace.json
       { scheme: 'file', pattern: '**/.ai/.claude-plugin/marketplace.json' },
+      // Instruction files — CLAUDE.md, AGENTS.md, COPILOT.md, GEMINI.md, INSTRUCTIONS.md
+      { scheme: 'file', pattern: '**/CLAUDE.md' },
+      { scheme: 'file', pattern: '**/AGENTS.md' },
+      { scheme: 'file', pattern: '**/COPILOT.md' },
+      { scheme: 'file', pattern: '**/GEMINI.md' },
+      { scheme: 'file', pattern: '**/INSTRUCTIONS.md' },
+      // Instruction files — *.instructions.md anywhere in the project
+      { scheme: 'file', pattern: '**/*.instructions.md' },
     ],
     errorHandler: {
       error: () => ({ action: ErrorAction.Continue }),

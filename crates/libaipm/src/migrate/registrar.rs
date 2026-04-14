@@ -160,27 +160,26 @@ mod tests {
 
     #[test]
     fn register_skips_already_registered() {
+        let original = r#"{"plugins":[{"name":"deploy","source":"./deploy"}]}"#;
         let fs = MockFs::new();
-        fs.set_file(
-            marketplace_path(),
-            r#"{"plugins":[{"name":"deploy","source":"./deploy"}]}"#.to_string(),
-        );
+        fs.set_file(marketplace_path(), original.to_string());
 
         let entries = vec![entry("deploy", None)];
         let result = register_plugins(Path::new("/ai"), &entries, &fs);
         assert!(result.is_ok());
 
-        let written = fs.get_written(&marketplace_path());
-        if let Some(content) = written {
-            // Count occurrences of "deploy" as a name value — should be exactly 1
-            let count = content.matches("\"deploy\"").count();
-            // name field + source field = at least 2 occurrences of "deploy" string,
-            // but the name key should appear exactly once
-            let parsed: serde_json::Value = serde_json::from_str(&content).ok().unwrap_or_default();
-            let plugins =
-                parsed.get("plugins").and_then(|v| v.as_array()).map(Vec::len).unwrap_or(0);
-            assert_eq!(plugins, 1, "should not duplicate: found {count} 'deploy' strings");
-        }
+        // No write should occur when all entries are already registered (no unnecessary I/O).
+        assert!(
+            fs.get_written(&marketplace_path()).is_none(),
+            "marketplace.json should not be rewritten when no changes are needed"
+        );
+
+        // Original content is preserved — still has exactly 1 plugin.
+        let content = fs.read_to_string(&marketplace_path()).unwrap();
+        let parsed: serde_json::Value =
+            serde_json::from_str(&content).expect("marketplace.json should be valid JSON");
+        let plugins = parsed.get("plugins").and_then(|v| v.as_array()).map(Vec::len).unwrap_or(0);
+        assert_eq!(plugins, 1, "deploy should not be duplicated in marketplace.json");
     }
 
     #[test]

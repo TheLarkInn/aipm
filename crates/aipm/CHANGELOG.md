@@ -1,6 +1,24 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.20.6] - 2026-04-13
+
+### Bug Fixes
+- Add missing `uninstall` to `aipm` module doc comment ([#486](https://github.com/TheLarkInn/aipm/pull/486)) (3ba374f)
+
+## [0.20.5] - 2026-04-13
+
+### Testing
+- Cover ws_root != dir branch in cmd_install (6d91f88)
+
+## [0.20.4] - 2026-04-12
+
+### Documentation
+- Add instruction file patterns to VS Code LSP document selector ([#466](https://github.com/TheLarkInn/aipm/pull/466)) (8497d8d)
+
+### Testing
+- Cover global registry list and update branches in CLI (9ebac2b)
+
 ## [0.20.3] - 2026-04-12
 
 ## [0.20.2] - 2026-04-12

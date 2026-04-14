@@ -113,7 +113,7 @@ Fields:
 | `end_col` | number\|null | End column for multi-line spans, or `null` |
 | `help_url` | string\|null | Link to the rule documentation, or `null` |
 | `help_text` | string\|null | Fix suggestion, or `null` |
-| `source_type` | string | Source directory type that produced this diagnostic (e.g. `".ai"`, `".claude"`) |
+| `source_type` | string | Source directory type that produced this diagnostic: `".ai"`, `".claude"`, `".github"`, or `"project"` (for instruction files at project root outside a recognized source directory) |
 
 ### `ci-github`
 
@@ -320,6 +320,12 @@ File types that receive diagnostics and completions:
 | `**/.ai/*/aipm.toml` | Plugin manifests under `.ai/` |
 | `**/.ai/*/.claude-plugin/plugin.json` | Plugin JSON manifests |
 | `**/.ai/.claude-plugin/marketplace.json` | Marketplace manifest |
+| `**/CLAUDE.md` | Claude Code instruction file |
+| `**/AGENTS.md` | OpenAI Agents instruction file |
+| `**/COPILOT.md` | Copilot instruction file |
+| `**/GEMINI.md` | Gemini instruction file |
+| `**/INSTRUCTIONS.md` | Generic instruction file |
+| `**/*.instructions.md` | Scoped instruction files (e.g. `frontend.instructions.md`) |
 
 ### Configuration
 
