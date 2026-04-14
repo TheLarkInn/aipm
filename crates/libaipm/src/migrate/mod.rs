@@ -1142,4 +1142,95 @@ mod tests {
             |a| matches!(a, Action::MarketplaceRegistered { name } if name == "empty-plugin")
         ));
     }
+
+    #[test]
+    fn migrated_sources_includes_other_file_migrated() {
+        // Covers the `OtherFileMigrated` arm of `migrated_sources()` which was previously
+        // untested — the existing test only exercised `PluginCreated` and wildcard arms.
+        let outcome = Outcome {
+            actions: vec![
+                Action::OtherFileMigrated {
+                    path: PathBuf::from("/project/.claude/README.md"),
+                    destination: PathBuf::from("/project/.ai/my-plugin/README.md"),
+                    associated_artifact: Some("my-plugin".to_string()),
+                },
+                Action::MarketplaceRegistered { name: "my-plugin".to_string() },
+            ],
+        };
+        let sources = outcome.migrated_sources();
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources.first().map(|s| s.0), Some(Path::new("/project/.claude/README.md")));
+        // OtherFileMigrated always reports is_dir = false
+        assert!(sources.first().is_some_and(|s| !s.1));
+    }
+
+    #[test]
+    fn artifact_kind_to_type_string_all_variants() {
+        // Covers all match arms in ArtifactKind::to_type_string().
+        assert_eq!(ArtifactKind::Skill.to_type_string(), "skill");
+        assert_eq!(ArtifactKind::Command.to_type_string(), "skill");
+        assert_eq!(ArtifactKind::Agent.to_type_string(), "agent");
+        assert_eq!(ArtifactKind::McpServer.to_type_string(), "mcp");
+        assert_eq!(ArtifactKind::Hook.to_type_string(), "hook");
+        assert_eq!(ArtifactKind::OutputStyle.to_type_string(), "composite");
+        assert_eq!(ArtifactKind::Extension.to_type_string(), "composite");
+        assert_eq!(ArtifactKind::LspServer.to_type_string(), "lsp");
+    }
+
+    #[test]
+    fn migrate_recursive_returns_empty_when_no_source_dirs_exist() {
+        // Covers the `if discovered.is_empty()` True branch in `migrate_recursive`.
+        // When opts.source is None and no .claude/.github dirs exist, the function
+        // returns Ok with an empty actions list without error.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let project_dir = tmp.path();
+
+        // Create .ai/ dir (required for the initial existence check)
+        std::fs::create_dir_all(project_dir.join(".ai")).expect("create .ai");
+
+        // No .claude/ or .github/ dirs — discover_source_dirs will return empty.
+        let opts = Options {
+            dir: project_dir,
+            source: None,
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+
+        let result = migrate(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.expect("migrate should succeed");
+        assert!(outcome.actions.is_empty(), "expected no actions when no source dirs found");
+    }
+
+    #[test]
+    fn migrate_recursive_dry_run_generates_report() {
+        // Covers the `if dry_run` True branch in `migrate_recursive`, as well as the
+        // `if discovered.is_empty()` False branch.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let project_dir = tmp.path();
+
+        // Create .ai/ dir
+        std::fs::create_dir_all(project_dir.join(".ai")).expect("create .ai");
+        // Create an empty .claude/ dir — discover_source_dirs will find it.
+        std::fs::create_dir_all(project_dir.join(".claude")).expect("create .claude");
+
+        let opts = Options {
+            dir: project_dir,
+            source: None,
+            dry_run: true,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+
+        let result = migrate(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.expect("migrate should succeed");
+        assert!(
+            outcome.actions.iter().any(|a| matches!(a, Action::DryRunReport { .. })),
+            "expected a DryRunReport action in recursive dry-run mode"
+        );
+    }
 }
