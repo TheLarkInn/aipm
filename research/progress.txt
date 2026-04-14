@@ -58,3 +58,12 @@ Created `crates/libaipm/src/make/discovery.rs` with:
 - Returns MarketplaceNotFound when root reached
 
 5 unit tests passing. All cargo gates green (94.97% coverage).
+
+## Phase 1.6: make/mod.rs orchestrator — COMPLETE (2026-04-14)
+
+Implemented the `plugin()` orchestrator function in make/mod.rs with:
+- PluginOpts<'a> and PluginResult structs (renamed from MakePluginOpts/MakeResult per clippy module_name_repetitions)
+- 9-step make_plugin pipeline composing existing CRUD primitives
+- Private helpers: scaffold_features, scaffold_single_feature, 7 per-feature scaffolders, write_plugin_json, register_in_marketplace, update_engine_settings, is_plugin_registered, read_marketplace_name
+
+7 unit tests passing. All cargo gates green (94.54% coverage).
