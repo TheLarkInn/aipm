@@ -43,7 +43,7 @@ The report lists every detected artifact, the plugin it will be grouped into, an
 
 | Artifact | Source location | Plugin type |
 |----------|----------------|-------------|
-| Skills | `.github/skills/<name>/` | `skill` |
+| Skills | `.github/skills/<name>/` or `.github/copilot/<name>/` | `skill` |
 | Agents | `.github/agents/<name>.md` or `<name>.agent.md` | `agent` |
 | MCP servers | `.copilot/mcp-config.json` | `mcp` |
 | Hooks | `.github/hooks.json` or `.github/hooks/hooks.json` | `hook` |
@@ -130,19 +130,25 @@ git commit -m "chore: migrate .claude configs to .ai marketplace plugins"
 
 ## Output layout
 
-After migration, each detected artifact appears under `.ai/` as a named plugin directory:
+After migration, each detected artifact appears under `.ai/` as a named plugin directory.
+A `.claude-plugin/plugin.json` manifest is always generated; `aipm.toml` is only generated
+when `--manifest` is passed:
 
 ```
 .ai/
   my-skill/
+    .claude-plugin/
+      plugin.json
     skills/
       my-skill/
         SKILL.md
     aipm.toml     # present with --manifest
   my-agent/
+    .claude-plugin/
+      plugin.json
     agents/
       my-agent.md
-    aipm.toml
+    aipm.toml     # present with --manifest
 ```
 
 See also: [`aipm migrate`](../../README.md#aipm-migrate), [`aipm lint`](../../README.md#aipm-lint).

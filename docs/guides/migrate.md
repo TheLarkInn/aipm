@@ -138,16 +138,32 @@ edit these manifests afterward to add `engines`, `environment`, or `dependencies
 
 ## Output Structure
 
-After migration, the `.ai/` directory follows the standard marketplace layout:
+After migration, the `.ai/` directory follows the standard marketplace layout.
+Each plugin directory contains a `.claude-plugin/plugin.json` manifest (always
+generated) and an `aipm.toml` manifest (only when `--manifest` is passed). The
+artifact files are placed in type-specific subdirectories:
 
 ```
 .ai/
   .claude-plugin/
-    marketplace.json          # auto-generated plugin registry
+    marketplace.json            # auto-generated plugin registry
   <marketplace-name>/
-    <plugin-name>/            # one directory per migrated plugin
-      aipm.toml               # only if --manifest was passed
-      SKILL.md / agent.md / hooks.json / .mcp.json / ...
+    <plugin-name>/              # one directory per migrated plugin
+      .claude-plugin/
+        plugin.json             # always generated
+      aipm.toml                 # only if --manifest was passed
+      skills/
+        <name>/
+          SKILL.md              # skill artifacts
+      agents/
+        <name>.md               # agent artifacts
+      hooks/
+        hooks.json              # hook artifacts
+      .mcp.json                 # MCP server artifacts
+      lsp.json                  # LSP server artifacts
+      <name>.md                 # output style artifacts
+      scripts/
+        ...                     # referenced scripts (copied to plugin root)
 ```
 
 The `marketplace.json` is automatically created or updated to register every
@@ -184,16 +200,29 @@ aipm migrate --manifest       # apply it with manifest generation
     marketplace.json
   local-repo-plugins/
     deploy/
+      .claude-plugin/
+        plugin.json
       aipm.toml
-      SKILL.md
-      scripts/deploy.sh
+      skills/
+        deploy/
+          SKILL.md
+      scripts/
+        deploy.sh               # referenced scripts copied to plugin root
     reviewer/
+      .claude-plugin/
+        plugin.json
       aipm.toml
-      reviewer.md
+      agents/
+        reviewer.md
     hooks/
+      .claude-plugin/
+        plugin.json
       aipm.toml
-      hooks.json
+      hooks/
+        hooks.json
     mcp-server/
+      .claude-plugin/
+        plugin.json
       aipm.toml
       .mcp.json
 .claude/                      # originals still present (remove with --destructive)
