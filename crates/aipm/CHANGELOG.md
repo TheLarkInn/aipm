@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.22.1] - 2026-04-14
+
+### Documentation
+- Add `aipm make plugin` command documentation ([#513](https://github.com/TheLarkInn/aipm/pull/513)) (7813296)
+- Add `aipm update` guide and lockfile semantics reference ([#508](https://github.com/TheLarkInn/aipm/pull/508)) (2b94a6c)
+- Add `make` to README command table and missing `See also` links ([#516](https://github.com/TheLarkInn/aipm/pull/516)) (8506b00)
+- Fix init paths, registry caveat, aipm-pack note, and roadmap status markers ([#517](https://github.com/TheLarkInn/aipm/pull/517)) (49a36db)
+
+### Features
+- Merge aipm-pack into aipm ([#417](https://github.com/TheLarkInn/aipm/pull/417)) ([#522](https://github.com/TheLarkInn/aipm/pull/522)) (eab803d)
+
 ## [0.22.0] - 2026-04-14
 
 ### Documentation
