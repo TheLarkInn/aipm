@@ -24,7 +24,18 @@ pub fn register_plugins(ai_dir: &Path, entries: &[PluginEntry], fs: &dyn Fs) -> 
         })
         .collect();
 
-    crate::generate::marketplace::register_all(fs, &marketplace_path, &gen_entries)?;
+    crate::generate::marketplace::register_all(fs, &marketplace_path, &gen_entries).map_err(
+        |e| {
+            if e.kind() == std::io::ErrorKind::InvalidData {
+                Error::MarketplaceJsonParse {
+                    path: marketplace_path.clone(),
+                    source: serde_json::Error::io(e),
+                }
+            } else {
+                Error::Io(e)
+            }
+        },
+    )?;
 
     Ok(())
 }
