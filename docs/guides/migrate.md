@@ -49,7 +49,7 @@ aipm migrate --source .claude
 | Skills | `.claude/skills/<name>/` | `skill` plugin |
 | Agents | `.claude/agents/<name>.md` | `agent` plugin |
 | MCP servers | `.mcp.json` | `mcp` plugin |
-| Hooks | `hooks.json` or embedded in `.claude/settings.json` | `hook` plugin |
+| Hooks | `.claude/settings.json` hooks block | `hook` plugin |
 | Commands | `.claude/commands/<name>.md` | `skill` plugin (commands are a skill subtype) |
 | Output styles | `.claude/output-styles/<name>.md` | `composite` plugin |
 
