@@ -9,7 +9,7 @@ AIPM ships as **two Rust binaries** with **zero runtime dependencies**:
 
 | Binary | Role | Commands |
 |--------|------|----------|
-| **`aipm`** | Consumer CLI | `init`, `install`, `update`, `uninstall`, `link`, `unlink`, `list`, `lint`, `migrate`, `lsp` |
+| **`aipm`** | Consumer CLI | `init`, `install`, `update`, `uninstall`, `link`, `unlink`, `list`, `lint`, `migrate`, `make`, `lsp` |
 | **`aipm-pack`** | Author CLI | `init` |
 
 Both work across .NET, Python, Node.js, and Rust projects with no runtime dependency.
@@ -234,6 +234,37 @@ aipm lint [OPTIONS] [DIR]
 Exits with a non-zero status code when violations are found, making it safe to use in CI pipelines. Use `--reporter ci-github` for GitHub Actions annotations or `--reporter ci-azure` for Azure Pipelines.
 
 See also: [`docs/guides/lint.md`](docs/guides/lint.md) for full CLI usage, output formats, and CI integration; [`docs/guides/configuring-lint.md`](docs/guides/configuring-lint.md) for rule severity overrides, path ignores, and per-rule configuration.
+
+### `aipm make plugin`
+
+Scaffold a new AI plugin inside an existing `.ai/` marketplace directory. Creates the plugin directory, writes feature-appropriate lint-passing templates, generates `plugin.json`, registers the plugin in `marketplace.json`, and updates engine settings — all in one step.
+
+```
+aipm make plugin [OPTIONS]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--name <NAME>` | Plugin name (prompted if omitted on a TTY) |
+| `--engine <ENGINE>` | Target engine: `claude` (default), `copilot`, or `both` |
+| `--feature <FEATURE>` | Feature type to include (repeatable): `skill`, `agent`, `mcp`, `hook`, `output-style` (Claude only), `lsp` (Copilot only), `extension` (Copilot only) |
+| `-y, --yes` | Skip interactive prompts, use defaults |
+| `--dir <DIR>` | Project directory (default: `.`) |
+
+Requires an initialised workspace (`aipm init` first). The command is idempotent — if the plugin directory already exists, it exits early without overwriting.
+
+```bash
+# Interactive wizard
+aipm make plugin
+
+# Non-interactive skill plugin for Claude
+aipm make plugin --name my-skill --engine claude --feature skill -y
+
+# Composite plugin for both engines
+aipm make plugin --name shared-tools --engine both --feature skill --feature agent -y
+```
+
+See also: [`docs/guides/make.md`](docs/guides/make.md) for full usage, feature support matrix, and scaffolded file structure.
 
 ### `aipm lsp`
 
