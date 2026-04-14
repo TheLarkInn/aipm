@@ -316,6 +316,8 @@ Shared library powering both CLIs. All logic lives here; the binaries are thin w
 | `locked_file` | OS-level exclusive file locking for cache and registry writes |
 | `security` | Configurable source allowlist with CI enforcement |
 | `logging` | Layered `tracing` subscriber initialization (stderr verbosity + rotating file log) |
+| `generate` | Centralised JSON generation for `marketplace.json`, `plugin.json`, and `settings.json` (unified read-modify-write helpers used by `workspace_init` and `migrate`) |
+| `wizard` | Shared wizard types and theming for interactive CLI prompts; gated behind the `wizard` feature flag (required by `aipm` and `aipm-pack`) |
 | `frontmatter` | YAML front-matter parsing for plugin files |
 | `fs` | Trait-based filesystem abstraction (`Real` + test mocking) |
 | `version` | Crate version constant |
