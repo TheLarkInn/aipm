@@ -121,3 +121,14 @@ Next iteration should start with Phase 4.1.
 
 Also updated init_e2e.rs tests and BDD feature file.
 All cargo gates green (89.30% coverage).
+
+## Phase 4.3 + 5.1/5.2/5.4: On-disk drift fix + pre-existing tests — COMPLETE (2026-04-14)
+
+- Phase 4.3: Fixed on-disk .ai/starter-aipm-plugin/ drift:
+  - Deleted scaffold-plugin.ts, created scaffold-plugin.sh
+  - Updated SKILL.md to reference bash script
+  - Added component keys to plugin.json (skills, agents, hooks)
+- Phases 5.1, 5.2, 5.4: Already implemented during earlier phases (tests exist and pass)
+
+19/22 features done. Remaining: 5.3 (E2E make tests), 5.5 (BDD), 5.6 (coverage).
+All cargo gates green (94.33% coverage).

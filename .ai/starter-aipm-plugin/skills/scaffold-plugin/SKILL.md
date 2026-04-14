@@ -12,7 +12,7 @@ Create a new plugin in the `.ai/` marketplace directory.
 1. Ask the user for a plugin name (lowercase, hyphens allowed) if not provided.
 2. Run the scaffolding script:
    ```bash
-   node --experimental-strip-types .ai/starter-aipm-plugin/scripts/scaffold-plugin.ts <plugin-name>
+   bash .ai/starter-aipm-plugin/scripts/scaffold-plugin.sh <plugin-name>
    ```
 3. Report the created file tree to the user.
 4. Suggest next steps: edit the generated `SKILL.md`, add agents or hooks, update `aipm.toml`.

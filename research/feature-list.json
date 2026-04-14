@@ -225,7 +225,7 @@
       "Remove the old .ai/starter-aipm-plugin/scripts/scaffold-plugin.ts file",
       "Run cargo build --workspace && cargo test --workspace && cargo clippy --workspace -- -D warnings && cargo fmt --check"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -240,7 +240,7 @@
       "Add test make_plugin_both_engines: engine both, verify Claude settings written and all features available",
       "Run cargo test --workspace && cargo clippy --workspace -- -D warnings"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -253,7 +253,7 @@
       "Assert zero diagnostics with Severity::Error for each template",
       "Run cargo test --workspace && cargo clippy --workspace -- -D warnings"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -286,7 +286,7 @@
       "Remove any has_node_with_strip_types() gate if present since bash is universally available",
       "Run cargo test --workspace && cargo clippy --workspace -- -D warnings"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
