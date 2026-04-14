@@ -154,6 +154,8 @@ aipm update [OPTIONS] [PACKAGE]
 
 Omit `PACKAGE` to update all dependencies. Unlike `install`, `update` resolves the latest version within the declared version range and rewrites the lockfile.
 
+See also: [`docs/guides/update.md`](docs/guides/update.md) for the Cargo-model lockfile semantics, CI mode, and version-range upgrade patterns.
+
 ### `aipm uninstall`
 
 Remove an installed plugin from the project or the global registry.
@@ -198,6 +200,8 @@ aipm unlink [OPTIONS] <PACKAGE>
 |------|-------------|
 | `--dir <DIR>` | Project directory (default: `.`) |
 
+See also: [`docs/guides/local-development.md`](docs/guides/local-development.md) for the full link/unlink workflow and how to restore the registry version.
+
 ### `aipm list`
 
 Show installed plugins or active development link overrides.
@@ -211,6 +215,8 @@ aipm list [OPTIONS]
 | `--linked` | Show only active dev link overrides |
 | `--global` | Show globally installed plugins |
 | `--dir <DIR>` | Project directory (default: `.`) |
+
+See also: [`docs/guides/local-development.md`](docs/guides/local-development.md) for using `aipm list` during the local development workflow.
 
 ### `aipm lint`
 
@@ -235,9 +241,13 @@ Exits with a non-zero status code when violations are found, making it safe to u
 
 See also: [`docs/guides/lint.md`](docs/guides/lint.md) for full CLI usage, output formats, and CI integration; [`docs/guides/configuring-lint.md`](docs/guides/configuring-lint.md) for rule severity overrides, path ignores, and per-rule configuration.
 
-### `aipm make plugin`
+### `aipm make`
 
-Scaffold a new AI plugin inside an existing `.ai/` marketplace directory. Creates the plugin directory, writes feature-appropriate lint-passing templates, generates `plugin.json`, registers the plugin in `marketplace.json`, and updates engine settings — all in one step.
+Scaffold new plugins directly inside an existing workspace marketplace.
+
+#### `aipm make plugin`
+
+Create a new plugin in the `.ai/` marketplace directory discovered from the current (or specified) project directory.
 
 ```
 aipm make plugin [OPTIONS]
@@ -245,26 +255,39 @@ aipm make plugin [OPTIONS]
 
 | Flag | Description |
 |------|-------------|
-| `--name <NAME>` | Plugin name (prompted if omitted on a TTY) |
+| `--name <NAME>` | Plugin name (required in non-interactive mode) |
 | `--engine <ENGINE>` | Target engine: `claude` (default), `copilot`, or `both` |
-| `--feature <FEATURE>` | Feature type to include (repeatable): `skill`, `agent`, `mcp`, `hook`, `output-style` (Claude only), `lsp` (Copilot only), `extension` (Copilot only) |
-| `-y, --yes` | Skip interactive prompts, use defaults |
+| `--feature <FEATURE>` | Feature type to include — repeatable (required in non-interactive mode) |
+| `-y, --yes` | Skip interactive prompts, accept defaults |
 | `--dir <DIR>` | Project directory (default: `.`) |
 
-Requires an initialised workspace (`aipm init` first). The command is idempotent — if the plugin directory already exists, it exits early without overwriting.
+**Available feature types:**
+
+| `--feature` value | Description | Claude | Copilot |
+|-------------------|-------------|:------:|:-------:|
+| `skill` | Prompt templates (`SKILL.md`) | ✓ | ✓ |
+| `agent` | Autonomous sub-agents | ✓ | ✓ |
+| `mcp` | MCP server configuration | ✓ | ✓ |
+| `hook` | Lifecycle event hooks | ✓ | ✓ |
+| `output-style` | Response formatting rules | ✓ | — |
+| `lsp` | Language Server integration | — | ✓ |
+| `extension` | Copilot extensions | — | ✓ |
+
+The command runs an **idempotent** action pipeline — re-running it on an existing plugin directory is safe and makes no changes.
+
+When run on a TTY without `--yes`, launches a two-phase interactive wizard (name + engine, then feature multi-select).
 
 ```bash
 # Interactive wizard
 aipm make plugin
 
-# Non-interactive skill plugin for Claude
-aipm make plugin --name my-skill --engine claude --feature skill -y
-
-# Composite plugin for both engines
-aipm make plugin --name shared-tools --engine both --feature skill --feature agent -y
+# Non-interactive examples
+aipm make plugin --name code-review --feature skill
+aipm make plugin --name dev-tools --engine claude --feature skill --feature agent
+aipm make plugin --name ide-helper --engine copilot --feature skill --feature lsp
 ```
 
-See also: [`docs/guides/make.md`](docs/guides/make.md) for full usage, feature support matrix, and scaffolded file structure.
+See also: [`docs/guides/make-plugin.md`](docs/guides/make-plugin.md) for a full walkthrough, feature matrix, and what gets created.
 
 ### `aipm lsp`
 
@@ -352,6 +375,7 @@ Shared library powering both CLIs. All logic lives here; the binaries are thin w
 | `security` | Configurable source allowlist with CI enforcement |
 | `logging` | Layered `tracing` subscriber initialization (stderr verbosity + rotating file log) |
 | `generate` | Centralised JSON generation for `marketplace.json`, `plugin.json`, and `settings.json` (unified read-modify-write helpers used by `workspace_init` and `migrate`) |
+| `make` | Idempotent plugin scaffolding pipeline (`aipm make plugin`) — orchestrates `generate`, `manifest`, and `init` into a 9-step action sequence |
 | `wizard` | Shared wizard types and theming for interactive CLI prompts; gated behind the `wizard` feature flag (required by `aipm` and `aipm-pack`) |
 | `frontmatter` | YAML front-matter parsing for plugin files |
 | `fs` | Trait-based filesystem abstraction (`Real` + test mocking) |
@@ -475,7 +499,7 @@ See [Editor schema support](docs/guides/configuring-lint.md#editor-schema-suppor
 
 ```
 crates/
-  aipm/         Consumer CLI binary (init, install, update, uninstall, link, unlink, list, lint, migrate, lsp)
+  aipm/         Consumer CLI binary (init, install, update, uninstall, link, unlink, list, lint, migrate, make, lsp)
   aipm-pack/    Author CLI binary (init)
   libaipm/      Core library (manifest, validation, migration, scaffolding, lint, install, link, resolve)
 vscode-aipm/    VS Code extension (lint diagnostics, completions, hover for aipm.toml)

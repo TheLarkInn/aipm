@@ -9,6 +9,7 @@ How-to guides for common tasks:
 | Guide | Description |
 |-------|-------------|
 | [Initializing a Workspace](guides/init.md) | Bootstrap a `.ai/` marketplace and tool settings with `aipm init` |
+| [Updating Plugins](guides/update.md) | Upgrade installed plugins with `aipm update` and understand the Cargo-model lockfile |
 | [Creating a Plugin](guides/creating-a-plugin.md) | Scaffold a new plugin package with `aipm-pack init` |
 | [Installing from Git](guides/install-git-plugin.md) | Install plugins from GitHub or any git repository |
 | [Installing from Local Paths](guides/install-local-plugin.md) | Install plugins from your local filesystem |
