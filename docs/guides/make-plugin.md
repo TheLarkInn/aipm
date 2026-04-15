@@ -127,7 +127,28 @@ For `--engine copilot --feature skill --feature lsp`:
     marketplace.json       # updated to include my-plugin
 ```
 
-Claude engine settings (`.claude/settings.json` at the project root) are updated automatically. Copilot settings support is deferred to a future release.
+For `--engine both --feature skill --feature agent`:
+
+```
+.ai/
+  shared-kit/
+    .claude-plugin/
+      plugin.json          # plugin metadata
+    skills/
+      shared-kit/
+        SKILL.md           # starter skill template
+    agents/
+      shared-kit.md        # agent definition
+  .claude-plugin/
+    marketplace.json       # updated to include shared-kit
+.claude/
+  settings.json            # updated: enabledPlugins["shared-kit@<marketplace>"] = true
+```
+
+> **Note:** `--engine both` updates `.claude/settings.json` the same way `--engine claude` does.
+> Copilot-specific settings (`.github/copilot/settings.json`) are not written — Copilot settings support is deferred to a future release.
+
+Claude engine settings (`.claude/settings.json` at the project root) are updated automatically for `--engine claude` and `--engine both`. Copilot settings support is deferred to a future release.
 
 ## Discovery
 
