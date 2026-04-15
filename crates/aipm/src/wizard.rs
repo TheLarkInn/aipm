@@ -970,4 +970,33 @@ mod tests {
             resolve_make_plugin_answers(&answers, Some("x"), None, &["skill".to_string()], &[]);
         assert_eq!(engine, "both");
     }
+
+    #[test]
+    fn resolve_defaults_marketplace_only() {
+        // workspace=false, marketplace=true: takes the else branch directly, covering
+        // the False branch of `!marketplace` in `if !workspace && !marketplace`.
+        assert_eq!(
+            resolve_defaults(false, true, false, None),
+            (false, true, false, "local-repo-plugins".to_string())
+        );
+    }
+
+    #[test]
+    fn format_steps_multi_select_shows_markers() {
+        // Covers the PromptKind::MultiSelect arm in format_steps(), including both the
+        // True branch (default=true → " *" marker) and the False branch (default=false).
+        let steps = vec![PromptStep {
+            label: "Choose features",
+            kind: PromptKind::MultiSelect {
+                options: vec!["Skills", "Agents", "MCP"],
+                defaults: vec![true, false, true],
+            },
+            help: None,
+        }];
+        let output = format_steps(&steps);
+        assert!(output.contains("Kind: MultiSelect"), "expected MultiSelect kind label");
+        assert!(output.contains(" *[0] Skills"), "index 0 should be pre-selected");
+        assert!(output.contains("  [1] Agents"), "index 1 should not be pre-selected");
+        assert!(output.contains(" *[2] MCP"), "index 2 should be pre-selected");
+    }
 }
