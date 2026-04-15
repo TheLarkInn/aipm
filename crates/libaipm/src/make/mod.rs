@@ -1037,4 +1037,40 @@ mod tests {
             "should not produce settings actions when marketplace_dir has no parent"
         );
     }
+
+    #[test]
+    fn make_plugin_both_engine_updates_settings() {
+        // Covers the `opts.engine == "both"` branch: the first condition
+        // (`opts.engine == "claude"`) is false but the second (`opts.engine == "both"`)
+        // is true, so `update_engine_settings` must still be called.
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "dual-plugin",
+            engine: "both",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        // "both" engine must produce a PluginEnabled settings action.
+        assert!(
+            result.actions.iter().any(|a| matches!(a, Action::PluginEnabled { .. })),
+            "expected PluginEnabled action for 'both' engine"
+        );
+
+        // Summary action should record engine = "both".
+        assert!(
+            result.actions.iter().any(|a| matches!(
+                a,
+                Action::PluginCreated { engine, .. } if engine == "both"
+            )),
+            "PluginCreated should record engine = 'both'"
+        );
+    }
 }
