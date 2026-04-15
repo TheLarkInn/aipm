@@ -19,14 +19,15 @@ The refactor introduces: (1) a `toml_edit`-based manifest builder replacing 4 in
 
 ### 2.1 Current State
 
-The aipm workspace is structured as three crates:
+The aipm workspace is structured as two crates:
 
 ```
 crates/
-  aipm/          — consumer CLI (init, install, update, link, uninstall, unlink, list, lint, migrate, lsp)
-  aipm-pack/     — author CLI (init only)
-  libaipm/       — core library (27 public modules, 95 source files)
+  aipm/          — consumer CLI (init, install, update, link, uninstall, unlink, list, lint, migrate, make, pack, lsp)
+  libaipm/       — core library (30+ public modules, 95+ source files)
 ```
+
+> **Note:** `aipm-pack` was a separate author CLI that has since been merged into `aipm` as `aipm pack init` — see [specs/2026-04-14-merge-pack-into-aipm.md](./2026-04-14-merge-pack-into-aipm.md). Any implementation tasks in this spec that reference `crates/aipm-pack/` should be interpreted as no longer applicable (the crate has been deleted).
 
 The codebase has strong foundations: six well-designed domain traits (`Fs`, `Rule`, `Detector`, `ToolAdaptor`, `Registry`, `Reporter`), modern Rust iterator patterns, proper `thiserror`-based error handling, and strict lint enforcement via `Cargo.toml`. Branch coverage is at 89%+.
 
@@ -73,7 +74,7 @@ However, as documented in the [DRY audit](../research/docs/2026-04-12-dry-rust-a
 - [ ] **G7.** Add `write_file_with_parents()` as a default method on the `Fs` trait, eliminating 6+ independent create-parent-then-write patterns
 - [ ] **G8.** Remove the legacy `check()` path from the `Rule` trait; all 18 rules use `check_file()` only
 - [ ] **G9.** Consolidate lint rule boilerplate: shared `locate_json_key()`, shared `diag()` helper, shared `check_file()` preamble
-- [ ] **G10.** Move wizard types (`PromptStep`, `PromptKind`, `PromptAnswer`, `styled_render_config`) to `libaipm`
+- [x] **G10.** Move wizard types (`PromptStep`, `PromptKind`, `PromptAnswer`, `styled_render_config`) to `libaipm` *(implemented as part of the aipm-pack merge — see [specs/2026-04-14-merge-pack-into-aipm.md](./2026-04-14-merge-pack-into-aipm.md))*
 - [ ] **G11.** Unify YAML frontmatter parsing — `migrate/skill_common.rs` delegates to `frontmatter.rs`
 - [ ] **G12.** Standardize error handling: dedicated `error.rs` for modules with 3+ variants, `#[from]` for 1:1 conversions, typed `CliError` enum in each binary
 - [ ] **G13.** Consolidate "read JSON/TOML, default on missing" into a shared helper
@@ -104,7 +105,6 @@ flowchart TB
 
     subgraph Binaries["CLI Binaries"]
         aipm["aipm CLI<br><i>+ CliError enum</i>"]:::refactored
-        aipmPack["aipm-pack CLI<br><i>+ CliError enum</i>"]:::refactored
     end
 
     subgraph LibAipm["libaipm (Core Library)"]
@@ -342,7 +342,6 @@ pub fn is_valid_name(name: &str, mode: ValidationMode) -> bool { /* ... */ }
 **Deleted after migration:**
 - `init.rs:99–128`: `is_valid_package_name()` + `is_valid_segment()` (duplicate of validate.rs)
 - `aipm/wizard.rs:211`: `validate_marketplace_name()` — calls `validate::is_valid_name(_, Interactive)` instead
-- `aipm-pack/wizard.rs:168`: `validate_package_name()` — calls `validate::is_valid_name(_, Interactive)` instead
 
 #### 5.1.4 Standardize Error Handling Convention
 
@@ -352,7 +351,7 @@ pub fn is_valid_name(name: &str, mode: ValidationMode) -> bool { /* ... */ }
 2. **`#[from]`** for 1:1 error conversions (e.g., `io::Error` → `MyError::Io`). Explicit `.map_err()` only when adding context.
 3. **Typed `CliError` enum** in each binary, replacing `Box<dyn std::error::Error>`.
 
-**New file:** `crates/aipm/src/error.rs`
+**`crates/aipm/src/error.rs`** *(already implemented — this file exists)*
 
 ```rust
 use thiserror::Error;
@@ -375,19 +374,9 @@ pub enum CliError {
 }
 ```
 
-**New file:** `crates/aipm-pack/src/error.rs`
+> **Note:** The `aipm-pack` crate has been merged into `aipm` — there is no `crates/aipm-pack/src/error.rs` to create. The `aipm` binary already has a typed `CliError` enum at `crates/aipm/src/error.rs`.
 
-```rust
-#[derive(Debug, Error)]
-pub enum CliError {
-    #[error(transparent)]
-    Init(#[from] libaipm::init::InitError),
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-}
-```
-
-**Migration:** The `run()` functions in both `main.rs` files change from `Result<(), Box<dyn std::error::Error>>` to `Result<(), CliError>`. The ~15 `.to_string()` + `io::Error::other()` conversions in `aipm/src/main.rs` are replaced with `?` propagation through `#[from]` conversions.
+**Migration:** The `run()` function in `aipm/main.rs` changes from `Result<(), Box<dyn std::error::Error>>` to `Result<(), CliError>`. The ~15 `.to_string()` + `io::Error::other()` conversions in `aipm/src/main.rs` are replaced with `?` propagation through `#[from]` conversions.
 
 ---
 
@@ -649,17 +638,17 @@ inquire = { workspace = true, optional = true }
 ```
 
 ```toml
-# crates/aipm/Cargo.toml and crates/aipm-pack/Cargo.toml
+# crates/aipm/Cargo.toml
 libaipm = { path = "../libaipm", features = ["wizard"] }
 ```
 
 The `wizard` module and all its types are gated with `#[cfg(feature = "wizard")]`. This keeps `libaipm` usable as a pure library without terminal UI dependencies for any future non-CLI consumer (e.g., a library crate or server process that calls `libaipm` directly).
 
+**Status:** This goal is **implemented** — `libaipm::wizard` exists, and `crates/aipm/src/wizard.rs` re-exports from it. The `aipm-pack` crate has been removed (merged into `aipm`).
+
 **Refactored:**
 - `crates/aipm/src/wizard.rs` — imports `libaipm::wizard::*`, keeps only CLI-specific prompt sequences
-- `crates/aipm-pack/src/wizard.rs` — imports `libaipm::wizard::*`, keeps only CLI-specific prompt sequences
 - `crates/aipm/src/wizard_tty.rs` — unchanged (TTY-specific logic stays in binary)
-- `crates/aipm-pack/src/wizard_tty.rs` — unchanged
 
 **Deleted from binary wizard files:**
 - `PromptStep`, `PromptKind`, `PromptAnswer` struct/enum definitions (both copies)
