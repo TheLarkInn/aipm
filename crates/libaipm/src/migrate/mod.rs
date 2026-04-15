@@ -1233,4 +1233,36 @@ mod tests {
             "expected a DryRunReport action in recursive dry-run mode"
         );
     }
+
+    #[test]
+    fn migrate_recursive_non_dry_run_no_artifacts_succeeds() {
+        // Covers the `if dry_run` False branch in `migrate_recursive` (the actual
+        // migration path). With no artifacts detected, `emit_and_register` is called
+        // with an empty plan list and returns Ok with no actions.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let project_dir = tmp.path();
+
+        // `.ai/` must exist so `collect_existing_plugin_names` can read it
+        std::fs::create_dir_all(project_dir.join(".ai")).expect("create .ai");
+        // `.claude/` must exist so `discover_source_dirs` finds a source to scan
+        std::fs::create_dir_all(project_dir.join(".claude")).expect("create .claude");
+
+        let opts = Options {
+            dir: project_dir,
+            source: None,   // triggers migrate_recursive
+            dry_run: false, // exercises the False branch of `if dry_run`
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+
+        let result = migrate(&opts, &crate::fs::Real);
+        assert!(result.is_ok(), "migrate should succeed with no artifacts");
+        let outcome = result.expect("migrate should succeed");
+        // No artifacts means no PluginCreated or MarketplaceRegistered actions
+        assert!(
+            !outcome.actions.iter().any(|a| matches!(a, Action::PluginCreated { .. })),
+            "expected no PluginCreated actions when source is empty"
+        );
+    }
 }
