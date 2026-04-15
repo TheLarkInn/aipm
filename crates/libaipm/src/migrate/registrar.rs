@@ -373,4 +373,28 @@ mod tests {
         // Nothing should have been written either.
         assert!(fs.get_written(&marketplace_path()).is_none());
     }
+
+    #[test]
+    fn mock_write_file_non_utf8_skips_files_map_update() {
+        // Exercises the Err branch of `if let Ok(s) = String::from_utf8(content.to_vec())`
+        // inside MockFs::write_file. When the content is not valid UTF-8, from_utf8 returns
+        // Err and the string-based `files` map is not updated (the branch body is skipped).
+        // The raw bytes are still stored in the `written` map as expected.
+        let fs = MockFs::new();
+        let path = PathBuf::from("/binary.bin");
+        let non_utf8: &[u8] = &[0xFF, 0xFE, 0xFD]; // invalid UTF-8 byte sequence
+
+        let result = crate::fs::Fs::write_file(&fs, &path, non_utf8);
+        assert!(result.is_ok(), "write_file should succeed even for non-UTF-8 content");
+
+        // The raw bytes are stored in `written`.
+        let stored = fs.written.lock().unwrap().get(&path).cloned();
+        assert_eq!(stored.as_deref(), Some(non_utf8), "written map should hold the raw bytes");
+
+        // The `files` map is NOT updated because String::from_utf8 fails.
+        assert!(
+            fs.files.lock().unwrap().get(&path).is_none(),
+            "files map must not be updated for non-UTF-8 content"
+        );
+    }
 }
