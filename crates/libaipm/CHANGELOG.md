@@ -1,6 +1,15 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.22.2] - 2026-04-15
+
+### Testing
+- Cover empty-slice branch in insert_string_array (3435d55)
+- Cover recursive migration and OtherFileMigrated branches (ae08c43)
+- Cover non-UTF-8 branch in MockFs::write_file (a448676)
+- Cover migrate_recursive non-dry-run path (e4df747)
+- Cover engine=\"both\" branch in make_plugin (e8715d7)
+
 ## [0.22.1] - 2026-04-14
 
 ### Documentation
