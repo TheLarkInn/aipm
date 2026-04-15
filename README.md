@@ -285,6 +285,7 @@ aipm make plugin
 aipm make plugin --name code-review --feature skill
 aipm make plugin --name dev-tools --engine claude --feature skill --feature agent
 aipm make plugin --name ide-helper --engine copilot --feature skill --feature lsp
+aipm make plugin --name shared-kit --engine both --feature skill --feature agent --feature mcp
 ```
 
 See also: [`docs/guides/make-plugin.md`](docs/guides/make-plugin.md) for a full walkthrough, feature matrix, and what gets created.
