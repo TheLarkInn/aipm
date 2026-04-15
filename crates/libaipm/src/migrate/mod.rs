@@ -1265,4 +1265,107 @@ mod tests {
             "expected no PluginCreated actions when source is empty"
         );
     }
+
+    #[test]
+    fn migrate_recursive_root_skill_attaches_other_files_to_first_plan() {
+        // Covers the `if let Some(first) = plans.first_mut()` True branch (line 444)
+        // and the `else if let Some(artifact) = plan.artifacts.first()` True branch
+        // (line 528) in `migrate_recursive`.
+        //
+        // When .claude/ is at the project root (package_name = None), each artifact
+        // becomes its own PluginPlan. With a real skill file, plans is non-empty,
+        // so plans.first_mut() returns Some and other_files are attached.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let project_dir = tmp.path();
+
+        // Initialise .ai/ with a valid marketplace.json so registrar can update it.
+        let ai_dir = project_dir.join(".ai");
+        let claude_plugin_dir = ai_dir.join(".claude-plugin");
+        std::fs::create_dir_all(&claude_plugin_dir).expect("create .ai/.claude-plugin");
+        std::fs::write(
+            claude_plugin_dir.join("marketplace.json"),
+            crate::generate::marketplace::create("test-marketplace", &[]),
+        )
+        .expect("write marketplace.json");
+
+        // Create a skill so that detection yields at least one artifact.
+        let skill_dir = project_dir.join(".claude").join("skills").join("my-skill");
+        std::fs::create_dir_all(&skill_dir).expect("create skill dir");
+        std::fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: my-skill\ndescription: Test skill\n---\nDo something",
+        )
+        .expect("write SKILL.md");
+
+        let opts = Options {
+            dir: project_dir,
+            source: None,
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+
+        let result = migrate(&opts, &crate::fs::Real);
+        assert!(result.is_ok(), "migrate should succeed");
+        let outcome = result.expect("migrate should succeed");
+        assert!(
+            outcome.actions.iter().any(|a| matches!(a, Action::PluginCreated { .. })),
+            "expected PluginCreated action for root-level skill"
+        );
+    }
+
+    #[test]
+    fn migrate_recursive_package_scoped_source_triggers_is_package_scoped() {
+        // Covers the `if let Some(ref pkg_name) = src.package_name` True branch
+        // (line 421) and the `if plan.is_package_scoped` True branch (line 519)
+        // in `migrate_recursive`.
+        //
+        // When .claude/ is inside a subdirectory (e.g., mypkg/.claude/), the
+        // discovery assigns package_name = Some("mypkg"), which routes to the
+        // package-scoped branch: all artifacts from that source are grouped under
+        // one PluginPlan named "mypkg".
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let project_dir = tmp.path();
+
+        // Initialise .ai/ with a valid marketplace.json.
+        let ai_dir = project_dir.join(".ai");
+        let claude_plugin_dir = ai_dir.join(".claude-plugin");
+        std::fs::create_dir_all(&claude_plugin_dir).expect("create .ai/.claude-plugin");
+        std::fs::write(
+            claude_plugin_dir.join("marketplace.json"),
+            crate::generate::marketplace::create("test-marketplace", &[]),
+        )
+        .expect("write marketplace.json");
+
+        // Place .claude/ inside a subdirectory so package_name becomes Some("mypkg").
+        let skill_dir = project_dir.join("mypkg").join(".claude").join("skills").join("pkg-skill");
+        std::fs::create_dir_all(&skill_dir).expect("create nested skill dir");
+        std::fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: pkg-skill\ndescription: Package skill\n---\nDo something",
+        )
+        .expect("write SKILL.md");
+
+        let opts = Options {
+            dir: project_dir,
+            source: None,
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+
+        let result = migrate(&opts, &crate::fs::Real);
+        assert!(result.is_ok(), "migrate should succeed");
+        let outcome = result.expect("migrate should succeed");
+        // The package-scoped plan name is "mypkg" (from the parent directory).
+        assert!(
+            outcome.actions.iter().any(|a| matches!(
+                a,
+                Action::PluginCreated { name, .. } if name == "mypkg"
+            )),
+            "expected PluginCreated with name 'mypkg' for package-scoped migration"
+        );
+    }
 }
