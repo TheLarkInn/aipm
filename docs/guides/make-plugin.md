@@ -49,7 +49,7 @@ Specifying `--engine both` makes all seven feature types available.
 `aipm make plugin` runs an **idempotent 9-step action pipeline**:
 
 1–2. Guard — checks whether the plugin directory already exists; if found, records `Already exists: <path>` and returns immediately without making further changes.
-3. Create the plugin directory (`.ai/<marketplace>/<name>/`).
+3. Create the plugin directory (`.ai/<name>/`).
 4. Create the `.claude-plugin/` metadata subdirectory.
 5. Scaffold each requested feature (creates subdirectories and starter files).
 6. Generate and write `plugin.json`.
