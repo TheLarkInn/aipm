@@ -3906,6 +3906,35 @@ mod tests {
     }
 
     #[test]
+    fn copy_referenced_scripts_dest_without_parent_skips_create_dir() {
+        // When a referenced_script is an absolute path ("/"), joining it with `scripts_dir`
+        // produces "/" itself (absolute path overrides the base). "/" has no parent, so the
+        // `if let Some(parent) = dest.parent()` check evaluates to None — covering the
+        // previously-untested False branch in `copy_referenced_scripts`.
+        let mut fs = MockFs::new();
+        // "/" is both the source resolved by `source_path.join("/")` and the dest.
+        fs.files.insert(PathBuf::from("/"), "#!/bin/sh\necho hello".to_string());
+        fs.exists.insert(PathBuf::from("/"));
+
+        let artifact = Artifact {
+            kind: ArtifactKind::Skill,
+            name: "deploy".to_string(),
+            source_path: PathBuf::from("/src/skills/deploy"),
+            files: Vec::new(),
+            referenced_scripts: vec![PathBuf::from("/")],
+            metadata: ArtifactMetadata {
+                name: Some("deploy".to_string()),
+                ..ArtifactMetadata::default()
+            },
+        };
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, false, &fs);
+        assert!(result.is_ok(), "emit_plugin should succeed when dest has no parent: {result:?}");
+    }
+
+    #[test]
     fn emit_other_files_returns_error_on_read_failure() {
         // OtherFile where path is "regular" (is_file=true via fail_read_path) but read fails.
         let mut fs = MockFs::new();
