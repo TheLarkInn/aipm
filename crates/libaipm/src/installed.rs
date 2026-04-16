@@ -699,4 +699,15 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(result.unwrap_or_default(), "github:owner/repo:shared-plugin");
     }
+
+    #[test]
+    fn install_unparseable_spec_skips_conflict_check() {
+        // Covers the `Err(_) => return Ok(())` branch in `check_name_conflicts`:
+        // when the spec string cannot be parsed as a `Spec`, the name-conflict
+        // check is skipped and the install succeeds without error.
+        let mut registry = Registry::default();
+        // A spec string containing a space fails `Spec::from_str`.
+        let result = registry.install("invalid spec string".to_string(), &[], None, None);
+        assert!(result.is_ok());
+    }
 }
