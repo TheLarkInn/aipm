@@ -798,6 +798,112 @@ mod tests {
         );
     }
 
+    /// Covers the `if is_empty` True branch in `acquire_git`: when the
+    /// sub-path directory exists in the clone but contains no files (e.g. it is
+    /// an uninitialised git submodule), `acquire_git` returns
+    /// `Error::EmptyDirectory`.
+    ///
+    /// This is achieved by creating a parent repo whose tree contains a gitlink
+    /// entry (submodule pointer) at `plugins/empty-plugin/`.  When the parent is
+    /// cloned without `--recurse-submodules` (the default), git creates an empty
+    /// directory at that path — triggering the `is_empty` check.
+    #[test]
+    fn acquire_git_empty_subpath_returns_empty_directory_error() {
+        // --- build the submodule repo ----------------------------------------
+        let sub_temp = make_temp();
+        let sub_src = sub_temp.path();
+
+        let sub_git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(sub_src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+
+        let Ok(init) = sub_git(&["init", "-b", "main"]) else { return };
+        if !init.status.success() {
+            return;
+        }
+        std::fs::write(sub_src.join("stub.txt"), "stub").unwrap_or_else(|_| {});
+        let _ = sub_git(&["add", "."]);
+        let _ = sub_git(&["commit", "-m", "stub"]);
+
+        // Capture the submodule HEAD SHA for the gitlink entry.
+        let sha_output =
+            sub_git(&["rev-parse", "HEAD"]).unwrap_or_else(|_| return std::process::abort());
+        if !sha_output.status.success() {
+            return;
+        }
+        let sub_sha = String::from_utf8_lossy(&sha_output.stdout).trim().to_string();
+        if sub_sha.is_empty() {
+            return;
+        }
+
+        // --- build the parent repo with a manual submodule entry -------------
+        let parent_temp = make_temp();
+        let parent_src = parent_temp.path();
+
+        let parent_git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(parent_src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+
+        let Ok(init) = parent_git(&["init", "-b", "main"]) else { return };
+        if !init.status.success() {
+            return;
+        }
+
+        // Write .gitmodules so git knows where the submodule lives.
+        let gitmodules = format!(
+            "[submodule \"plugins/empty-plugin\"]\n\tpath = plugins/empty-plugin\n\turl = {}\n",
+            sub_src.display()
+        );
+        std::fs::write(parent_src.join(".gitmodules"), &gitmodules).unwrap_or_else(|_| {});
+
+        // Register the gitlink (mode 160000) directly in the index.
+        let cacheinfo = format!("160000,{sub_sha},plugins/empty-plugin");
+        let Ok(idx) = parent_git(&["update-index", "--add", "--cacheinfo", &cacheinfo]) else {
+            return;
+        };
+        if !idx.status.success() {
+            return;
+        }
+
+        let _ = parent_git(&["add", ".gitmodules"]);
+        let Ok(commit) = parent_git(&["commit", "-m", "add submodule"]) else { return };
+        if !commit.status.success() {
+            return;
+        }
+
+        // --- clone the parent (no --recurse-submodules) ----------------------
+        // git creates plugins/empty-plugin/ as an empty directory because the
+        // submodule is not initialised.
+        let dest_temp = make_temp();
+        let sub_path =
+            ValidatedPath::new("plugins/empty-plugin").unwrap_or_else(|_| std::process::abort());
+        let git_source = crate::spec::GitSource {
+            url: parent_src.to_string_lossy().to_string(),
+            path: Some(sub_path),
+            git_ref: None,
+        };
+
+        let result = acquire_git(&git_source, dest_temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::EmptyDirectory { .. })),
+            "expected EmptyDirectory for uninitialised submodule path, got: {result:?}"
+        );
+    }
+
     /// Covers the `!sub.is_dir()` True branch (block 1, branch 2) at line 129:
     /// when the specified path exists in the clone but is a file rather than a
     /// directory, `acquire_git` returns `Error::PathNotFound`.
