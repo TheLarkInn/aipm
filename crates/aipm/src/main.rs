@@ -349,7 +349,7 @@ fn home_store_path() -> Result<PathBuf, error::CliError> {
 /// Format: `YYYY-MM-DDTHH:MM:SSZ` (UTC, second precision).
 fn timestamp_now() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
-    let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let secs = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
     // Convert Unix seconds to a basic UTC datetime string
     let s = secs % 60;
     let m = (secs / 60) % 60;

@@ -120,13 +120,7 @@ pub fn resolve_workspace_answers(
     let no_starter = if marketplace_possible && !flag_no_starter {
         // There was a confirm prompt
         match answers.get(idx) {
-            Some(PromptAnswer::Bool(include)) => {
-                if do_marketplace {
-                    !include
-                } else {
-                    false
-                }
-            },
+            Some(PromptAnswer::Bool(include)) if do_marketplace => !include,
             _ => false,
         }
     } else {
