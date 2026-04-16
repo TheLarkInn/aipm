@@ -904,6 +904,175 @@ mod tests {
         );
     }
 
+    /// Covers the `if let Some(redirect)` False branch of `acquire_with_redirect`
+    /// (line 241): when the acquired plugin has no `aipm.toml` redirect, the
+    /// function returns the cloned plugin path directly.
+    #[test]
+    fn acquire_with_redirect_no_redirect() {
+        let source_temp = make_temp();
+        let src = source_temp.path();
+
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+
+        let Ok(init) = git(&["init", "-b", "main"]) else { return };
+        if !init.status.success() {
+            return;
+        }
+        std::fs::create_dir_all(src.join(".claude-plugin")).unwrap();
+        std::fs::write(src.join(".claude-plugin/plugin.json"), "{}").unwrap();
+        git(&["add", "."]).unwrap();
+        git(&["commit", "-m", "init"]).unwrap();
+
+        let dest_temp = make_temp();
+        let git_source = crate::spec::GitSource {
+            url: src.to_string_lossy().to_string(),
+            path: None,
+            git_ref: None,
+        };
+
+        let result = acquire_with_redirect(&git_source, dest_temp.path(), Engine::Claude);
+        assert!(result.is_ok(), "expected Ok with no redirect, got: {result:?}");
+        let plugin_path = result.unwrap();
+        assert!(plugin_path.join(".claude-plugin/plugin.json").exists());
+    }
+
+    /// Covers the `if let Some(redirect)` True branch and the inner
+    /// `check_source_redirect(&redirected_path).is_some()` False branch of
+    /// `acquire_with_redirect` (lines 241 and 248): when the stub plugin has an
+    /// `aipm.toml` redirect, the function follows it and returns the real plugin.
+    #[test]
+    fn acquire_with_redirect_follows_redirect() {
+        // Build the "real" plugin repo.
+        let real_temp = make_temp();
+        let real_src = real_temp.path();
+
+        let real_git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(real_src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+
+        let Ok(init) = real_git(&["init", "-b", "main"]) else { return };
+        if !init.status.success() {
+            return;
+        }
+        std::fs::create_dir_all(real_src.join(".claude-plugin")).unwrap();
+        std::fs::write(real_src.join(".claude-plugin/plugin.json"), "{}").unwrap();
+        std::fs::write(real_src.join("REAL.md"), "real plugin").unwrap();
+        real_git(&["add", "."]).unwrap();
+        real_git(&["commit", "-m", "real"]).unwrap();
+
+        // Build the "stub" plugin repo that redirects to the real plugin.
+        let stub_temp = make_temp();
+        let stub_src = stub_temp.path();
+
+        let stub_git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(stub_src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+
+        let Ok(stub_init) = stub_git(&["init", "-b", "main"]) else { return };
+        if !stub_init.status.success() {
+            return;
+        }
+        // Valid plugin structure so acquire_git can validate it.
+        std::fs::create_dir_all(stub_src.join(".claude-plugin")).unwrap();
+        std::fs::write(stub_src.join(".claude-plugin/plugin.json"), "{}").unwrap();
+        // Redirect manifest pointing at the real plugin repo.
+        let redirect_toml = format!(
+            "[package]\nname = \"stub\"\nversion = \"0.0.0\"\n\
+             [package.source]\ntype = \"git\"\nurl = \"{}\"\n",
+            real_src.display()
+        );
+        std::fs::write(stub_src.join("aipm.toml"), &redirect_toml).unwrap();
+        stub_git(&["add", "."]).unwrap();
+        stub_git(&["commit", "-m", "stub"]).unwrap();
+
+        let dest_temp = make_temp();
+        let git_source = crate::spec::GitSource {
+            url: stub_src.to_string_lossy().to_string(),
+            path: None,
+            git_ref: None,
+        };
+
+        let result = acquire_with_redirect(&git_source, dest_temp.path(), Engine::Claude);
+        assert!(result.is_ok(), "expected Ok after following redirect, got: {result:?}");
+        // The returned path should be the real plugin (contains REAL.md).
+        let plugin_path = result.unwrap();
+        assert!(plugin_path.join("REAL.md").exists(), "expected REAL.md in redirected plugin");
+    }
+
+    /// Covers the `check_source_redirect(&redirected_path).is_some()` True branch
+    /// of `acquire_with_redirect` (line 248): when the redirected plugin also has
+    /// a `[package.source]` redirect, the function returns `Error::RedirectLoop`.
+    #[test]
+    fn acquire_with_redirect_redirect_loop() {
+        // A plugin repo that redirects to itself — a minimal two-hop loop.
+        let repo_temp = make_temp();
+        let repo_src = repo_temp.path();
+
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(repo_src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+
+        let Ok(init) = git(&["init", "-b", "main"]) else { return };
+        if !init.status.success() {
+            return;
+        }
+        // Valid plugin structure.
+        std::fs::create_dir_all(repo_src.join(".claude-plugin")).unwrap();
+        std::fs::write(repo_src.join(".claude-plugin/plugin.json"), "{}").unwrap();
+        // Self-referential redirect.
+        let redirect_toml = format!(
+            "[package]\nname = \"looping\"\nversion = \"0.0.0\"\n\
+             [package.source]\ntype = \"git\"\nurl = \"{}\"\n",
+            repo_src.display()
+        );
+        std::fs::write(repo_src.join("aipm.toml"), &redirect_toml).unwrap();
+        git(&["add", "."]).unwrap();
+        git(&["commit", "-m", "loop"]).unwrap();
+
+        let dest_temp = make_temp();
+        let git_source = crate::spec::GitSource {
+            url: repo_src.to_string_lossy().to_string(),
+            path: None,
+            git_ref: None,
+        };
+
+        let result = acquire_with_redirect(&git_source, dest_temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::RedirectLoop)),
+            "expected RedirectLoop error, got: {result:?}"
+        );
+    }
+
     /// Covers the `!sub.is_dir()` True branch (block 1, branch 2) at line 129:
     /// when the specified path exists in the clone but is a file rather than a
     /// directory, `acquire_git` returns `Error::PathNotFound`.
