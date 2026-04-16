@@ -4022,4 +4022,35 @@ mod tests {
             actions.len()
         );
     }
+
+    /// Covers the `None` branch of `if let Some(parent) = dest.parent()` at
+    /// line 788 in `emit_other_files`.
+    ///
+    /// When an associated file's `relative_path` is an absolute path (e.g. `/`),
+    /// `plugin_dir.join("/")` evaluates to `/` on Unix, and `Path::new("/").parent()`
+    /// returns `None` — so `create_dir_all` is silently skipped.
+    #[test]
+    fn emit_other_files_associated_with_root_relative_path_skips_create_dir() {
+        let fs = MockFs::new();
+        // relative_path "/" causes plugin_dir.join("/") = "/" on Unix → parent = None.
+        let other_file = OtherFile {
+            path: PathBuf::from("/nonexistent/file.txt"),
+            relative_path: PathBuf::from("/"),
+            associated_artifact: Some("my-plugin".to_string()),
+            is_external: false,
+        };
+
+        let result = emit_other_files(&[other_file], Path::new("/ai/plugin"), &fs);
+        // The function must succeed and emit exactly one OtherFileMigrated action.
+        assert!(result.is_ok(), "emit_other_files should succeed: {:?}", result.err());
+        let actions = result.ok().unwrap_or_default();
+        assert_eq!(actions.len(), 1);
+        // Destination resolves to "/" because an absolute relative_path overrides base.
+        assert!(
+            matches!(&actions[0], Action::OtherFileMigrated { destination, .. }
+                if *destination == PathBuf::from("/")),
+            "expected destination '/', got: {:?}",
+            actions
+        );
+    }
 }
