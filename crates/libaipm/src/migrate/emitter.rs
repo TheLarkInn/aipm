@@ -4053,4 +4053,31 @@ mod tests {
             actions
         );
     }
+
+    /// Covers the `True` branch of `if !is_safe_path_segment(&artifact.name)` at
+    /// line 39 in `emit_plugin`: an artifact whose name contains a path separator or
+    /// is `".."` is rejected with a `Skipped` action instead of being emitted.
+    #[test]
+    fn emit_plugin_unsafe_name_is_skipped() {
+        let fs = MockFs::new();
+        let existing = HashSet::new();
+        let mut counter = 0u32;
+
+        // ".." is not a safe path segment — triggers the unsafe-name guard.
+        let artifact = Artifact {
+            kind: ArtifactKind::Skill,
+            name: "..".to_string(),
+            source_path: PathBuf::from("/src/skills/evil"),
+            files: Vec::new(),
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata::default(),
+        };
+
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, false, &fs);
+        assert!(result.is_ok(), "emit_plugin should return Ok even for unsafe names");
+        let (name, actions) = result.ok().unwrap_or_else(|| ("".to_string(), Vec::new()));
+        assert_eq!(name, "..");
+        assert_eq!(actions.len(), 1, "expected exactly one Skipped action");
+        assert!(fs.written.lock().expect("mutex").is_empty(), "no files should be written");
+    }
 }
