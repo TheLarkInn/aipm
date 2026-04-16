@@ -139,8 +139,7 @@ pub fn acquire_git(source: &GitSource, dest_dir: &Path, engine: Engine) -> Resul
     };
 
     // Check for empty directory
-    let is_empty =
-        std::fs::read_dir(&plugin_source).map(|mut d| d.next().is_none()).unwrap_or(true);
+    let is_empty = std::fs::read_dir(&plugin_source).map_or(true, |mut d| d.next().is_none());
     if is_empty {
         let _ = std::fs::remove_dir_all(&temp_clone);
         return Err(Error::EmptyDirectory {

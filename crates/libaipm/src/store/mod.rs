@@ -144,7 +144,7 @@ impl Store {
     ///
     /// Returns `false` for invalid hashes instead of erroring.
     pub fn has_content(&self, hash: &str) -> bool {
-        layout::hash_to_path(&self.store_path, hash).map(|p| p.exists()).unwrap_or(false)
+        layout::hash_to_path(&self.store_path, hash).is_ok_and(|p| p.exists())
     }
 
     /// Hard-link a stored file to a target path.

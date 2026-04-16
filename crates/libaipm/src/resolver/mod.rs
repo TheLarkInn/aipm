@@ -1598,4 +1598,47 @@ mod tests {
         // the pin satisfies ^1.1 (it doesn't), and continues — exhausting all choices.
         assert!(matches!(result, Err(Error::Conflict(_))));
     }
+
+    #[test]
+    fn resolve_shared_transitive_dep_unifies_compatible_versions() {
+        // Covers the False branch of `if !req.matches(&existing.version)` in
+        // `resolve_dep` (the "same major, compatible — unified" path).
+        //
+        // When two packages share a transitive dependency with compatible same-major
+        // requirements, the resolver should unify on the already-activated version
+        // rather than conflict or re-activate.
+        //
+        // Setup:
+        //   plugin-a 1.0.0 → depends on shared-lib ^1.0
+        //   plugin-b 1.0.0 → depends on shared-lib ^1.0
+        //   shared-lib 1.0.0 (only available version)
+        //
+        // After activating shared-lib via plugin-a's dep, the second encounter of
+        // shared-lib ^1.0 (from plugin-b) hits the existing-activation check.
+        // `^1.0.matches(1.0.0)` is true, so `!req.matches(...)` is false → unify.
+        let mut reg = MockRegistry::new();
+        reg.add_package("plugin-a", vec![("1.0.0", vec![dep("shared-lib", "^1.0")])]);
+        reg.add_package("plugin-b", vec![("1.0.0", vec![dep("shared-lib", "^1.0")])]);
+        reg.add_package("shared-lib", vec![("1.0.0", vec![])]);
+
+        let deps = vec![root_dep("plugin-a", "^1.0"), root_dep("plugin-b", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg);
+
+        assert!(result.is_ok(), "diamond dep with compatible versions should resolve: {result:?}");
+        let resolved = match result {
+            Ok(r) => r,
+            Err(_) => return,
+        };
+
+        // shared-lib should appear exactly once (unified, not duplicated)
+        let shared_count = resolved.packages.iter().filter(|p| p.name == "shared-lib").count();
+        assert_eq!(shared_count, 1, "shared-lib should be unified to a single resolution");
+
+        let shared = resolved.packages.iter().find(|p| p.name == "shared-lib");
+        assert_eq!(
+            shared.map(|p| p.version.to_string()).as_deref(),
+            Some("1.0.0"),
+            "shared-lib should resolve to 1.0.0"
+        );
+    }
 }

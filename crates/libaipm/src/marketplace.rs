@@ -550,4 +550,13 @@ source = "hello"
         assert!(manifest.find_plugin("Hello").is_some());
         assert!(manifest.find_plugin("hello").is_none());
     }
+
+    #[test]
+    fn must_parse_invalid_toml_returns_empty_manifest() {
+        // Covers the `Err(_)` arm of `must_parse` — invalid TOML should
+        // silently produce an empty manifest rather than panicking.
+        let manifest = must_parse("{{this is not valid toml}}");
+        assert!(manifest.plugins.is_empty());
+        assert!(manifest.metadata.is_none());
+    }
 }
