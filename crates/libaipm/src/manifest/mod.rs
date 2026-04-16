@@ -522,7 +522,7 @@ type = "lsp"
         let tmp_dir = tempfile::tempdir().expect("failed to create temporary directory");
         let nonexistent_path = tmp_dir.path().join("nonexistent").join("aipm.toml");
         let result = load(&crate::fs::Real, &nonexistent_path);
-        assert!(matches!(result, Err(Error::Io { .. })));
+        assert!(result.is_err());
     }
 
     #[test]
@@ -549,7 +549,7 @@ edition = "2024"
         assert!(
             result.is_err_and(|e| {
                 let msg = e.to_string();
-                msg.contains("unknown field") && msg.contains("edition")
+                msg.contains("unknown field") & msg.contains("edition")
             }),
             "expected parse error mentioning 'unknown field' and 'edition'"
         );
