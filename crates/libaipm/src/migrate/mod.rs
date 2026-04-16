@@ -1454,4 +1454,48 @@ mod tests {
             "expected OtherFileMigrated action when non-artifact files exist in recursive mode"
         );
     }
+
+    /// Exercises the `None` (False) branch of
+    /// `if let Some(first_entry) = registered_entries.first()` (line 371).
+    ///
+    /// When a source directory contains only non-artifact files (so no artifacts
+    /// are detected and `registered_entries` stays empty) but the reconciler still
+    /// produces `other_files`, the `if let Some(...)` evaluates to `None` and the
+    /// other-file emission is silently skipped.
+    #[test]
+    fn migrate_other_files_skipped_when_no_artifacts() {
+        let mut fs = MockFs::new();
+        // .ai/ must exist for the initial marketplace check
+        fs.exists.insert(PathBuf::from("/project/.ai"));
+        // Source dir must exist so migrate_single_source doesn't return SourceNotFound
+        fs.exists.insert(PathBuf::from("/project/.vscode"));
+        // Source dir has one plain file that no detector will claim
+        fs.dirs.insert(
+            PathBuf::from("/project/.vscode"),
+            vec![crate::fs::DirEntry { name: "workspace.txt".to_string(), is_dir: false }],
+        );
+        // .ai/ dir listing needed by collect_existing_plugin_names
+        fs.dirs.insert(PathBuf::from("/project/.ai"), Vec::new());
+
+        let opts = Options {
+            dir: Path::new("/project"),
+            source: Some(".vscode"),
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        // ".vscode" is an unknown source type → falls back to all detectors, none of
+        // which find any artifacts → registered_entries is empty → other_files has
+        // workspace.txt → if let Some(first_entry) = registered_entries.first() is None.
+        let result = migrate(&opts, &fs);
+        assert!(result.is_ok(), "migrate should succeed even with no artifacts");
+        // No OtherFileMigrated because registered_entries was empty (nowhere to put them)
+        assert!(
+            result.ok().is_some_and(|o| {
+                !o.actions.iter().any(|a| matches!(a, Action::OtherFileMigrated { .. }))
+            }),
+            "other-file emission should be skipped when there are no registered plugins"
+        );
+    }
 }
