@@ -76,8 +76,8 @@ aipm init [OPTIONS] [DIR]
 When run on a TTY without `--yes`, launches an interactive wizard.
 
 **What it creates:**
-- `.ai/<marketplace-name>/` — local marketplace directory
-- `.ai/<marketplace-name>/starter-aipm-plugin/` — starter skill plugin (unless `--no-starter`)
+- `.ai/` — local marketplace directory
+- `.ai/starter-aipm-plugin/` — starter plugin (unless `--no-starter`)
 - `.claude/settings.json` — Claude Code marketplace registration (created/merged at project root)
 - `aipm.toml` — workspace manifest (with `--workspace`)
 
