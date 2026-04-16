@@ -1368,4 +1368,55 @@ mod tests {
             "expected PluginCreated with name 'mypkg' for package-scoped migration"
         );
     }
+
+    #[test]
+    fn migrate_recursive_other_files_emitted_via_emit_and_register() {
+        // Covers the `if !plan.other_files.is_empty()` True branch (line 535)
+        // inside `emit_and_register`, which is only reached via `migrate_recursive`
+        // (i.e. `source: None`). When the root `.claude/` directory contains both
+        // a skill artifact and a non-artifact file (e.g. README.md), the reconciler
+        // assigns the extra file to `plan.other_files`, triggering the branch.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let project_dir = tmp.path();
+
+        // Initialise .ai/ with a valid marketplace.json so registrar can update it.
+        let ai_dir = project_dir.join(".ai");
+        let claude_plugin_dir = ai_dir.join(".claude-plugin");
+        std::fs::create_dir_all(&claude_plugin_dir).expect("create .ai/.claude-plugin");
+        std::fs::write(
+            claude_plugin_dir.join("marketplace.json"),
+            crate::generate::marketplace::create("test-marketplace", &[]),
+        )
+        .expect("write marketplace.json");
+
+        // Create a skill so detection yields at least one artifact.
+        let skill_dir = project_dir.join(".claude").join("skills").join("deploy");
+        std::fs::create_dir_all(&skill_dir).expect("create skill dir");
+        std::fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: deploy\ndescription: Deploy skill\n---\nDeploy",
+        )
+        .expect("write SKILL.md");
+
+        // Add a non-artifact file so that `plan.other_files` is non-empty.
+        let claude_dir = project_dir.join(".claude");
+        std::fs::write(claude_dir.join("README.md"), "# Notes").expect("write README.md");
+
+        let opts = Options {
+            dir: project_dir,
+            source: None,
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+
+        let result = migrate(&opts, &crate::fs::Real);
+        assert!(result.is_ok(), "migrate should succeed");
+        let outcome = result.expect("migrate should succeed");
+        assert!(
+            outcome.actions.iter().any(|a| matches!(a, Action::OtherFileMigrated { .. })),
+            "expected OtherFileMigrated action when non-artifact files exist in recursive mode"
+        );
+    }
 }
