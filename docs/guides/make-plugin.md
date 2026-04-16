@@ -164,6 +164,49 @@ For `--engine both --feature skill --feature agent --feature mcp`:
   settings.json            # updated: enabledPlugins["shared-kit@<marketplace>"] = true
 ```
 
+For `--engine claude --feature hook`:
+
+```
+.ai/
+  my-plugin/
+    .claude-plugin/
+      plugin.json          # plugin metadata
+    hooks/
+      hooks.json           # hook config ({"hooks": []})
+  .claude-plugin/
+    marketplace.json       # updated to include my-plugin
+.claude/
+  settings.json            # updated: enabledPlugins["my-plugin@<marketplace>"] = true
+```
+
+For `--engine claude --feature output-style`:
+
+```
+.ai/
+  my-plugin/
+    .claude-plugin/
+      plugin.json          # plugin metadata
+    output-styles/
+      my-plugin.md         # starter output style template
+  .claude-plugin/
+    marketplace.json       # updated to include my-plugin
+.claude/
+  settings.json            # updated: enabledPlugins["my-plugin@<marketplace>"] = true
+```
+
+For `--engine copilot --feature extension`:
+
+```
+.ai/
+  my-plugin/
+    .claude-plugin/
+      plugin.json          # plugin metadata
+    extensions/
+      .gitkeep             # placeholder (replace with your extension config)
+  .claude-plugin/
+    marketplace.json       # updated to include my-plugin
+```
+
 > **Note:** `--engine both` updates `.claude/settings.json` the same way `--engine claude` does.
 > Copilot-specific settings (`.github/copilot/settings.json`) are not written — Copilot settings support is deferred to a future release.
 
