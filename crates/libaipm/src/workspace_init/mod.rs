@@ -1180,6 +1180,52 @@ mod tests {
     }
 
     #[test]
+    fn adaptor_apply_returns_false_when_already_configured() {
+        // Pre-seed `.claude/settings.json` with the marketplace and starter
+        // plugin already registered so that the Claude adaptor's `apply()`
+        // returns `Ok(false)` — exercising the `False` branch of
+        // `if adaptor.apply(…)?` at the adaptor-loop in `init` (line 113).
+        let (tmp, _guard) = make_temp_dir("adaptor-idempotent");
+
+        // Pre-create the settings directory and file.
+        let claude_dir = tmp.join(".claude");
+        std::fs::create_dir_all(&claude_dir).ok();
+        let settings = serde_json::json!({
+            "extraKnownMarketplaces": {
+                "local-repo-plugins": {
+                    "source": { "source": "directory", "path": "./.ai" }
+                }
+            },
+            "enabledPlugins": {
+                "starter-aipm-plugin@local-repo-plugins": true
+            }
+        });
+        std::fs::write(claude_dir.join("settings.json"), settings.to_string().as_bytes()).ok();
+
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+        };
+        let adaptors = default_adaptors();
+
+        // `apply()` finds nothing to change and returns `Ok(false)`.
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(
+            result.is_ok_and(|r| !r
+                .actions
+                .iter()
+                .any(|a| matches!(a, InitAction::ToolConfigured(_)))),
+            "init should NOT report ToolConfigured when settings are pre-configured"
+        );
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn make_temp_dir_cleans_up_existing_directory() {
         // Pre-create the directory so that the `if tmp.exists()` branch in
         // `make_temp_dir` (the cleanup-before-recreate path) is exercised.
