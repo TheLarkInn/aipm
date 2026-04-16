@@ -1369,6 +1369,41 @@ mod tests {
         );
     }
 
+    /// Covers the `if detectors.is_empty()` True branch in `migrate_single_source`.
+    ///
+    /// When the source type is not `.claude` or `.github`,
+    /// `detectors_for_source` returns an empty Vec. The function then falls back
+    /// to running all Claude + Copilot detectors. With an empty source directory
+    /// none of them find any artifacts, and the dry-run report is still produced.
+    #[test]
+    fn migrate_single_source_unknown_type_falls_back_to_all_detectors() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.ai"));
+        fs.exists.insert(PathBuf::from("/project/.vscode"));
+        // Source dir listing must be present so the reconciler can enumerate files.
+        fs.dirs.insert(PathBuf::from("/project/.vscode"), Vec::new());
+        // .ai/ dir listing needed by collect_existing_plugin_names.
+        fs.dirs.insert(PathBuf::from("/project/.ai"), Vec::new());
+
+        let opts = Options {
+            dir: Path::new("/project"),
+            source: Some(".vscode"),
+            dry_run: true,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let result = migrate(&opts, &fs);
+        assert!(result.is_ok(), "migrate with unknown source type should succeed");
+        let outcome = result.ok();
+        let actions = outcome.map(|r| r.actions).unwrap_or_default();
+        assert_eq!(actions.len(), 1, "should produce exactly one DryRunReport action");
+        assert!(
+            matches!(actions.first(), Some(Action::DryRunReport { .. })),
+            "action should be DryRunReport"
+        );
+    }
+
     #[test]
     fn migrate_recursive_other_files_emitted_via_emit_and_register() {
         // Covers the `if !plan.other_files.is_empty()` True branch (line 535)
