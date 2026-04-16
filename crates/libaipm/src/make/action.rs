@@ -103,11 +103,15 @@ mod tests {
             features: vec!["skill".to_string(), "agent".to_string()],
             engine: "claude".to_string(),
         };
-        if let Action::PluginCreated { features, .. } = &action {
-            assert_eq!(features.len(), 2);
-            assert_eq!(features[0], "skill");
-            assert_eq!(features[1], "agent");
-        }
+        assert_eq!(
+            action,
+            Action::PluginCreated {
+                name: "my-plugin".to_string(),
+                path: PathBuf::from(".ai/my-plugin"),
+                features: vec!["skill".to_string(), "agent".to_string()],
+                engine: "claude".to_string(),
+            }
+        );
     }
 
     #[test]
