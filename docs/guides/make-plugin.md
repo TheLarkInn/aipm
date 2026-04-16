@@ -145,6 +145,25 @@ For `--engine both --feature skill --feature agent`:
   settings.json            # updated: enabledPlugins["shared-kit@<marketplace>"] = true
 ```
 
+For `--engine both --feature skill --feature agent --feature mcp`:
+
+```
+.ai/
+  shared-kit/
+    .claude-plugin/
+      plugin.json          # plugin metadata
+    skills/
+      shared-kit/
+        SKILL.md           # starter skill template
+    agents/
+      shared-kit.md        # agent definition
+    .mcp.json              # MCP server config
+  .claude-plugin/
+    marketplace.json       # updated to include shared-kit
+.claude/
+  settings.json            # updated: enabledPlugins["shared-kit@<marketplace>"] = true
+```
+
 > **Note:** `--engine both` updates `.claude/settings.json` the same way `--engine claude` does.
 > Copilot-specific settings (`.github/copilot/settings.json`) are not written — Copilot settings support is deferred to a future release.
 
