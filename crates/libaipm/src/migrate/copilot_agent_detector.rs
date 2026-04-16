@@ -383,4 +383,27 @@ mod tests {
         assert_eq!(artifacts.len(), 1);
         assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("agent-foo"));
     }
+
+    #[test]
+    fn long_plain_md_not_treated_as_agent_md() {
+        // "long-name.md" has 12 characters, which is longer than ".agent.md" (9 chars),
+        // so `has_agent_md_suffix` evaluates the `eq_ignore_ascii_case` predicate —
+        // covering the False branch of the `&&` short-circuit. The suffix "g-name.md"
+        // does not match ".agent.md", so `is_agent_md = false` and the file is treated
+        // as a plain `.md` agent file.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(PathBuf::from("/src/agents"), vec![de("long-name.md", false)]);
+        fs.files.insert(
+            PathBuf::from("/src/agents/long-name.md"),
+            "---\nname: long-name\n---\nLong name agent.".to_string(),
+        );
+
+        let detector = CopilotAgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.len(), 1);
+        assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("long-name"));
+    }
 }

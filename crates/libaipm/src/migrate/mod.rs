@@ -692,12 +692,9 @@ mod tests {
             max_depth: None,
             manifest: true,
         };
-        let result = migrate(&opts, &fs);
-        assert!(result.is_ok());
-        let result = result.ok();
-        assert!(result.is_some_and(|r| {
-            r.actions.len() == 1 && matches!(&r.actions.first(), Some(Action::DryRunReport { .. }))
-        }));
+        let result = migrate(&opts, &fs).unwrap();
+        assert_eq!(result.actions.len(), 1);
+        assert!(matches!(result.actions.first(), Some(Action::DryRunReport { .. })));
         // Verify report file was written
         assert!(fs
             .written
@@ -809,20 +806,16 @@ mod tests {
             max_depth: None,
             manifest: true,
         };
-        let result = migrate(&opts, &fs);
-        assert!(result.is_ok());
-
-        if let Some(result) = result.ok() {
-            let plugin_created_count =
-                result.actions.iter().filter(|a| matches!(a, Action::PluginCreated { .. })).count();
-            let marketplace_count = result
-                .actions
-                .iter()
-                .filter(|a| matches!(a, Action::MarketplaceRegistered { .. }))
-                .count();
-            assert_eq!(plugin_created_count, 2);
-            assert_eq!(marketplace_count, 2);
-        }
+        let outcome = migrate(&opts, &fs).unwrap();
+        let plugin_created_count =
+            outcome.actions.iter().filter(|a| matches!(a, Action::PluginCreated { .. })).count();
+        let marketplace_count = outcome
+            .actions
+            .iter()
+            .filter(|a| matches!(a, Action::MarketplaceRegistered { .. }))
+            .count();
+        assert_eq!(plugin_created_count, 2);
+        assert_eq!(marketplace_count, 2);
 
         // Verify marketplace.json descriptions match plugin.json descriptions
         let marketplace_bytes = fs
@@ -1031,17 +1024,13 @@ mod tests {
             max_depth: None,
             manifest: false,
         };
-        let result = migrate(&opts, &fs);
-        assert!(result.is_ok());
-
-        if let Some(result) = result.ok() {
-            let other_migrated = result
-                .actions
-                .iter()
-                .filter(|a| matches!(a, Action::OtherFileMigrated { .. }))
-                .count();
-            assert!(other_migrated > 0, "should have OtherFileMigrated actions");
-        }
+        let outcome = migrate(&opts, &fs).unwrap();
+        let other_migrated = outcome
+            .actions
+            .iter()
+            .filter(|a| matches!(a, Action::OtherFileMigrated { .. }))
+            .count();
+        assert!(other_migrated > 0, "should have OtherFileMigrated actions");
     }
 
     #[test]
@@ -1072,16 +1061,10 @@ mod tests {
             max_depth: None,
             manifest: false,
         };
-        let result = migrate(&opts, &fs);
-        assert!(result.is_ok());
-        if let Ok(outcome) = result {
-            // No plugins created and no marketplace entries because no artifacts were detected.
-            assert!(!outcome.actions.iter().any(|a| matches!(a, Action::PluginCreated { .. })));
-            assert!(!outcome
-                .actions
-                .iter()
-                .any(|a| matches!(a, Action::MarketplaceRegistered { .. })));
-        }
+        let outcome = migrate(&opts, &fs).unwrap();
+        // No plugins created and no marketplace entries because no artifacts were detected.
+        assert!(!outcome.actions.iter().any(|a| matches!(a, Action::PluginCreated { .. })));
+        assert!(!outcome.actions.iter().any(|a| matches!(a, Action::MarketplaceRegistered { .. })));
     }
 
     #[test]
