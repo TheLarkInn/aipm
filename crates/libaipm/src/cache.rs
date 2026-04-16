@@ -1090,4 +1090,28 @@ mod tests {
         let result = cache.touch_entry("nonexistent-spec");
         assert!(result.is_ok(), "touch_entry with missing key must not return Err");
     }
+
+    #[test]
+    #[cfg(unix)]
+    fn gc_silently_skips_non_utf8_entry_names() {
+        // Covers the None branch of `entry.file_name().to_str()` in gc():
+        // when the entries directory contains an entry whose filename is not
+        // valid UTF-8, gc() must silently skip it rather than panicking or
+        // returning an error.
+        use std::os::unix::ffi::OsStrExt as _;
+
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+
+        // Create a directory whose name is not valid UTF-8 inside entries_dir.
+        let non_utf8_name = std::ffi::OsStr::from_bytes(b"\xff\xfe");
+        let non_utf8_dir = cache.entries_dir().join(non_utf8_name);
+        std::fs::create_dir_all(&non_utf8_dir).unwrap();
+
+        // gc() must complete successfully and leave the non-UTF-8 directory
+        // untouched (it silently skips entries it cannot name as UTF-8).
+        let result = cache.gc();
+        assert!(result.is_ok(), "gc() must succeed even when entries have non-UTF-8 names");
+        assert!(non_utf8_dir.exists(), "non-UTF-8 directory must not be removed by gc()");
+    }
 }
