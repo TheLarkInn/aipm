@@ -156,4 +156,25 @@ mod tests {
         let result = unlink_package("nonexistent", &links_dir, &plugins_dir);
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn unlink_package_cleans_assembled_dir_when_plugin_link_absent() {
+        // Simulate a state where the assembled dir exists but the plugin link
+        // has already been removed (e.g., interrupted uninstall).  This ensures
+        // the `if assembled_dir.exists()` branch in `unlink_package` is taken.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let links_dir = tmp.path().join(".aipm/links");
+        let plugins_dir = tmp.path().join("claude-plugins");
+
+        let assembled_dir = links_dir.join("orphan-pkg");
+        std::fs::create_dir_all(&assembled_dir).expect("create assembled dir");
+        std::fs::write(assembled_dir.join("aipm.toml"), b"[package]").expect("write file");
+
+        // No plugin link exists — directory_link::is_link branch is skipped.
+        let result = unlink_package("orphan-pkg", &links_dir, &plugins_dir);
+        assert!(result.is_ok(), "unlink_package failed: {result:?}");
+
+        // Assembled dir must be gone.
+        assert!(!assembled_dir.exists(), "assembled_dir should have been removed");
+    }
 }
