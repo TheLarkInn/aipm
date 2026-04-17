@@ -219,4 +219,19 @@ mod tests {
         let result = detector.detect(Path::new("/"), &fs);
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn detect_io_error_on_read() {
+        // .mcp.json exists according to fs.exists but has no content in fs.files,
+        // so read_to_string returns an IO error — covers the `?` error branch on
+        // the read call inside `detect`.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.mcp.json"));
+        // Intentionally NOT adding content to fs.files
+
+        let detector = McpDetector;
+        let result = detector.detect(Path::new("/project/.claude"), &fs);
+        assert!(result.is_err());
+        assert!(result.err().is_some_and(|e| matches!(e, Error::Io(_))));
+    }
 }
