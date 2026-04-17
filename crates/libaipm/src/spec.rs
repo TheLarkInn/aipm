@@ -532,21 +532,19 @@ mod tests {
     #[test]
     fn parse_registry_name_at_version() {
         let spec = parse("my-package@^1.0");
-        assert!(matches!(
+        assert_eq!(
             spec,
-            Spec::Registry { ref name, version_req: Some(ref v) }
-            if name == "my-package" && v == "^1.0"
-        ));
+            Spec::Registry {
+                name: "my-package".to_string(),
+                version_req: Some("^1.0".to_string())
+            }
+        );
     }
 
     #[test]
     fn parse_registry_name_only() {
         let spec = parse("my-package");
-        assert!(matches!(
-            spec,
-            Spec::Registry { ref name, version_req: None }
-            if name == "my-package"
-        ));
+        assert_eq!(spec, Spec::Registry { name: "my-package".to_string(), version_req: None });
     }
 
     #[test]
@@ -563,13 +561,13 @@ mod tests {
     #[test]
     fn parse_local_relative() {
         let spec = parse("local:./path/to/plugin");
-        assert!(matches!(spec, Spec::Local(ref p) if p.as_str() == "./path/to/plugin"));
+        assert_eq!(spec.to_string(), "local:./path/to/plugin");
     }
 
     #[test]
     fn parse_local_nested() {
         let spec = parse("local:plugins/my-plugin");
-        assert!(matches!(spec, Spec::Local(ref p) if p.as_str() == "plugins/my-plugin"));
+        assert_eq!(spec.to_string(), "local:plugins/my-plugin");
     }
 
     #[test]
@@ -685,9 +683,8 @@ mod tests {
         // parse_git_spec triggers Error::Git { reason: "empty URL" }.
         let result = "git:@main".parse::<Spec>();
         assert!(result.is_err());
-        if let Err(Error::Git { ref reason }) = result {
-            assert!(reason.contains("empty URL"), "expected 'empty URL' in: {reason}");
-        }
+        let err_msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+        assert!(err_msg.contains("empty URL"), "expected 'empty URL' in: {err_msg}");
     }
 
     #[test]
@@ -700,9 +697,7 @@ mod tests {
         assert!(matches!(result, Err(Error::Path(_))));
         // Calling parse() (which swallows errors) exercises its Err arm.
         let fallback = parse("git:https://github.com/org/repo:../secret");
-        assert!(
-            matches!(fallback, Spec::Registry { ref name, version_req: None } if name.is_empty())
-        );
+        assert_eq!(fallback, Spec::Registry { name: String::new(), version_req: None });
     }
 
     // ---- Marketplace specs ----
@@ -1168,8 +1163,8 @@ mod tests {
         // resolves to an empty URL.
         // Actually the empty URL branch is hard to hit through the public API
         // because parse_source_spec already rejects empty identifiers.
-        // Let's just verify that path is exercised.
-        assert!(result.is_ok() || result.is_err()); // either way, we exercised the code
+        // Just exercise the code path — the result may be Ok or Err.
+        drop(result);
 
         // Verify error variant display for coverage
         let err = Error::Git { reason: "empty URL".to_string() };
@@ -1521,12 +1516,8 @@ mod tests {
         // guard in parse_github_spec (line 368) before validate_github_owner is called.
         let result = "github:/some-repo".parse::<Spec>();
         assert!(result.is_err());
-        if let Err(Error::GitHub { ref reason }) = result {
-            assert!(
-                reason.contains("expected owner/repo format"),
-                "expected error mentioning format, got: {reason}"
-            );
-        }
+        let err_msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+        assert!(err_msg.contains("expected owner/repo format"), "unexpected: {err_msg}");
     }
 
     #[test]
@@ -1575,9 +1566,8 @@ mod tests {
         // Call it directly to cover that branch.
         let result = validate_github_owner("");
         assert!(result.is_err());
-        if let Err(Error::GitHub { ref reason }) = result {
-            assert!(reason.contains("owner cannot be empty"), "got: {reason}");
-        }
+        let err_msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+        assert!(err_msg.contains("owner cannot be empty"), "got: {err_msg}");
     }
 
     #[test]
