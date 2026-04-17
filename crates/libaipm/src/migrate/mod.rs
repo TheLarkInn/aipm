@@ -1452,6 +1452,10 @@ mod tests {
         fs.exists.insert(PathBuf::from("/project/.ai"));
         // Source dir must exist so migrate_single_source doesn't return SourceNotFound
         fs.exists.insert(PathBuf::from("/project/.vscode"));
+        // The plain file must be in fs.exists so MockFs::is_file() (which defaults to
+        // self.exists()) returns true, making collect_files_recursive include it in
+        // other_files.
+        fs.exists.insert(PathBuf::from("/project/.vscode/workspace.txt"));
         // Source dir has one plain file that no detector will claim
         fs.dirs.insert(
             PathBuf::from("/project/.vscode"),
