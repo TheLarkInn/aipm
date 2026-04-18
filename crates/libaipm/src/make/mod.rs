@@ -1073,4 +1073,71 @@ mod tests {
             "PluginCreated should record engine = 'both'"
         );
     }
+
+    #[test]
+    fn make_plugin_emits_already_registered_for_existing_plugin() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        let marketplace_json = marketplace_dir.join(".claude-plugin").join("marketplace.json");
+        // Seed marketplace.json with "existing-skill" already registered.
+        let content = crate::generate::marketplace::create(
+            "test-marketplace",
+            &[crate::generate::marketplace::Entry {
+                name: "existing-skill",
+                description: "already here",
+            }],
+        );
+        fs.seed(&marketplace_json, content.as_bytes());
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "existing-skill",
+            engine: "copilot",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        assert!(
+            result.actions.iter().any(
+                |a| matches!(a, Action::PluginAlreadyRegistered { name, .. } if name == "existing-skill")
+            ),
+            "expected PluginAlreadyRegistered when plugin already in marketplace"
+        );
+    }
+
+    #[test]
+    fn is_plugin_registered_returns_false_when_file_not_found() {
+        let fs = MockFs::new();
+        // No file seeded — read_to_string returns NotFound, function returns false.
+        let path = Path::new("/nonexistent/marketplace.json");
+        assert!(!is_plugin_registered(&fs, path, "any-plugin"));
+    }
+
+    #[test]
+    fn is_plugin_registered_returns_false_when_json_invalid() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/marketplace.json");
+        fs.seed(path, b"not valid json {{ }}");
+        assert!(!is_plugin_registered(&fs, path, "any-plugin"));
+    }
+
+    #[test]
+    fn read_marketplace_name_returns_default_when_file_not_found() {
+        let fs = MockFs::new();
+        let path = Path::new("/nonexistent/marketplace.json");
+        let name = read_marketplace_name(&fs, path);
+        assert_eq!(name, "local-repo-plugins");
+    }
+
+    #[test]
+    fn read_marketplace_name_returns_default_when_json_invalid() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/marketplace.json");
+        fs.seed(path, b"not valid json {{ }}");
+        let name = read_marketplace_name(&fs, path);
+        assert_eq!(name, "local-repo-plugins");
+    }
 }
