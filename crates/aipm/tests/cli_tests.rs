@@ -367,6 +367,29 @@ fn uninstall_global_removes_engine_entry() {
 }
 
 // =========================================================================
+// `uninstall` (no --global) — local unlink branch at main.rs `if global`
+// =========================================================================
+
+#[test]
+fn uninstall_without_global_calls_unlink() {
+    // Covers the `else { cmd_unlink(...) }` branch of the `if global` condition
+    // in the `Commands::Uninstall` handler (main.rs).  Using `uninstall` without
+    // `--global` must behave identically to `unlink`.
+    let tmp = tempfile::tempdir().unwrap();
+
+    let links_dir = tmp.path().join(".aipm/links");
+    let plugins_dir = tmp.path().join(".ai");
+    std::fs::create_dir_all(&links_dir).unwrap();
+    std::fs::create_dir_all(&plugins_dir).unwrap();
+
+    aipm()
+        .args(["uninstall", "some-pkg", "--dir", tmp.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Unlinked 'some-pkg'"));
+}
+
+// =========================================================================
 // `list --global` — plugins present (non-empty registry branch)
 // =========================================================================
 
