@@ -3,7 +3,7 @@
 | Document Metadata      | Details                                                    |
 | ---------------------- | ---------------------------------------------------------- |
 | Author(s)              | Sean Larkin                                                |
-| Status                 | Draft (WIP)                                                |
+| Status                 | Implemented                                                |
 | Team / Owner           | aipm                                                       |
 | Created / Last Updated | 2026-04-14                                                 |
 | Issue                  | [#417](https://github.com/TheLarkInn/aipm/issues/417)      |
@@ -48,16 +48,16 @@ Issue #417 explicitly states: *"With the 'aipm make' api also on backlog, this w
 
 ### 3.1 Functional Goals
 
-- [ ] `aipm pack init` works identically to today's `aipm-pack init` (same flags, same output, same `libaipm::init` call path)
-- [ ] `crates/aipm-pack/` directory is deleted from the workspace
-- [ ] `execute_prompts()` is extracted into `libaipm::wizard` behind the `wizard` feature flag (DRY item B7)
-- [ ] All 21 E2E tests from `aipm-pack/tests/init_e2e.rs` are migrated to `aipm/tests/pack_init_e2e.rs`
-- [ ] BDD scenarios in `tests/features/manifest/init.feature` are rewritten to test `aipm make plugin`
-- [ ] Aspirational BDD features (7 files) are updated to use `aipm` subcommand names instead of `aipm-pack`
-- [ ] All documentation references to `aipm-pack` are updated
-- [ ] Release pipeline produces 1 binary × 4 platforms = 4 artifacts
-- [ ] `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` all pass with zero warnings
-- [ ] 89% branch coverage gate is maintained
+- [x] `aipm pack init` works identically to today's `aipm-pack init` (same flags, same output, same `libaipm::init` call path)
+- [x] `crates/aipm-pack/` directory is deleted from the workspace
+- [x] `execute_prompts()` is extracted into `libaipm::wizard` behind the `wizard` feature flag (DRY item B7)
+- [x] All 21 E2E tests from `aipm-pack/tests/init_e2e.rs` are migrated to `aipm/tests/pack_init_e2e.rs`
+- [x] BDD scenarios in `tests/features/manifest/init.feature` are rewritten to test `aipm make plugin`
+- [x] Aspirational BDD features (7 files) are updated to use `aipm` subcommand names instead of `aipm-pack`
+- [x] All documentation references to `aipm-pack` are updated
+- [x] Release pipeline produces 1 binary × 4 platforms = 4 artifacts
+- [x] `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` all pass with zero warnings
+- [x] 89% branch coverage gate is maintained
 
 ### 3.2 Non-Goals (Out of Scope)
 
@@ -519,44 +519,44 @@ Phases 3-6 can potentially be combined into fewer commits, but the logical order
 ### 8.2 Test Plan
 
 **After Phase 1 (wizard extraction):**
-- [ ] `cargo test --workspace` passes (all existing tests use the extracted function)
-- [ ] `cargo clippy --workspace -- -D warnings` passes
-- [ ] New unit tests for `libaipm::wizard::execute_prompts()` pass
+- [x] `cargo test --workspace` passes (all existing tests use the extracted function)
+- [x] `cargo clippy --workspace -- -D warnings` passes
+- [x] New unit tests for `libaipm::wizard::execute_prompts()` pass
 
 **After Phase 2 (pack init subcommand):**
-- [ ] `aipm pack init` in a temp directory produces `aipm.toml` and correct directory layout
-- [ ] `aipm pack init --name hello --type skill -y` works non-interactively
-- [ ] `aipm pack init` in a directory with existing `aipm.toml` fails with "already initialized"
-- [ ] `aipm pack init --name INVALID!` fails with validation error
-- [ ] All existing `aipm` commands continue to work unchanged
+- [x] `aipm pack init` in a temp directory produces `aipm.toml` and correct directory layout
+- [x] `aipm pack init --name hello --type skill -y` works non-interactively
+- [x] `aipm pack init` in a directory with existing `aipm.toml` fails with "already initialized"
+- [x] `aipm pack init --name INVALID!` fails with validation error
+- [x] All existing `aipm` commands continue to work unchanged
 
 **After Phase 3 (delete aipm-pack):**
-- [ ] `cargo build --workspace` succeeds (no reference to deleted crate)
-- [ ] `cargo test --workspace` passes
+- [x] `cargo build --workspace` succeeds (no reference to deleted crate)
+- [x] `cargo test --workspace` passes
 
 **After Phase 4 (E2E migration):**
-- [ ] All 21 migrated E2E tests pass targeting `aipm pack init`
-- [ ] `cargo test --workspace` passes
+- [x] All 21 migrated E2E tests pass targeting `aipm pack init`
+- [x] `cargo test --workspace` passes
 
 **After Phase 5 (BDD rewrite):**
-- [ ] BDD test suite passes (cucumber-rs)
-- [ ] Aspirational features parse correctly (no syntax errors)
+- [x] BDD test suite passes (cucumber-rs)
+- [x] Aspirational features parse correctly (no syntax errors)
 
 **After Phase 6 (docs/CI):**
-- [ ] `cargo build --workspace` still passes
-- [ ] `cargo clippy --workspace -- -D warnings` passes
-- [ ] `cargo fmt --check` passes
-- [ ] Coverage gate: `cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs|lsp\.rs)'` shows ≥ 89%
-- [ ] `gh aw compile docs-updater` succeeds
+- [x] `cargo build --workspace` still passes
+- [x] `cargo clippy --workspace -- -D warnings` passes
+- [x] `cargo fmt --check` passes
+- [x] Coverage gate: `cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs|lsp\.rs)'` shows ≥ 89%
+- [x] `gh aw compile docs-updater` succeeds
 
 ### 8.3 Verification Checklist
 
-- [ ] `grep -r "aipm-pack" crates/` returns zero matches (excluding test snapshots and comments noting the merge)
-- [ ] `grep -r "aipm-pack" tests/features/` returns zero matches
-- [ ] `grep -r "aipm-pack" .github/workflows/` returns zero matches (or only in lock files pending recompilation)
-- [ ] `cargo dist plan` output shows only `aipm` binary, not `aipm-pack`
-- [ ] `aipm --help` shows `pack` subcommand
-- [ ] `aipm pack init --help` shows same flags as old `aipm-pack init --help`
+- [x] `grep -r "aipm-pack" crates/` returns zero matches (excluding test snapshots and comments noting the merge)
+- [x] `grep -r "aipm-pack" tests/features/` returns zero matches
+- [x] `grep -r "aipm-pack" .github/workflows/` returns zero matches (or only in lock files pending recompilation)
+- [x] `cargo dist plan` output shows only `aipm` binary, not `aipm-pack`
+- [x] `aipm --help` shows `pack` subcommand
+- [x] `aipm pack init --help` shows same flags as old `aipm-pack init --help`
 
 ## 9. Open Questions / Unresolved Issues
 
