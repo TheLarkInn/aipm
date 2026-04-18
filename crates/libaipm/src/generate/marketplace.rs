@@ -403,4 +403,33 @@ mod tests {
         let after = fs.read_to_string(path).unwrap_or_default();
         assert_eq!(before, after);
     }
+
+    #[test]
+    fn register_returns_error_when_plugins_missing() {
+        // Covers the `ok_or_else` error path in `register()` (lines 58-64):
+        // when the JSON file exists and is valid but has no "plugins" array,
+        // `register` must return an InvalidData error.
+        let fs = MockFs::new();
+        let path = std::path::Path::new("/marketplace.json");
+        fs.write_file(path, br#"{"name":"test"}"#).unwrap_or_default();
+
+        let entry = Entry { name: "my-plugin", description: "desc" };
+        let result = register(&fs, path, &entry);
+        assert!(result.is_err());
+        assert_eq!(result.err().map(|e| e.kind()), Some(std::io::ErrorKind::InvalidData));
+    }
+
+    #[test]
+    fn unregister_returns_error_when_plugins_missing() {
+        // Covers the `ok_or_else` error path in `unregister()` (lines 148-154):
+        // when the JSON file exists and is valid but has no "plugins" array,
+        // `unregister` must return an InvalidData error.
+        let fs = MockFs::new();
+        let path = std::path::Path::new("/marketplace.json");
+        fs.write_file(path, br#"{"name":"test"}"#).unwrap_or_default();
+
+        let result = unregister(&fs, path, "my-plugin");
+        assert!(result.is_err());
+        assert_eq!(result.err().map(|e| e.kind()), Some(std::io::ErrorKind::InvalidData));
+    }
 }
