@@ -317,6 +317,56 @@ fn install_global_updates_existing_plugin() {
 }
 
 // =========================================================================
+// `uninstall --global` — removes a plugin from the global registry
+// =========================================================================
+
+#[test]
+fn uninstall_global_removes_plugin() {
+    let tmp_home = tempfile::tempdir().unwrap();
+
+    // First install so the registry has the entry.
+    aipm()
+        .args(["install", "--global", "local:./my-plugin"])
+        .env("HOME", tmp_home.path())
+        .assert()
+        .success();
+
+    // Uninstall without --engine: covers the `else` branch of `if let Some(eng) = engine`.
+    aipm()
+        .args(["uninstall", "--global", "local:./my-plugin"])
+        .env("HOME", tmp_home.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Uninstalled 'local:./my-plugin' globally"));
+}
+
+// =========================================================================
+// `uninstall --global --engine` — removes one engine entry from the registry
+// =========================================================================
+
+#[test]
+fn uninstall_global_removes_engine_entry() {
+    let tmp_home = tempfile::tempdir().unwrap();
+
+    // Install with a specific engine so `engines` is non-empty.
+    aipm()
+        .args(["install", "--global", "--engine", "claude", "local:./my-plugin"])
+        .env("HOME", tmp_home.path())
+        .assert()
+        .success();
+
+    // Uninstall with --engine: covers the `if let Some(eng) = engine` True branch.
+    aipm()
+        .args(["uninstall", "--global", "--engine", "claude", "local:./my-plugin"])
+        .env("HOME", tmp_home.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(
+            "Removed 'local:./my-plugin' from claude engine globally",
+        ));
+}
+
+// =========================================================================
 // `list --global` — plugins present (non-empty registry branch)
 // =========================================================================
 
