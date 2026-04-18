@@ -68,8 +68,11 @@ mod tests {
         let data: Vec<u8> = (0..=255).collect();
         let hash = sha512_hex(&data);
         assert_eq!(hash.len(), 128);
-        // All chars should be lowercase hex
-        assert!(hash.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()));
+        // All chars should be valid lowercase hex — verified via the public validate() function.
+        assert!(
+            validate(&hash).is_ok(),
+            "sha512_hex of binary data must produce valid lowercase hex"
+        );
     }
 
     #[test]
