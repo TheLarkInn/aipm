@@ -37,7 +37,7 @@ Paths are [glob patterns](https://docs.rs/glob/latest/glob/struct.Pattern.html) 
 
 ## Ignore paths per rule
 
-Combine a severity override with rule-specific ignore paths using the inline table syntax:
+Use a table form with `level` and `ignore` to exclude specific files from one rule. Both fields are optional — omit `level` to keep the rule's default severity while still suppressing it for certain paths:
 
 ```toml
 [workspace.lints]
@@ -46,9 +46,12 @@ Combine a severity override with rule-specific ignore paths using the inline tab
 
 # Error on unknown hooks, but skip experimental plugins
 "hook/unknown-event" = { level = "error", ignore = ["**/.ai/experimental/**"] }
+
+# Keep the default severity but suppress for a specific path — omit `level` entirely
+"skill/oversized" = { ignore = ["**/vendor/**"] }
 ```
 
-Fields: `level` (optional) and `ignore` (optional list of glob patterns).
+Fields: `level` (optional, defaults to the rule's built-in severity) and `ignore` (optional list of glob patterns).
 
 Rules that support additional options (such as `instructions/oversized`) accept extra keys in
 the same inline table or as a separate TOML section:

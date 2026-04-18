@@ -46,14 +46,13 @@
                 },
                 {
                   "type": "object",
-                  "description": "Detailed rule override: change severity and/or provide per-rule ignore paths.",
-                  "required": ["level"],
+                  "description": "Detailed rule override: optionally change severity and/or provide per-rule ignore paths. Both fields are optional — omit `level` to keep the rule's default severity while still applying `ignore` paths.",
                   "additionalProperties": false,
                   "properties": {
                     "level": {
                       "type": "string",
                       "enum": ["allow", "warn", "warning", "error", "deny"],
-                      "description": "Severity level for this rule."
+                      "description": "Severity level for this rule. Omit to keep the rule's default severity while still applying other options (e.g. `ignore`)."
                     },
                     "ignore": {
                       "type": "array",
