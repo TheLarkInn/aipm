@@ -1114,4 +1114,27 @@ mod tests {
         assert!(result.is_ok(), "gc() must succeed even when entries have non-UTF-8 names");
         assert!(non_utf8_dir.exists(), "non-UTF-8 directory must not be removed by gc()");
     }
+
+    #[test]
+    #[cfg(unix)]
+    fn gc_silently_ignores_unreadable_entries_dir() {
+        // Covers the Err branch of `if let Ok(read_dir) = std::fs::read_dir(entries_dir)` in
+        // gc(): when the entries directory exists but is not readable (e.g. after a permissions
+        // change), gc() must silently skip the scan and still return Ok(()).
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        let entries_dir = cache.entries_dir();
+
+        // Remove all permissions so read_dir returns an error.
+        std::fs::set_permissions(&entries_dir, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+        let result = cache.gc();
+
+        // Restore permissions before any assertions so the TempDir cleanup can remove the tree.
+        std::fs::set_permissions(&entries_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
+    }
 }
