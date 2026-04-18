@@ -1461,4 +1461,30 @@ mod tests {
         assert_eq!(config.severity_override("some-rule"), None);
         assert!(config.rule_options("some-rule").is_empty());
     }
+
+    /// `day_of_year_to_month_day` returns early via the `if remaining < days_in_month`
+    /// branch when a day falls within the first month.  With `day = 0` the very
+    /// first guard fires (0 < 31) and returns January 1, exercising the True
+    /// branch of that inner `if`.
+    #[test]
+    fn day_of_year_to_month_day_within_month_hits_early_return() {
+        // day = 0 → January 1 via the True branch of `if remaining < days_in_month`
+        let (month, day) = day_of_year_to_month_day(0);
+        assert_eq!(month, 1, "day 0 should be January");
+        assert_eq!(day, 1, "day 0 should be the 1st");
+    }
+
+    /// `day_of_year_to_month_day` has a post-loop fallback branch (after
+    /// iterating all 12 months) that is reached when `day >= 365`.  With
+    /// `day = 365` the December guard (`31 < 31`) evaluates to false, the
+    /// subtraction leaves `remaining = 0`, and the loop exits without an
+    /// early return.  The post-loop `(12, remaining + 1)` then fires.
+    #[test]
+    fn day_of_year_to_month_day_overflow_hits_post_loop_fallback() {
+        // day = 365 exhausts all 12 months without the inner guard firing for
+        // December (31 < 31 is false), so the function exits via the fallback.
+        let (month, day) = day_of_year_to_month_day(365);
+        assert_eq!(month, 12, "overflow should land in December");
+        assert_eq!(day, 1, "remaining after subtracting all months should be 0, giving day 1");
+    }
 }
