@@ -1266,6 +1266,26 @@ mod tests {
         assert!(err.contains("unknown reporter"), "unexpected error: {err}");
     }
 
+    /// `cmd_lint` returns an error when `--source` is provided but is not one of
+    /// the supported values, covering the `if let Some(ref src) = source` True
+    /// branch (line 719) and the `if !SUPPORTED_SOURCES.contains` True branch
+    /// (line 721).
+    #[test]
+    fn cmd_lint_unsupported_source_returns_err() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = cmd_lint(
+            tmp.path().to_path_buf(),
+            Some("not-a-source".to_string()),
+            "human",
+            "auto",
+            None,
+            None,
+        );
+        assert!(result.is_err(), "cmd_lint with unsupported source should fail");
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("unsupported source"), "expected 'unsupported source' in: {msg}");
+    }
+
     /// `load_lint_config` forwards unknown TOML keys (beyond level/ignore) into
     /// the `options` map of `RuleOverride::Detailed`.
     #[test]
@@ -1486,6 +1506,16 @@ mod tests {
         let (month, day) = day_of_year_to_month_day(365);
         assert_eq!(month, 12, "overflow should land in December");
         assert_eq!(day, 1, "remaining after subtracting all months should be 0, giving day 1");
+    }
+
+    /// `resolve_dir` with `"."` returns the current working directory, covering
+    /// the `if dir.as_os_str() == "."` True branch in `resolve_dir`.
+    #[test]
+    fn resolve_dir_dot_returns_current_dir() {
+        let result = resolve_dir(PathBuf::from("."));
+        assert!(result.is_ok(), "resolve_dir('.') should succeed");
+        let cwd = std::env::current_dir().unwrap();
+        assert_eq!(result.unwrap(), cwd, "resolve_dir('.') should equal current_dir()");
     }
 
     /// `cmd_make_plugin` returns an `UnsupportedFeature` error when a feature

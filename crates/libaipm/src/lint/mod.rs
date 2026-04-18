@@ -897,6 +897,52 @@ mod tests {
         );
     }
 
+    /// Covers the `is_ignored(&path_str, &config.ignore_paths)` True branch at
+    /// line 60 of `apply_rule_diagnostics`.
+    ///
+    /// When `config.ignore_paths` matches a diagnostic's file path the first
+    /// `is_ignored` call returns `true`, short-circuiting the `||` and skipping
+    /// that diagnostic before the per-rule check is ever reached.
+    #[test]
+    fn lint_global_ignore_paths_filter_diagnostics() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Skill outside .ai/ under "vendor/" → would normally trigger misplaced-features
+        write_skill_md(
+            &root.join("vendor").join(".claude").join("skills").join("default"),
+            "vendor-skill",
+        );
+        // Skill outside .ai/ under ".claude/" → should still appear in diagnostics
+        write_skill_md(&root.join(".claude").join("skills").join("default"), "root-skill");
+
+        let mut cfg = config::Config::default();
+        // Global ignore: suppress ALL diagnostics whose path contains "vendor".
+        cfg.ignore_paths = vec!["**/vendor/**".to_string()];
+
+        let opts = Options { dir: root.to_path_buf(), source: None, config: cfg, max_depth: None };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok(), "lint should succeed: {:?}", result.err());
+        let outcome = result.unwrap();
+
+        let misplaced: Vec<_> = outcome
+            .diagnostics
+            .iter()
+            .filter(|d| d.rule_id == "source/misplaced-features")
+            .collect();
+
+        // Root .claude/skills must still appear
+        assert!(
+            misplaced.iter().any(|d| !d.file_path.display().to_string().contains("vendor")),
+            "root .claude/skills diagnostic should remain"
+        );
+        // Vendor path must be suppressed by the global ignore_paths
+        assert!(
+            !misplaced.iter().any(|d| d.file_path.display().to_string().contains("vendor")),
+            "vendor diagnostic should be filtered by global ignore_paths"
+        );
+    }
+
     // --- Helpers for marketplace/plugin integration tests ---
 
     fn write_marketplace_json(dir: &Path, content: &str) {
