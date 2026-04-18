@@ -1487,4 +1487,23 @@ mod tests {
         assert_eq!(month, 12, "overflow should land in December");
         assert_eq!(day, 1, "remaining after subtracting all months should be 0, giving day 1");
     }
+
+    /// `cmd_make_plugin` returns an `UnsupportedFeature` error when a feature
+    /// not supported by the target engine is requested, exercising the
+    /// `if let Some(first) = unsupported.first()` True branch.
+    /// `"lsp"` is valid for Copilot but unsupported by the `"claude"` engine.
+    #[test]
+    fn cmd_make_plugin_unsupported_feature_returns_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = cmd_make_plugin(
+            Some("my-plugin"),
+            Some("claude"),
+            &["lsp".to_string()],
+            true, // yes → non-interactive, skips wizard
+            tmp.path().to_path_buf(),
+        );
+        assert!(result.is_err(), "expected an error for unsupported feature");
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("lsp"), "error message should name the unsupported feature");
+    }
 }
