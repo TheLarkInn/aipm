@@ -1140,4 +1140,50 @@ mod tests {
         let name = read_marketplace_name(&fs, path);
         assert_eq!(name, "local-repo-plugins");
     }
+
+    /// Covers the `if was_registered` True branch in `register_in_marketplace`.
+    ///
+    /// When the plugin is already present in marketplace.json before `plugin()` is
+    /// called, `is_plugin_registered` returns true and the function emits
+    /// `Action::PluginAlreadyRegistered` instead of `Action::PluginRegistered`.
+    #[test]
+    fn make_plugin_already_registered_emits_already_registered_action() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+
+        // Seed marketplace.json with the plugin already registered.
+        let marketplace_json = marketplace_dir.join(".claude-plugin").join("marketplace.json");
+        let content = crate::generate::marketplace::create(
+            "test-marketplace",
+            &[crate::generate::marketplace::Entry {
+                name: "pre-registered",
+                description: "Already here",
+            }],
+        );
+        fs.seed(&marketplace_json, content.as_bytes());
+
+        // The plugin directory does NOT exist yet, so the early-return guard is skipped.
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "pre-registered",
+            engine: "copilot",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        assert!(
+            result
+                .actions
+                .iter()
+                .any(|a| matches!(a, Action::PluginAlreadyRegistered { name } if name == "pre-registered")),
+            "expected PluginAlreadyRegistered action when plugin is pre-registered"
+        );
+        assert!(
+            !result.actions.iter().any(|a| matches!(a, Action::PluginRegistered { .. })),
+            "must not emit PluginRegistered when plugin was already registered"
+        );
+    }
 }
