@@ -233,6 +233,15 @@ mod tests {
         assert!(matches!(result, Err(PathValidationError::AbsolutePath)));
     }
 
+    #[test]
+    fn plugin_path_as_ref_str() {
+        // Exercises the `AsRef<str>` impl for `ValidatedPath`.
+        let path =
+            ValidatedPath::new("plugins/auth").unwrap_or_else(|e| panic_free_unreachable(&e));
+        let s: &str = path.as_ref();
+        assert_eq!(s, "plugins/auth");
+    }
+
     /// Test helper that converts a validation error to a string and then
     /// creates a dummy [`ValidatedPath`] — used in place of `.unwrap()` which
     /// is denied by the workspace lint configuration.

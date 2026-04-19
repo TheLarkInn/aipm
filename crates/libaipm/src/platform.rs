@@ -209,4 +209,20 @@ mod tests {
         assert_eq!(parsed, Platform::Unknown("windows-x64".to_string()));
         assert_eq!(parsed.to_string(), "windows-x64");
     }
+
+    #[test]
+    fn platform_deserialize_known_values() {
+        // Exercises the `Deserialize` impl for `Platform` (serde path).
+        let linux: Result<Platform, _> = serde_json::from_str("\"linux\"");
+        assert_eq!(linux.ok(), Some(Platform::Linux));
+
+        let windows: Result<Platform, _> = serde_json::from_str("\"windows\"");
+        assert_eq!(windows.ok(), Some(Platform::Windows));
+
+        let macos: Result<Platform, _> = serde_json::from_str("\"macos\"");
+        assert_eq!(macos.ok(), Some(Platform::MacOs));
+
+        let unknown: Result<Platform, _> = serde_json::from_str("\"freebsd\"");
+        assert_eq!(unknown.ok(), Some(Platform::Unknown("freebsd".to_string())));
+    }
 }
