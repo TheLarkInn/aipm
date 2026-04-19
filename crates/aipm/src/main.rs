@@ -1536,4 +1536,40 @@ mod tests {
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("lsp"), "error message should name the unsupported feature");
     }
+
+    /// `cmd_uninstall_global` covers the False branch of `if !changed` (line 657):
+    /// when the registry entry is found and removed, `changed` is `true` and the
+    /// function writes the updated registry then returns `Ok`.
+    ///
+    /// A static mutex serialises the `HOME` env-var mutation so this test is safe
+    /// to run alongside other parallel tests.
+    #[test]
+    fn cmd_uninstall_global_success_returns_ok() {
+        use std::sync::Mutex;
+        static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+
+        let tmp = tempfile::tempdir().unwrap_or_else(|_| panic!("tempdir creation failed"));
+        let aipm_dir = tmp.path().join(".aipm");
+        std::fs::create_dir_all(&aipm_dir).unwrap_or_else(|e| panic!("create_dir_all failed: {e}"));
+
+        // Seed the registry with one plugin so resolve_spec + uninstall both succeed.
+        let registry_json = r#"{"plugins":[{"spec":"local:./my-plugin"}]}"#;
+        std::fs::write(aipm_dir.join("installed.json"), registry_json)
+            .unwrap_or_else(|e| panic!("write failed: {e}"));
+
+        let prev_home = std::env::var("HOME").ok();
+        // SAFETY: no other thread modifies HOME while ENV_LOCK is held.
+        std::env::set_var("HOME", tmp.path());
+
+        let result = cmd_uninstall_global("local:./my-plugin", None, PathBuf::from("/tmp"));
+
+        match prev_home {
+            Some(h) => std::env::set_var("HOME", h),
+            None => std::env::remove_var("HOME"),
+        }
+
+        assert!(result.is_ok(), "uninstall of existing plugin should succeed: {result:?}");
+    }
 }
