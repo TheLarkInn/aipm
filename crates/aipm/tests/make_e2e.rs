@@ -288,6 +288,43 @@ fn make_plugin_invalid_engine() {
 // =========================================================================
 // Scenario: Feature not valid for the chosen engine
 // =========================================================================
+// Scenario: make plugin succeeds without --yes in a non-TTY environment
+// =========================================================================
+// Covers the True branch of `!yes && std::io::stdin().is_terminal()` in
+// `cmd_make_plugin` (main.rs line 1002). When `--yes`/`-y` is NOT supplied,
+// `!yes` is `true`, so the `&&` short-circuit is NOT taken — the first
+// operand's True branch is exercised. In a non-TTY test environment
+// `is_terminal()` is `false`, so `interactive` stays `false` and the
+// wizard is never launched; the command succeeds normally.
+#[test]
+fn make_plugin_without_yes_flag_succeeds_in_non_tty() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("no-yes-flag");
+
+    aipm().args(["init", "-y", &dir.display().to_string()]).assert().success();
+
+    // No `-y`/`--yes` flag — exercises the `!yes = true` branch in main.rs.
+    aipm()
+        .args([
+            "make",
+            "plugin",
+            "--name",
+            "bar",
+            "--engine",
+            "claude",
+            "--feature",
+            "skill",
+            "--dir",
+            &dir.display().to_string(),
+        ])
+        .assert()
+        .success();
+
+    assert!(dir.join(".ai/bar").exists(), ".ai/bar/ should be created");
+    assert!(dir.join(".ai/bar/skills/bar/SKILL.md").exists(), "SKILL.md should exist");
+}
+
+// =========================================================================
 #[test]
 fn make_plugin_invalid_feature_for_engine() {
     let tmp = tempfile::TempDir::new().unwrap();
