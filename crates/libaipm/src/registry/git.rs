@@ -396,6 +396,21 @@ mod tests {
     // --- new() tests ---
 
     #[test]
+    fn new_returns_err_when_cache_dir_cannot_be_created() {
+        let tmp = tempfile::tempdir().unwrap();
+        // Place a regular file where cache_root would be.  create_dir_all will
+        // fail because it cannot descend into a file to create a sub-directory.
+        let not_a_dir = tmp.path().join("not_a_dir");
+        std::fs::write(&not_a_dir, b"I am a file").unwrap();
+
+        // cache_dir = not_a_dir/<url_hash> — creation must fail.
+        assert!(
+            Git::new("https://example.com/index.git", &not_a_dir).is_err(),
+            "expected Err when cache_dir cannot be created"
+        );
+    }
+
+    #[test]
     fn new_creates_cache_dir() {
         let tmp = tempfile::tempdir().unwrap();
         let cache_root = tmp.path().join("cache");
