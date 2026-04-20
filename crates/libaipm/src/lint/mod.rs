@@ -444,6 +444,39 @@ mod tests {
     }
 
     #[test]
+    fn lint_sources_scanned_deduplicates_same_source_type() {
+        // Two skills from the same `.ai` source → the `sources_scanned.contains`
+        // duplicate-guard (the false/skip branch) must fire on the second feature.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        write_skill_md(
+            &root.join(".ai").join("plugin-a").join("skills").join("default"),
+            "skill-a",
+        );
+        write_skill_md(
+            &root.join(".ai").join("plugin-b").join("skills").join("default"),
+            "skill-b",
+        );
+        // Add a .claude skill so sources_scanned contains both ".ai" and ".claude".
+        write_skill_md(&root.join(".claude").join("skills").join("default"), "claude-skill");
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let outcome = lint(&opts, &crate::fs::Real).unwrap();
+
+        // Both .ai features share the ".ai" source — it must appear exactly once.
+        assert!(outcome.sources_scanned.contains(&".ai".to_string()));
+        assert!(outcome.sources_scanned.contains(&".claude".to_string()));
+        let ai_count = outcome.sources_scanned.iter().filter(|s| s.as_str() == ".ai").count();
+        assert_eq!(ai_count, 1, "'.ai' source should appear exactly once in sources_scanned");
+    }
+
+    #[test]
     fn lint_config_allow_suppresses_rules() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
