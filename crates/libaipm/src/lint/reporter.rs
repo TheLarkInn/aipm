@@ -944,6 +944,20 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_escape_bracket_in_help_text() {
+        let outcome = ci_azure_single_diagnostic_outcome(Some("see [docs]"), None);
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        let logissue_line =
+            output.lines().find(|line| line.starts_with("##vso[task.logissue")).unwrap_or_default();
+        assert!(logissue_line.contains("see [docs%5D"));
+        assert!(!logissue_line.ends_with("see [docs]"));
+        assert!(logissue_line.contains(";code=skill/missing-description]"));
+    }
+
+    #[test]
     fn ci_azure_no_task_complete_on_clean_run() {
         let outcome = Outcome {
             diagnostics: vec![],

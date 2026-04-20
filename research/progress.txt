@@ -318,6 +318,28 @@ clean runs never emit the yellow-step signal.
 Verification: `cargo test -p libaipm --lib
 lint::reporter::tests::ci_azure_no_task_complete_on_clean_run` passes.
 
+## 2026-04-20 — Feature 16: ci_azure_escape_bracket_in_help_text
+
+Status: PASSES
+
+Added `ci_azure_escape_bracket_in_help_text` with `help_text: Some("see
+[docs]"), help_url: None`. Asserts:
+- The logissue line body contains the escaped form `see [docs%5D`.
+- The line does NOT end with the raw `see [docs]` (proving the `]`
+  was escaped, not passed through).
+- The `;code=skill/missing-description]` property block is still
+  parseable (the code= terminator is a real `]`, not a spurious one
+  from the help_text).
+
+This validates that `escape_azure_log_command` over the fully-composed
+body prevents help_text content from prematurely closing the `##vso[...]`
+property block.
+
+Verification: `cargo test -p libaipm --lib
+lint::reporter::tests::ci_azure_escape_bracket_in_help_text` passes.
+
+
+
 
 
 

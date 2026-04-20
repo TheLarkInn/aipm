@@ -212,7 +212,7 @@
       "Assert the body contains \"see [docs%5D\"",
       "Assert the ##vso[task.logissue property block is still parseable (no stray ] closing the property block prematurely)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
