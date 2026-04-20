@@ -1359,6 +1359,33 @@ mod tests {
         assert_eq!(result, tmp.path().join(".ai"));
     }
 
+    /// `resolve_plugins_dir` returns the custom path when `plugins_dir` is set
+    /// in the `[workspace]` table.
+    #[test]
+    fn resolve_plugins_dir_uses_custom_plugins_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("aipm.toml"),
+            "[workspace]\nmembers = []\nplugins_dir = \"my-plugins\"\n",
+        )
+        .unwrap();
+
+        let result = resolve_plugins_dir(tmp.path());
+        assert_eq!(result, tmp.path().join("my-plugins"));
+    }
+
+    /// `resolve_plugins_dir` falls back to `.ai` when the manifest has no
+    /// `[workspace]` section at all.
+    #[test]
+    fn resolve_plugins_dir_no_workspace_section_falls_back_to_dot_ai() {
+        let tmp = tempfile::tempdir().unwrap();
+        // Manifest with only [dependencies], no [workspace] section.
+        std::fs::write(tmp.path().join("aipm.toml"), "[dependencies]\n").unwrap();
+
+        let result = resolve_plugins_dir(tmp.path());
+        assert_eq!(result, tmp.path().join(".ai"));
+    }
+
     /// `load_lint_config` handles a `[workspace.lints.ignore]` section that lacks
     /// a `paths` array — the inner branch is skipped, `ignore_paths` stays empty.
     #[test]
