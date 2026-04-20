@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 - Add `--engine both` example to README `aipm make plugin` section ([#546](https://github.com/TheLarkInn/aipm/pull/546)) (c4c394e)
 - Fix incorrect marketplace directory path in README `aipm init` section ([#567](https://github.com/TheLarkInn/aipm/pull/567)) (22c161f)
 
+### Features
+- Enrich Azure DevOps reporter for developer/agent troubleshooting ([#604](https://github.com/TheLarkInn/aipm/pull/604)) (29ed709)
+
 ### Testing
 - Cover marketplace must_parse error branch and diamond dependency resolution (ea0f7c6)
 - Cover cmd_uninstall_global branches via CLI integration tests (55deae0)
