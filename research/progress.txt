@@ -1,73 +1,18 @@
-# Merge aipm-pack into aipm (#417) — Progress Log
-# Spec: specs/2026-04-14-merge-pack-into-aipm.md
-# Started: 2026-04-14
+## 2026-04-20 — Feature 1: Add insta dev-dependency to libaipm
 
-## Phase 1.1: Extract execute_prompts() into libaipm::wizard — COMPLETE
-- Copied execute_prompts() from crates/aipm/src/wizard_tty.rs:176-244 into crates/libaipm/src/wizard.rs
-- Updated module doc comment to reflect single-binary future
-- Added unit test: execute_prompts_empty_steps_returns_empty_vec
-- All imports use crate::manifest::validate (not libaipm::) since we're inside libaipm
-- cargo build/test/clippy/fmt all pass, coverage 89.17%
+Status: PASSES (pre-existing)
 
-## Phase 1.3: Add unit tests for execute_prompts() — COMPLETE (done with 1.1)
-- Added execute_prompts_empty_steps_returns_empty_vec test
-- Interactive tests cannot run in CI (inquire needs real TTY)
+Finding: `insta = "1"` is already declared at `Cargo.toml:94` as a workspace dep
+and `insta = { workspace = true }` is already declared at
+`crates/libaipm/Cargo.toml:50` under `[dev-dependencies]`. No changes required.
 
-## Phase 1.2: Update aipm wizard_tty.rs to use libaipm::wizard::execute_prompts() — COMPLETE
-- Replaced 4 call sites with libaipm::wizard::execute_prompts()
-- Deleted local execute_prompts() function (69 lines removed)
-- Updated module doc comment
-- All imports still needed (PromptAnswer/PromptKind/PromptStep used in resolve_make_plugin inline logic)
-- cargo build/test/clippy/fmt all pass, coverage 89.17%
+Baseline verification:
+- `cargo build -p libaipm` compiles in 5.4s
+- `cargo test -p libaipm --lib lint::reporter` all 33 tests pass
 
-## Phases 2.1-2.5: Add aipm pack init subcommand — COMPLETE
-- Added PackSubcommand enum with Init variant to main.rs (Phase 2.1)
-- Added Init(libaipm::init::Error) variant to CliError (Phase 2.2)
-- Moved PLUGIN_TYPE_OPTIONS, plugin_type_from_index, package_prompt_steps, resolve_package_answers from aipm-pack/wizard.rs to aipm/wizard.rs (Phase 2.3)
-- Added resolve_pack_init() TTY bridge + PackInitResult type alias to wizard_tty.rs (Phase 2.4)
-- Added cmd_pack_init() handler + match arm in run() (Phase 2.5)
-- Accepted 10 new snapshot files for pack-init wizard tests
-- Functional test: `aipm pack init --name test-pkg --type skill -y /tmp/test` creates correct aipm.toml
-- All 56 wizard tests pass, full workspace tests pass, coverage 89.18%
+The `yaml` feature mentioned in the spec is not needed — plain `assert_snapshot!`
+requires no cargo features. Keeping the existing workspace declaration as-is.
 
-## Phase 3: Delete crates/aipm-pack/ directory — COMPLETE
-- Removed entire crates/aipm-pack/ directory (Cargo.toml, CHANGELOG.md, src/, tests/)
-- Removed [profile.dev.package.aipm-pack] from workspace Cargo.toml
-- Workspace now has 2 crates: aipm, libaipm (down from 3)
-- cargo build/test/clippy/fmt all pass, coverage 89.10%
+Next: Feature 2 — implement `format_azure_logissue_body` helper in
+`crates/libaipm/src/lint/reporter.rs`.
 
-## Phase 4: Migrate E2E tests from aipm-pack to aipm — COMPLETE
-- Created crates/aipm/tests/pack_init_e2e.rs with 20 tests (dropped 1 aipm-pack-specific bare invocation test)
-- All tests retargeted from cargo_bin("aipm-pack") to cargo_bin("aipm") with ["pack", "init", ...] args
-- All 20 E2E tests pass, coverage 93.71%
-
-## Phase 5.1: Rewrite BDD init.feature for aipm make plugin — COMPLETE
-- Rewrote tests/features/manifest/init.feature with 8 scenarios (was 6) testing aipm make plugin
-- Added 4 new BDD step definitions in bdd.rs:
-  - Given an initialized marketplace in {string}
-  - Then a plugin directory {string} exists in the marketplace in {string}
-  - Then the plugin.json in {string} in {string} contains {string}
-  - Then the plugin {string} has a {string} directory in {string}
-- All 74 BDD scenarios pass, coverage 93.71%
-
-## Phases 5.2-5.3, 6.1-6.5: Cleanup and documentation updates — COMPLETE
-- Phase 5.2: Removed aipm-pack special-case routing in bdd.rs, updated doc comment
-- Phase 5.3: Updated 7 aspirational BDD feature files (zero aipm-pack references remaining)
-- Phase 6.1: CLAUDE.md project structure updated (aipm-pack line removed)
-- Phase 6.2: Updated doc comments in lib.rs, init.rs (wizard.rs already done)
-- Phase 6.3: README.md updated (binary table, project structure, roadmap, feature flags)
-- Phase 6.4: Updated 4 documentation guides (creating-a-plugin, make-plugin, init, docs/README)
-- Phase 6.5: Simplified update-latest-release.yml condition, removed aipm-pack from docs-updater.md
-- All tests pass, coverage 89.12%
-
-## Phase 7: Final verification — COMPLETE
-- cargo build/test/clippy/fmt all pass
-- Coverage 89.12% (threshold 89%)
-- Zero aipm-pack references in source (crates/) or features (tests/features/)
-- `aipm --help` shows `pack` subcommand
-- `aipm pack init --help` shows correct flags (--yes, --name, --type, dir)
-- `aipm pack init --name test-verify --type skill -y /tmp/test` creates correct aipm.toml
-
-## ALL PHASES COMPLETE — #417 merge-pack-into-aipm done
-Total: 20 features implemented across 7 phases
-Commits: ea167c5, f659199, 85b430c, 1e7412b, 7b1c7e4, 4c5d1dc, 6c51ade
