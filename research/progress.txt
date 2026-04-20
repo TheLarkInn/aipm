@@ -120,6 +120,35 @@ Analysis:
 Added highest-priority fix feature at top of `research/feature-list.json` to
 triage/stabilize the flaky test. Stopping; ralph loop will re-enter on the fix.
 
+## 2026-04-20 — Fix feature: shared ENV_LOCK for HOME-mutating tests
+
+Status: PASSES
+
+Root cause (confirmed by code read): both
+`cmd_uninstall_global_success_returns_ok` and
+`cmd_uninstall_global_engine_specific_covers_engine_branches` each declared
+their OWN function-local `static ENV_LOCK: Mutex<()>`. Two distinct statics —
+so the tests did NOT serialize HOME mutations against each other at all.
+
+Under the faster stable `cargo test` the scheduler happened to interleave
+them cleanly; under the slower nightly `llvm-cov` instrumented binary the
+race surfaced: test A sets HOME=/tmp/A and writes /tmp/A/.aipm/installed.json,
+test B concurrently sets HOME=/tmp/B and writes /tmp/B/.aipm/installed.json,
+then A reads HOME (now /tmp/B), finds no matching registry entry, and panics
+with `Err(Installed(NotFound { identifier: "local:./my-plugin" }))`.
+
+Fix (at crates/aipm/src/main.rs):
+1. Added a single module-level `static ENV_LOCK: Mutex<()>` at the top of
+   `mod tests` (after `use super::*`).
+2. Removed the two function-local `static ENV_LOCK` declarations.
+3. Both tests now acquire the shared lock, serializing HOME mutations.
+
+Verification:
+- `cargo test -p aipm --bin aipm tests::cmd_uninstall_global` both tests pass.
+- `cargo clippy --workspace -- -D warnings` clean.
+
+
+
 
 
 

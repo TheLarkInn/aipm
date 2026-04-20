@@ -2,6 +2,7 @@
   {
     "category": "fix",
     "description": "Fix cargo quality gate failures: coverage 12.72% due to flaky cmd_uninstall_global_success_returns_ok under nightly llvm-cov instrumentation",
+    "passes_note": "Root cause: each of the two cmd_uninstall_global_* tests declared its own function-local `static ENV_LOCK` mutex. Those are distinct statics, so the tests did not actually serialize HOME mutations against each other. Under nightly llvm-cov the slower instrumented binary exposed the race. Fix: hoist ENV_LOCK to a single module-level static at the top of `mod tests` in crates/aipm/src/main.rs and remove the per-function shadows.",
     "steps": [
       "coverage:",
       "TOTAL branch coverage from report: 12.72% (required >= 89%).",
@@ -21,7 +22,7 @@
       "",
       "Fix strategy: investigate why `cmd_uninstall_global_success_returns_ok` is flaky only under nightly llvm-cov instrumentation (not under stable `cargo test`). Likely a test isolation or tempdir-race issue exposed by the slower instrumented binary. Either stabilize the test or isolate it so coverage data from the remaining 1934 tests can be collected."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

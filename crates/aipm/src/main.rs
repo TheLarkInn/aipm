@@ -1211,6 +1211,13 @@ fn main() -> std::process::ExitCode {
 mod tests {
     use super::*;
 
+    /// Shared mutex for any test that mutates `HOME` (or other process-global
+    /// env vars). Previously each test declared its own function-local
+    /// `static ENV_LOCK`, which meant two tests setting `HOME` ran concurrently
+    /// and clobbered each other — the flake only surfaced under the slower
+    /// nightly `llvm-cov` instrumented binary where scheduling was different.
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     /// `load_lint_config` returns a default config when the aipm.toml exists
     /// but contains no `[workspace]` table.
     #[test]
@@ -1572,9 +1579,6 @@ mod tests {
     /// to run alongside other parallel tests.
     #[test]
     fn cmd_uninstall_global_success_returns_ok() {
-        use std::sync::Mutex;
-        static ENV_LOCK: Mutex<()> = Mutex::new(());
-
         let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
 
         let tmp = tempfile::tempdir().unwrap_or_else(|_| panic!("tempdir creation failed"));
@@ -1610,9 +1614,6 @@ mod tests {
     /// `resolve_spec` succeeds and `uninstall_engine` returns `true`.
     #[test]
     fn cmd_uninstall_global_engine_specific_covers_engine_branches() {
-        use std::sync::Mutex;
-        static ENV_LOCK: Mutex<()> = Mutex::new(());
-
         let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
 
         let tmp = tempfile::tempdir().expect("tempdir");
