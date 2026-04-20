@@ -844,6 +844,48 @@ mod tests {
         assert!(!body.contains("(see "));
     }
 
+    fn ci_azure_single_diagnostic_outcome(
+        help_text: Option<&str>,
+        help_url: Option<&str>,
+    ) -> Outcome {
+        Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "skill/missing-description".into(),
+                severity: Severity::Warning,
+                message: "missing desc".into(),
+                file_path: PathBuf::from("a.md"),
+                line: Some(1),
+                col: Some(1),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: help_text.map(String::from),
+                help_url: help_url.map(String::from),
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        }
+    }
+
+    #[test]
+    fn ci_azure_with_help_text_and_url() {
+        let outcome = ci_azure_single_diagnostic_outcome(
+            Some("run aipm migrate"),
+            Some("https://example.com/rule"),
+        );
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        let logissue_line =
+            output.lines().find(|line| line.starts_with("##vso[task.logissue")).unwrap_or_default();
+        assert!(logissue_line.contains(
+            "skill/missing-description: missing desc \u{2014} run aipm migrate (see https://example.com/rule)"
+        ));
+        assert!(logissue_line.contains(";code=skill/missing-description]"));
+    }
+
     #[test]
     fn ci_azure_code_property_present() {
         let outcome = Outcome {

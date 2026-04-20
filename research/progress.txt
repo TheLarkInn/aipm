@@ -172,6 +172,24 @@ start with `##vso[task.logissue`, and asserts each carries the matching
 Verification: `cargo test -p libaipm --lib
 lint::reporter::tests::ci_azure_code_property_present` passes.
 
+## 2026-04-20 — Feature 7: ci_azure_with_help_text_and_url
+
+Status: PASSES
+
+Added `ci_azure_with_help_text_and_url` plus shared
+`ci_azure_single_diagnostic_outcome(help_text, help_url)` helper at
+`crates/libaipm/src/lint/reporter.rs`. Runs the full CiAzure.report
+pipeline, finds the `##vso[task.logissue` line, and asserts the body
+contains the em-dash + `(see <url>)` concatenation exactly as spec §5.2
+row 1 requires. Also asserts `;code=<rule_id>]` is present.
+
+The helper will be reused by features 8, 9, 10.
+
+Verification: `cargo test -p libaipm --lib
+lint::reporter::tests::ci_azure_with_help_text_and_url` passes.
+
+
+
 
 
 

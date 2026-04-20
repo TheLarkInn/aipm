@@ -116,7 +116,7 @@
       "Assert the logissue body contains \" \\u{2014} run aipm migrate (see https://example.com/rule)\"",
       "Assert the body is well-formed relative to the ##vso[...] property block"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
