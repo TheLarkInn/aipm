@@ -944,6 +944,20 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_escape_semicolon_in_help_url() {
+        let outcome = ci_azure_single_diagnostic_outcome(None, Some("https://x/?a=1;b=2"));
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        let logissue_line =
+            output.lines().find(|line| line.starts_with("##vso[task.logissue")).unwrap_or_default();
+        assert!(logissue_line.contains("https://x/?a=1%3Bb=2"));
+        assert!(!logissue_line.contains("https://x/?a=1;b=2"));
+        assert!(logissue_line.contains(";code=skill/missing-description]"));
+    }
+
+    #[test]
     fn ci_azure_escape_bracket_in_help_text() {
         let outcome = ci_azure_single_diagnostic_outcome(Some("see [docs]"), None);
         let mut buf = Vec::new();

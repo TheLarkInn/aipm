@@ -223,7 +223,7 @@
       "Assert the body contains \"https://x/?a=1%3Bb=2\"",
       "Assert the property block separators are still parseable"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

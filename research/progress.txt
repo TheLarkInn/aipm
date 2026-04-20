@@ -338,6 +338,24 @@ property block.
 Verification: `cargo test -p libaipm --lib
 lint::reporter::tests::ci_azure_escape_bracket_in_help_text` passes.
 
+## 2026-04-20 — Feature 17: ci_azure_escape_semicolon_in_help_url
+
+Status: PASSES
+
+Added `ci_azure_escape_semicolon_in_help_url` with `help_url:
+Some("https://x/?a=1;b=2"), help_text: None`. Asserts:
+- The logissue line contains `https://x/?a=1%3Bb=2` (`;` → `%3B`).
+- The raw unescaped `https://x/?a=1;b=2` is NOT present.
+- The property block's real `;code=...]` separator is preserved.
+
+This confirms `escape_azure_log_command` prevents embedded semicolons
+from being parsed as extra property-block separators.
+
+Verification: `cargo test -p libaipm --lib
+lint::reporter::tests::ci_azure_escape_semicolon_in_help_url` passes.
+
+
+
 
 
 
