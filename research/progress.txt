@@ -147,6 +147,19 @@ Verification:
 - `cargo test -p aipm --bin aipm tests::cmd_uninstall_global` both tests pass.
 - `cargo clippy --workspace -- -D warnings` clean.
 
+## 2026-04-20 — Feature 5: ci_azure_empty_diagnostics
+
+Status: PASSES (pre-existing)
+
+The test `ci_azure_empty_diagnostics` at `crates/libaipm/src/lint/reporter.rs`
+already constructs an empty Outcome, invokes `CiAzure.report`, and asserts
+`output.is_empty()`. The feature-3 rewrite preserves this contract via the
+`if outcome.diagnostics.is_empty() { return Ok(()) }` early-return.
+
+No code change required. Marked passing.
+
+
+
 
 
 

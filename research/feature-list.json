@@ -93,7 +93,8 @@
       "Assert the writer buffer is empty (len == 0)",
       "Confirm no panics, Result is Ok"
     ],
-    "passes": false
+    "passes": true,
+    "passes_note": "Test was already present at crates/libaipm/src/lint/reporter.rs `fn ci_azure_empty_diagnostics()` and continues to pass after the CiAzure::report rewrite — the early `if outcome.diagnostics.is_empty() { return Ok(()) }` guarantees zero-byte output."
   },
   {
     "category": "functional",
