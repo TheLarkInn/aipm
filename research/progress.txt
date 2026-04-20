@@ -270,6 +270,24 @@ only one group when the file path stays constant across iterations.
 Verification: `cargo test -p libaipm --lib
 lint::reporter::tests::ci_azure_single_file_single_group` passes.
 
+## 2026-04-20 — Feature 13: ci_azure_task_complete_on_warnings_only
+
+Status: PASSES
+
+Added `ci_azure_task_complete_on_warnings_only` with `error_count: 0,
+warning_count: 2`. Asserts:
+- Output ends with `##vso[task.complete result=SucceededWithIssues;]\n`.
+- The task.complete line appears AFTER the last `##[endgroup]` (using
+  rposition to find the trailing endgroup).
+
+This exercises the `error_count == 0 && warning_count > 0` branch in
+`CiAzure::report` that emits the yellow-step signal.
+
+Verification: `cargo test -p libaipm --lib
+lint::reporter::tests::ci_azure_task_complete_on_warnings_only` passes.
+
+
+
 
 
 

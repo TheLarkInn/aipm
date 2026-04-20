@@ -179,7 +179,7 @@
       "Assert the output ends with the line \"##vso[task.complete result=SucceededWithIssues;]\\n\"",
       "Assert this line appears AFTER the last ##[endgroup]"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

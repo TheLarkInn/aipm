@@ -944,6 +944,31 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_task_complete_on_warnings_only() {
+        let outcome = Outcome {
+            diagnostics: vec![
+                ci_azure_diag_on("a.md", "rule/one", 1),
+                ci_azure_diag_on("a.md", "rule/two", 2),
+            ],
+            error_count: 0,
+            warning_count: 2,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        assert!(output.ends_with("##vso[task.complete result=SucceededWithIssues;]\n"));
+
+        let lines: Vec<&str> = output.lines().collect();
+        let task_complete_pos =
+            lines.iter().position(|l| l.starts_with("##vso[task.complete")).unwrap_or_default();
+        let last_endgroup_pos =
+            lines.iter().rposition(|l| *l == "##[endgroup]").unwrap_or_default();
+        assert!(last_endgroup_pos < task_complete_pos);
+    }
+
+    #[test]
     fn ci_azure_single_file_single_group() {
         let outcome = Outcome {
             diagnostics: vec![
