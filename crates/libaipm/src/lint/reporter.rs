@@ -927,6 +927,70 @@ mod tests {
         assert!(!logissue_line.contains("(see "));
     }
 
+    fn ci_azure_diag_on(file_path: &str, rule_id: &str, line: usize) -> Diagnostic {
+        Diagnostic {
+            rule_id: rule_id.into(),
+            severity: Severity::Warning,
+            message: "msg".into(),
+            file_path: PathBuf::from(file_path),
+            line: Some(line),
+            col: Some(1),
+            end_line: None,
+            end_col: None,
+            source_type: ".ai".into(),
+            help_text: None,
+            help_url: None,
+        }
+    }
+
+    #[test]
+    fn ci_azure_group_per_file() {
+        let outcome = Outcome {
+            diagnostics: vec![
+                ci_azure_diag_on("a.md", "rule/one", 1),
+                ci_azure_diag_on("a.md", "rule/two", 2),
+                ci_azure_diag_on("b.md", "rule/three", 1),
+            ],
+            error_count: 0,
+            warning_count: 3,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        let lines: Vec<&str> = output.lines().collect();
+
+        assert_eq!(output.matches("##[group]").count(), 2);
+        assert_eq!(output.matches("##[endgroup]").count(), 2);
+
+        let idx_group_a = lines.iter().position(|l| *l == "##[group]aipm lint: a.md");
+        let idx_group_b = lines.iter().position(|l| *l == "##[group]aipm lint: b.md");
+        assert!(idx_group_a.is_some());
+        assert!(idx_group_b.is_some());
+        let group_a_pos = idx_group_a.unwrap_or_default();
+        let group_b_pos = idx_group_b.unwrap_or_default();
+        assert!(group_a_pos < group_b_pos);
+
+        let a_logissues: Vec<&&str> = lines
+            .get(group_a_pos + 1..group_b_pos)
+            .unwrap_or_default()
+            .iter()
+            .filter(|l| l.starts_with("##vso[task.logissue"))
+            .collect();
+        assert_eq!(a_logissues.len(), 2);
+        assert!(a_logissues[0].contains(";code=rule/one]"));
+        assert!(a_logissues[1].contains(";code=rule/two]"));
+
+        let b_logissues: Vec<&&str> = lines
+            .get(group_b_pos + 1..)
+            .unwrap_or_default()
+            .iter()
+            .filter(|l| l.starts_with("##vso[task.logissue"))
+            .collect();
+        assert_eq!(b_logissues.len(), 1);
+        assert!(b_logissues[0].contains(";code=rule/three]"));
+    }
+
     #[test]
     fn ci_azure_code_property_present() {
         let outcome = Outcome {

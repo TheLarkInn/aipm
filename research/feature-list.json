@@ -157,7 +157,7 @@
       "Assert ordering: ##[group]aipm lint: a.md, two logissue lines for a.md, ##[endgroup], ##[group]aipm lint: b.md, one logissue line for b.md, ##[endgroup]",
       "Assert only two ##[group] openers and two ##[endgroup] closers total"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

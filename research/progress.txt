@@ -229,6 +229,32 @@ lint::reporter::tests::ci_azure_with_neither` passes. All four help-field
 combinations (features 7–10) are now end-to-end tested through the full
 CiAzure.report pipeline.
 
+## 2026-04-20 — Feature 11: ci_azure_group_per_file
+
+Status: PASSES
+
+Added `ci_azure_group_per_file` test plus shared `ci_azure_diag_on(path,
+rule_id, line)` helper. Fixture:
+- `a.md` rules rule/one (line 1), rule/two (line 2)
+- `b.md` rule rule/three (line 1)
+
+Assertions:
+- Exactly 2 `##[group]` openers and 2 `##[endgroup]` closers.
+- `##[group]aipm lint: a.md` precedes `##[group]aipm lint: b.md`.
+- Between a.md's group opener and b.md's group opener there are exactly
+  2 logissue lines with `code=rule/one` and `code=rule/two`.
+- After b.md's group opener there is exactly 1 logissue line with
+  `code=rule/three`.
+
+Also fixed a minor type mismatch during implementation — the `line` param
+in the new helper had to be `usize` (matches Diagnostic.line's Option<usize>).
+
+Verification: `cargo test -p libaipm --lib
+lint::reporter::tests::ci_azure_group_per_file` passes.
+`cargo clippy --workspace -- -D warnings` clean.
+
+
+
 
 
 
