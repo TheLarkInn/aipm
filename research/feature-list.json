@@ -245,7 +245,7 @@
       "Assert the logissue line contains \";code=skill/missing-description]\" verbatim",
       "Assert the body prefix starts with \"skill/missing-description: \""
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

@@ -944,6 +944,21 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_rule_id_with_slashes_unchanged() {
+        let outcome = ci_azure_single_diagnostic_outcome(None, None);
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        let logissue_line =
+            output.lines().find(|line| line.starts_with("##vso[task.logissue")).unwrap_or_default();
+        assert!(logissue_line.contains(";code=skill/missing-description]"));
+        let body_start = logissue_line.find(']').unwrap_or_default() + 1;
+        let body = logissue_line.get(body_start..).unwrap_or_default();
+        assert!(body.starts_with("skill/missing-description: "));
+    }
+
+    #[test]
     fn ci_azure_escape_newline_in_message() {
         let outcome = Outcome {
             diagnostics: vec![Diagnostic {

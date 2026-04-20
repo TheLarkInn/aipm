@@ -372,6 +372,24 @@ breaking the single-line-per-diagnostic ADO log command contract.
 Verification: `cargo test -p libaipm --lib
 lint::reporter::tests::ci_azure_escape_newline_in_message` passes.
 
+## 2026-04-20 — Feature 19: ci_azure_rule_id_with_slashes_unchanged
+
+Status: PASSES
+
+Added `ci_azure_rule_id_with_slashes_unchanged` using
+`ci_azure_single_diagnostic_outcome(None, None)` which constructs a
+Diagnostic with `rule_id: "skill/missing-description"`. Asserts:
+- The logissue line contains `;code=skill/missing-description]`
+  verbatim — proving `/` is NOT in the escape table.
+- The body text after the first `]` starts with
+  `skill/missing-description: ` — proving the rule_id appears twice
+  (once in `code=`, once as the body prefix), both unmodified.
+
+Verification: `cargo test -p libaipm --lib
+lint::reporter::tests::ci_azure_rule_id_with_slashes_unchanged` passes.
+
+
+
 
 
 
