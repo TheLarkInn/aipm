@@ -4109,4 +4109,32 @@ mod tests {
         assert_eq!(actions.len(), 1, "expected exactly one Skipped action");
         assert!(fs.written.lock().expect("mutex").is_empty(), "no files should be written");
     }
+
+    /// Covers the `None` arm of `file.relative_path.file_name().map_or_else(...)` at
+    /// line 794 in `emit_other_files`. When `relative_path` is `".."`, `file_name()`
+    /// returns `None`, so the fallback uses `to_string_lossy()` of the full path as
+    /// the destination name.
+    #[test]
+    fn emit_other_files_unassociated_no_filename_component_uses_string_lossy() {
+        let fs = MockFs::new();
+        // ".." has no file_name() component, triggering the None branch.
+        let other_file = OtherFile {
+            path: PathBuf::from("/src/.."),
+            relative_path: PathBuf::from(".."),
+            associated_artifact: None,
+            is_external: false,
+        };
+
+        let result = emit_other_files(&[other_file], Path::new("/ai/plugin"), &fs);
+        assert!(result.is_ok(), "emit_other_files should succeed: {:?}", result.err());
+        let actions = result.ok().unwrap_or_default();
+        assert_eq!(actions.len(), 1);
+        // Destination is plugin_dir joined with the string-lossy fallback ".."
+        assert!(
+            matches!(&actions[0], Action::OtherFileMigrated { destination, .. }
+                if *destination == PathBuf::from("/ai/plugin/..")),
+            "expected destination '/ai/plugin/..', got: {:?}",
+            actions
+        );
+    }
 }
