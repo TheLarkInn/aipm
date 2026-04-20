@@ -1,287 +1,286 @@
 [
   {
-    "category": "refactor",
-    "description": "Phase 1.1: Extract execute_prompts() function into libaipm::wizard",
+    "category": "fix",
+    "description": "Fix cargo quality gate failures: coverage 12.72% due to flaky cmd_uninstall_global_success_returns_ok under nightly llvm-cov instrumentation",
+    "passes_note": "Root cause: each of the two cmd_uninstall_global_* tests declared its own function-local `static ENV_LOCK` mutex. Those are distinct statics, so the tests did not actually serialize HOME mutations against each other. Under nightly llvm-cov the slower instrumented binary exposed the race. Fix: hoist ENV_LOCK to a single module-level static at the top of `mod tests` in crates/aipm/src/main.rs and remove the per-function shadows.",
     "steps": [
-      "Read crates/aipm/src/wizard_tty.rs lines 176-244 \u2014 this is the canonical execute_prompts() implementation",
-      "Read crates/libaipm/src/wizard.rs \u2014 understand existing types (PromptStep, PromptKind, PromptAnswer, styled_render_config) at lines 1-71",
-      "Add imports to crates/libaipm/src/wizard.rs: `use crate::manifest::validate::{self, ValidationMode};` and `use inquire::{Confirm, MultiSelect, Select, Text};`",
-      "Copy the execute_prompts() function body from crates/aipm/src/wizard_tty.rs:176-244 into crates/libaipm/src/wizard.rs, placing it after styled_render_config() (after line 71)",
-      "Make the function public: `pub fn execute_prompts(steps: &[PromptStep]) -> Result<Vec<PromptAnswer>, Box<dyn std::error::Error>>`",
-      "Add doc comment: `/// Execute a sequence of prompt steps against a real terminal via inquire.`",
-      "Verify imports resolve correctly \u2014 inquire is already conditionally available via the wizard feature flag in crates/libaipm/Cargo.toml:39-44",
-      "Run `cargo build --workspace` to verify the new function compiles",
-      "Run `cargo clippy --workspace -- -D warnings` to ensure no lint warnings"
+      "coverage:",
+      "TOTAL branch coverage from report: 12.72% (required >= 89%).",
+      "",
+      "Additionally, the instrumented workspace run (`cargo +nightly llvm-cov --no-report --workspace --branch`) had one test failure under the nightly toolchain with coverage instrumentation; `cargo test --workspace` under stable passed cleanly. The failing test under llvm-cov:",
+      "",
+      "    failures:",
+      "        tests::cmd_uninstall_global_success_returns_ok",
+      "",
+      "    ---- tests::cmd_uninstall_global_success_returns_ok stdout ----",
+      "    thread 'tests::cmd_uninstall_global_success_returns_ok' (286158) panicked at crates/aipm/src/main.rs:1600:9:",
+      "    uninstall of existing plugin should succeed: Err(Installed(NotFound { identifier: \"local:./my-plugin\" }))",
+      "    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace",
+      "",
+      "    test result: FAILED. 116 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+      "    error: test failed, to rerun pass `-p aipm --bin aipm`",
+      "",
+      "Fix strategy: investigate why `cmd_uninstall_global_success_returns_ok` is flaky only under nightly llvm-cov instrumentation (not under stable `cargo test`). Likely a test isolation or tempdir-race issue exposed by the slower instrumented binary. Either stabilize the test or isolate it so coverage data from the remaining 1934 tests can be collected."
     ],
     "passes": true
   },
   {
     "category": "refactor",
-    "description": "Phase 1.2: Update aipm's wizard_tty.rs to call libaipm::wizard::execute_prompts()",
+    "description": "Add insta as a dev-dependency to crates/libaipm for golden-snapshot testing of reporter output",
     "steps": [
-      "Read crates/aipm/src/wizard_tty.rs \u2014 note the 4 call sites of local execute_prompts(): line 39 (resolve), line 66 (resolve_migrate_cleanup), line 113 (resolve_make_plugin phase 1), line 156 (resolve_make_plugin phase 2)",
-      "Replace each call to `execute_prompts(&steps)` with `libaipm::wizard::execute_prompts(&steps)?` \u2014 the function signature is identical so no other changes needed",
-      "Also replace `execute_prompts(&[feature_step])` at line 156 with `libaipm::wizard::execute_prompts(&[feature_step])?`",
-      "Delete the local execute_prompts() function definition at lines 176-244",
-      "Remove any now-unused imports from the file header (inquire types that were only used by the deleted function)",
-      "Keep the imports for PromptAnswer, PromptKind, PromptStep from super::wizard since they're used in resolve_make_plugin's inline logic",
-      "Run `cargo build --workspace` to verify compilation",
-      "Run `cargo test --workspace` to verify all existing tests still pass",
-      "Run `cargo clippy --workspace -- -D warnings` for lint check"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 1.3: Add unit tests for libaipm::wizard::execute_prompts()",
-    "steps": [
-      "Read crates/libaipm/src/wizard.rs tests section (lines 73-120) to understand existing test patterns",
-      "Add a test that verifies execute_prompts() with an empty steps slice returns Ok(empty vec)",
-      "Since inquire requires a real TTY, interactive tests cannot run in CI \u2014 the empty-steps test is the primary unit test",
-      "Verify the function signature is correct by adding a compile-time test that references the function type",
-      "Run `cargo test --workspace` to confirm the new tests pass",
-      "Run `cargo clippy --workspace -- -D warnings`"
+      "Open crates/libaipm/Cargo.toml",
+      "Add insta = { version = \"1\", features = [\"yaml\"] } to [dev-dependencies]",
+      "Run cargo build --workspace to confirm the dependency resolves",
+      "Run cargo test -p libaipm to confirm existing tests still pass",
+      "Ensure no workspace lints are violated (no #[allow], no unwrap/expect/panic usage in libaipm)"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Phase 2.1: Add Pack subcommand and PackSubcommand enum to aipm CLI",
+    "description": "Implement format_azure_logissue_body helper that concatenates rule_id, message, help_text, help_url into the logissue body per the four-case table in spec §5.2",
     "steps": [
-      "Read crates/aipm/src/main.rs \u2014 note the Commands enum (lines 32-223) and MakeSubcommand pattern (lines 225-249)",
-      "Add PackSubcommand enum after MakeSubcommand with an Init variant containing: yes (bool, -y/--yes), name (Option<String>, --name), r#type (Option<String>, --type with rename_all kebab-case and value_name TYPE), dir (PathBuf, default_value '.')",
-      "Add Pack variant to Commands enum (after Make): `Pack { #[command(subcommand)] subcommand: PackSubcommand }`",
-      "The doc comment for Pack should be: `/// Author commands for plugin packages.`",
-      "The doc comment for Init should be: `/// Initialize a new AI plugin package.`",
-      "Run `cargo build --workspace` to verify the enum compiles (the match in run() will need updating too \u2014 see next phase)",
-      "Run `cargo clippy --workspace -- -D warnings`"
+      "Open crates/libaipm/src/lint/reporter.rs",
+      "Add a free function fn format_azure_logissue_body(d: &Diagnostic) -> String",
+      "Return format!(\"{}: {}\", d.rule_id, d.message) as the base body",
+      "If d.help_text is Some, append \" \\u{2014} \" (em-dash) then the help_text contents",
+      "If d.help_url is Some, append \" (see \", the URL, then \")\"",
+      "Do NOT apply escape_azure_log_command here — escaping happens once at the call site on the fully-composed body",
+      "Keep the function pure, no I/O, no panics, no unwrap/expect",
+      "Confirm all four combinations (Some/Some, Some/None, None/Some, None/None) produce the strings in the spec §5.2 table"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Phase 2.2: Add Init error variant to aipm's CliError",
+    "description": "Rewrite CiAzure::report to emit per-file ##[group]/##[endgroup] wrappers around enriched ##vso[task.logissue] lines with code=<rule_id> and help-enriched body",
     "steps": [
-      "Read crates/aipm/src/error.rs \u2014 note the existing CliError enum with 13 variants (lines 8-65)",
-      "Add a new variant after Make: `/// Package init errors.` / `#[error(transparent)]` / `Init(#[from] libaipm::init::Error)`",
-      "Verify libaipm::init::Error is accessible \u2014 check crates/libaipm/src/init.rs for the Error enum definition",
-      "Run `cargo build --workspace` to verify the error variant compiles",
-      "Run `cargo clippy --workspace -- -D warnings`"
+      "Open crates/libaipm/src/lint/reporter.rs",
+      "Replace the body of impl Reporter for CiAzure::report",
+      "Early-return Ok(()) when outcome.diagnostics.is_empty() (zero-byte clean run)",
+      "Track current_file: Option<&Path> across the diagnostics iteration",
+      "When file_path changes (or on first diagnostic), emit ##[endgroup] if a prior group was open, then emit ##[group]aipm lint: <file_path> with file_path rendered via Display, NOT escaped",
+      "For each diagnostic emit exactly: ##vso[task.logissue type=<sev>;sourcepath=<esc_file>;linenumber=<line>;columnnumber=<col>;code=<esc_rule_id>]<esc_body>",
+      "severity = \"error\" if Severity::Error else \"warning\"",
+      "line = d.line.unwrap_or(1); col = d.col.unwrap_or(1)",
+      "sourcepath = escape_azure_log_command on the displayed file_path",
+      "code = escape_azure_log_command on rule_id",
+      "body = escape_azure_log_command applied to format_azure_logissue_body(d) output (single escape over the composed body)",
+      "After the loop, if current_file.is_some() emit the final ##[endgroup]",
+      "If outcome.error_count == 0 && outcome.warning_count > 0, emit ##vso[task.complete result=SucceededWithIssues;] as the final line",
+      "Do NOT use unwrap/expect/panic/println/dbg/unsafe per CLAUDE.md",
+      "Keep the CiAzure struct zero-sized (no new fields)"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Phase 2.3: Move wizard functions from aipm-pack to aipm",
+    "description": "Update the two pre-existing CiAzure unit tests (ci_azure_error_format, ci_azure_defaults_line_col) to reflect the new enriched output contract",
     "steps": [
-      "Read crates/aipm-pack/src/wizard.rs lines 1-121 \u2014 the production code that needs to move: PLUGIN_TYPE_OPTIONS (line 18), plugin_type_from_index (line 28), package_prompt_steps (line 43), resolve_package_answers (line 87)",
-      "Read crates/aipm/src/wizard.rs \u2014 understand the current structure and imports",
-      "Add `use libaipm::manifest::types::PluginType;` to crates/aipm/src/wizard.rs imports",
-      "Copy PLUGIN_TYPE_OPTIONS constant (6-element array) into crates/aipm/src/wizard.rs",
-      "Copy plugin_type_from_index() const fn into crates/aipm/src/wizard.rs",
-      "Copy package_prompt_steps() function into crates/aipm/src/wizard.rs \u2014 it depends on PLUGIN_TYPE_OPTIONS, PromptStep, PromptKind (all available via imports)",
-      "Copy resolve_package_answers() function into crates/aipm/src/wizard.rs \u2014 it depends on PromptAnswer, plugin_type_from_index, PluginType",
-      "Make all four items pub (package_prompt_steps and resolve_package_answers already are; PLUGIN_TYPE_OPTIONS should stay const; plugin_type_from_index should stay const fn)",
-      "Copy the associated test functions from crates/aipm-pack/src/wizard.rs tests module (lines 127-389) into crates/aipm/src/wizard.rs tests module",
-      "Run `cargo build --workspace` to verify everything compiles",
-      "Run `cargo test -p aipm` to verify the moved tests pass \u2014 snapshot tests will need regeneration via `cargo insta test --accept -p aipm` since the module path prefix changes from aipm_pack__wizard__tests__ to aipm__wizard__tests__",
-      "Run `cargo clippy --workspace -- -D warnings`"
+      "Open crates/libaipm/src/lint/reporter.rs #[cfg(test)] mod tests",
+      "Update ci_azure_error_format to expect ##[group]/##[endgroup] wrappers and code=<rule_id> property",
+      "Update ci_azure_defaults_line_col similarly — still asserts line/col default to 1 when None, but against the new output shape",
+      "Confirm both tests still pass under cargo test -p libaipm"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Phase 2.4: Add resolve_pack_init() TTY bridge to aipm's wizard_tty.rs",
+    "description": "Add ci_azure_empty_diagnostics test asserting zero-byte output for a clean Outcome",
     "steps": [
-      "Read crates/aipm/src/wizard_tty.rs \u2014 understand the pattern from resolve() (lines 30-44) and resolve_make_plugin() (lines 78-171)",
-      "Add `use std::path::Path;` and `use libaipm::manifest::types::PluginType;` to imports if not already present",
-      "Add resolve_pack_init() public function following the same pattern: check interactive, if true: set_global_render_config, call wizard::package_prompt_steps(), call libaipm::wizard::execute_prompts(), call wizard::resolve_package_answers(). If false: return (flag_name, flag_type) as-is",
-      "Function signature: `pub fn resolve_pack_init(interactive: bool, dir: &Path, flag_name: Option<String>, flag_type: Option<PluginType>) -> Result<(Option<String>, Option<PluginType>), Box<dyn std::error::Error>>`",
-      "Run `cargo build --workspace` to verify compilation",
-      "Run `cargo clippy --workspace -- -D warnings`"
+      "Build an Outcome with diagnostics: vec![], error_count: 0, warning_count: 0, sources_scanned: 0",
+      "Invoke CiAzure.report(&outcome, &mut Vec::<u8>::new())",
+      "Assert the writer buffer is empty (len == 0)",
+      "Confirm no panics, Result is Ok"
+    ],
+    "passes": true,
+    "passes_note": "Test was already present at crates/libaipm/src/lint/reporter.rs `fn ci_azure_empty_diagnostics()` and continues to pass after the CiAzure::report rewrite — the early `if outcome.diagnostics.is_empty() { return Ok(()) }` guarantees zero-byte output."
+  },
+  {
+    "category": "functional",
+    "description": "Add ci_azure_code_property_present test verifying every logissue line contains code=<rule_id>",
+    "steps": [
+      "Construct an Outcome with multiple diagnostics across different rule ids",
+      "Invoke CiAzure.report and capture the string output",
+      "Split output by \\n and filter lines starting with ##vso[task.logissue",
+      "For each such line assert it contains ;code= followed by the expected rule_id"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Phase 2.5: Add cmd_pack_init() handler and match arm to aipm main.rs",
+    "description": "Add ci_azure_with_help_text_and_url test — both help_text and help_url Some, asserting em-dash joiner plus (see <url>) suffix",
     "steps": [
-      "Read crates/aipm/src/main.rs \u2014 understand the pattern from cmd_make_plugin() (lines 966-1061) and the run() match block (lines 1067-1141)",
-      "Add cmd_pack_init() function following the spec: parse PluginType from --type string via str::parse, call resolve_dir(), check interactive, call wizard_tty::resolve_pack_init(), construct libaipm::init::Options, call libaipm::init::init(), print success message",
-      "Add match arm in run() for Commands::Pack: `Some(Commands::Pack { subcommand }) => match subcommand { PackSubcommand::Init { yes, name, r#type, dir } => cmd_pack_init(yes, name.as_deref(), r#type.as_deref(), dir) }`",
-      "Place the match arm after the Make arm (around line 1133)",
-      "Run `cargo build --workspace` to verify compilation",
-      "Run `cargo test --workspace` to verify all existing tests pass",
-      "Run `cargo clippy --workspace -- -D warnings`",
-      "Manually test: create a temp dir and run `cargo run -p aipm -- pack init --name test-pkg --type skill -y /tmp/test-pack-init` to verify it creates aipm.toml"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 3: Delete crates/aipm-pack/ directory",
-    "steps": [
-      "Verify Phase 2 is complete and `aipm pack init` works correctly",
-      "Remove the entire crates/aipm-pack/ directory: Cargo.toml, CHANGELOG.md, src/ (main.rs, error.rs, wizard.rs, wizard_tty.rs, snapshots/), tests/ (init_e2e.rs)",
-      "Remove [profile.dev.package.aipm-pack] section from workspace Cargo.toml (lines 177-178)",
-      "Run `cargo build --workspace` to verify the workspace compiles without aipm-pack",
-      "Run `cargo test --workspace` to verify no test references the deleted binary",
-      "Run `cargo clippy --workspace -- -D warnings`",
-      "Run `cargo fmt --check`"
+      "Construct a Diagnostic with help_text: Some(\"run aipm migrate\"), help_url: Some(\"https://example.com/rule\")",
+      "Invoke CiAzure.report and capture output",
+      "Assert the logissue body contains \" \\u{2014} run aipm migrate (see https://example.com/rule)\"",
+      "Assert the body is well-formed relative to the ##vso[...] property block"
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Phase 4: Migrate E2E tests from aipm-pack to aipm",
+    "description": "Add ci_azure_with_help_text_only test — help_text Some, help_url None, asserts no (see ...) suffix",
     "steps": [
-      "Read the deleted crates/aipm-pack/tests/init_e2e.rs (from git or spec reference) \u2014 it has 21 tests that invoke Command::cargo_bin('aipm-pack')",
-      "Create crates/aipm/tests/pack_init_e2e.rs with the same test structure",
-      "Replace the helper `fn aipm_pack() -> Command` with `fn aipm() -> Command { Command::cargo_bin(\"aipm\").expect(\"binary exists\") }`",
-      "In every test, replace `.arg(\"init\")` with `.arg(\"pack\").arg(\"init\")`",
-      "Rename test functions from `init_*` to `pack_init_*` for clarity",
-      "The assertions (checking aipm.toml exists, directory layout, error messages) remain identical since libaipm::init is unchanged",
-      "For the `init_defaults_to_current_directory` test, the new command path is `aipm pack init` \u2014 the positional dir default of '.' still applies",
-      "Run `cargo test -p aipm --test pack_init_e2e` to verify all 21 migrated tests pass",
-      "Run `cargo test --workspace` for full test suite",
-      "Run `cargo clippy --workspace -- -D warnings`"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 5.1: Rewrite BDD init.feature scenarios for aipm make plugin",
-    "steps": [
-      "Read tests/features/manifest/init.feature \u2014 6 scenarios currently testing 'aipm-pack init'",
-      "Read crates/libaipm/tests/bdd.rs to understand the BDD step definitions and how commands are dispatched (lines 100-121)",
-      "Rewrite the feature file to test 'aipm make plugin' instead. Each scenario needs a Given step that creates an initialized marketplace (e.g., 'Given an initialized workspace with marketplace')",
-      "Scenario 1: 'Create a new plugin in an initialized marketplace' \u2014 run 'aipm make plugin --name my-plugin --engine claude --feature skill -y', verify plugin directory and plugin.json exist",
-      "Scenario 2: 'Create a plugin with --name flag' \u2014 run 'aipm make plugin --name hello-world --engine claude --feature skill -y', verify plugin.json contains 'hello-world'",
-      "Scenario 3: 'Creating a plugin in existing directory succeeds idempotently' \u2014 create plugin, run again, verify no error (make is idempotent unlike init)",
-      "Scenario 4: 'Plugin scaffold includes feature directories' \u2014 run make plugin with --feature skill, verify skills/ directory exists inside plugin dir",
-      "Scenario 5: 'Plugin scaffold with specific features' (Scenario Outline) \u2014 parametrize over skill, agent, mcp, hook features, verify appropriate directories/files exist",
-      "Scenario 6: 'Plugin name must follow naming conventions' \u2014 run 'aipm make plugin --name INVALID_Name! ...', verify failure with naming error",
-      "Ensure any required BDD step definitions exist in bdd.rs (may need 'Given an initialized workspace with marketplace' step)",
-      "Run the BDD test suite: `cargo test -p libaipm --test bdd` to verify scenarios pass",
-      "Run `cargo test --workspace`"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 5.2: Remove aipm-pack special-case routing in BDD test runner",
-    "steps": [
-      "Read crates/libaipm/tests/bdd.rs lines 108-111 \u2014 the special-case block: `if binary == \"aipm-pack\" && args.first() == Some(&\"init\") && working_dir.is_some()`",
-      "Remove this entire if-block since 'aipm-pack' is no longer a binary target",
-      "Keep the else branch logic (cmd.args(args); cmd.current_dir(&cwd);) as the only path",
-      "Also remove the comment on line 108: '// For \"aipm-pack init\" in a dir, pass the dir as the positional arg'",
-      "Run `cargo test -p libaipm --test bdd` to verify BDD tests still pass",
-      "Run `cargo clippy --workspace -- -D warnings`"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 5.3: Update aspirational BDD feature files to use aipm subcommand names",
-    "steps": [
-      "Replace 'aipm-pack pack' with 'aipm pack' in tests/features/registry/publish.feature",
-      "Replace 'aipm-pack publish' with 'aipm publish' in tests/features/registry/publish.feature",
-      "Replace 'aipm-pack yank' with 'aipm yank' in tests/features/registry/yank.feature",
-      "Replace 'aipm-pack deprecate' with 'aipm deprecate' in tests/features/registry/yank.feature",
-      "Replace 'aipm-pack publish' with 'aipm publish' in tests/features/registry/security.feature",
-      "Replace 'aipm-pack login' with 'aipm login' in tests/features/registry/security.feature",
-      "Replace 'aipm-pack' with 'aipm' in tests/features/registry/link.feature (description text)",
-      "Replace 'aipm-pack init' with 'aipm pack init' in tests/features/guardrails/quality.feature",
-      "Replace 'aipm-pack lint' with 'aipm lint' in tests/features/guardrails/quality.feature",
-      "Replace 'aipm-pack publish' with 'aipm publish' in tests/features/guardrails/quality.feature",
-      "Replace 'aipm-pack lint --fix' with 'aipm lint --fix' in tests/features/guardrails/quality.feature",
-      "Replace 'aipm-pack lint' with 'aipm lint' in tests/features/monorepo/orchestration.feature",
-      "Replace 'aipm-pack publish' with 'aipm publish' in tests/features/monorepo/orchestration.feature",
-      "Replace 'aipm-pack publish' with 'aipm publish' in tests/features/reuse/compositional-reuse.feature",
-      "Verify no remaining references: grep -r 'aipm-pack' tests/features/ should return zero results",
-      "Run `cargo test --workspace` to ensure no breakage"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 6.1: Update workspace Cargo.toml and CLAUDE.md",
-    "steps": [
-      "Read Cargo.toml lines 175-180 \u2014 find the [profile.dev.package.aipm-pack] section",
-      "Remove lines 177-178: `[profile.dev.package.aipm-pack]` and `opt-level = 0`",
-      "Read CLAUDE.md \u2014 find line referencing 'crates/aipm-pack/'",
-      "Update the project structure section: remove the aipm-pack line or replace with a note that it was merged into aipm",
-      "Also update the Build Commands section if it references aipm-pack (it currently lists aipm as the only consumer CLI)",
-      "Run `cargo build --workspace` to verify no build impact",
-      "Run `cargo fmt --check`"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 6.2: Update libaipm doc comments",
-    "steps": [
-      "Read crates/libaipm/src/lib.rs line 4 \u2014 update from 'and the aipm-pack author binary' to remove the aipm-pack reference",
-      "Read crates/libaipm/src/init.rs line 1 \u2014 update from 'aipm-pack init' to 'aipm pack init'",
-      "Read crates/libaipm/src/wizard.rs lines 1-5 \u2014 update from 'Both the aipm and aipm-pack binaries' to 'The aipm binary enables this feature'",
-      "Run `cargo doc --workspace --no-deps` to verify docs generate cleanly",
-      "Run `cargo clippy --workspace -- -D warnings`"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 6.3: Update README.md",
-    "steps": [
-      "Read README.md \u2014 find the 'aipm-pack' CLI section (around line 314-323)",
-      "Remove the 'aipm-pack \u2014 Author CLI' section entirely or replace with a note that it is now 'aipm pack'",
-      "Update the module table (around line 349) \u2014 change init description from 'aipm-pack init' to 'aipm pack init'",
-      "Update the feature flag table (around line 375) \u2014 wizard is now 'required by aipm' only (not 'aipm and aipm-pack')",
-      "Update the project structure tree (around line 499) \u2014 remove 'aipm-pack/ Author CLI binary (init)'",
-      "Update the roadmap section (around lines 523-525) \u2014 change 'aipm-pack pack / publish' and 'aipm-pack yank' to 'aipm pack / publish' and 'aipm yank'",
-      "Update the CLI table (around line 13) \u2014 remove aipm-pack row, add 'pack init' to aipm row",
-      "Verify no remaining 'aipm-pack' references in README.md: grep 'aipm-pack' README.md should return zero lines"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 6.4: Update documentation guides",
-    "steps": [
-      "Read docs/guides/creating-a-plugin.md \u2014 find all 9 occurrences of 'aipm-pack init' and replace with 'aipm pack init'",
-      "Read docs/guides/make-plugin.md \u2014 update the comparison table and see-also links (3 occurrences)",
-      "Read docs/guides/init.md \u2014 update cross-references to aipm-pack init (2 occurrences)",
-      "Read docs/README.md \u2014 update references to aipm-pack (3 occurrences)",
-      "Verify no remaining 'aipm-pack' references in docs/: grep -r 'aipm-pack' docs/ should return zero lines"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Phase 6.5: Update CI/CD workflows",
-    "steps": [
-      "Read .github/workflows/update-latest-release.yml line 20 \u2014 remove the '&& !startsWith(github.event.release.tag_name, 'aipm-pack-v')' guard from the if condition",
-      "The simplified condition should be: `if: startsWith(github.event.release.tag_name, 'aipm-v') && !github.event.release.prerelease`",
-      "Read .github/workflows/docs-updater.md around line 101 \u2014 remove the reference to 'crates/aipm-pack/src/main.rs'",
-      "Recompile the docs-updater workflow: run `gh aw compile docs-updater` and commit both the .md source and .lock.yml together",
-      "Verify no remaining 'aipm-pack' references in workflows: grep -r 'aipm-pack' .github/workflows/ (excluding .lock.yml files which are auto-generated)"
+      "Construct a Diagnostic with help_text: Some(\"do X\"), help_url: None",
+      "Invoke CiAzure.report and capture output",
+      "Assert the body ends with \" \\u{2014} do X\" and does NOT contain \"(see \""
     ],
     "passes": true
   },
   {
     "category": "functional",
-    "description": "Phase 7: Final verification and coverage gate",
+    "description": "Add ci_azure_with_help_url_only test — help_url Some, help_text None, asserts no em-dash but (see <url>) present",
     "steps": [
-      "Run `cargo build --workspace` \u2014 must pass with zero errors",
-      "Run `cargo test --workspace` \u2014 must pass with zero failures",
-      "Run `cargo clippy --workspace -- -D warnings` \u2014 must pass with zero warnings",
-      "Run `cargo fmt --check` \u2014 must pass",
-      "Run coverage: `cargo +nightly llvm-cov clean --workspace && cargo +nightly llvm-cov --no-report --workspace --branch && cargo +nightly llvm-cov --no-report --doc && cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs|lsp\\.rs)'` \u2014 TOTAL branch must show >= 89%",
-      "Verify grep -r 'aipm-pack' crates/ returns zero matches in source files",
-      "Verify grep -r 'aipm-pack' tests/features/ returns zero matches",
-      "Verify `aipm --help` shows the 'pack' subcommand",
-      "Verify `aipm pack init --help` shows: --yes/-y, --name, --type, and positional dir argument",
-      "Verify `aipm pack init --name test-verify --type skill -y /tmp/verify-merge` creates aipm.toml with correct content"
+      "Construct a Diagnostic with help_text: None, help_url: Some(\"https://docs.example.com\")",
+      "Invoke CiAzure.report and capture output",
+      "Assert the body ends with \" (see https://docs.example.com)\" and does NOT contain \" \\u{2014} \""
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add ci_azure_with_neither test — help_text and help_url both None, body identical to pre-spec format",
+    "steps": [
+      "Construct a Diagnostic with help_text: None, help_url: None",
+      "Invoke CiAzure.report and capture output",
+      "Assert the body matches exactly \"<rule_id>: <message>\" with no em-dash, no (see ...), no trailing whitespace"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add ci_azure_group_per_file test — two diagnostics on file A, one on file B — verifies proper group ordering",
+    "steps": [
+      "Construct an Outcome with two diagnostics on file \"a.md\" and one on file \"b.md\", sorted as such",
+      "Invoke CiAzure.report and capture output",
+      "Assert ordering: ##[group]aipm lint: a.md, two logissue lines for a.md, ##[endgroup], ##[group]aipm lint: b.md, one logissue line for b.md, ##[endgroup]",
+      "Assert only two ##[group] openers and two ##[endgroup] closers total"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add ci_azure_single_file_single_group test — N diagnostics on one file emit exactly one ##[group] and one ##[endgroup]",
+    "steps": [
+      "Construct an Outcome with 3+ diagnostics all sharing the same file_path",
+      "Invoke CiAzure.report and capture output",
+      "Count occurrences of \"##[group]\" and \"##[endgroup]\" — each must equal 1",
+      "Assert logissue lines appear between the group opener and closer in source order"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add ci_azure_task_complete_on_warnings_only test — error_count 0, warning_count > 0 triggers SucceededWithIssues tail",
+    "steps": [
+      "Construct an Outcome with error_count: 0, warning_count: 2, diagnostics containing two Warning-severity items",
+      "Invoke CiAzure.report and capture output",
+      "Assert the output ends with the line \"##vso[task.complete result=SucceededWithIssues;]\\n\"",
+      "Assert this line appears AFTER the last ##[endgroup]"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add ci_azure_no_task_complete_on_errors test — presence of any error suppresses the task.complete tail",
+    "steps": [
+      "Construct an Outcome with error_count: 1, warning_count: 0 (or any non-zero error count)",
+      "Invoke CiAzure.report and capture output",
+      "Assert the output does NOT contain \"##vso[task.complete\"",
+      "Assert the final non-empty line is an ##[endgroup]"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add ci_azure_no_task_complete_on_clean_run test — empty Outcome emits zero bytes including no task.complete",
+    "steps": [
+      "Construct an empty Outcome with diagnostics: vec![], error_count: 0, warning_count: 0",
+      "Invoke CiAzure.report and capture output",
+      "Assert output is an empty Vec<u8> (len 0)",
+      "Assert no ##vso[task.complete line is present"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add ci_azure_escape_bracket_in_help_text test — ] in help_text is escaped to %5D in the body",
+    "steps": [
+      "Construct a Diagnostic with help_text: Some(\"see [docs]\"), help_url: None",
+      "Invoke CiAzure.report and capture output",
+      "Assert the body contains \"see [docs%5D\"",
+      "Assert the ##vso[task.logissue property block is still parseable (no stray ] closing the property block prematurely)"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add ci_azure_escape_semicolon_in_help_url test — ; in help_url is escaped to %3B in the body",
+    "steps": [
+      "Construct a Diagnostic with help_url: Some(\"https://x/?a=1;b=2\"), help_text: None",
+      "Invoke CiAzure.report and capture output",
+      "Assert the body contains \"https://x/?a=1%3Bb=2\"",
+      "Assert the property block separators are still parseable"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add ci_azure_escape_newline_in_message test — \\n in message is escaped to %0A in the body",
+    "steps": [
+      "Construct a Diagnostic with message: \"line one\\nline two\"",
+      "Invoke CiAzure.report and capture output",
+      "Assert the body contains \"line one%0Aline two\"",
+      "Assert the logissue line remains on a single line (no embedded raw \\n inside the body)"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add ci_azure_rule_id_with_slashes_unchanged test — / is not in the escape table and passes through in code= and body",
+    "steps": [
+      "Construct a Diagnostic with rule_id: \"skill/missing-description\"",
+      "Invoke CiAzure.report and capture output",
+      "Assert the logissue line contains \";code=skill/missing-description]\" verbatim",
+      "Assert the body prefix starts with \"skill/missing-description: \""
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add ci_azure_sample_outcome_snapshot insta golden snapshot over sample_outcome()",
+    "steps": [
+      "Use insta::assert_snapshot! to capture the full String output of CiAzure.report for the existing sample_outcome() fixture",
+      "Run cargo insta review and accept the snapshot",
+      "Commit the accepted snapshot file under crates/libaipm/src/lint/snapshots/",
+      "Re-run cargo test -p libaipm to confirm the snapshot assertion passes"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Verify workspace lint and build gates pass after the CiAzure rewrite",
+    "steps": [
+      "Run cargo fmt --check and confirm zero diffs",
+      "Run cargo clippy --workspace -- -D warnings and confirm zero warnings",
+      "Run cargo build --workspace and confirm success",
+      "Run cargo test --workspace and confirm all tests including the new ci_azure_* tests pass",
+      "Confirm no new #[allow(...)] / #[expect(...)] attributes were added",
+      "Confirm no unwrap/expect/panic/println!/eprintln!/dbg!/unsafe/std::process::exit usage in the new code"
+    ],
+    "passes": true
+  },
+  {
+    "category": "performance",
+    "description": "Verify 89% branch coverage gate holds after the CiAzure rewrite",
+    "steps": [
+      "Run cargo +nightly llvm-cov clean --workspace",
+      "Run cargo +nightly llvm-cov --no-report --workspace --branch",
+      "Run cargo +nightly llvm-cov --no-report --doc",
+      "Run cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs|lsp\\.rs)'",
+      "Confirm the TOTAL branch column is at least 89%",
+      "If coverage dropped below 89%, add tests that exercise the missing branches in CiAzure::report or format_azure_logissue_body"
     ],
     "passes": true
   }

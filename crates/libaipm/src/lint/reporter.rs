@@ -338,22 +338,43 @@ pub struct CiAzure;
 
 impl Reporter for CiAzure {
     fn report(&self, outcome: &Outcome, writer: &mut dyn Write) -> std::io::Result<()> {
+        if outcome.diagnostics.is_empty() {
+            return Ok(());
+        }
+
+        let mut current_file: Option<&Path> = None;
         for d in &outcome.diagnostics {
+            if current_file != Some(d.file_path.as_path()) {
+                if current_file.is_some() {
+                    writeln!(writer, "##[endgroup]")?;
+                }
+                writeln!(writer, "##[group]aipm lint: {}", d.file_path.display())?;
+                current_file = Some(d.file_path.as_path());
+            }
+
             let severity = match d.severity {
                 Severity::Error => "error",
                 Severity::Warning => "warning",
             };
             let line = d.line.unwrap_or(1);
             let col = d.col.unwrap_or(1);
-            // Azure DevOps log-command escaping for property block and message
             let sourcepath = escape_azure_log_command(&d.file_path.display().to_string());
-            let rule_id = escape_azure_log_command(&d.rule_id);
-            let message = escape_azure_log_command(&d.message);
+            let code = escape_azure_log_command(&d.rule_id);
+            let body = escape_azure_log_command(&format_azure_logissue_body(d));
             writeln!(
                 writer,
-                "##vso[task.logissue type={severity};sourcepath={sourcepath};linenumber={line};columnnumber={col}]{rule_id}: {message}",
+                "##vso[task.logissue type={severity};sourcepath={sourcepath};linenumber={line};columnnumber={col};code={code}]{body}",
             )?;
         }
+
+        if current_file.is_some() {
+            writeln!(writer, "##[endgroup]")?;
+        }
+
+        if outcome.error_count == 0 && outcome.warning_count > 0 {
+            writeln!(writer, "##vso[task.complete result=SucceededWithIssues;]")?;
+        }
+
         Ok(())
     }
 }
@@ -379,6 +400,26 @@ fn escape_azure_log_command(s: &str) -> String {
         .replace('\n', "%0A")
         .replace(';', "%3B")
         .replace(']', "%5D")
+}
+
+/// Build the body portion of an Azure DevOps `##vso[task.logissue]` line.
+///
+/// The result has the shape `<rule_id>: <message>` and, when present, appends
+/// `" \u{2014} <help_text>"` and/or `" (see <help_url>)"`. The returned string
+/// is not yet escaped for the Azure DevOps log-command grammar — callers must
+/// apply `escape_azure_log_command` before embedding it in a logissue line.
+fn format_azure_logissue_body(d: &Diagnostic) -> String {
+    let mut body = format!("{}: {}", d.rule_id, d.message);
+    if let Some(help_text) = d.help_text.as_ref() {
+        body.push_str(" \u{2014} ");
+        body.push_str(help_text);
+    }
+    if let Some(help_url) = d.help_url.as_ref() {
+        body.push_str(" (see ");
+        body.push_str(help_url);
+        body.push(')');
+    }
+    body
 }
 
 fn escape_json_string(s: &str) -> String {
@@ -697,8 +738,11 @@ mod tests {
         let mut buf = Vec::new();
         CiAzure.report(&outcome, &mut buf).ok();
         let output = String::from_utf8(buf).unwrap_or_default();
-        assert!(output.contains("##vso[task.logissue type=warning;sourcepath=.ai/my-plugin/skills/default/SKILL.md;linenumber=1;columnnumber=1]skill/missing-description"));
-        assert!(output.contains("##vso[task.logissue type=error;sourcepath=.ai/my-plugin/hooks/hooks.json;linenumber=5;columnnumber=1]hook/unknown-event"));
+        assert!(output.contains("##vso[task.logissue type=warning;sourcepath=.ai/my-plugin/skills/default/SKILL.md;linenumber=1;columnnumber=1;code=skill/missing-description]skill/missing-description"));
+        assert!(output.contains("##vso[task.logissue type=error;sourcepath=.ai/my-plugin/hooks/hooks.json;linenumber=5;columnnumber=1;code=hook/unknown-event]hook/unknown-event"));
+        assert!(output.contains("##[group]aipm lint: .ai/my-plugin/skills/default/SKILL.md"));
+        assert!(output.contains("##[group]aipm lint: .ai/my-plugin/hooks/hooks.json"));
+        assert!(output.contains("##[endgroup]"));
     }
 
     #[test]
@@ -739,6 +783,451 @@ mod tests {
         CiAzure.report(&outcome, &mut buf).ok();
         let output = String::from_utf8(buf).unwrap_or_default();
         assert!(output.contains("linenumber=1;columnnumber=1"));
+    }
+
+    // --- format_azure_logissue_body helper tests (spec §5.2 four-case table) ---
+
+    fn body_fixture(help_text: Option<&str>, help_url: Option<&str>) -> Diagnostic {
+        Diagnostic {
+            rule_id: "skill/missing-description".into(),
+            severity: Severity::Warning,
+            message: "SKILL.md missing required field: description".into(),
+            file_path: PathBuf::from("a.md"),
+            line: Some(1),
+            col: Some(1),
+            end_line: None,
+            end_col: None,
+            source_type: ".ai".into(),
+            help_text: help_text.map(String::from),
+            help_url: help_url.map(String::from),
+        }
+    }
+
+    #[test]
+    fn format_azure_logissue_body_both_present() {
+        let d = body_fixture(Some("run aipm migrate"), Some("https://example.com/rule"));
+        let body = format_azure_logissue_body(&d);
+        assert_eq!(
+            body,
+            "skill/missing-description: SKILL.md missing required field: description \u{2014} run aipm migrate (see https://example.com/rule)"
+        );
+    }
+
+    #[test]
+    fn format_azure_logissue_body_help_text_only() {
+        let d = body_fixture(Some("do X"), None);
+        let body = format_azure_logissue_body(&d);
+        assert_eq!(
+            body,
+            "skill/missing-description: SKILL.md missing required field: description \u{2014} do X"
+        );
+        assert!(!body.contains("(see "));
+    }
+
+    #[test]
+    fn format_azure_logissue_body_help_url_only() {
+        let d = body_fixture(None, Some("https://docs.example.com"));
+        let body = format_azure_logissue_body(&d);
+        assert_eq!(
+            body,
+            "skill/missing-description: SKILL.md missing required field: description (see https://docs.example.com)"
+        );
+        assert!(!body.contains('\u{2014}'));
+    }
+
+    #[test]
+    fn format_azure_logissue_body_neither() {
+        let d = body_fixture(None, None);
+        let body = format_azure_logissue_body(&d);
+        assert_eq!(body, "skill/missing-description: SKILL.md missing required field: description");
+        assert!(!body.contains('\u{2014}'));
+        assert!(!body.contains("(see "));
+    }
+
+    fn ci_azure_single_diagnostic_outcome(
+        help_text: Option<&str>,
+        help_url: Option<&str>,
+    ) -> Outcome {
+        Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "skill/missing-description".into(),
+                severity: Severity::Warning,
+                message: "missing desc".into(),
+                file_path: PathBuf::from("a.md"),
+                line: Some(1),
+                col: Some(1),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: help_text.map(String::from),
+                help_url: help_url.map(String::from),
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        }
+    }
+
+    #[test]
+    fn ci_azure_with_help_text_and_url() {
+        let outcome = ci_azure_single_diagnostic_outcome(
+            Some("run aipm migrate"),
+            Some("https://example.com/rule"),
+        );
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        let logissue_line =
+            output.lines().find(|line| line.starts_with("##vso[task.logissue")).unwrap_or_default();
+        assert!(logissue_line.contains(
+            "skill/missing-description: missing desc \u{2014} run aipm migrate (see https://example.com/rule)"
+        ));
+        assert!(logissue_line.contains(";code=skill/missing-description]"));
+    }
+
+    #[test]
+    fn ci_azure_with_help_text_only() {
+        let outcome = ci_azure_single_diagnostic_outcome(Some("do X"), None);
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        let logissue_line =
+            output.lines().find(|line| line.starts_with("##vso[task.logissue")).unwrap_or_default();
+        assert!(logissue_line.ends_with("skill/missing-description: missing desc \u{2014} do X"));
+        assert!(!logissue_line.contains("(see "));
+    }
+
+    #[test]
+    fn ci_azure_with_help_url_only() {
+        let outcome = ci_azure_single_diagnostic_outcome(None, Some("https://docs.example.com"));
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        let logissue_line =
+            output.lines().find(|line| line.starts_with("##vso[task.logissue")).unwrap_or_default();
+        assert!(logissue_line
+            .ends_with("skill/missing-description: missing desc (see https://docs.example.com)"));
+        assert!(!logissue_line.contains('\u{2014}'));
+    }
+
+    #[test]
+    fn ci_azure_with_neither() {
+        let outcome = ci_azure_single_diagnostic_outcome(None, None);
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        let logissue_line =
+            output.lines().find(|line| line.starts_with("##vso[task.logissue")).unwrap_or_default();
+        assert!(logissue_line.ends_with("skill/missing-description: missing desc"));
+        assert!(!logissue_line.contains('\u{2014}'));
+        assert!(!logissue_line.contains("(see "));
+    }
+
+    fn ci_azure_diag_on(file_path: &str, rule_id: &str, line: usize) -> Diagnostic {
+        Diagnostic {
+            rule_id: rule_id.into(),
+            severity: Severity::Warning,
+            message: "msg".into(),
+            file_path: PathBuf::from(file_path),
+            line: Some(line),
+            col: Some(1),
+            end_line: None,
+            end_col: None,
+            source_type: ".ai".into(),
+            help_text: None,
+            help_url: None,
+        }
+    }
+
+    #[test]
+    fn ci_azure_sample_outcome_snapshot() {
+        let outcome = sample_outcome();
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        insta::assert_snapshot!(output);
+    }
+
+    #[test]
+    fn ci_azure_rule_id_with_slashes_unchanged() {
+        let outcome = ci_azure_single_diagnostic_outcome(None, None);
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        let logissue_line =
+            output.lines().find(|line| line.starts_with("##vso[task.logissue")).unwrap_or_default();
+        assert!(logissue_line.contains(";code=skill/missing-description]"));
+        let body_start = logissue_line.find(']').unwrap_or_default() + 1;
+        let body = logissue_line.get(body_start..).unwrap_or_default();
+        assert!(body.starts_with("skill/missing-description: "));
+    }
+
+    #[test]
+    fn ci_azure_escape_newline_in_message() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "rule/multi".into(),
+                severity: Severity::Warning,
+                message: "line one\nline two".into(),
+                file_path: PathBuf::from("a.md"),
+                line: Some(1),
+                col: Some(1),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        let logissue_lines: Vec<&str> =
+            output.lines().filter(|l| l.starts_with("##vso[task.logissue")).collect();
+        assert_eq!(logissue_lines.len(), 1);
+        let logissue_line = logissue_lines[0];
+        assert!(logissue_line.contains("line one%0Aline two"));
+        assert!(!logissue_line.contains("line one\nline two"));
+    }
+
+    #[test]
+    fn ci_azure_escape_semicolon_in_help_url() {
+        let outcome = ci_azure_single_diagnostic_outcome(None, Some("https://x/?a=1;b=2"));
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        let logissue_line =
+            output.lines().find(|line| line.starts_with("##vso[task.logissue")).unwrap_or_default();
+        assert!(logissue_line.contains("https://x/?a=1%3Bb=2"));
+        assert!(!logissue_line.contains("https://x/?a=1;b=2"));
+        assert!(logissue_line.contains(";code=skill/missing-description]"));
+    }
+
+    #[test]
+    fn ci_azure_escape_bracket_in_help_text() {
+        let outcome = ci_azure_single_diagnostic_outcome(Some("see [docs]"), None);
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        let logissue_line =
+            output.lines().find(|line| line.starts_with("##vso[task.logissue")).unwrap_or_default();
+        assert!(logissue_line.contains("see [docs%5D"));
+        assert!(!logissue_line.ends_with("see [docs]"));
+        assert!(logissue_line.contains(";code=skill/missing-description]"));
+    }
+
+    #[test]
+    fn ci_azure_no_task_complete_on_clean_run() {
+        let outcome = Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+
+        assert_eq!(buf.len(), 0);
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(!output.contains("##vso[task.complete"));
+    }
+
+    #[test]
+    fn ci_azure_no_task_complete_on_errors() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "rule/err".into(),
+                severity: Severity::Error,
+                message: "bad".into(),
+                file_path: PathBuf::from("a.md"),
+                line: Some(1),
+                col: Some(1),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 1,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        assert!(!output.contains("##vso[task.complete"));
+        let trimmed = output.trim_end_matches('\n');
+        assert!(trimmed.ends_with("##[endgroup]"));
+    }
+
+    #[test]
+    fn ci_azure_task_complete_on_warnings_only() {
+        let outcome = Outcome {
+            diagnostics: vec![
+                ci_azure_diag_on("a.md", "rule/one", 1),
+                ci_azure_diag_on("a.md", "rule/two", 2),
+            ],
+            error_count: 0,
+            warning_count: 2,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        assert!(output.ends_with("##vso[task.complete result=SucceededWithIssues;]\n"));
+
+        let lines: Vec<&str> = output.lines().collect();
+        let task_complete_pos =
+            lines.iter().position(|l| l.starts_with("##vso[task.complete")).unwrap_or_default();
+        let last_endgroup_pos =
+            lines.iter().rposition(|l| *l == "##[endgroup]").unwrap_or_default();
+        assert!(last_endgroup_pos < task_complete_pos);
+    }
+
+    #[test]
+    fn ci_azure_single_file_single_group() {
+        let outcome = Outcome {
+            diagnostics: vec![
+                ci_azure_diag_on("only.md", "rule/one", 1),
+                ci_azure_diag_on("only.md", "rule/two", 2),
+                ci_azure_diag_on("only.md", "rule/three", 3),
+                ci_azure_diag_on("only.md", "rule/four", 4),
+            ],
+            error_count: 0,
+            warning_count: 4,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        let lines: Vec<&str> = output.lines().collect();
+
+        assert_eq!(output.matches("##[group]").count(), 1);
+        assert_eq!(output.matches("##[endgroup]").count(), 1);
+
+        let group_pos =
+            lines.iter().position(|l| *l == "##[group]aipm lint: only.md").unwrap_or_default();
+        let endgroup_pos = lines.iter().position(|l| *l == "##[endgroup]").unwrap_or_default();
+        assert!(group_pos < endgroup_pos);
+
+        let logissues: Vec<&&str> = lines
+            .get(group_pos + 1..endgroup_pos)
+            .unwrap_or_default()
+            .iter()
+            .filter(|l| l.starts_with("##vso[task.logissue"))
+            .collect();
+        assert_eq!(logissues.len(), 4);
+        assert!(logissues[0].contains(";code=rule/one]"));
+        assert!(logissues[1].contains(";code=rule/two]"));
+        assert!(logissues[2].contains(";code=rule/three]"));
+        assert!(logissues[3].contains(";code=rule/four]"));
+    }
+
+    #[test]
+    fn ci_azure_group_per_file() {
+        let outcome = Outcome {
+            diagnostics: vec![
+                ci_azure_diag_on("a.md", "rule/one", 1),
+                ci_azure_diag_on("a.md", "rule/two", 2),
+                ci_azure_diag_on("b.md", "rule/three", 1),
+            ],
+            error_count: 0,
+            warning_count: 3,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        let lines: Vec<&str> = output.lines().collect();
+
+        assert_eq!(output.matches("##[group]").count(), 2);
+        assert_eq!(output.matches("##[endgroup]").count(), 2);
+
+        let idx_group_a = lines.iter().position(|l| *l == "##[group]aipm lint: a.md");
+        let idx_group_b = lines.iter().position(|l| *l == "##[group]aipm lint: b.md");
+        assert!(idx_group_a.is_some());
+        assert!(idx_group_b.is_some());
+        let group_a_pos = idx_group_a.unwrap_or_default();
+        let group_b_pos = idx_group_b.unwrap_or_default();
+        assert!(group_a_pos < group_b_pos);
+
+        let a_logissues: Vec<&&str> = lines
+            .get(group_a_pos + 1..group_b_pos)
+            .unwrap_or_default()
+            .iter()
+            .filter(|l| l.starts_with("##vso[task.logissue"))
+            .collect();
+        assert_eq!(a_logissues.len(), 2);
+        assert!(a_logissues[0].contains(";code=rule/one]"));
+        assert!(a_logissues[1].contains(";code=rule/two]"));
+
+        let b_logissues: Vec<&&str> = lines
+            .get(group_b_pos + 1..)
+            .unwrap_or_default()
+            .iter()
+            .filter(|l| l.starts_with("##vso[task.logissue"))
+            .collect();
+        assert_eq!(b_logissues.len(), 1);
+        assert!(b_logissues[0].contains(";code=rule/three]"));
+    }
+
+    #[test]
+    fn ci_azure_code_property_present() {
+        let outcome = Outcome {
+            diagnostics: vec![
+                Diagnostic {
+                    rule_id: "skill/missing-description".into(),
+                    severity: Severity::Warning,
+                    message: "missing desc".into(),
+                    file_path: PathBuf::from("a.md"),
+                    line: Some(1),
+                    col: Some(1),
+                    end_line: None,
+                    end_col: None,
+                    source_type: ".ai".into(),
+                    help_text: None,
+                    help_url: None,
+                },
+                Diagnostic {
+                    rule_id: "hook/unknown-event".into(),
+                    severity: Severity::Error,
+                    message: "bad event".into(),
+                    file_path: PathBuf::from("b.json"),
+                    line: Some(2),
+                    col: Some(3),
+                    end_line: None,
+                    end_col: None,
+                    source_type: ".ai".into(),
+                    help_text: None,
+                    help_url: None,
+                },
+            ],
+            error_count: 1,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        let logissue_lines: Vec<&str> =
+            output.lines().filter(|line| line.starts_with("##vso[task.logissue")).collect();
+        assert_eq!(logissue_lines.len(), 2);
+        assert!(logissue_lines[0].contains(";code=skill/missing-description]"));
+        assert!(logissue_lines[1].contains(";code=hook/unknown-event]"));
     }
 
     // --- Human reporter tests ---

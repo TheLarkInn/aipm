@@ -1,0 +1,10 @@
+---
+source: crates/libaipm/src/lint/reporter.rs
+expression: output
+---
+##[group]aipm lint: .ai/my-plugin/skills/default/SKILL.md
+##vso[task.logissue type=warning;sourcepath=.ai/my-plugin/skills/default/SKILL.md;linenumber=1;columnnumber=1;code=skill/missing-description]skill/missing-description: SKILL.md missing required field: description
+##[endgroup]
+##[group]aipm lint: .ai/my-plugin/hooks/hooks.json
+##vso[task.logissue type=error;sourcepath=.ai/my-plugin/hooks/hooks.json;linenumber=5;columnnumber=1;code=hook/unknown-event]hook/unknown-event: unknown hook event: InvalidEvent
+##[endgroup]
