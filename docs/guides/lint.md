@@ -137,6 +137,35 @@ Emits [Azure Pipelines logging commands](https://learn.microsoft.com/en-us/azure
 aipm lint --reporter ci-azure
 ```
 
+Each file with diagnostics is wrapped in collapsible `##[group]` / `##[endgroup]` sections
+so the ADO pipeline log pane renders them as expandable groups.
+
+Every `##vso[task.logissue]` line carries:
+
+- **`type`** — `error` or `warning` matching the diagnostic severity
+- **`sourcepath`**, **`linenumber`**, **`columnnumber`** — file location (defaults to `1` when
+  not available)
+- **`code`** — the rule ID (e.g. `skill/missing-description`)
+- **body** — `<rule_id>: <message>`, optionally followed by ` — <help_text>` and/or
+  ` (see <help_url>)` when those fields are present on the diagnostic
+
+When a run produces warnings but no errors, a
+`##vso[task.complete result=SucceededWithIssues;]` line is appended so the pipeline step
+renders yellow rather than green.
+
+Example output for a single warning with both `help_text` and `help_url`:
+
+```
+##[group]aipm lint: .ai/my-plugin/skills/deploy/SKILL.md
+##vso[task.logissue type=warning;sourcepath=.ai/my-plugin/skills/deploy/SKILL.md;linenumber=1;columnnumber=1;code=skill/missing-description]skill/missing-description: SKILL.md missing recommended field: description — add a "description" field to the YAML frontmatter (see https://github.com/TheLarkInn/aipm/blob/main/docs/rules/skill/missing-description.md)
+##[endgroup]
+##vso[task.complete result=SucceededWithIssues;]
+```
+
+> **Note:** All property values and the message body are escaped per the Azure DevOps
+> log-command grammar (`%AZP25` for `%`, `%0A` for newlines, `%3B` for `;`, `%5D` for `]`)
+> to prevent command injection.
+
 ## CI Integration
 
 ### GitHub Actions
@@ -154,6 +183,11 @@ Violations appear as inline annotations on the changed files in pull requests.
 - script: aipm lint --reporter ci-azure
   displayName: Lint AI plugins
 ```
+
+Violations appear as collapsible per-file groups in the pipeline log. Each logissue
+carries a `code=<rule_id>` property so ADO can link it to a work-item rule. When the run
+has warnings but no errors, the step exits `0` and the pipeline marks it yellow
+(`SucceededWithIssues`) rather than green.
 
 ### Generic CI (fail on errors only)
 
