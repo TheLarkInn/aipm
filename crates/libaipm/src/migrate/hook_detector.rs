@@ -447,4 +447,18 @@ mod tests {
         assert!(!is_relative_script("check.rb", Path::new(".")));
         assert!(!is_relative_script("build.go", Path::new(".")));
     }
+
+    #[test]
+    fn detect_read_error_propagated() {
+        // settings.json is registered as existing but is absent from the files map,
+        // so read_to_string returns NotFound — exercises the `?` error-propagation
+        // branch at the read_to_string call in detect().
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.claude/settings.json"));
+        // Intentionally not inserting into fs.files — read_to_string will fail.
+
+        let detector = HookDetector;
+        let result = detector.detect(Path::new("/project/.claude"), &fs);
+        assert!(matches!(result, Err(Error::Io(_))), "expected Err(Error::Io), got: {result:?}");
+    }
 }
