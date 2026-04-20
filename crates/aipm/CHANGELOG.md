@@ -1,6 +1,24 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.22.3] - 2026-04-20
+
+### Documentation
+- Add `--engine both` example to README `aipm make plugin` section ([#546](https://github.com/TheLarkInn/aipm/pull/546)) (c4c394e)
+- Fix incorrect marketplace directory path in README `aipm init` section ([#567](https://github.com/TheLarkInn/aipm/pull/567)) (22c161f)
+
+### Testing
+- Cover marketplace must_parse error branch and diamond dependency resolution (ea0f7c6)
+- Cover cmd_uninstall_global branches via CLI integration tests (55deae0)
+- Cover non-global 'uninstall' branch in CLI handler (0818ede)
+- Cover day_of_year_to_month_day overflow fallback and agent detector empty-entry path (68f6de5)
+- Cover unsupported-feature branch in cmd_make_plugin (bfaf8d0)
+- Add coverage for global ignore_paths, resolve_dir dot, and lint source validation (4f2ecb4)
+- Cover !yes branch in cmd_make_plugin (1b1d3f8)
+- Cover cmd_uninstall_global success path (1b7260f)
+- Cover resolve_plugins_dir branches for workspace and plugins_dir (1a5e85f)
+- Cover engine-specific uninstall branches in cmd_uninstall_global (cc48b9a)
+
 ## [0.22.2] - 2026-04-15
 
 ### Testing
