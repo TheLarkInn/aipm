@@ -106,4 +106,22 @@ mod tests {
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].rule_id, "skill/missing-description");
     }
+
+    #[test]
+    fn check_file_no_frontmatter_produces_no_frontmatter_diagnostic() {
+        // Covers the `None =>` arm of `match skill.frontmatter`:
+        // a SKILL.md with no YAML frontmatter delimiters at all.
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/skills/s/SKILL.md");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), "Just plain body text, no frontmatter.".to_string());
+
+        let result = MissingDescription.check_file(&path, &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].rule_id, "skill/missing-description");
+        assert_eq!(diags[0].message, "SKILL.md has no frontmatter");
+        assert_eq!(diags[0].line, Some(1));
+    }
 }
