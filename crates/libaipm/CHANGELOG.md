@@ -1,6 +1,45 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.22.3] - 2026-04-20
+
+### Documentation
+- Add `--engine both` example to README `aipm make plugin` section ([#546](https://github.com/TheLarkInn/aipm/pull/546)) (c4c394e)
+- Fix incorrect marketplace directory path in README `aipm init` section ([#567](https://github.com/TheLarkInn/aipm/pull/567)) (22c161f)
+
+### Testing
+- Cover adaptor.apply() returning false when already configured (bd8fee8)
+- Cover emit_and_register other_files branch (6054c75)
+- Cover dest.parent() = None branch in emit_other_files (55e3c79)
+- Cover Err branch in check_name_conflicts for unparseable spec (d1ad0dd)
+- Remove uncovered short-circuit branches in assertions (00e8e49)
+- Cover is_empty True branch via uninitialised submodule (bcdfd3f)
+- Cover unsafe artifact name True branch in emit_plugin (68361a7)
+- Cover acquire_with_redirect branches (a277e0e)
+- Replace if-let with assert_eq to cover missing else branch (aff8880)
+- Cover unknown source type fallback to all detectors (16339c7)
+- Cover marketplace must_parse error branch and diamond dependency resolution (ea0f7c6)
+- Cover dest.parent() = None branch in copy_referenced_scripts (9a30b98)
+- Cover registered_entries empty branch when other_files non-empty (a69250c)
+- Cover None branch of to_str() in gc() for non-UTF-8 filenames (9cfa49e)
+- Remove unreachable if-let branches in migrate tests (634aa2b)
+- Fix migrate_other_files_skipped_when_no_artifacts test (bda5d34)
+- Cover IO error branch in McpDetector::detect (aad8685)
+- Replace dead-branch test patterns to improve coverage (17d89a5)
+- Cover assembled-dir removal branch in unlink_package (b6e05a5)
+- Cover error and already-registered branches in make/mod.rs (2519386)
+- Cover day_of_year_to_month_day overflow fallback and agent detector empty-entry path (68f6de5)
+- Replace uncoverable closure with validate() in sha512_binary_data (7e067e3)
+- Cover gc() Err branch when entries dir is unreadable (9d8497a)
+- Add coverage for global ignore_paths, resolve_dir dot, and lint source validation (4f2ecb4)
+- Cover PluginAlreadyRegistered branch in register_in_marketplace (12a75af)
+- Cover create_dir_all error path in Git::new() (95bce4c)
+- Cover AsRef<str> for ValidatedPath and Platform::deserialize (6ab1529)
+- Cover scaffold_marketplace write-error branches (909eb33)
+- Cover None frontmatter arm in skill_missing_desc (3039966)
+- Cover read_to_string error propagation in detect() (f58925d)
+- Cover None branch of file_name() in emit_other_files (eb5d49e)
+
 ## [0.22.2] - 2026-04-15
 
 ### Testing
