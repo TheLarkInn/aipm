@@ -944,6 +944,15 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_sample_outcome_snapshot() {
+        let outcome = sample_outcome();
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        insta::assert_snapshot!(output);
+    }
+
+    #[test]
     fn ci_azure_rule_id_with_slashes_unchanged() {
         let outcome = ci_azure_single_diagnostic_outcome(None, None);
         let mut buf = Vec::new();

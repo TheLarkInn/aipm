@@ -256,7 +256,7 @@
       "Commit the accepted snapshot file under crates/libaipm/src/lint/snapshots/",
       "Re-run cargo test -p libaipm to confirm the snapshot assertion passes"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

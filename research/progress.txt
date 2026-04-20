@@ -388,6 +388,35 @@ Diagnostic with `rule_id: "skill/missing-description"`. Asserts:
 Verification: `cargo test -p libaipm --lib
 lint::reporter::tests::ci_azure_rule_id_with_slashes_unchanged` passes.
 
+## 2026-04-20 — Feature 20: ci_azure_sample_outcome_snapshot
+
+Status: PASSES
+
+Added `ci_azure_sample_outcome_snapshot` insta golden snapshot at
+`crates/libaipm/src/lint/reporter.rs`. Captures the full CiAzure.report
+output for the existing `sample_outcome()` fixture (1 warning, 1 error
+across two files) using `insta::assert_snapshot!(output)`.
+
+Accepted snapshot lives at
+`crates/libaipm/src/lint/snapshots/libaipm__lint__reporter__tests__ci_azure_sample_outcome_snapshot.snap`
+and contains byte-exact expected output:
+
+- `##[group]aipm lint: .ai/my-plugin/skills/default/SKILL.md`
+- `##vso[task.logissue type=warning;...;code=skill/missing-description]...`
+- `##[endgroup]`
+- `##[group]aipm lint: .ai/my-plugin/hooks/hooks.json`
+- `##vso[task.logissue type=error;...;code=hook/unknown-event]...`
+- `##[endgroup]`
+
+Matches spec §5.4's "Example Output" table byte-for-byte. Since
+`error_count == 1`, no `##vso[task.complete]` tail is emitted.
+
+Verification: `cargo test -p libaipm --lib
+lint::reporter::tests::ci_azure_sample_outcome_snapshot` passes on
+replay without INSTA_UPDATE set. No `.snap.new` files remain.
+
+
+
 
 
 
