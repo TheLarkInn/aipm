@@ -944,6 +944,45 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_single_file_single_group() {
+        let outcome = Outcome {
+            diagnostics: vec![
+                ci_azure_diag_on("only.md", "rule/one", 1),
+                ci_azure_diag_on("only.md", "rule/two", 2),
+                ci_azure_diag_on("only.md", "rule/three", 3),
+                ci_azure_diag_on("only.md", "rule/four", 4),
+            ],
+            error_count: 0,
+            warning_count: 4,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        let lines: Vec<&str> = output.lines().collect();
+
+        assert_eq!(output.matches("##[group]").count(), 1);
+        assert_eq!(output.matches("##[endgroup]").count(), 1);
+
+        let group_pos =
+            lines.iter().position(|l| *l == "##[group]aipm lint: only.md").unwrap_or_default();
+        let endgroup_pos = lines.iter().position(|l| *l == "##[endgroup]").unwrap_or_default();
+        assert!(group_pos < endgroup_pos);
+
+        let logissues: Vec<&&str> = lines
+            .get(group_pos + 1..endgroup_pos)
+            .unwrap_or_default()
+            .iter()
+            .filter(|l| l.starts_with("##vso[task.logissue"))
+            .collect();
+        assert_eq!(logissues.len(), 4);
+        assert!(logissues[0].contains(";code=rule/one]"));
+        assert!(logissues[1].contains(";code=rule/two]"));
+        assert!(logissues[2].contains(";code=rule/three]"));
+        assert!(logissues[3].contains(";code=rule/four]"));
+    }
+
+    #[test]
     fn ci_azure_group_per_file() {
         let outcome = Outcome {
             diagnostics: vec![

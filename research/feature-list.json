@@ -168,7 +168,7 @@
       "Count occurrences of \"##[group]\" and \"##[endgroup]\" — each must equal 1",
       "Assert logissue lines appear between the group opener and closer in source order"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

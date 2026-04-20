@@ -253,6 +253,25 @@ Verification: `cargo test -p libaipm --lib
 lint::reporter::tests::ci_azure_group_per_file` passes.
 `cargo clippy --workspace -- -D warnings` clean.
 
+## 2026-04-20 — Feature 12: ci_azure_single_file_single_group
+
+Status: PASSES
+
+Added `ci_azure_single_file_single_group` test with 4 diagnostics all on
+`only.md` (rule/one..rule/four). Asserts:
+- Exactly 1 `##[group]` and 1 `##[endgroup]` occurrence.
+- `##[group]aipm lint: only.md` precedes `##[endgroup]`.
+- All 4 logissue lines appear between the group opener and closer in
+  source order, each tagged with its rule_id via `;code=<rule_id>]`.
+
+This confirms the `current_file != Some(...)` file-change detector opens
+only one group when the file path stays constant across iterations.
+
+Verification: `cargo test -p libaipm --lib
+lint::reporter::tests::ci_azure_single_file_single_group` passes.
+
+
+
 
 
 
