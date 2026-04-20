@@ -354,6 +354,26 @@ from being parsed as extra property-block separators.
 Verification: `cargo test -p libaipm --lib
 lint::reporter::tests::ci_azure_escape_semicolon_in_help_url` passes.
 
+## 2026-04-20 — Feature 18: ci_azure_escape_newline_in_message
+
+Status: PASSES
+
+Added `ci_azure_escape_newline_in_message` with `message: "line
+one\nline two"`. Asserts:
+- Exactly 1 line starts with `##vso[task.logissue` (the embedded `\n`
+  does NOT split the logissue into two lines in the output).
+- That single line contains `line one%0Aline two` (escaped form).
+- The raw two-line form `line one\nline two` does NOT appear on that
+  single logissue line.
+
+This confirms `escape_azure_log_command` prevents message newlines from
+breaking the single-line-per-diagnostic ADO log command contract.
+
+Verification: `cargo test -p libaipm --lib
+lint::reporter::tests::ci_azure_escape_newline_in_message` passes.
+
+
+
 
 
 

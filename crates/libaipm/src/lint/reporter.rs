@@ -944,6 +944,38 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_escape_newline_in_message() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "rule/multi".into(),
+                severity: Severity::Warning,
+                message: "line one\nline two".into(),
+                file_path: PathBuf::from("a.md"),
+                line: Some(1),
+                col: Some(1),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        let logissue_lines: Vec<&str> =
+            output.lines().filter(|l| l.starts_with("##vso[task.logissue")).collect();
+        assert_eq!(logissue_lines.len(), 1);
+        let logissue_line = logissue_lines[0];
+        assert!(logissue_line.contains("line one%0Aline two"));
+        assert!(!logissue_line.contains("line one\nline two"));
+    }
+
+    #[test]
     fn ci_azure_escape_semicolon_in_help_url() {
         let outcome = ci_azure_single_diagnostic_outcome(None, Some("https://x/?a=1;b=2"));
         let mut buf = Vec::new();

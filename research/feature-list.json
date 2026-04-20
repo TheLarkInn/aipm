@@ -234,7 +234,7 @@
       "Assert the body contains \"line one%0Aline two\"",
       "Assert the logissue line remains on a single line (no embedded raw \\n inside the body)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
