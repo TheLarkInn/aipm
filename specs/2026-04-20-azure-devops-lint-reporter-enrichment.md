@@ -3,7 +3,7 @@
 | Document Metadata      | Details                                                                       |
 | ---------------------- | ----------------------------------------------------------------------------- |
 | Author(s)              | Sean Larkin                                                                   |
-| Status                 | Draft (WIP)                                                                   |
+| Status                 | Implemented                                                                   |
 | Team / Owner           | aipm                                                                          |
 | Created / Last Updated | 2026-04-20 / 2026-04-20                                                       |
 | Related Research       | [`research/docs/2026-04-20-azure-devops-lint-reporter-parity.md`](../research/docs/2026-04-20-azure-devops-lint-reporter-parity.md) |
@@ -17,7 +17,7 @@
 
 ### 2.1 Current State
 
-The four lint reporters live in [`crates/libaipm/src/lint/reporter.rs`](../crates/libaipm/src/lint/reporter.rs) and are dispatched from [`crates/aipm/src/main.rs:761-779`](../crates/aipm/src/main.rs). `CiAzure` (lines 337–359) is a zero-sized struct whose entire implementation is:
+The four lint reporters live in [`crates/libaipm/src/lint/reporter.rs`](../crates/libaipm/src/lint/reporter.rs) and are dispatched from [`crates/aipm/src/main.rs`](../crates/aipm/src/main.rs) (in the `Commands::Lint` match arm). At spec-authoring time, `CiAzure` was a zero-sized struct whose entire implementation was:
 
 ```rust
 for d in &outcome.diagnostics {
@@ -35,7 +35,7 @@ flowchart TB
     classDef sink fill:#c6f6d5,stroke:#38a169,stroke-width:2px,color:#2d3748,font-weight:600
 
     Rules["`Rule::check_file<br/><i>18 rules</i>`"]:::data
-    Apply["`apply_rule_diagnostics<br/><i>lint/mod.rs:58-67</i>`"]:::data
+    Apply["`apply_rule_diagnostics<br/><i>lint/mod.rs</i>`"]:::data
     Diag["`Diagnostic<br/>11 fields incl.<br/>help_text + help_url`"]:::data
     CiAz["`CiAzure::report<br/><i>today: 6 of 11 fields surfaced</i>`"]:::current
     Stdout["Agent stdout"]:::sink
@@ -62,7 +62,7 @@ flowchart TB
 
 - [ ] `CiAzure::report` surfaces `help_text` and `help_url` on every diagnostic that has them (all 18 shipping rules), concatenated into the `##vso[task.logissue]` message body.
 - [ ] Every `##vso[task.logissue]` line sets `code=<rule_id>`, enabling MSBuild-style Issues-tab rendering.
-- [ ] Diagnostics are wrapped in `##[group]aipm lint: <file_path>` / `##[endgroup]` sections, one group per unique `file_path` (diagnostics are already sorted by file_path at [`lint/mod.rs:156-161`](../crates/libaipm/src/lint/mod.rs)).
+- [ ] Diagnostics are wrapped in `##[group]aipm lint: <file_path>` / `##[endgroup]` sections, one group per unique `file_path` (diagnostics are already sorted by `(file_path, line, col)` inside [`lint()`](../crates/libaipm/src/lint/mod.rs) before being handed to reporters).
 - [ ] When `outcome.warning_count > 0 && outcome.error_count == 0`, the reporter emits `##vso[task.complete result=SucceededWithIssues;]` so the ADO step renders yellow.
 - [ ] Empty `Outcome` still produces zero bytes (no behavior change for clean runs).
 - [ ] All new output is covered by Rust unit tests *and* full-output `insta` golden snapshots.
@@ -78,7 +78,7 @@ flowchart TB
 - [ ] **No PR-diff annotations via Pull Request Threads REST API.** `task.logissue` is build-scoped; annotations require GHAzDO or a custom REST call. Research §6f catalogs the options. Documented as future work.
 - [ ] **No rule-side plumbing of `end_line` / `end_col`.** Research §10 showed 0 rules populate `end_line`. `##vso[task.logissue]` doesn't support endline/endcolumn anyway; this is a Human/JSON/LSP concern tracked by a separate spec.
 - [ ] **No changes to `Reporter` trait signature.** Stays `fn report(&self, &Outcome, &mut dyn Write) -> std::io::Result<()>`.
-- [ ] **No `Fs` / `base_dir` fields added to `CiAzure`.** Stays zero-sized; those only become necessary when multi-artifact emission lands. Deferring keeps the CLI dispatch at `main.rs:770` unchanged.
+- [ ] **No `Fs` / `base_dir` fields added to `CiAzure`.** Stays zero-sized; those only become necessary when multi-artifact emission lands. Deferring keeps the CLI dispatch in `main.rs` unchanged.
 - [ ] **No changes to `CiGitHub`, `Human`, `Json`, `Text` reporters.** GitHub Actions has its own enrichment story (research §5) worth a separate spec.
 - [ ] **No empirical verification of ADO Issues-tab rendering for edge cases** (e.g. whether `code=<rule_id>` renders, whether the help URL auto-linkifies in the message body). Verification happens after implementation in a real pipeline. Documented as an acceptance check, not a design prerequisite.
 
@@ -121,11 +121,11 @@ flowchart TB
 
 | Component                        | Responsibility                                                         | Location                                                                                              | Notes                                                  |
 | -------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `CiAzure::report`                | Emit `##[group]` + `##vso[task.logissue code=...]` + `##[endgroup]` + optional `task.complete`. | [`crates/libaipm/src/lint/reporter.rs:337-359`](../crates/libaipm/src/lint/reporter.rs)               | Rewritten; same struct shape (zero-sized).             |
+| `CiAzure::report`                | Emit `##[group]` + `##vso[task.logissue code=...]` + `##[endgroup]` + optional `task.complete`. | [`crates/libaipm/src/lint/reporter.rs`](../crates/libaipm/src/lint/reporter.rs)                       | Rewritten; same struct shape (zero-sized).             |
 | `format_azure_logissue_body` (new helper) | Build the `<rule_id>: <message>[ — <help_text>][ (see <help_url>)]` message suffix. | `crates/libaipm/src/lint/reporter.rs` (new free fn)                                                   | Pure function, small, exhaustively unit-tested.        |
-| `escape_azure_log_command`       | Unchanged. Already handles `%`, `\r`, `\n`, `;`, `]`.                  | [`crates/libaipm/src/lint/reporter.rs:376-382`](../crates/libaipm/src/lint/reporter.rs)               | Applied to `sourcepath`, `code`, message body (rule_id + message + help_text + help_url segment). |
+| `escape_azure_log_command`       | Unchanged. Already handles `%`, `\r`, `\n`, `;`, `]`.                  | [`crates/libaipm/src/lint/reporter.rs`](../crates/libaipm/src/lint/reporter.rs)                       | Applied to `sourcepath`, `code`, message body (rule_id + message + help_text + help_url segment). |
 | `insta` dev-dep                  | Golden-output snapshot testing.                                        | `crates/libaipm/Cargo.toml` (`[dev-dependencies]`)                                                    | First use of `insta` in the workspace.                 |
-| CLI dispatch                     | No change. Still `main.rs:770-772`.                                    | [`crates/aipm/src/main.rs:770-772`](../crates/aipm/src/main.rs)                                       | `libaipm::lint::reporter::CiAzure.report(...)`.        |
+| CLI dispatch                     | No change — still dispatches the `ci-azure` arm through `libaipm::lint::reporter::CiAzure`. | [`crates/aipm/src/main.rs`](../crates/aipm/src/main.rs)                                               | `libaipm::lint::reporter::CiAzure.report(...)`.        |
 
 ## 5. Detailed Design
 
@@ -133,7 +133,7 @@ flowchart TB
 
 The reporter's stdout stream, for a non-empty `Outcome`, is the concatenation of:
 
-1. **Per-file group opener**, emitted once at the start of each run of diagnostics sharing the same `file_path` (diagnostics are pre-sorted by file_path at `lint/mod.rs:156-161`):
+1. **Per-file group opener**, emitted once at the start of each run of diagnostics sharing the same `file_path` (diagnostics are pre-sorted by `(file_path, line, col)` inside `lint()` in `lint/mod.rs`):
 
    ```
    ##[group]aipm lint: <file_path>\n
@@ -169,7 +169,7 @@ The reporter's stdout stream, for a non-empty `Outcome`, is the concatenation of
 
 **Clean-run contract:** when `outcome.diagnostics.is_empty()`, the reporter writes zero bytes and returns `Ok(())`. No group, no task.complete, no summary line.
 
-**Ordering invariants** (from `lint/mod.rs:156-161`):
+**Ordering invariants** (from the sort inside `lint()` in `lint/mod.rs`):
 - Diagnostics arrive sorted by `(file_path, line, col)`.
 - Within a group, diagnostics are emitted in arrival order — ascending by line, then column.
 - `task.complete` is always last.
@@ -258,16 +258,18 @@ fn format_azure_logissue_body(d: &Diagnostic) -> String {
 
 ### 5.4 Example Output
 
-For the `sample_outcome()` in the existing tests ([`reporter.rs:397-431`](../crates/libaipm/src/lint/reporter.rs)) — one warning on `SKILL.md:1` and one error on `hooks.json:5` — the new output is (newlines shown as `\n`):
+For the `sample_outcome()` in the existing tests ([`reporter.rs`](../crates/libaipm/src/lint/reporter.rs)) — one warning on `SKILL.md:1` and one error on `hooks.json:5` — the new output is (newlines shown as `\n`):
 
 ```
-##[group]aipm lint: .ai/my-plugin/hooks/hooks.json
-##vso[task.logissue type=error;sourcepath=.ai/my-plugin/hooks/hooks.json;linenumber=5;columnnumber=1;code=hook/unknown-event]hook/unknown-event: unknown hook event: InvalidEvent
-##[endgroup]
 ##[group]aipm lint: .ai/my-plugin/skills/default/SKILL.md
 ##vso[task.logissue type=warning;sourcepath=.ai/my-plugin/skills/default/SKILL.md;linenumber=1;columnnumber=1;code=skill/missing-description]skill/missing-description: SKILL.md missing required field: description
 ##[endgroup]
+##[group]aipm lint: .ai/my-plugin/hooks/hooks.json
+##vso[task.logissue type=error;sourcepath=.ai/my-plugin/hooks/hooks.json;linenumber=5;columnnumber=1;code=hook/unknown-event]hook/unknown-event: unknown hook event: InvalidEvent
+##[endgroup]
 ```
+
+This example preserves the insertion order of the `sample_outcome()` fixture (`SKILL.md` was added first to its `diagnostics` vec). A real `Outcome` coming from `lint()` is pre-sorted by `(file_path, line, col)`, so a production run would emit `.ai/my-plugin/hooks/hooks.json` before `.ai/my-plugin/skills/default/SKILL.md` (alphabetical on the full path). The reporter itself does not sort; it only detects file-boundary changes and wraps each run in a `##[group]` / `##[endgroup]`.
 
 (The sample diagnostics in the existing unit-test fixture have `help_text: None` / `help_url: None`; a real Outcome from `lint()` has both populated by `apply_rule_diagnostics`.)
 
@@ -324,7 +326,7 @@ Captured from the [research doc open questions](../research/docs/2026-04-20-azur
 | --------------------------------------------------------------- | ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | **A. Multi-artifact reporter** (logissue + `uploadsummary` markdown + `uploadfile` JSONL + SARIF to `CodeAnalysisLogs`) | Full agent-friendliness; summary on Extensions tab; machine-readable stream; Scans tab integration. | Requires `Fs` + temp paths on `CiAzure`; requires `Reporter` trait extension *or* CLI-side artifact writing. Larger blast radius, harder to validate. | Deferred to follow-up spec. This spec delivers the 80% win (help_text + help_url + grouping + yellow step) with zero structural change. |
 | **B. Extend `Reporter` trait with `&ReportContext`**            | Cleaner multi-artifact future. Uniform across reporters.                             | Touches all four reporters + every test + CLI dispatch. No benefit if scope stays logissue-only. | Not needed for this scope.                                                                                                              |
-| **C. Add `fs: &dyn Fs` + `base_dir: &Path` to `CiAzure` now**   | Pre-shapes struct for follow-up.                                                     | Unused fields; touches CLI dispatch at `main.rs:770-772` + every test; noise in this PR.        | Defer until actually needed.                                                                                                            |
+| **C. Add `fs: &dyn Fs` + `base_dir: &Path` to `CiAzure` now**   | Pre-shapes struct for follow-up.                                                     | Unused fields; touches the CLI dispatch in `main.rs` + every test; noise in this PR.            | Defer until actually needed.                                                                                                            |
 | **D. Introduce `--reporter ci-azure-rich` alongside legacy**    | Opt-in. Existing byte-for-byte output preserved for anyone relying on it.            | Two code paths forever. No known users depend on current format (no in-repo ADO pipelines).     | Not worth the surface area. The core `##vso[task.logissue]` prefix + properties are unchanged; only the message body grows richer, which no `##vso` parser cares about. |
 | **E. Put `help_text` on a separate `##[warning]<text>` line**   | Clean separation; Issues tab row stays short.                                        | Doubles log output. `##[warning]` creates a second row on the Issues tab for the same issue — duplicates. | Confusing UX.                                                                                                                           |
 | **F. Put `help_url` in the `code=` property**                   | Single field for the link.                                                           | `code=` renders MSBuild-style with the rule id, not as a hyperlink. Empirically unverified.     | Placing both rule_id in `code=` and URL in body is the safer default.                                                                   |
@@ -372,7 +374,7 @@ Not applicable — no persisted data, no on-disk state.
 
 #### Unit Tests (`crates/libaipm/src/lint/reporter.rs` `#[cfg(test)] mod tests`)
 
-Replace / extend the existing CiAzure test block at [`reporter.rs:692-742`](../crates/libaipm/src/lint/reporter.rs):
+Replace / extend the existing CiAzure test block inside the `#[cfg(test)] mod tests` in [`reporter.rs`](../crates/libaipm/src/lint/reporter.rs):
 
 - [ ] **`ci_azure_sample_outcome_snapshot`** — golden `insta` snapshot over `sample_outcome()`. The assertion target is a `String` of the full reporter output.
 - [ ] **`ci_azure_with_help_text_and_url`** — snapshot over a fixture where both `help_text` and `help_url` are `Some`. Asserts the em-dash joiner + `(see <url>)` suffix.
