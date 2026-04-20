@@ -1599,4 +1599,46 @@ mod tests {
 
         assert!(result.is_ok(), "uninstall of existing plugin should succeed: {result:?}");
     }
+
+    /// `cmd_uninstall_global` with `engine = Some("claude")` covers the True branches
+    /// of both `if let Some(eng) = engine` checks (lines 651 and 666):
+    /// - line 651: `registry.uninstall_engine(&spec, &[eng.to_string()])` is called
+    ///   instead of `registry.uninstall(&spec)`.
+    /// - line 666: the output message is engine-scoped ("Removed … from claude engine").
+    ///
+    /// The registry is seeded with a plugin pinned to the "claude" engine so that
+    /// `resolve_spec` succeeds and `uninstall_engine` returns `true`.
+    #[test]
+    fn cmd_uninstall_global_engine_specific_covers_engine_branches() {
+        use std::sync::Mutex;
+        static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let aipm_dir = tmp.path().join(".aipm");
+        std::fs::create_dir_all(&aipm_dir).expect("create .aipm dir");
+
+        // Seed the registry with a plugin scoped to the "claude" engine.
+        let registry_json = r#"{"plugins":[{"spec":"local:./my-plugin","engines":["claude"]}]}"#;
+        std::fs::write(aipm_dir.join("installed.json"), registry_json)
+            .expect("write installed.json");
+
+        let prev_home = std::env::var("HOME").ok();
+        // SAFETY: no other thread modifies HOME while ENV_LOCK is held.
+        std::env::set_var("HOME", tmp.path());
+
+        let result =
+            cmd_uninstall_global("local:./my-plugin", Some("claude"), PathBuf::from("/tmp"));
+
+        match prev_home {
+            Some(h) => std::env::set_var("HOME", h),
+            None => std::env::remove_var("HOME"),
+        }
+
+        assert!(
+            result.is_ok(),
+            "engine-specific uninstall of existing plugin should succeed: {result:?}"
+        );
+    }
 }
