@@ -286,6 +286,24 @@ This exercises the `error_count == 0 && warning_count > 0` branch in
 Verification: `cargo test -p libaipm --lib
 lint::reporter::tests::ci_azure_task_complete_on_warnings_only` passes.
 
+## 2026-04-20 — Feature 14: ci_azure_no_task_complete_on_errors
+
+Status: PASSES
+
+Added `ci_azure_no_task_complete_on_errors` with `error_count: 1,
+warning_count: 0`. Asserts:
+- Output does NOT contain `##vso[task.complete` at all.
+- After trimming trailing newlines, the final line is `##[endgroup]`.
+
+This covers the negative branch of the `error_count == 0 &&
+warning_count > 0` gate — any non-zero error_count suppresses the
+yellow-step signal because the step will already fail (red).
+
+Verification: `cargo test -p libaipm --lib
+lint::reporter::tests::ci_azure_no_task_complete_on_errors` passes.
+
+
+
 
 
 

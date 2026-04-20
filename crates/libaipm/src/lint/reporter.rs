@@ -944,6 +944,35 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_no_task_complete_on_errors() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "rule/err".into(),
+                severity: Severity::Error,
+                message: "bad".into(),
+                file_path: PathBuf::from("a.md"),
+                line: Some(1),
+                col: Some(1),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 1,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        assert!(!output.contains("##vso[task.complete"));
+        let trimmed = output.trim_end_matches('\n');
+        assert!(trimmed.ends_with("##[endgroup]"));
+    }
+
+    #[test]
     fn ci_azure_task_complete_on_warnings_only() {
         let outcome = Outcome {
             diagnostics: vec![

@@ -190,7 +190,7 @@
       "Assert the output does NOT contain \"##vso[task.complete\"",
       "Assert the final non-empty line is an ##[endgroup]"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
