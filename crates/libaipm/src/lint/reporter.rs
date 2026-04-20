@@ -1657,4 +1657,35 @@ mod tests {
         assert!(output.contains("test/empty-file"));
         assert!(output.contains("diagnostic on empty file"));
     }
+
+    #[test]
+    fn ci_azure_zero_counts_with_diagnostics_omits_succeeded_with_issues() {
+        // Cover the `warning_count > 0` FALSE branch at line 374: when
+        // error_count == 0 but warning_count is also 0 (counts inconsistent
+        // with diagnostics), the SucceededWithIssues task-complete command must
+        // NOT be emitted — the reporter should still write the diagnostic.
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Warning,
+                message: "a warning".into(),
+                file_path: PathBuf::from("file.md"),
+                line: Some(1),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("##vso[task.logissue"));
+        assert!(!output.contains("SucceededWithIssues"));
+    }
 }
