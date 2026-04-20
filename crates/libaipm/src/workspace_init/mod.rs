@@ -937,6 +937,115 @@ mod tests {
     // Mock Fs tests — I/O error path coverage
     // =====================================================================
 
+    /// A mock filesystem that succeeds all operations but fails `write_file`
+    /// when the target path contains `fail_suffix`.
+    struct WriteFailAtSuffixFs {
+        fail_suffix: &'static str,
+    }
+
+    impl crate::fs::Fs for WriteFailAtSuffixFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, path: &Path, _: &[u8]) -> std::io::Result<()> {
+            if path.to_string_lossy().contains(self.fail_suffix) {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("mock: write failed for suffix '{}'", self.fail_suffix),
+                ))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Ok(String::new())
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    /// Covers the `write_file(marketplace.json)?` error branch (line 214): when
+    /// writing marketplace.json fails, `scaffold_marketplace` propagates the error.
+    #[test]
+    fn scaffold_marketplace_write_marketplace_json_fails() {
+        let tmp = std::path::PathBuf::from("/tmp/fake-mp-mktjson");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+        };
+        let fs = WriteFailAtSuffixFs { fail_suffix: "marketplace.json" };
+        let result = init(&opts, &adaptors, &fs);
+        assert!(result.is_err(), "expected error when marketplace.json write fails");
+    }
+
+    /// Covers the `write_file(SKILL.md)?` error branch (line 233): when writing the
+    /// skill template fails during starter-plugin scaffolding.
+    #[test]
+    fn scaffold_marketplace_write_skill_md_fails() {
+        let tmp = std::path::PathBuf::from("/tmp/fake-mp-skillmd");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+        };
+        let fs = WriteFailAtSuffixFs { fail_suffix: "SKILL.md" };
+        let result = init(&opts, &adaptors, &fs);
+        assert!(result.is_err(), "expected error when SKILL.md write fails");
+    }
+
+    /// Covers the `write_file(scaffold-plugin.sh)?` error branch (line 237).
+    #[test]
+    fn scaffold_marketplace_write_scaffold_sh_fails() {
+        let tmp = std::path::PathBuf::from("/tmp/fake-mp-scaffoldsh");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+        };
+        let fs = WriteFailAtSuffixFs { fail_suffix: "scaffold-plugin.sh" };
+        let result = init(&opts, &adaptors, &fs);
+        assert!(result.is_err(), "expected error when scaffold-plugin.sh write fails");
+    }
+
+    /// Covers the `write_file(marketplace-scanner.md)?` error branch (line 241).
+    #[test]
+    fn scaffold_marketplace_write_scanner_md_fails() {
+        let tmp = std::path::PathBuf::from("/tmp/fake-mp-scannermd");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+        };
+        let fs = WriteFailAtSuffixFs { fail_suffix: "marketplace-scanner.md" };
+        let result = init(&opts, &adaptors, &fs);
+        assert!(result.is_err(), "expected error when marketplace-scanner.md write fails");
+    }
+
     struct FailDirFs;
 
     impl crate::fs::Fs for FailDirFs {
