@@ -16,3 +16,30 @@ requires no cargo features. Keeping the existing workspace declaration as-is.
 Next: Feature 2 — implement `format_azure_logissue_body` helper in
 `crates/libaipm/src/lint/reporter.rs`.
 
+## 2026-04-20 — Feature 2: format_azure_logissue_body helper
+
+Status: PASSES
+
+Added private helper `fn format_azure_logissue_body(d: &Diagnostic) -> String`
+at `crates/libaipm/src/lint/reporter.rs:389-403`. Builds the
+`<rule_id>: <message>[ — <help_text>][ (see <help_url>)]` body per the
+spec §5.2 four-case table. Em-dash is U+2014 via `\u{2014}`.
+
+The helper is marked `#[cfg(test)]` so the workspace `-D warnings` gate stays
+green while it has no live caller. Feature 3 (the `CiAzure::report` rewrite)
+will remove the cfg(test) gate when it wires the helper into production
+output.
+
+Tests added (all passing):
+- `format_azure_logissue_body_both_present` — both Some → em-dash + (see URL)
+- `format_azure_logissue_body_help_text_only` — no (see ...) suffix
+- `format_azure_logissue_body_help_url_only` — no em-dash, (see URL) present
+- `format_azure_logissue_body_neither` — bare `<rule_id>: <message>`
+
+Verification: `cargo clippy --workspace -- -D warnings` clean.
+
+Next: Feature 3 — rewrite CiAzure::report with per-file groups, code= property,
+and task.complete on warnings-only runs.
+
+
+

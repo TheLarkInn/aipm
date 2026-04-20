@@ -24,7 +24,7 @@
       "Keep the function pure, no I/O, no panics, no unwrap/expect",
       "Confirm all four combinations (Some/Some, Some/None, None/Some, None/None) produce the strings in the spec §5.2 table"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

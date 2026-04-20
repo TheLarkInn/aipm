@@ -381,6 +381,27 @@ fn escape_azure_log_command(s: &str) -> String {
         .replace(']', "%5D")
 }
 
+/// Build the body portion of an Azure DevOps `##vso[task.logissue]` line.
+///
+/// The result has the shape `<rule_id>: <message>` and, when present, appends
+/// `" \u{2014} <help_text>"` and/or `" (see <help_url>)"`. The returned string
+/// is not yet escaped for the Azure DevOps log-command grammar — callers must
+/// apply `escape_azure_log_command` before embedding it in a logissue line.
+#[cfg(test)]
+fn format_azure_logissue_body(d: &Diagnostic) -> String {
+    let mut body = format!("{}: {}", d.rule_id, d.message);
+    if let Some(help_text) = d.help_text.as_ref() {
+        body.push_str(" \u{2014} ");
+        body.push_str(help_text);
+    }
+    if let Some(help_url) = d.help_url.as_ref() {
+        body.push_str(" (see ");
+        body.push_str(help_url);
+        body.push(')');
+    }
+    body
+}
+
 fn escape_json_string(s: &str) -> String {
     s.replace('\\', "\\\\")
         .replace('"', "\\\"")
@@ -739,6 +760,65 @@ mod tests {
         CiAzure.report(&outcome, &mut buf).ok();
         let output = String::from_utf8(buf).unwrap_or_default();
         assert!(output.contains("linenumber=1;columnnumber=1"));
+    }
+
+    // --- format_azure_logissue_body helper tests (spec §5.2 four-case table) ---
+
+    fn body_fixture(help_text: Option<&str>, help_url: Option<&str>) -> Diagnostic {
+        Diagnostic {
+            rule_id: "skill/missing-description".into(),
+            severity: Severity::Warning,
+            message: "SKILL.md missing required field: description".into(),
+            file_path: PathBuf::from("a.md"),
+            line: Some(1),
+            col: Some(1),
+            end_line: None,
+            end_col: None,
+            source_type: ".ai".into(),
+            help_text: help_text.map(String::from),
+            help_url: help_url.map(String::from),
+        }
+    }
+
+    #[test]
+    fn format_azure_logissue_body_both_present() {
+        let d = body_fixture(Some("run aipm migrate"), Some("https://example.com/rule"));
+        let body = format_azure_logissue_body(&d);
+        assert_eq!(
+            body,
+            "skill/missing-description: SKILL.md missing required field: description \u{2014} run aipm migrate (see https://example.com/rule)"
+        );
+    }
+
+    #[test]
+    fn format_azure_logissue_body_help_text_only() {
+        let d = body_fixture(Some("do X"), None);
+        let body = format_azure_logissue_body(&d);
+        assert_eq!(
+            body,
+            "skill/missing-description: SKILL.md missing required field: description \u{2014} do X"
+        );
+        assert!(!body.contains("(see "));
+    }
+
+    #[test]
+    fn format_azure_logissue_body_help_url_only() {
+        let d = body_fixture(None, Some("https://docs.example.com"));
+        let body = format_azure_logissue_body(&d);
+        assert_eq!(
+            body,
+            "skill/missing-description: SKILL.md missing required field: description (see https://docs.example.com)"
+        );
+        assert!(!body.contains('\u{2014}'));
+    }
+
+    #[test]
+    fn format_azure_logissue_body_neither() {
+        let d = body_fixture(None, None);
+        let body = format_azure_logissue_body(&d);
+        assert_eq!(body, "skill/missing-description: SKILL.md missing required field: description");
+        assert!(!body.contains('\u{2014}'));
+        assert!(!body.contains("(see "));
     }
 
     // --- Human reporter tests ---
