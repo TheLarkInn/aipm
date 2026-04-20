@@ -201,7 +201,7 @@
       "Assert output is an empty Vec<u8> (len 0)",
       "Assert no ##vso[task.complete line is present"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

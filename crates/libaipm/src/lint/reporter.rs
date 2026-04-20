@@ -944,6 +944,22 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_no_task_complete_on_clean_run() {
+        let outcome = Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+
+        assert_eq!(buf.len(), 0);
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(!output.contains("##vso[task.complete"));
+    }
+
+    #[test]
     fn ci_azure_no_task_complete_on_errors() {
         let outcome = Outcome {
             diagnostics: vec![Diagnostic {
