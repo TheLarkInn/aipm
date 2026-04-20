@@ -201,6 +201,21 @@ suffix). Covers spec §5.2 row 2.
 Verification: `cargo test -p libaipm --lib
 lint::reporter::tests::ci_azure_with_help_text_only` passes.
 
+## 2026-04-20 — Feature 9: ci_azure_with_help_url_only
+
+Status: PASSES
+
+Added `ci_azure_with_help_url_only` using shared
+`ci_azure_single_diagnostic_outcome(None, Some("https://docs.example.com"))`.
+Asserts the logissue line ends with `skill/missing-description: missing desc
+(see https://docs.example.com)` and does NOT contain the U+2014 em-dash.
+Covers spec §5.2 row 3.
+
+Verification: `cargo test -p libaipm --lib
+lint::reporter::tests::ci_azure_with_help_url_only` passes.
+
+
+
 
 
 

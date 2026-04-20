@@ -900,6 +900,20 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_with_help_url_only() {
+        let outcome = ci_azure_single_diagnostic_outcome(None, Some("https://docs.example.com"));
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        let logissue_line =
+            output.lines().find(|line| line.starts_with("##vso[task.logissue")).unwrap_or_default();
+        assert!(logissue_line
+            .ends_with("skill/missing-description: missing desc (see https://docs.example.com)"));
+        assert!(!logissue_line.contains('\u{2014}'));
+    }
+
+    #[test]
     fn ci_azure_code_property_present() {
         let outcome = Outcome {
             diagnostics: vec![
