@@ -282,6 +282,6 @@
       "Confirm the TOTAL branch column is at least 89%",
       "If coverage dropped below 89%, add tests that exercise the missing branches in CiAzure::report or format_azure_logissue_body"
     ],
-    "passes": false
+    "passes": true
   }
 ]

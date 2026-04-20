@@ -437,6 +437,58 @@ introduced.
 for forbidden patterns yields 0 matches, confirming CLAUDE.md lint
 policy is honored across the 22 commits that implemented this spec.
 
+## 2026-04-20 — Feature 22: Verify 89% branch coverage gate
+
+Status: PASSES
+
+Every cargo-verifier run across this implementation loop has reported
+branch coverage at or above 89% and trending up:
+
+- Feature 1 gate: 89.09%
+- Feature 2 gate: 89.10%
+- Fix feature gate: 89.10%
+- Features 3–6 gates: 89.10% → 89.11%
+- Features 7–12 gates: 89.12% → 89.15%
+- Features 13–17 gates: 89.16% → 89.18%
+- Features 18–21 gates: 89.18% → 89.19%
+
+The 15 new CiAzure tests added in features 5–20 exercise every new
+branch introduced by the feature-3 rewrite:
+- `if outcome.diagnostics.is_empty()` early return (empty, clean_run)
+- `if current_file != Some(...)` file-change detector (group_per_file,
+  single_file_single_group)
+- `if current_file.is_some()` final endgroup (all multi-diag tests)
+- `if outcome.error_count == 0 && outcome.warning_count > 0` (warnings_only,
+  no_task_complete_on_errors, no_task_complete_on_clean_run)
+- All four help-field combinations in `format_azure_logissue_body`
+
+Verification: cargo-verifier final run returns coverage PASS at 89.19%.
+
+## 2026-04-20 — FINAL SUMMARY
+
+All 22 features in `research/feature-list.json` now carry `passes: true`.
+
+Spec delivered: `specs/2026-04-20-azure-devops-lint-reporter-enrichment.md`
+- `CiAzure::report` emits per-file `##[group]aipm lint: <path>` /
+  `##[endgroup]` wrappers around enriched `##vso[task.logissue]` lines.
+- Each logissue now carries `code=<rule_id>` and a body enriched with
+  `help_text` (after em-dash U+2014) and `help_url` (as `(see <url>)`).
+- Warnings-only runs emit `##vso[task.complete result=SucceededWithIssues;]`
+  so ADO renders the step yellow.
+- Clean runs still emit zero bytes. Escape contract intact:
+  `%` → `%AZP25`, `\r` → `%0D`, `\n` → `%0A`, `;` → `%3B`, `]` → `%5D`.
+
+Ancillary: shared ENV_LOCK mutex for HOME-mutating uninstall tests
+resolved a flake that previously dropped coverage under nightly llvm-cov.
+
+Test surface added: 16 new named unit tests + 1 insta golden snapshot in
+`crates/libaipm/src/lint/snapshots/`, plus 4 helper-level tests for the
+four-case help-field matrix in `format_azure_logissue_body`.
+
+All CLAUDE.md lint gates green; branch coverage at 89.19% (≥ 89% required).
+
+
+
 
 
 
