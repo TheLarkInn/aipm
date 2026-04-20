@@ -844,6 +844,52 @@ mod tests {
         assert!(!body.contains("(see "));
     }
 
+    #[test]
+    fn ci_azure_code_property_present() {
+        let outcome = Outcome {
+            diagnostics: vec![
+                Diagnostic {
+                    rule_id: "skill/missing-description".into(),
+                    severity: Severity::Warning,
+                    message: "missing desc".into(),
+                    file_path: PathBuf::from("a.md"),
+                    line: Some(1),
+                    col: Some(1),
+                    end_line: None,
+                    end_col: None,
+                    source_type: ".ai".into(),
+                    help_text: None,
+                    help_url: None,
+                },
+                Diagnostic {
+                    rule_id: "hook/unknown-event".into(),
+                    severity: Severity::Error,
+                    message: "bad event".into(),
+                    file_path: PathBuf::from("b.json"),
+                    line: Some(2),
+                    col: Some(3),
+                    end_line: None,
+                    end_col: None,
+                    source_type: ".ai".into(),
+                    help_text: None,
+                    help_url: None,
+                },
+            ],
+            error_count: 1,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        let logissue_lines: Vec<&str> =
+            output.lines().filter(|line| line.starts_with("##vso[task.logissue")).collect();
+        assert_eq!(logissue_lines.len(), 2);
+        assert!(logissue_lines[0].contains(";code=skill/missing-description]"));
+        assert!(logissue_lines[1].contains(";code=hook/unknown-event]"));
+    }
+
     // --- Human reporter tests ---
 
     use crate::lint::rules::test_helpers::MockFs;

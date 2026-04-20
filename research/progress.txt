@@ -158,6 +158,22 @@ already constructs an empty Outcome, invokes `CiAzure.report`, and asserts
 
 No code change required. Marked passing.
 
+## 2026-04-20 — Feature 6: ci_azure_code_property_present
+
+Status: PASSES
+
+Added `ci_azure_code_property_present` test at
+`crates/libaipm/src/lint/reporter.rs`. Constructs an Outcome with two
+diagnostics on two different files with distinct rule_ids
+(`skill/missing-description`, `hook/unknown-event`), filters lines that
+start with `##vso[task.logissue`, and asserts each carries the matching
+`;code=<rule_id>]` substring.
+
+Verification: `cargo test -p libaipm --lib
+lint::reporter::tests::ci_azure_code_property_present` passes.
+
+
+
 
 
 

@@ -105,7 +105,7 @@
       "Split output by \\n and filter lines starting with ##vso[task.logissue",
       "For each such line assert it contains ;code= followed by the expected rule_id"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
