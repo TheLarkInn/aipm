@@ -94,7 +94,9 @@ Inside the `[workspace.lints]` section of `aipm.toml`, the language server provi
 
 - **Rule ID completions** — pressing `Ctrl+Space` on a key position lists all known rule IDs (e.g., `skill/missing-name`, `hook/unknown-event`)
 - **Severity value completions** — pressing `Ctrl+Space` after `=` suggests `"allow"`, `"warn"`, `"warning"`, `"error"`, or `"deny"`
-- **Per-rule option completions** — for rules with additional configuration options (such as `instructions/oversized`), `Ctrl+Space` inside the rule's inline table or section also suggests rule-specific fields like `lines`, `characters`, and `resolve-imports`
+- **Inline table field completions** — at a key position inside `[workspace.lints]`, `level` and `ignore` are also suggested for use in the inline table form (e.g., `{ level = "warn", ignore = [...] }`)
+
+> **Per-rule option completions** (such as `lines`, `characters`, and `resolve-imports` for `instructions/oversized`) are provided by the **JSON Schema** registered by the extension, not the language server. These completions require the [Even Better TOML](https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml) extension to be installed.
 
 ### Hover documentation
 
