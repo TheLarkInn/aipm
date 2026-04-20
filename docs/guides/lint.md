@@ -137,6 +137,21 @@ Emits [Azure Pipelines logging commands](https://learn.microsoft.com/en-us/azure
 aipm lint --reporter ci-azure
 ```
 
+Each run of diagnostics for the same file is wrapped in a collapsible `##[group]` block in the ADO log pane. Every `##vso[task.logissue]` line sets `code=<rule_id>` for MSBuild-style rendering in the Azure DevOps Issues tab and appends `help_text` and/or `help_url` to the message body when available. On warnings-only runs (no errors), a `##vso[task.complete result=SucceededWithIssues;]` line is appended so the pipeline step renders as yellow rather than green.
+
+**Example output:**
+
+```
+##[group]aipm lint: .ai/my-plugin/skills/deploy/SKILL.md
+##vso[task.logissue type=warning;sourcepath=.ai/my-plugin/skills/deploy/SKILL.md;linenumber=1;columnnumber=1;code=skill%2Fmissing-description]skill/missing-description: SKILL.md missing recommended field: description — add a "description" field to the YAML frontmatter (see https://github.com/TheLarkInn/aipm/blob/main/docs/rules/skill/missing-description.md)
+##[endgroup]
+##vso[task.complete result=SucceededWithIssues;]
+```
+
+The message body always follows the shape `<rule_id>: <message>[ — <help_text>][ (see <help_url>)]`. When a diagnostic has no `help_text` or `help_url`, the body is identical to the previous bare format.
+
+Clean runs (no diagnostics) produce zero bytes of output.
+
 ## CI Integration
 
 ### GitHub Actions
