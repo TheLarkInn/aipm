@@ -214,6 +214,23 @@ Covers spec §5.2 row 3.
 Verification: `cargo test -p libaipm --lib
 lint::reporter::tests::ci_azure_with_help_url_only` passes.
 
+## 2026-04-20 — Feature 10: ci_azure_with_neither
+
+Status: PASSES
+
+Added `ci_azure_with_neither` using
+`ci_azure_single_diagnostic_outcome(None, None)`. Asserts the logissue
+line ends with `skill/missing-description: missing desc` (bare rule_id +
+message, matching the pre-enrichment format) and contains neither the
+U+2014 em-dash nor the `(see ` substring. Covers spec §5.2 row 4.
+
+Verification: `cargo test -p libaipm --lib
+lint::reporter::tests::ci_azure_with_neither` passes. All four help-field
+combinations (features 7–10) are now end-to-end tested through the full
+CiAzure.report pipeline.
+
+
+
 
 
 

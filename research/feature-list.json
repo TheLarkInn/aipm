@@ -146,7 +146,7 @@
       "Invoke CiAzure.report and capture output",
       "Assert the body matches exactly \"<rule_id>: <message>\" with no em-dash, no (see ...), no trailing whitespace"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
