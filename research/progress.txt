@@ -188,6 +188,21 @@ The helper will be reused by features 8, 9, 10.
 Verification: `cargo test -p libaipm --lib
 lint::reporter::tests::ci_azure_with_help_text_and_url` passes.
 
+## 2026-04-20 — Feature 8: ci_azure_with_help_text_only
+
+Status: PASSES
+
+Added `ci_azure_with_help_text_only` test using the shared
+`ci_azure_single_diagnostic_outcome(Some("do X"), None)` fixture. Asserts
+the logissue line ends with `skill/missing-description: missing desc —
+do X` (em-dash joiner present) and does NOT contain `(see ` (no url
+suffix). Covers spec §5.2 row 2.
+
+Verification: `cargo test -p libaipm --lib
+lint::reporter::tests::ci_azure_with_help_text_only` passes.
+
+
+
 
 
 

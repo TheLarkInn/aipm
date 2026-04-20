@@ -126,7 +126,7 @@
       "Invoke CiAzure.report and capture output",
       "Assert the body ends with \" \\u{2014} do X\" and does NOT contain \"(see \""
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
