@@ -338,22 +338,43 @@ pub struct CiAzure;
 
 impl Reporter for CiAzure {
     fn report(&self, outcome: &Outcome, writer: &mut dyn Write) -> std::io::Result<()> {
+        if outcome.diagnostics.is_empty() {
+            return Ok(());
+        }
+
+        let mut current_file: Option<&Path> = None;
         for d in &outcome.diagnostics {
+            if current_file != Some(d.file_path.as_path()) {
+                if current_file.is_some() {
+                    writeln!(writer, "##[endgroup]")?;
+                }
+                writeln!(writer, "##[group]aipm lint: {}", d.file_path.display())?;
+                current_file = Some(d.file_path.as_path());
+            }
+
             let severity = match d.severity {
                 Severity::Error => "error",
                 Severity::Warning => "warning",
             };
             let line = d.line.unwrap_or(1);
             let col = d.col.unwrap_or(1);
-            // Azure DevOps log-command escaping for property block and message
             let sourcepath = escape_azure_log_command(&d.file_path.display().to_string());
-            let rule_id = escape_azure_log_command(&d.rule_id);
-            let message = escape_azure_log_command(&d.message);
+            let code = escape_azure_log_command(&d.rule_id);
+            let body = escape_azure_log_command(&format_azure_logissue_body(d));
             writeln!(
                 writer,
-                "##vso[task.logissue type={severity};sourcepath={sourcepath};linenumber={line};columnnumber={col}]{rule_id}: {message}",
+                "##vso[task.logissue type={severity};sourcepath={sourcepath};linenumber={line};columnnumber={col};code={code}]{body}",
             )?;
         }
+
+        if current_file.is_some() {
+            writeln!(writer, "##[endgroup]")?;
+        }
+
+        if outcome.error_count == 0 && outcome.warning_count > 0 {
+            writeln!(writer, "##vso[task.complete result=SucceededWithIssues;]")?;
+        }
+
         Ok(())
     }
 }
@@ -387,7 +408,6 @@ fn escape_azure_log_command(s: &str) -> String {
 /// `" \u{2014} <help_text>"` and/or `" (see <help_url>)"`. The returned string
 /// is not yet escaped for the Azure DevOps log-command grammar — callers must
 /// apply `escape_azure_log_command` before embedding it in a logissue line.
-#[cfg(test)]
 fn format_azure_logissue_body(d: &Diagnostic) -> String {
     let mut body = format!("{}: {}", d.rule_id, d.message);
     if let Some(help_text) = d.help_text.as_ref() {
@@ -718,8 +738,11 @@ mod tests {
         let mut buf = Vec::new();
         CiAzure.report(&outcome, &mut buf).ok();
         let output = String::from_utf8(buf).unwrap_or_default();
-        assert!(output.contains("##vso[task.logissue type=warning;sourcepath=.ai/my-plugin/skills/default/SKILL.md;linenumber=1;columnnumber=1]skill/missing-description"));
-        assert!(output.contains("##vso[task.logissue type=error;sourcepath=.ai/my-plugin/hooks/hooks.json;linenumber=5;columnnumber=1]hook/unknown-event"));
+        assert!(output.contains("##vso[task.logissue type=warning;sourcepath=.ai/my-plugin/skills/default/SKILL.md;linenumber=1;columnnumber=1;code=skill/missing-description]skill/missing-description"));
+        assert!(output.contains("##vso[task.logissue type=error;sourcepath=.ai/my-plugin/hooks/hooks.json;linenumber=5;columnnumber=1;code=hook/unknown-event]hook/unknown-event"));
+        assert!(output.contains("##[group]aipm lint: .ai/my-plugin/skills/default/SKILL.md"));
+        assert!(output.contains("##[group]aipm lint: .ai/my-plugin/hooks/hooks.json"));
+        assert!(output.contains("##[endgroup]"));
     }
 
     #[test]

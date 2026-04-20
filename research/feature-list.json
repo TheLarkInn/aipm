@@ -1,5 +1,29 @@
 [
   {
+    "category": "fix",
+    "description": "Fix cargo quality gate failures: coverage 12.72% due to flaky cmd_uninstall_global_success_returns_ok under nightly llvm-cov instrumentation",
+    "steps": [
+      "coverage:",
+      "TOTAL branch coverage from report: 12.72% (required >= 89%).",
+      "",
+      "Additionally, the instrumented workspace run (`cargo +nightly llvm-cov --no-report --workspace --branch`) had one test failure under the nightly toolchain with coverage instrumentation; `cargo test --workspace` under stable passed cleanly. The failing test under llvm-cov:",
+      "",
+      "    failures:",
+      "        tests::cmd_uninstall_global_success_returns_ok",
+      "",
+      "    ---- tests::cmd_uninstall_global_success_returns_ok stdout ----",
+      "    thread 'tests::cmd_uninstall_global_success_returns_ok' (286158) panicked at crates/aipm/src/main.rs:1600:9:",
+      "    uninstall of existing plugin should succeed: Err(Installed(NotFound { identifier: \"local:./my-plugin\" }))",
+      "    note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace",
+      "",
+      "    test result: FAILED. 116 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+      "    error: test failed, to rerun pass `-p aipm --bin aipm`",
+      "",
+      "Fix strategy: investigate why `cmd_uninstall_global_success_returns_ok` is flaky only under nightly llvm-cov instrumentation (not under stable `cargo test`). Likely a test isolation or tempdir-race issue exposed by the slower instrumented binary. Either stabilize the test or isolate it so coverage data from the remaining 1934 tests can be collected."
+    ],
+    "passes": false
+  },
+  {
     "category": "refactor",
     "description": "Add insta as a dev-dependency to crates/libaipm for golden-snapshot testing of reporter output",
     "steps": [
@@ -46,7 +70,7 @@
       "Do NOT use unwrap/expect/panic/println/dbg/unsafe per CLAUDE.md",
       "Keep the CiAzure struct zero-sized (no new fields)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -57,7 +81,7 @@
       "Update ci_azure_defaults_line_col similarly — still asserts line/col default to 1 when None, but against the new output shape",
       "Confirm both tests still pass under cargo test -p libaipm"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

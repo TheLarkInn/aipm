@@ -41,5 +41,88 @@ Verification: `cargo clippy --workspace -- -D warnings` clean.
 Next: Feature 3 — rewrite CiAzure::report with per-file groups, code= property,
 and task.complete on warnings-only runs.
 
+## 2026-04-20 — Features 3 & 4: CiAzure::report rewrite + test updates
+
+Status: PASSES
+
+Rewrote `impl Reporter for CiAzure` at
+`crates/libaipm/src/lint/reporter.rs:339-378` per spec §5.3 reference sketch:
+
+- Early-return `Ok(())` on empty diagnostics (zero-byte clean run).
+- Track `current_file: Option<&Path>` to emit one `##[group]aipm lint: <path>`
+  header per file; close with `##[endgroup]` before the next group starts.
+- Each diagnostic: `##vso[task.logissue type=<sev>;sourcepath=<file>;linenumber=
+  <line>;columnnumber=<col>;code=<rule_id>]<body>` where `<body>` is
+  `format_azure_logissue_body` output escaped once via `escape_azure_log_command`.
+- Close the final group.
+- Emit `##vso[task.complete result=SucceededWithIssues;]` when
+  `error_count == 0 && warning_count > 0`.
+
+Removed `#[cfg(test)]` from `format_azure_logissue_body` — it's now a
+production caller path.
+
+Test updates (feature 4 done alongside since otherwise CI would break):
+- `ci_azure_error_format`: updated expected logissue substrings to include
+  `;code=<rule_id>]` and added assertions for `##[group]aipm lint:` and
+  `##[endgroup]`.
+- `ci_azure_defaults_line_col`: unchanged — existing `.contains(\"linenumber=
+  1;columnnumber=1\")` substring is still present in the new output.
+- `ci_azure_empty_diagnostics`: unchanged — empty Outcome still emits 0 bytes.
+
+Verification:
+- `cargo test -p libaipm --lib` all 1935 tests pass.
+- `cargo clippy --workspace -- -D warnings` clean.
+
+Next: Features 5–20 add new CiAzure tests covering grouping, help-field
+combinations, task.complete gating, and escape edge cases.
+
+## 2026-04-20 — Quality gate: coverage FAILED (nightly llvm-cov flake)
+
+CARGO_VERIFIER_REPORT
+build: PASS
+test: PASS
+clippy: PASS
+fmt: PASS
+coverage: FAIL (12.72% / required 89%)
+overall: FAIL
+
+FAILURES:
+coverage:
+TOTAL branch coverage from report: 12.72% (required >= 89%).
+
+Additionally, the instrumented workspace run (`cargo +nightly llvm-cov --no-report
+--workspace --branch`) had one test failure under the nightly toolchain with
+coverage instrumentation; `cargo test --workspace` under stable passed cleanly.
+The failing test under llvm-cov:
+
+    failures:
+        tests::cmd_uninstall_global_success_returns_ok
+
+    ---- tests::cmd_uninstall_global_success_returns_ok stdout ----
+    thread 'tests::cmd_uninstall_global_success_returns_ok' panicked at
+    crates/aipm/src/main.rs:1600:9:
+    uninstall of existing plugin should succeed: Err(Installed(NotFound {
+      identifier: "local:./my-plugin" }))
+
+    test result: FAILED. 116 passed; 1 failed; 0 ignored; 0 measured
+
+Analysis:
+- The failure is in `cmd_uninstall_global_success_returns_ok`, completely
+  unrelated to my CiAzure reporter changes in `crates/libaipm/src/lint/reporter.rs`.
+- Under stable `cargo test --workspace` (1935 tests) the test suite is green.
+- Only the instrumented binary under nightly llvm-cov triggers the panic —
+  classic symptom of a test-isolation / filesystem-race issue exposed by the
+  slower coverage-instrumented binary.
+- Pre-commit coverage was 89.10%; post-commit reports 12.72% because the
+  failed instrumented test aborts coverage collection for downstream crates,
+  leaving the report dominated by unexercised code.
+
+Added highest-priority fix feature at top of `research/feature-list.json` to
+triage/stabilize the flaky test. Stopping; ralph loop will re-enter on the fix.
+
+
+
+
+
 
 
