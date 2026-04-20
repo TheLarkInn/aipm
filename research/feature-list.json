@@ -269,7 +269,7 @@
       "Confirm no new #[allow(...)] / #[expect(...)] attributes were added",
       "Confirm no unwrap/expect/panic/println!/eprintln!/dbg!/unsafe/std::process::exit usage in the new code"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "performance",
