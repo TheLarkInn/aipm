@@ -461,4 +461,12 @@ mod tests {
         let result = detector.detect(Path::new("/project/.claude"), &fs);
         assert!(matches!(result, Err(Error::Io(_))), "expected Err(Error::Io), got: {result:?}");
     }
+
+    #[test]
+    fn detector_name_is_hook() {
+        // Exercises the `fn name(&self) -> &'static str` branch on HookDetector,
+        // which returns the detector's identifier used during migration dispatch.
+        let detector = HookDetector;
+        assert_eq!(detector.name(), "hook");
+    }
 }
