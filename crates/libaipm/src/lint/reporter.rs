@@ -1492,6 +1492,42 @@ mod tests {
     }
 
     #[test]
+    fn human_reporter_colored_output_uses_styled_renderer() {
+        // Cover the `should_color()` True branch (line 109): with ColorChoice::Always
+        // the styled renderer is selected, which emits ANSI escape codes.
+        let mut mock_fs = MockFs::new();
+        mock_fs.files.insert(
+            PathBuf::from("/project/test.md"),
+            "line one\nline two\nline three".to_string(),
+        );
+        let reporter =
+            Human { fs: &mock_fs, color: ColorChoice::Always, base_dir: Path::new("/project") };
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Warning,
+                message: "test warning".into(),
+                file_path: PathBuf::from("test.md"),
+                line: Some(2),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        // Styled renderer emits ANSI escape codes.
+        assert!(output.contains("\x1b["), "expected ANSI codes in colored output");
+    }
+
+    #[test]
     fn color_choice_never_always() {
         assert!(!ColorChoice::Never.should_color());
         assert!(ColorChoice::Always.should_color());
