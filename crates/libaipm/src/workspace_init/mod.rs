@@ -1352,4 +1352,44 @@ mod tests {
 
         cleanup(&path);
     }
+
+    #[test]
+    fn init_adaptor_skips_when_settings_already_configured() {
+        // Pre-populate .claude/settings.json with the marketplace and starter plugin
+        // already present. The adaptor should detect no changes are needed (both
+        // `mp_changed` and `ep_changed` are false) and return `Ok(false)`, which
+        // means the `if adaptor.apply(...)` branch evaluates to false — covering the
+        // previously-uncovered False branch at that condition.
+        let (tmp, _guard) = make_temp_dir("adaptor-skip");
+        let settings_dir = tmp.join(".claude");
+        std::fs::create_dir_all(&settings_dir).ok();
+        // Write settings with the marketplace and plugin key already present.
+        let settings_str = r#"{
+  "extraKnownMarketplaces": {
+    "local-repo-plugins": { "source": { "source": "directory", "path": "./.ai" } }
+  },
+  "enabledPlugins": {
+    "starter-aipm-plugin@local-repo-plugins": true
+  }
+}"#;
+        std::fs::write(settings_dir.join("settings.json"), settings_str.as_bytes()).ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        // The adaptor returned false (nothing changed in settings), so no
+        // ToolConfigured action should be present.
+        assert!(result
+            .is_ok_and(|r| !r.actions.iter().any(|a| matches!(a, InitAction::ToolConfigured(_)))));
+
+        cleanup(&tmp);
+    }
 }
