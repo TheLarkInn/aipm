@@ -163,8 +163,8 @@ Example output for a single warning with both `help_text` and `help_url`:
 ```
 
 > **Note:** All property values and the message body are escaped per the Azure DevOps
-> log-command grammar (`%AZP25` for `%`, `%0A` for newlines, `%3B` for `;`, `%5D` for `]`)
-> to prevent command injection.
+> log-command grammar (`%AZP25` for `%`, `%0D` for `\r`, `%0A` for `\n`, `%3B` for `;`,
+> `%5D` for `]`) to prevent command injection.
 
 ## CI Integration
 
