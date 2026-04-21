@@ -80,6 +80,24 @@ mod tests {
     }
 
     #[test]
+    fn rule_id_returns_expected_value() {
+        let rule = AlwaysEmptyRule;
+        assert_eq!(rule.id(), "test/always-empty");
+    }
+
+    #[test]
+    fn rule_name_returns_expected_value() {
+        let rule = AlwaysEmptyRule;
+        assert_eq!(rule.name(), "always empty");
+    }
+
+    #[test]
+    fn rule_default_severity_is_warning() {
+        let rule = AlwaysEmptyRule;
+        assert_eq!(rule.default_severity(), Severity::Warning);
+    }
+
+    #[test]
     fn default_help_url_is_none() {
         let rule = AlwaysEmptyRule;
         assert!(rule.help_url().is_none());

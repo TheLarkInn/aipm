@@ -739,6 +739,44 @@ mod tests {
     }
 
     #[test]
+    fn migrate_other_files_with_no_artifacts_skips_emit() {
+        // Exercises the None arm of `if let Some(first_entry) = registered_entries.first()`
+        // — the case where other_files is non-empty but no plugin artifacts were found,
+        // so there is no plugin directory to attach the unclaimed files to.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.ai"));
+        fs.exists.insert(PathBuf::from("/project/.claude"));
+        // A plain file that no detector recognises — becomes an unclaimed "other file"
+        fs.exists.insert(PathBuf::from("/project/.claude/readme.txt"));
+
+        // .ai/ dir listing for collect_existing_plugin_names
+        fs.dirs.insert(PathBuf::from("/project/.ai"), Vec::new());
+        // .claude/ dir listing for the reconciler
+        fs.dirs.insert(
+            PathBuf::from("/project/.claude"),
+            vec![crate::fs::DirEntry { name: "readme.txt".to_string(), is_dir: false }],
+        );
+
+        let opts = Options {
+            dir: Path::new("/project"),
+            source: Some(".claude"),
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: true,
+        };
+
+        // All detectors return empty (no skills/, commands/, agents/, etc., no settings.json).
+        // The reconciler still finds readme.txt as an unclaimed file, making other_files
+        // non-empty. registered_entries stays empty, so the `if let Some` at the
+        // "emit other files" block yields None and the body is correctly skipped.
+        let result = migrate(&opts, &fs);
+        assert!(result.is_ok(), "migrate should succeed with unclaimed files and no artifacts");
+        let outcome = result.ok();
+        assert!(outcome.is_some_and(|o| o.actions.is_empty()), "no actions expected");
+    }
+
+    #[test]
     fn migrate_full_flow() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.ai"));
