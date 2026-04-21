@@ -39,7 +39,7 @@ The CI coverage job fails because 32 branches are untested. These fall into 4 ca
 - [ ] **G3**: Cover all name validation edge cases in `init.rs`
 - [ ] **G4**: Cover all malformed JSON handling in `adaptors/claude.rs`
 - [ ] **G5**: Cover `format_errors` in `manifest/error.rs`
-- [ ] **G6**: Cover missing scenario branches in `version.rs`, `aipm-pack/main.rs`, `workspace_init/mod.rs`
+- [ ] **G6**: Cover missing scenario branches in `version.rs`, `aipm/main.rs` (no-subcommand path; note: `aipm-pack` was merged into `aipm`), `workspace_init/mod.rs`
 - [ ] **G7**: All tests must pass `cargo clippy --workspace -- -D warnings` (no lint violations in test code, respecting the `allow_attributes = "warn"` exemption for test files)
 
 ### 3.2 Non-Goals (Out of Scope)
@@ -98,7 +98,7 @@ This can be defined once in each test module that needs it (or in a shared `#[cf
 | I/O errors in init | `init.rs` | 6 | `FailFs` mock — fail on `create_dir`, `write_file` |
 | Multi-error format | `error.rs` | 2 | Construct manifest with 2+ errors, call `.to_string()` |
 | Version edge cases | `version.rs` | 2 | `select_best` with non-matching candidates; stable `is_prerelease` |
-| No-subcommand | `aipm-pack/main.rs` | 1 | E2E test invoking `aipm-pack` with no args |
+| No-subcommand | `aipm/main.rs` (merged from `aipm-pack`) | 1 | E2E test invoking `aipm` with no args |
 | Malformed JSON | `claude.rs` | 3 | Write invalid JSON to settings, call `apply()` with `fs::Real` |
 | Adaptor false path | `workspace_init/mod.rs` | 1 | Pre-configure settings, call `init()` with marketplace flag |
 | I/O errors in workspace | `workspace_init/mod.rs` | 3 | `FailFs` mock — fail on `create_dir`, `write_file` |
@@ -176,11 +176,13 @@ fn stable_version_is_not_prerelease() {
 
 ### 5.2 Phase 2: Moderate Effort (+5 branches → ~89%)
 
-#### Test 4: No-subcommand path — `aipm-pack/main.rs`
+#### Test 4: No-subcommand path — `aipm/main.rs`
+
+> **Note:** `aipm-pack` was merged into `aipm` (PR #417). The no-subcommand path is now in `crates/aipm/src/main.rs`. The equivalent test exists in `crates/aipm/tests/cli_tests.rs` as `no_subcommand_prints_version`.
 
 **Target**: 1 branch (`None` arm of `match cli.command`)
 
-Add to `crates/aipm-pack/tests/init_e2e.rs`:
+Add to `crates/aipm/tests/cli_tests.rs` (already implemented as `no_subcommand_prints_version`):
 
 ```rust
 #[test]
