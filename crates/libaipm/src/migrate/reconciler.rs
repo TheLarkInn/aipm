@@ -428,6 +428,13 @@ mod tests {
         assert!(result.ok().unwrap_or_default().is_empty());
     }
 
+    /// Returns true when `result` is an `Err(Error::Io(_))` whose kind is `NotFound`.
+    /// Extracted so that both the true and false branches of the guard can be exercised
+    /// by `reconcile_propagates_read_dir_error` and `is_notfound_false_for_other_io_error`.
+    fn is_notfound_io_error(result: &Result<Vec<OtherFile>, Error>) -> bool {
+        matches!(result, Err(Error::Io(ref e)) if e.kind() == std::io::ErrorKind::NotFound)
+    }
+
     #[test]
     fn reconcile_propagates_read_dir_error() {
         // MockFs with no directories configured — read_dir returns NotFound,
@@ -435,9 +442,20 @@ mod tests {
         let fs = MockFs::new();
         let result = reconcile(Path::new("/src"), &[], &fs);
         assert!(
-            matches!(result, Err(Error::Io(ref e)) if e.kind() == std::io::ErrorKind::NotFound),
+            is_notfound_io_error(&result),
             "reconcile should propagate read_dir NotFound failure"
         );
+    }
+
+    #[test]
+    fn is_notfound_false_for_other_io_error() {
+        // Covers the false branch of the `matches!` guard in `is_notfound_io_error`:
+        // a non-NotFound IO error must not be classified as NotFound.
+        let result: Result<Vec<OtherFile>, Error> = Err(Error::Io(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "permission denied",
+        )));
+        assert!(!is_notfound_io_error(&result), "PermissionDenied should not match NotFound guard");
     }
 
     #[test]
@@ -478,5 +496,19 @@ mod tests {
 
         let result = find_associated_artifact(Path::new("assets/logo.png"), &[artifact]);
         assert_eq!(result, Some("config-skill".to_string()));
+    }
+
+    #[test]
+    fn associate_with_artifacts_external_path_sets_is_external() {
+        // Cover the `is_external = true` branch in `associate_with_artifacts`.
+        // A path that does not start with `source_dir` is treated as external.
+        let source_dir = Path::new("/src");
+        let external_path = PathBuf::from("/other/external.txt");
+
+        let others = associate_with_artifacts(source_dir, &[external_path], &[]);
+
+        assert_eq!(others.len(), 1);
+        assert!(others[0].is_external, "path outside source_dir should be marked is_external");
+        assert!(others[0].associated_artifact.is_none());
     }
 }
