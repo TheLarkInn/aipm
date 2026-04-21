@@ -1641,4 +1641,38 @@ mod tests {
             "shared-lib should resolve to 1.0.0"
         );
     }
+
+    #[test]
+    fn compute_active_features_default_requested_but_not_defined() {
+        // Covers the False branch via second operand of
+        // `if dep.default_features && feature_defs.contains_key("default")`:
+        // when default_features = true but the package does not define a "default"
+        // feature set, no default features are activated.
+        let mut feature_defs = BTreeMap::new();
+        feature_defs.insert("extra".to_string(), vec![]);
+        // Note: no "default" key in feature_defs
+
+        let dep = root_dep("pkg", "^1.0"); // default_features = true
+        let active = compute_active_features(&dep, &feature_defs);
+        assert!(
+            active.is_empty(),
+            "no features should be active when the package has no 'default' feature set"
+        );
+    }
+
+    #[test]
+    fn activate_feature_recursive_unknown_feature_has_no_sub_features() {
+        // Covers the None branch of `if let Some(sub_features) = feature_defs.get(feature)`:
+        // when a feature name is not defined in feature_defs (e.g. a requested feature
+        // that the package does not list), it is still added to the active set but no
+        // sub-feature recursion occurs.
+        let feature_defs: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        // "undeclared" is NOT in feature_defs
+
+        let mut active = BTreeSet::new();
+        activate_feature_recursive("undeclared", &feature_defs, &mut active);
+
+        assert!(active.contains("undeclared"), "the feature itself must be inserted");
+        assert_eq!(active.len(), 1, "no sub-features should be activated");
+    }
 }
