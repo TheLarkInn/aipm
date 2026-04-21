@@ -831,8 +831,15 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
 
-        // CLAUDE.md at the repo root — Instructions feature outside .ai/ (must NOT be flagged)
-        std::fs::write(root.join("CLAUDE.md"), "# Project Rules\n\nSome rules here.\n").unwrap();
+        // CLAUDE.md at the repo root — Instructions feature outside .ai/ (must NOT be flagged).
+        // Use 101 lines (> the 100-line default) so `instructions/oversized` also fires.
+        // That gives the filter below a diagnostic with rule_id != "source/misplaced-features",
+        // covering the False branch of the `&&` expression at the filter predicate.
+        let mut claude_content = String::from("# Project Rules\n\n");
+        for _ in 0..99 {
+            claude_content.push_str("Some rule here.\n");
+        }
+        std::fs::write(root.join("CLAUDE.md"), &claude_content).unwrap();
 
         // A skill in .claude/ — Skill feature outside .ai/ (MUST still be flagged)
         write_skill_md(&root.join(".claude").join("skills").join("misplaced"), "misplaced-skill");
