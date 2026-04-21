@@ -597,4 +597,128 @@ mod tests {
         let result = git.get_metadata("nonexistent-pkg");
         assert!(result.is_err(), "expected Err (package not found after fetch): {result:?}");
     }
+
+    // --- download() integration tests ---
+
+    /// Covers the happy-path through `download()`: index lookup → config load →
+    /// HTTP fetch → checksum verification → return bytes.
+    ///
+    /// Uses `from_local_index` (already marked synced) so no git operations are needed,
+    /// plus a minimal in-process HTTP server via `bind_test_server` / `serve_one`.
+    #[test]
+    fn download_success_from_local_index() {
+        let content: &[u8] = b"fake tarball content for download test";
+        let cksum = sha512_hex(content);
+
+        let tmp = tempfile::tempdir().unwrap();
+        let index_dir = tmp.path();
+
+        // Create index entry for "code-review" at co/de/code-review
+        let pkg_dir = index_dir.join("co").join("de");
+        std::fs::create_dir_all(&pkg_dir).unwrap();
+        std::fs::write(
+            pkg_dir.join("code-review"),
+            format!("{{\"name\":\"code-review\",\"vers\":\"1.0.0\",\"cksum\":\"{cksum}\"}}\n"),
+        )
+        .unwrap();
+
+        // Bind a local HTTP test server
+        let (listener, base) = bind_test_server();
+
+        // Write config.json pointing at our in-process test server
+        std::fs::write(
+            index_dir.join("config.json"),
+            format!("{{\"dl\":\"{base}/{{name}}/{{version}}.aipm\"}}"),
+        )
+        .unwrap();
+
+        // Build a complete HTTP/1.1 response
+        let mut response_vec: Vec<u8> = format!(
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            content.len()
+        )
+        .into_bytes();
+        response_vec.extend_from_slice(content);
+        let response: &'static [u8] = Box::leak(response_vec.into_boxed_slice());
+
+        serve_one(listener, response);
+
+        let registry = Git::from_local_index(index_dir);
+        let version = Version::parse("1.0.0").unwrap();
+        let result = registry.download("code-review", &version);
+        assert!(result.is_ok(), "expected download to succeed, got: {result:?}");
+        assert_eq!(result.unwrap(), content);
+    }
+
+    /// Covers the `find_version` error branch inside `download()`:
+    /// the requested version does not exist in the index.
+    #[test]
+    fn download_version_not_found_errors() {
+        let tmp = tempfile::tempdir().unwrap();
+        let index_dir = tmp.path();
+
+        let pkg_dir = index_dir.join("co").join("de");
+        std::fs::create_dir_all(&pkg_dir).unwrap();
+        std::fs::write(
+            pkg_dir.join("code-review"),
+            "{\"name\":\"code-review\",\"vers\":\"1.0.0\",\"cksum\":\"abc\"}\n",
+        )
+        .unwrap();
+
+        // config.json is not needed: find_version fails before load_config is called
+        let registry = Git::from_local_index(index_dir);
+        let version = Version::parse("9.9.9").unwrap();
+        let result = registry.download("code-review", &version);
+        assert!(result.is_err());
+        assert!(
+            result.unwrap_err().to_string().contains("9.9.9"),
+            "error should mention the missing version"
+        );
+    }
+
+    /// Covers the checksum-mismatch branch inside `download()`:
+    /// the server returns bytes whose SHA-512 does not match the index entry.
+    #[test]
+    fn download_checksum_mismatch_errors() {
+        let content: &[u8] = b"tampered tarball bytes";
+        let wrong_cksum = sha512_hex(b"different content entirely");
+
+        let tmp = tempfile::tempdir().unwrap();
+        let index_dir = tmp.path();
+
+        let pkg_dir = index_dir.join("co").join("de");
+        std::fs::create_dir_all(&pkg_dir).unwrap();
+        std::fs::write(
+            pkg_dir.join("code-review"),
+            format!(
+                "{{\"name\":\"code-review\",\"vers\":\"1.0.0\",\"cksum\":\"{wrong_cksum}\"}}\n"
+            ),
+        )
+        .unwrap();
+
+        let (listener, base) = bind_test_server();
+        std::fs::write(
+            index_dir.join("config.json"),
+            format!("{{\"dl\":\"{base}/{{name}}/{{version}}.aipm\"}}"),
+        )
+        .unwrap();
+
+        let mut response_vec: Vec<u8> = format!(
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            content.len()
+        )
+        .into_bytes();
+        response_vec.extend_from_slice(content);
+        let response: &'static [u8] = Box::leak(response_vec.into_boxed_slice());
+        serve_one(listener, response);
+
+        let registry = Git::from_local_index(index_dir);
+        let version = Version::parse("1.0.0").unwrap();
+        let result = registry.download("code-review", &version);
+        assert!(result.is_err());
+        assert!(
+            result.unwrap_err().to_string().contains("checksum mismatch"),
+            "expected a checksum-mismatch error"
+        );
+    }
 }
