@@ -345,6 +345,39 @@ fn lint_config_allow_suppresses_rule() {
 }
 
 // =========================================================================
+// Config: suppress source/misplaced-features via "allow" — covers the False
+// branch of `if !config.is_suppressed(rule.id())` at the misplaced-features
+// check in `run_rules_for_feature`.
+// =========================================================================
+
+#[test]
+fn lint_config_allow_suppresses_misplaced_features() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    // Skill outside .ai/ — would normally trigger source/misplaced-features.
+    let claude_skills = tmp.path().join(".claude").join("skills").join("default");
+    std::fs::create_dir_all(&claude_skills).unwrap();
+    std::fs::write(
+        claude_skills.join("SKILL.md"),
+        "---\nname: my-skill\ndescription: a skill\n---\nBody\n",
+    )
+    .unwrap();
+
+    // Suppress the misplaced-features rule globally.
+    std::fs::write(
+        tmp.path().join("aipm.toml"),
+        "[workspace.lints]\n\"source/misplaced-features\" = \"allow\"\n",
+    )
+    .unwrap();
+
+    aipm()
+        .args(["lint", tmp.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("source/misplaced-features").not());
+}
+
+// =========================================================================
 // Config: severity override to error
 // =========================================================================
 
@@ -771,4 +804,46 @@ fn lint_fresh_init_marketplace_no_new_rule_errors() {
             "fresh init should not trigger {rule_id}, got:\n{stdout}"
         );
     }
+}
+
+// =========================================================================
+// Per-rule ignore suppresses quality-rule diagnostic (covers the
+// `is_ignored(&path_str, rule_ignores)` True branch in the quality-rule
+// call path of `apply_rule_diagnostics`).
+// =========================================================================
+
+#[test]
+fn lint_per_rule_ignore_suppresses_quality_diagnostic() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    let ai_dir = tmp.path().join(".ai");
+
+    // Skill that would trigger skill/missing-description (has name, no description).
+    let ignored_dir = ai_dir.join("my-plugin").join("skills").join("ignored-skill");
+    std::fs::create_dir_all(&ignored_dir).unwrap();
+    std::fs::write(ignored_dir.join("SKILL.md"), "---\nname: ignored-skill\n---\nBody\n").unwrap();
+
+    // Second skill that should still generate a diagnostic.
+    let other_dir = ai_dir.join("my-plugin").join("skills").join("other-skill");
+    std::fs::create_dir_all(&other_dir).unwrap();
+    std::fs::write(other_dir.join("SKILL.md"), "---\nname: other-skill\n---\nBody\n").unwrap();
+
+    // Per-rule ignore: suppress skill/missing-description for ignored-skill only.
+    std::fs::write(
+        tmp.path().join("aipm.toml"),
+        "[workspace.lints.\"skill/missing-description\"]\nignore = [\"**/ignored-skill/**\"]\n",
+    )
+    .unwrap();
+
+    let output =
+        aipm().args(["lint", "--source", ".ai", tmp.path().to_str().unwrap()]).output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // The other-skill diagnostic must appear.
+    assert!(stdout.contains("other-skill"), "other-skill diagnostic should appear, got:\n{stdout}");
+    // The ignored-skill diagnostic must be suppressed.
+    assert!(
+        !stdout.contains("ignored-skill"),
+        "ignored-skill diagnostic should be suppressed by per-rule ignore, got:\n{stdout}"
+    );
 }

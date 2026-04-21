@@ -312,6 +312,61 @@ mod tests {
         assert_eq!(output[0].file_path, PathBuf::from("src/bar/SKILL.md"));
     }
 
+    #[test]
+    fn apply_rule_diagnostics_global_ignore_path_filters_diagnostic() {
+        // Covers the True branch of `is_ignored(&path_str, &config.ignore_paths)` at
+        // line 60: when the global ignore_paths pattern matches the diagnostic's file
+        // path, the diagnostic must be suppressed without consulting per-rule ignores.
+        struct StubRule2;
+        impl Rule for StubRule2 {
+            fn id(&self) -> &'static str {
+                "stub/global-ignore"
+            }
+            fn name(&self) -> &'static str {
+                "stub2"
+            }
+            fn default_severity(&self) -> Severity {
+                Severity::Warning
+            }
+            fn check_file(
+                &self,
+                _: &std::path::Path,
+                _: &dyn crate::fs::Fs,
+            ) -> Result<Vec<Diagnostic>, Error> {
+                Ok(vec![])
+            }
+        }
+
+        let make_diag = |path: &str| Diagnostic {
+            rule_id: "stub/global-ignore".into(),
+            severity: Severity::Warning,
+            message: "test".into(),
+            file_path: PathBuf::from(path),
+            line: None,
+            col: None,
+            end_line: None,
+            end_col: None,
+            source_type: ".claude".into(),
+            help_text: None,
+            help_url: None,
+        };
+
+        let mut cfg = config::Config::default();
+        // Set a global ignore pattern — no per-rule override needed.
+        cfg.ignore_paths = vec!["vendor/**".to_string()];
+
+        let rule = StubRule2;
+        let diagnostics = vec![
+            make_diag("vendor/legacy/SKILL.md"), // matches global ignore → filtered
+            make_diag("src/active/SKILL.md"),    // does not match → kept
+        ];
+        let mut output = Vec::new();
+        apply_rule_diagnostics(&rule, diagnostics, &cfg, &mut output);
+
+        assert_eq!(output.len(), 1, "vendor diagnostic should be filtered by global ignore_paths");
+        assert_eq!(output[0].file_path, PathBuf::from("src/active/SKILL.md"));
+    }
+
     // --- Struct and error tests ---
 
     #[test]
@@ -574,6 +629,15 @@ mod tests {
         let root = tmp.path();
 
         write_hooks_json(&root.join("packages").join("api").join(".github").join("hooks"));
+
+        // Add a skill (no description) inside .ai/ so a quality diagnostic is
+        // emitted first.  This ensures the `.any()` closure below iterates over
+        // at least one non-matching element, covering the `false` branch of the
+        // predicate before the `source/misplaced-features` match is reached.
+        let skill_dir = root.join(".ai").join("plugin").join("skills").join("default");
+        std::fs::create_dir_all(&skill_dir).unwrap();
+        let mut sf = std::fs::File::create(skill_dir.join("SKILL.md")).unwrap();
+        writeln!(sf, "---\nname: nested-test\n---\nbody").unwrap();
 
         let opts = Options {
             dir: root.to_path_buf(),
@@ -1408,5 +1472,74 @@ mod tests {
         assert!(agent_path.exists(), "starter agent .md should exist");
         let agent_content = std::fs::read_to_string(&agent_path).unwrap();
         assert!(agent_content.starts_with("---"), "starter agent should have YAML frontmatter");
+    }
+
+    /// Covers the `is_ignored(&path_str, rule_ignores)` True branch in the
+    /// quality-rule call path (line 94 in `run_rules_for_feature`).
+    ///
+    /// `apply_rule_diagnostics` is inlined twice: once for quality rules (line 94)
+    /// and once for misplaced-features (line 104). The per-rule ignore True branch
+    /// for quality rules requires a config with a `Detailed` override whose `ignore`
+    /// list matches the file path of a skill that would otherwise generate a
+    /// quality diagnostic.
+    #[test]
+    fn lint_quality_rule_ignore_path_suppresses_diagnostic() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Skill inside .ai/ without a description → triggers `skill/missing-description`.
+        let skill_dir = root.join(".ai").join("plugin").join("skills").join("ignored-skill");
+        std::fs::create_dir_all(&skill_dir).unwrap();
+        let mut f = std::fs::File::create(skill_dir.join("SKILL.md")).unwrap();
+        writeln!(f, "---\nname: ignored-skill\n---\nbody").unwrap();
+
+        // Second skill that will still generate a diagnostic (not ignored).
+        let other_dir = root.join(".ai").join("plugin").join("skills").join("other-skill");
+        std::fs::create_dir_all(&other_dir).unwrap();
+        let mut g = std::fs::File::create(other_dir.join("SKILL.md")).unwrap();
+        writeln!(g, "---\nname: other-skill\n---\nbody").unwrap();
+
+        let mut cfg = config::Config::default();
+        // Per-rule ignore for `skill/missing-description`: suppress only
+        // diagnostics under the "ignored-skill" subdirectory.
+        cfg.rule_overrides.insert(
+            "skill/missing-description".to_string(),
+            config::RuleOverride::Detailed {
+                level: Some(Severity::Warning),
+                ignore: vec!["**/ignored-skill/**".to_string()],
+                options: std::collections::BTreeMap::new(),
+            },
+        );
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: Some(".ai".to_string()),
+            config: cfg,
+            max_depth: None,
+        };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok(), "lint should succeed: {:?}", result.err());
+        let outcome = result.unwrap();
+
+        let missing_desc: Vec<_> = outcome
+            .diagnostics
+            .iter()
+            .filter(|d| d.rule_id == "skill/missing-description")
+            .collect();
+
+        // The "other-skill" diagnostic must still appear.
+        assert!(
+            missing_desc.iter().any(|d| d.file_path.display().to_string().contains("other-skill")),
+            "other-skill diagnostic should remain"
+        );
+        // The "ignored-skill" diagnostic must be suppressed by the per-rule ignore.
+        assert!(
+            !missing_desc.iter().any(|d| d
+                .file_path
+                .display()
+                .to_string()
+                .contains("ignored-skill")),
+            "ignored-skill diagnostic should be filtered by rule ignore path"
+        );
     }
 }
