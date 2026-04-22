@@ -1450,6 +1450,27 @@ mod tests {
         assert!(!config.rule_overrides.contains_key("some-rule"));
     }
 
+    /// A rule set to the bare string `"allow"` in `[workspace.lints]` maps to
+    /// `RuleOverride::Allow`, which marks the rule as suppressed.
+    /// This covers the `if s == "allow"` True branch inside `load_lint_config`.
+    #[test]
+    fn load_lint_config_string_allow_inserts_allow_override() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("aipm.toml"),
+            "[workspace.lints]\n\"skill/oversized\" = \"allow\"\n",
+        )
+        .unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert!(config.is_suppressed("skill/oversized"), "rule set to 'allow' must be suppressed");
+        assert_eq!(
+            config.severity_override("skill/oversized"),
+            None,
+            "suppressed rule must not have a severity override"
+        );
+    }
+
     /// An empty rule table (no `level`, no `ignore`, no custom keys) does not
     /// produce any rule override — the guard in `load_lint_config` requires at
     /// least one meaningful field to record an override.
