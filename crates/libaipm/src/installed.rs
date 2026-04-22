@@ -710,4 +710,48 @@ mod tests {
         let result = registry.install("invalid spec string".to_string(), &[], None, None);
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn install_update_sets_cache_policy_on_existing_plugin() {
+        // Covers the `if let Some(policy) = cache_policy` True branch (line 81):
+        // when `install` is called with `Some(policy)` on a spec that is already
+        // registered, the existing entry's `cache_policy` field is updated.
+        let mut registry = Registry::default();
+        let spec = "github:owner/repo:plugin@main".to_string();
+
+        let added = registry.install(spec.clone(), &[], None, None).unwrap_or(false);
+        assert!(added, "first install should add a new entry");
+        assert!(registry.plugins.first().map_or(false, |p| p.cache_policy.is_none()));
+
+        let updated = registry
+            .install(spec.clone(), &[], Some(cache::Policy::SkipCache), None)
+            .unwrap_or(true);
+        assert!(!updated, "second install of same spec should return false (update, not add)");
+        assert_eq!(
+            registry.plugins.first().and_then(|p| p.cache_policy),
+            Some(cache::Policy::SkipCache),
+            "cache_policy should be updated to SkipCache"
+        );
+    }
+
+    #[test]
+    fn install_update_sets_cache_ttl_on_existing_plugin() {
+        // Covers the `if let Some(ttl) = cache_ttl_secs` True branch (line 84):
+        // when `install` is called with `Some(ttl)` on a spec that is already
+        // registered, the existing entry's `cache_ttl_secs` field is updated.
+        let mut registry = Registry::default();
+        let spec = "github:owner/repo:plugin@main".to_string();
+
+        let added = registry.install(spec.clone(), &[], None, None).unwrap_or(false);
+        assert!(added, "first install should add a new entry");
+        assert!(registry.plugins.first().map_or(false, |p| p.cache_ttl_secs.is_none()));
+
+        let updated = registry.install(spec.clone(), &[], None, Some(3600)).unwrap_or(true);
+        assert!(!updated, "second install of same spec should return false (update, not add)");
+        assert_eq!(
+            registry.plugins.first().and_then(|p| p.cache_ttl_secs),
+            Some(3600u64),
+            "cache_ttl_secs should be updated to 3600"
+        );
+    }
 }
