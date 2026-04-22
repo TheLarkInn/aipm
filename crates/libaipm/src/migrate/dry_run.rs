@@ -1125,4 +1125,45 @@ mod tests {
         assert!(report.contains("scripts/helper.sh"));
         assert!(report.contains("deploy"));
     }
+
+    #[test]
+    fn recursive_report_destructive_skips_shared_config() {
+        // Covers the `if cleanup::should_skip_for_report(source)` True branch,
+        // the `if !has_removals` True branch, and the `if has_skipped` True branch
+        // inside `write_cleanup_plan` for the `&[&Artifact]` monomorphization that
+        // is called only from `generate_recursive_report`.
+        //
+        // When ALL artifacts are shared-config (settings.json), there are no
+        // removals and the skipped section is shown.
+        let discovered = vec![DiscoveredSource {
+            source_dir: PathBuf::from("/project/.claude"),
+            source_type: ".claude".to_string(),
+            package_name: None,
+            relative_path: PathBuf::new(),
+        }];
+
+        let mut hook_artifact = make_artifact("project-hooks", ArtifactKind::Hook);
+        hook_artifact.source_path = PathBuf::from(".claude/settings.json");
+
+        let plugin_plans = vec![PluginPlan {
+            name: "project-hooks".to_string(),
+            artifacts: vec![hook_artifact],
+            is_package_scoped: false,
+            source_dir: PathBuf::from("/project/.claude"),
+            other_files: Vec::new(),
+        }];
+
+        let existing = HashSet::new();
+        let report = generate_recursive_report(&discovered, &plugin_plans, &existing, true);
+
+        assert!(
+            report.contains("(no files to remove)"),
+            "all-skipped cleanup should say no files to remove:\n{report}"
+        );
+        assert!(
+            report.contains("Skipped (shared config)"),
+            "settings.json should appear in skipped section:\n{report}"
+        );
+        assert!(report.contains("settings.json"), "settings.json path should be listed:\n{report}");
+    }
 }
