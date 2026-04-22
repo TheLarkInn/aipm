@@ -1663,4 +1663,24 @@ mod tests {
             "engine-specific uninstall of existing plugin should succeed: {result:?}"
         );
     }
+
+    /// `cmd_lint` with the `"ci-github"` reporter exercises the `CiGitHub.report()`
+    /// branch in the `match effective_reporter` block. On a clean (empty) directory
+    /// the linter finds no violations and the reporter produces no output.
+    #[test]
+    fn cmd_lint_ci_github_reporter_succeeds_on_clean_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = cmd_lint(tmp.path().to_path_buf(), None, "ci-github", "auto", None, None);
+        assert!(result.is_ok(), "ci-github reporter should succeed on clean dir: {result:?}");
+    }
+
+    /// `cmd_lint` with the `"ci-azure"` reporter exercises the `CiAzure.report()`
+    /// branch in the `match effective_reporter` block. On a clean (empty) directory
+    /// the linter finds no violations and the reporter produces no output.
+    #[test]
+    fn cmd_lint_ci_azure_reporter_succeeds_on_clean_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = cmd_lint(tmp.path().to_path_buf(), None, "ci-azure", "auto", None, None);
+        assert!(result.is_ok(), "ci-azure reporter should succeed on clean dir: {result:?}");
+    }
 }
