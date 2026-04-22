@@ -1185,6 +1185,41 @@ mod tests {
         assert!(sources.first().is_some_and(|s| !s.1));
     }
 
+    /// Covers the `if detectors.is_empty()` True branch in `migrate_single_source`
+    /// (line 317): when an unrecognized source type is provided, `detectors_for_source`
+    /// returns an empty list and the function falls back to running all detectors.
+    /// With an empty custom-source directory no artifacts are produced, so the
+    /// migration succeeds and returns an empty `Outcome`.
+    #[test]
+    fn migrate_with_unrecognized_source_type_uses_all_detectors_as_fallback() {
+        let mut fs = MockFs::new();
+        // .ai/ dir must exist for the initial guard check
+        fs.exists.insert(PathBuf::from("/project/.ai"));
+        // A custom source dir that is NOT ".claude" or ".github" — forces the
+        // fallback branch in `migrate_single_source` (detectors.is_empty() == true).
+        fs.exists.insert(PathBuf::from("/project/custom-source"));
+        // Empty directory listings: no subdirectories → all detectors find nothing
+        fs.dirs.insert(PathBuf::from("/project/custom-source"), vec![]);
+        fs.dirs.insert(PathBuf::from("/project/.ai"), vec![]);
+
+        let opts = Options {
+            dir: Path::new("/project"),
+            source: Some("custom-source"),
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+
+        let result = migrate(&opts, &fs);
+        assert!(result.is_ok(), "expected Ok for unrecognized source type");
+        let outcome = result.unwrap_or_else(|_| Outcome { actions: Vec::new() });
+        assert!(
+            outcome.actions.is_empty(),
+            "expected no actions when custom source has no detectable artifacts"
+        );
+    }
+
     #[test]
     fn artifact_kind_to_type_string_all_variants() {
         // Covers all match arms in ArtifactKind::to_type_string().
