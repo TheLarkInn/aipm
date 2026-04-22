@@ -4110,6 +4110,38 @@ mod tests {
         assert!(fs.written.lock().expect("mutex").is_empty(), "no files should be written");
     }
 
+    /// Covers the `Err` branch of `fs.write_file(...).map_err(...)` inside
+    /// `emit_mcp_config` (line ~559). When MockFs is configured to deny writes to the
+    /// `.mcp.json` destination, the `map_err` closure executes and `emit_plugin` returns
+    /// an `Err` wrapping the io error.
+    #[test]
+    fn emit_mcp_config_returns_error_on_write_failure() {
+        let fs = MockFs::new();
+        fs.set_fail_write(PathBuf::from("/ai/project-mcp-servers/.mcp.json"));
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let artifact = make_mcp_artifact();
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_err(), "should fail when .mcp.json write is denied");
+    }
+
+    /// Covers the `Err` branch of `fs.write_file(...).map_err(...)` inside
+    /// `emit_lsp_config` (line ~618). When MockFs is configured to deny writes to the
+    /// `lsp.json` destination, the `map_err` closure executes and `emit_plugin` returns
+    /// an `Err` wrapping the io error.
+    #[test]
+    fn emit_lsp_config_returns_error_on_write_failure() {
+        let fs = MockFs::new();
+        fs.set_fail_write(PathBuf::from("/ai/project-lsp/lsp.json"));
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let artifact = make_lsp_artifact();
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_err(), "should fail when lsp.json write is denied");
+    }
+
     /// Covers the `None` arm of `file.relative_path.file_name().map_or_else(...)` at
     /// line 794 in `emit_other_files`. When `relative_path` is `".."`, `file_name()`
     /// returns `None`, so the fallback uses `to_string_lossy()` of the full path as
@@ -4135,6 +4167,46 @@ mod tests {
                 if *destination == PathBuf::from("/ai/plugin/..")),
             "expected destination '/ai/plugin/..', got: {:?}",
             actions
+        );
+    }
+
+    /// Covers the `None` arm of `project_root.map_or_else(...)` at line ~711 inside
+    /// `copy_referenced_scripts`. When a Hook artifact's `source_path` is only one level
+    /// deep (e.g. `/settings.json`), `.parent()` returns `/` and
+    /// `Path::parent(Path::new("/"))` returns `None`, so `project_root` is `None`. The
+    /// fallback `|| artifact.source_path.join(&normalized)` is used as the script source.
+    #[test]
+    fn copy_referenced_scripts_hook_shallow_source_path_uses_fallback() {
+        let mut fs = MockFs::new();
+        // Source path only 1 level deep: parent is "/" and "/".parent() is None.
+        let script_source = PathBuf::from("/settings.json/run.sh");
+        fs.exists.insert(script_source.clone());
+        fs.files.insert(script_source, "#!/bin/sh\necho hello".to_string());
+
+        let artifact = Artifact {
+            kind: ArtifactKind::Hook,
+            name: "shallow-hook".to_string(),
+            source_path: PathBuf::from("/settings.json"),
+            files: Vec::new(),
+            referenced_scripts: vec![PathBuf::from("run.sh")],
+            metadata: ArtifactMetadata {
+                name: Some("shallow-hook".to_string()),
+                raw_content: Some(
+                    r#"{"hooks":{"PreToolUse":[{"type":"command","command":"run.sh"}]}}"#
+                        .to_string(),
+                ),
+                ..ArtifactMetadata::default()
+            },
+        };
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, false, &fs);
+        assert!(result.is_ok(), "emit_plugin should succeed with shallow hook source: {result:?}");
+        // The script is copied to /ai/shallow-hook/scripts/run.sh
+        assert!(
+            fs.get_written(Path::new("/ai/shallow-hook/scripts/run.sh")).is_some(),
+            "script should have been copied to the plugin scripts dir"
         );
     }
 }
