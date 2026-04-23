@@ -1016,4 +1016,25 @@ mod tests {
     fn classify_claude_md_in_subdir() {
         assert_eq!(classify("packages/auth/CLAUDE.md"), Some(FeatureKind::Instructions));
     }
+
+    #[test]
+    fn discovered_source_claude_dir_alias_matches_source_dir() {
+        // Exercises the `claude_dir()` backward-compat alias on `DiscoveredSource`.
+        let tmp = tempfile::tempdir();
+        assert!(tmp.is_ok(), "tempdir creation must succeed");
+        let tmp = tmp.ok();
+        let root = tmp.as_ref().map(tempfile::TempDir::path);
+        let root = root.as_ref().copied().unwrap_or(Path::new("."));
+
+        assert!(std::fs::create_dir_all(root.join(".claude")).is_ok());
+
+        let result = discover_claude_dirs(root, None);
+        assert!(result.is_ok());
+        let sources = result.ok().unwrap_or_default();
+        // Verify the alias returns the same path as `source_dir` for every source found.
+        for s in &sources {
+            assert_eq!(s.claude_dir(), s.source_dir.as_path());
+        }
+        assert!(!sources.is_empty(), "expected at least one source");
+    }
 }
