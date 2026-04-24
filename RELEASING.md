@@ -25,6 +25,31 @@ Operational runbook for cutting and rolling back releases.
 3. Enter `tag` as an existing `aipm-v<semver>` tag whose GitHub Release contains platform archives.
 4. The workflow downloads the 4 archives, repacks into `runtimes/<RID>/native/` inside a `.nupkg`, and pushes to nuget.org via OIDC Trusted Publishing (falling back to `NUGET_API_KEY` if OIDC fails).
 
+## Nuspec authoring rules (cross-platform)
+
+The CI runner builds the `.nupkg` using **mono's port of nuget.exe on Linux**, not the Windows-native binary. Mono is stricter than the Windows build — some constructs that Windows tolerates silently cause an `ArgumentException: String cannot be empty. Parameter name: entryName` failure on Linux because mono converts nuspec entries directly into `ZipArchive.CreateEntry` calls.
+
+Rules for editing [`packaging/aipm.nuspec`](packaging/aipm.nuspec):
+
+1. **Use forward slashes everywhere.** Backslash paths (`docs\README.md`, `runtimes\`) work on Windows but fail on mono. Use `docs/README.md` and `runtimes/` instead. This applies to both `<file>` attributes and `<metadata>` fields such as `<readme>`.
+
+2. **Never use an empty `target` attribute.** `<file src="LICENSE" target="" />` produces an entry with an empty name → `ArgumentException`. Give every `<file>` an explicit target: either a full relative path (`target="LICENSE"`) or a trailing slash for directory globs (`target="runtimes/"`).
+
+3. **No trailing separator without a glob.** `target="docs\"` (backslash with no filename) is ambiguous; mono may interpret it literally, misplacing the file in the archive.
+
+Quick reference for the three patterns used in the current nuspec:
+
+```xml
+<!-- directory glob: trailing slash tells nuget "place files into this folder" -->
+<file src="runtimes/**" target="runtimes/" />
+
+<!-- single file: always specify the target filename explicitly -->
+<file src="README.md"   target="docs/README.md" />
+<file src="LICENSE"     target="LICENSE" />
+```
+
+> **Background.** Run [24904613922](https://github.com/TheLarkInn/aipm/actions/runs/24904613922) first exposed this when the nuspec used `target=""` and backslash paths, causing the Pack step to abort with `String cannot be empty. Parameter name: entryName` before `dotnet nuget push` ran (aipm 0.22.3 was therefore never published). Fixed in [#659](https://github.com/TheLarkInn/aipm/pull/659).
+
 ## Rollback — broken nuget.org version
 
 **nuget.org does not permit package deletion.** The only operation is **unlist**, which hides the version from search but leaves it resolvable to anyone who pinned to that exact version. This is a property of the NuGet protocol, not a policy choice.
