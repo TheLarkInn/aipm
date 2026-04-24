@@ -44,6 +44,7 @@ steps:
     inputs: { packageType: sdk, version: 8.x }
 
   - pwsh: |
+      New-Item -ItemType Directory -Force -Path "$(Agent.TempDirectory)/aipm-fetch" | Out-Null
       @'
       <Project Sdk="Microsoft.Build.NoTargets/3.7.0">
         <PropertyGroup>

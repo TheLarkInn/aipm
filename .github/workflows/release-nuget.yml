@@ -139,12 +139,12 @@ jobs:
           test -f "$nupkg" || { echo "::error::nupkg not produced at $nupkg"; exit 1; }
           echo "Contents of $nupkg:"
           unzip -l "$nupkg"
-          runtime_count=$(unzip -l "$nupkg" | grep -cE '^\s+[0-9]+.*runtimes/.*/native/aipm')
+          runtime_count=$(unzip -l "$nupkg" | grep -cE '^\s+[0-9]+.*runtimes/.*/native/aipm(\.exe)?$')
           if [ "$runtime_count" -lt 4 ]; then
-            echo "::error::Expected at least 4 runtimes/<RID>/native/aipm entries, found $runtime_count"
+            echo "::error::Expected at least 4 runtimes/<RID>/native/aipm[.exe] entries, found $runtime_count"
             exit 1
           fi
-          echo "Found $runtime_count runtimes/<RID>/native/aipm entries (>=4 required)"
+          echo "Found $runtime_count runtimes/<RID>/native/aipm[.exe] entries (>=4 required)"
 
       - name: NuGet OIDC login (Trusted Publishing)
         id: nuget_login

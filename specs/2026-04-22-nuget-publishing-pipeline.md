@@ -189,7 +189,11 @@ permissions:
 | `NUGET_API_KEY`     | Fallback long-lived API key used if OIDC login fails                    | Yes (v1)|
 | `GITHUB_TOKEN`      | Implicit; used by `gh release download`                                  | Yes      |
 
-**No inputs from user.** Version is derived from `github.event.release.tag_name` (strip `aipm-v` prefix). No `workflow_dispatch` in v1 (add later if needed for republish-in-place scenarios).
+**Triggers and inputs (target steady state).** This section describes the target steady-state workflow shape. For Phase 1 safety, the initial PR ships with `workflow_dispatch` ONLY (see §8.1 Phase 1 and §9 open questions). `release:published` is added in a follow-up PR after Phase 1 dry-run validates.
+
+- **Steady-state triggers**: both `release: { types: [published] }` AND `workflow_dispatch` (with a required `tag` input for manual republishes). Job `if:` guard accepts either.
+- **Release-event path**: zero user input. Version derived from `github.event.release.tag_name` (strip `aipm-v` prefix).
+- **workflow_dispatch path**: single `tag` input (the `aipm-v<semver>` tag whose GitHub Release holds the platform archives). Enables manual republishes, the Phase 1 dry-run, and OIDC-fallback testing.
 
 ### 5.2 Package Layout
 
