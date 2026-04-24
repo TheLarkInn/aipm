@@ -123,6 +123,17 @@ jobs:
       - name: Set up NuGet CLI
         uses: nuget/setup-nuget@v2
 
+      - name: Install mono (nuget.exe runtime on Linux)
+        # ubuntu-latest (24.04) no longer ships mono pre-installed, but
+        # nuget.exe is a .NET Framework binary that requires it. Installing
+        # mono-devel (~200 MB, ~20 s) covers the System.Net.Http assemblies
+        # nuget pack / push need. Forward-looking alternative: migrate to
+        # `dotnet pack` + stub csproj once .NET 10's -p:NuspecFile stabilizes.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mono-devel
+          mono --version | head -1
+
       - name: Pack
         working-directory: pkg
         run: |
