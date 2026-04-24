@@ -586,4 +586,19 @@ mod tests {
         let diags = lint_file_diagnostics(&file);
         assert!(diags.is_empty(), "clean agent file should have no diagnostics");
     }
+
+    #[test]
+    fn lint_file_diagnostics_returns_empty_on_walk_failure() {
+        // Create a temp dir, then drop it so the directory no longer exists on disk.
+        // find_workspace_dir() won't find any aipm.toml or .ai marker walking up,
+        // so it returns the deleted dir as the workspace root.  discover_features()
+        // then fails with WalkFailed, causing lint() to return Err — this exercises
+        // the Err(e) branch of lint_file_diagnostics().
+        let dir = tempfile::tempdir().expect("tempdir");
+        let deleted_dir = dir.path().to_path_buf();
+        drop(dir); // deletes the directory from disk
+        let file_path = deleted_dir.join("SKILL.md");
+        let diags = lint_file_diagnostics(&file_path);
+        assert!(diags.is_empty(), "expected empty vec when lint errors, got: {diags:?}");
+    }
 }
