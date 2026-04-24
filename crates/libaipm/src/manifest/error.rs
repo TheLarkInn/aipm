@@ -93,3 +93,23 @@ fn format_errors(errors: &[Error]) -> String {
     }
     buf
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_errors_single_error_no_separator() {
+        let err = Error::Multiple(vec![Error::MissingField { field: "name".to_string() }]);
+        assert_eq!(err.to_string(), "missing required field: name");
+    }
+
+    #[test]
+    fn format_errors_multiple_errors_joined_with_semicolon() {
+        let err = Error::Multiple(vec![
+            Error::MissingField { field: "name".to_string() },
+            Error::InvalidVersion { version: "bad".to_string() },
+        ]);
+        assert_eq!(err.to_string(), "missing required field: name; invalid semver version: bad");
+    }
+}
