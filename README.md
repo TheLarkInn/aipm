@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/TheLarkInn/aipm/actions/workflows/ci.yml/badge.svg)](https://github.com/TheLarkInn/aipm/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/TheLarkInn/aipm/graph/badge.svg)](https://codecov.io/gh/TheLarkInn/aipm)
+[![NuGet](https://img.shields.io/nuget/v/aipm)](https://www.nuget.org/packages/aipm)
 
 A production-grade package manager for AI plugin primitives (skills, agents, MCP servers, hooks). Think npm/Cargo, but purpose-built for the AI plugin ecosystem.
 
@@ -28,6 +29,47 @@ powershell -ExecutionPolicy Bypass -c "irm https://github.com/thelarkinn/aipm/re
 ```
 
 > Installers are provided by [cargo-dist](https://opensource.axo.dev/cargo-dist/). Run `aipm-update` to self-update.
+
+### Azure DevOps Pipeline (NuGet)
+
+For Azure DevOps pipelines that prefer NuGet over `curl | sh`, restore `aipm` from [nuget.org](https://www.nuget.org/packages/aipm) into the global packages folder and prepend the correct per-RID binary directory to `PATH`:
+
+```yaml
+variables:
+  AIPM_VERSION: '0.22.3'
+  NUGET_PACKAGES: $(Pipeline.Workspace)/.nuget/packages
+
+steps:
+  - task: UseDotNet@2
+    inputs: { packageType: sdk, version: 8.x }
+
+  - pwsh: |
+      @'
+      <Project Sdk="Microsoft.Build.NoTargets/3.7.0">
+        <PropertyGroup>
+          <TargetFramework>net8.0</TargetFramework>
+          <DisableImplicitNuGetFallbackFolder>true</DisableImplicitNuGetFallbackFolder>
+        </PropertyGroup>
+        <ItemGroup>
+          <PackageDownload Include="aipm" Version="[$(env:AIPM_VERSION)]" />
+        </ItemGroup>
+      </Project>
+      '@ | Set-Content "$(Agent.TempDirectory)/aipm-fetch/fetch.csproj"
+    displayName: 'Generate aipm download-only project'
+
+  - script: dotnet restore "$(Agent.TempDirectory)/aipm-fetch/fetch.csproj"
+
+  - pwsh: |
+      switch ("$(Agent.OS)") { 'Windows_NT'{$o='win';$x='aipm.exe'} 'Linux'{$o='linux';$x='aipm'} 'Darwin'{$o='osx';$x='aipm'} }
+      $a = if ("$(Agent.OSArchitecture)".ToLower() -eq 'arm64') { 'arm64' } else { 'x64' }
+      $bin = "$env:NUGET_PACKAGES/aipm/$env:AIPM_VERSION/runtimes/$o-$a/native"
+      if ("$(Agent.OS)" -ne 'Windows_NT') { chmod +x "$bin/$x" }
+      Write-Host "##vso[task.prependpath]$bin"
+
+  - script: aipm --version
+```
+
+Public nuget.org needs no service connection or `NuGetAuthenticate@1`. The package ships binaries for `win-x64`, `linux-x64`, `osx-x64`, `osx-arm64`. See [`research/docs/2026-04-22-ado-pipeline-nuget-consume.md`](research/docs/2026-04-22-ado-pipeline-nuget-consume.md) for the full consumer walkthrough.
 
 ### Build from Source
 
