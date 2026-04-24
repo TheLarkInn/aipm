@@ -11,13 +11,16 @@
                 url="https://github.com/TheLarkInn/aipm.git"
                 branch="main"
                 commit="$commit$" />
-    <readme>docs\README.md</readme>
+    <readme>docs/README.md</readme>
     <tags>ai claude copilot plugin-manager cli rust native cross-platform azure-devops</tags>
     <copyright>Copyright (c) 2026 Sean Larkin</copyright>
   </metadata>
   <files>
-    <file src="runtimes\**" target="runtimes" />
-    <file src="README.md" target="docs\" />
-    <file src="LICENSE" target="" />
+    <!-- Forward slashes + explicit target filenames (no empty target="",
+         no trailing separator) avoid mono nuget.exe's "String cannot be
+         empty. Parameter name: entryName" failure when building the ZIP. -->
+    <file src="runtimes/**" target="runtimes/" />
+    <file src="README.md" target="docs/README.md" />
+    <file src="LICENSE" target="LICENSE" />
   </files>
 </package>
