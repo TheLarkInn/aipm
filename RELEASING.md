@@ -25,6 +25,16 @@ Operational runbook for cutting and rolling back releases.
 3. Enter `tag` as an existing `aipm-v<semver>` tag whose GitHub Release contains platform archives.
 4. The workflow downloads the 4 archives, repacks into `runtimes/<RID>/native/` inside a `.nupkg`, and pushes to nuget.org via OIDC Trusted Publishing (falling back to `NUGET_API_KEY` if OIDC fails).
 
+### System dependencies
+
+`nuget.exe` is a .NET Framework binary that requires **Mono** to run on Linux. `ubuntu-latest` (24.04+) no longer ships Mono pre-installed, so the workflow installs `mono-devel` (~200 MB, ~20 s added to pack time) before the Pack step. The `nuget/setup-nuget@v2` action downloads `nuget.exe` but does **not** install Mono — this step must remain explicit.
+
+If the pack job fails with `mono: not found` or exit code 127, verify that the `Install mono` step is present and runs before `Pack` in the workflow.
+
+### Longer-term migration
+
+The `nuget.exe` + Mono chain is a maintenance burden on Linux runners. The planned migration is to `dotnet pack` with a stub `.csproj` (or .NET 10's `-p:NuspecFile` direct-pack support), which would drop the Mono dependency entirely. Until that work lands, `mono-devel` is required.
+
 ## Rollback — broken nuget.org version
 
 **nuget.org does not permit package deletion.** The only operation is **unlist**, which hides the version from search but leaves it resolvable to anyone who pinned to that exact version. This is a property of the NuGet protocol, not a policy choice.
