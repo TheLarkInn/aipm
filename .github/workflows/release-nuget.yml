@@ -138,9 +138,14 @@ jobs:
         working-directory: pkg
         run: |
           set -euo pipefail
+          # -BasePath . tells nuget.exe to resolve <file src="..."> entries
+          # against CWD (pkg/) instead of the directory containing the nuspec
+          # (packaging/). Without this, nuget looks for packaging/runtimes/*
+          # and fails with "Could not find a part of the path".
           nuget pack ../packaging/aipm.nuspec \
             -Version "${{ steps.ver.outputs.version }}" \
             -Properties "version=${{ steps.ver.outputs.version }};commit=${{ github.sha }}" \
+            -BasePath . \
             -NoDefaultExcludes \
             -NonInteractive \
             -OutputDirectory ../out
