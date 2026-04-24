@@ -140,4 +140,19 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
     }
+
+    #[test]
+    fn check_file_description_within_limit_no_diagnostic() {
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/skills/s/SKILL.md");
+        // Description is exactly at the 1024-character limit — no diagnostic expected.
+        let desc = "y".repeat(1024);
+        let content = format!("---\nname: s\ndescription: {desc}\n---\nbody");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), content);
+
+        let result = DescriptionTooLong.check_file(&path, &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
 }

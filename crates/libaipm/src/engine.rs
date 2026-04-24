@@ -315,4 +315,34 @@ mod tests {
         assert_eq!(Engine::Claude.marketplace_manifest_path(), ".claude-plugin/marketplace.toml");
         assert_eq!(Engine::Copilot.marketplace_manifest_path(), ".github/plugin/marketplace.toml");
     }
+
+    #[test]
+    fn validate_with_aipm_toml_no_package_section_is_universal() {
+        // TOML that is valid but has no [package] section at all.
+        // `manifest.package` is None → treated as universal (all engines pass).
+        let temp = make_temp();
+        let plugin_dir = temp.path().join("no-pkg-plugin");
+        std::fs::create_dir_all(&plugin_dir).unwrap_or_else(|_| {});
+        std::fs::write(plugin_dir.join("aipm.toml"), "[metadata]\nfoo = \"bar\"\n")
+            .unwrap_or_else(|_| {});
+
+        assert!(validate_plugin(&plugin_dir, Engine::Claude).is_ok());
+        assert!(validate_plugin(&plugin_dir, Engine::Copilot).is_ok());
+    }
+
+    #[test]
+    fn validate_with_aipm_toml_empty_engines_list_is_universal() {
+        // `engines = []` is explicitly an empty list → treated as universal.
+        let temp = make_temp();
+        let plugin_dir = temp.path().join("empty-engines-plugin");
+        std::fs::create_dir_all(&plugin_dir).unwrap_or_else(|_| {});
+        std::fs::write(
+            plugin_dir.join("aipm.toml"),
+            "[package]\nname = \"test\"\nengines = []\n",
+        )
+        .unwrap_or_else(|_| {});
+
+        assert!(validate_plugin(&plugin_dir, Engine::Claude).is_ok());
+        assert!(validate_plugin(&plugin_dir, Engine::Copilot).is_ok());
+    }
 }

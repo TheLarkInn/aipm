@@ -138,4 +138,19 @@ mod tests {
         assert!(result.is_ok());
         assert!(result.ok().unwrap_or_default().is_empty());
     }
+
+    #[test]
+    fn check_file_name_within_limit_no_diagnostic() {
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/skills/s/SKILL.md");
+        // Name is exactly at the 64-character limit — no diagnostic expected.
+        let name = "a".repeat(64);
+        let content = format!("---\nname: {name}\n---\nbody");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), content);
+
+        let result = NameTooLong.check_file(&path, &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
 }

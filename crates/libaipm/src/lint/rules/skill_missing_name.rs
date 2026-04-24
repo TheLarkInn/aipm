@@ -124,4 +124,19 @@ mod tests {
         assert_eq!(diags[0].rule_id, "skill/missing-name");
         assert_eq!(diags[0].line, Some(1));
     }
+
+    #[test]
+    fn check_file_empty_name_warns() {
+        // `name` key is present but its value is an empty string — still invalid.
+        let mut fs = MockFs::new();
+        let path = PathBuf::from(".ai/p/skills/s/SKILL.md");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), "---\nname: \n---\nbody".to_string());
+
+        let result = MissingName.check_file(&path, &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].rule_id, "skill/missing-name");
+    }
 }

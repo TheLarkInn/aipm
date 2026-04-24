@@ -90,4 +90,18 @@ mod tests {
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].rule_id, "skill/oversized");
     }
+
+    #[test]
+    fn check_file_within_budget_no_diagnostic() {
+        let mut fs = MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/skills/s/SKILL.md");
+        // Frontmatter + small body well under the 15 000-character budget.
+        let content = "---\nname: s\n---\nshort skill".to_string();
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), content);
+
+        let result = Oversized.check_file(&path, &fs);
+        assert!(result.is_ok());
+        assert!(result.ok().unwrap_or_default().is_empty());
+    }
 }
