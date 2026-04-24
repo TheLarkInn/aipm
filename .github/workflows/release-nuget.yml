@@ -99,7 +99,10 @@ jobs:
             if [[ "$triple" == *windows* ]]; then
               archive="archives/aipm-${triple}.zip"
               test -f "$archive" || { echo "::error::Missing $archive"; exit 1; }
-              unzip -j "$archive" '*/aipm.exe' -d "pkg/runtimes/$rid/native/"
+              # cargo-dist's Windows zip is FLAT (aipm.exe at archive root), while
+              # Unix tarballs use a subdirectory. Pattern '*aipm.exe' matches both
+              # flat and nested layouts so we're robust against future changes.
+              unzip -j "$archive" '*aipm.exe' -d "pkg/runtimes/$rid/native/"
             else
               archive="archives/aipm-${triple}.tar.xz"
               test -f "$archive" || { echo "::error::Missing $archive"; exit 1; }
