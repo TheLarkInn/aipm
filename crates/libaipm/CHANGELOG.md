@@ -1,6 +1,32 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.22.4] - 2026-04-24
+
+### Features
+- Automatic nuget.org publishing pipeline ([#651](https://github.com/TheLarkInn/aipm/pull/651)) (134d94a)
+
+### Miscellaneous
+- Release v0.22.3 ([#607](https://github.com/TheLarkInn/aipm/pull/607)) (78d3d4b)
+
+### Testing
+- Cover CiAzure warning_count==0 branch in reporter (a22aa73)
+- Cover download() with success, version-not-found, and checksum-mismatch tests (349c419)
+- Cover adaptor.apply() false branch (c7e6632)
+- Cover apply_rule_diagnostics branches in lint/mod.rs (d6624b0)
+- Cover is_external and matches! guard branches (67911a8)
+- Cover Rule trait methods and migrate edge-case paths (1e8b226)
+- Cover ColorChoice::Always path through Human::report() (802e642)
+- Cover uncovered feature-activation branches (1c12ffc)
+- Cover write_cleanup_plan skip-shared-config in recursive report (94851ea)
+- Cover cache_policy and cache_ttl_secs update branches (0c1d984)
+- Cover detectors.is_empty() fallback branch in migrate_single_source (7291b8a)
+- Add coverage for emitter write-failure and edge-case branches (0b28c4c)
+- Cover DiscoveredSource::claude_dir() backward-compat alias (a131d20)
+- Cover cmd_lint error path and string severity config override (fa0ae63)
+- Cover unrecognized-file skip branch in discover_features (0933f87)
+- Cover format_errors branches in Error::Multiple display (0a66bb5)
+
 ## [0.22.3] - 2026-04-20
 
 ### Documentation
