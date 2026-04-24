@@ -25,6 +25,17 @@ Operational runbook for cutting and rolling back releases.
 3. Enter `tag` as an existing `aipm-v<semver>` tag whose GitHub Release contains platform archives.
 4. The workflow downloads the 4 archives, repacks into `runtimes/<RID>/native/` inside a `.nupkg`, and pushes to nuget.org via OIDC Trusted Publishing (falling back to `NUGET_API_KEY` if OIDC fails).
 
+### Archive layout notes
+
+cargo-dist produces two archive formats:
+
+| Platform | Format | Internal layout |
+|----------|--------|-----------------|
+| Unix (linux-x64, osx-x64, osx-arm64) | `.tar.xz` | `aipm-<triple>/aipm` — one subdirectory level |
+| Windows (win-x64) | `.zip` | `aipm.exe` at the **archive root** — flat, no subdirectory |
+
+The `release-nuget.yml` workflow uses `unzip -j '*aipm.exe'` (no leading `/`) to match the Windows binary in both flat and any future nested layouts. Do **not** change this to `'*/aipm.exe'`; that pattern requires a directory prefix and fails on the current flat cargo-dist zip structure.
+
 ## Rollback — broken nuget.org version
 
 **nuget.org does not permit package deletion.** The only operation is **unlist**, which hides the version from search but leaves it resolvable to anyone who pinned to that exact version. This is a property of the NuGet protocol, not a policy choice.

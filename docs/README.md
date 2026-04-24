@@ -27,6 +27,7 @@ How-to guides for common tasks:
 | [Download Cache](guides/cache-management.md) | Cache policies, TTL, and garbage collection |
 | [Source Security](guides/source-security.md) | Source allowlists and path traversal protection |
 | [VS Code Extension](guides/vscode-extension.md) | Real-time lint diagnostics, completions, and hover in VS Code via `aipm lsp` |
+| [Azure DevOps Pipeline (NuGet)](guides/install-azure-devops.md) | Install `aipm` in ADO YAML pipelines via the nuget.org NuGet package |
 
 ## Lint Rule Reference
 
