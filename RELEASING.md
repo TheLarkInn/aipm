@@ -14,16 +14,19 @@ Operational runbook for cutting and rolling back releases.
    - Produces `.tar.xz` / `.zip` archives, `sha256` checksums, `aipm-installer.{sh,ps1}`
    - Creates a GitHub Release with all artifacts attached
 5. `update-latest-release.yml` fires on `release:published` and republishes the installer scripts to the rolling `latest` GitHub Release.
-6. *(Pending Phase 2 activation)* `release-nuget.yml` fires on `release:published` and publishes `aipm.<version>.nupkg` to [nuget.org](https://www.nuget.org/packages/aipm).
+6. `release-nuget.yml` fires on `release:published` (guarded by `startsWith(tag_name, 'aipm-v') && !prerelease`) and publishes `aipm.<version>.nupkg` to [nuget.org](https://www.nuget.org/packages/aipm).
 
 ## NuGet publish — current status
 
-`release-nuget.yml` ships with **`workflow_dispatch` only**. The `release:published` trigger will be enabled in a follow-up PR after Phase 1 dry-run validates. To run a dry-run or one-off publish:
+`release-nuget.yml` auto-publishes on every stable `aipm-v*` GitHub Release via OIDC Trusted Publishing. Pre-release tags (`-alpha.N`, `-beta.N`, `-rc.N`) are intentionally skipped.
 
-1. Ensure [`NUGET_USERNAME`](https://github.com/TheLarkInn/aipm/settings/secrets/actions) (public nuget.org handle) and `NUGET_API_KEY` (fallback) secrets exist.
-2. Go to **Actions → Publish to NuGet → Run workflow**.
-3. Enter `tag` as an existing `aipm-v<semver>` tag whose GitHub Release contains platform archives.
-4. The workflow downloads the 4 archives, repacks into `runtimes/<RID>/native/` inside a `.nupkg`, and pushes to nuget.org via OIDC Trusted Publishing (falling back to `NUGET_API_KEY` if OIDC fails).
+**Manual re-publish / dry-run** (for testing or republishing a historical tag):
+
+1. Go to **Actions → Publish to NuGet → Run workflow**.
+2. Enter `tag` as an existing `aipm-v<semver>` tag whose GitHub Release contains platform archives.
+3. The workflow downloads the 4 archives, repacks into `runtimes/<RID>/native/` inside a `.nupkg`, and pushes to nuget.org. `--skip-duplicate` makes re-runs idempotent.
+
+Secrets required: [`NUGET_USERNAME`](https://github.com/TheLarkInn/aipm/settings/secrets/actions) (public nuget.org handle) and `NUGET_API_KEY` (fallback if OIDC login fails).
 
 ## Rollback — broken nuget.org version
 
