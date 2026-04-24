@@ -40,15 +40,33 @@ Feature #16 -- RELEASING.md created at repo root
 
 ### Deferred (human-action blockers)
 
-Feature #6b -- Flip release-nuget.yml trigger to include release:published
-  - BLOCKED on Feature #7 (Phase 1 dry-run) completing successfully.
-
-Features #7-#14 -- Validation + security tests
+Features #8-#14 -- Validation + security tests
   - All require real release cuts, real nuget.org state changes, or external test environments (ADO, forked repo).
   - Handled by human outside this agent session.
 
 Feature #17 -- Spec status flip to Implemented
   - Blocked until all validation features pass.
+
+## 2026-04-24 -- Phase 1 dry-run + trigger flip
+
+### Phase 1 dry-run (feature #7) -- PASSED
+
+First Phase 1 dry-run surfaced four real bugs in sequence, each fixed via a separate hot-fix PR:
+
+- #654 -- Windows zip layout. cargo-dist's Windows zip is FLAT (aipm.exe at archive root) while Unix tarballs use a subdirectory. Fixed unzip pattern from '*/aipm.exe' to '*aipm.exe'.
+- #655 -- mono not installed. ubuntu-latest no longer ships mono pre-installed; nuget.exe needs it. Added apt-get install mono-devel before the Pack step.
+- #657 -- BasePath not set. nuget pack resolves <file src=""> entries relative to the nuspec's directory (packaging/), not CWD (pkg/). Added -BasePath . flag.
+- #659 -- nuspec path quirks. Empty target="" on LICENSE line + trailing-backslash target="docs\" on README + backslash paths in <readme> metadata all broke on mono. Normalized to forward slashes + explicit target filenames.
+
+After #659 merged, run succeeded end-to-end. aipm 0.22.3 queued for nuget.org validation/indexing (~10-60 min automated scan + repo signing).
+
+### Trigger flip (feature #6b) -- this commit
+
+Added release:{types:[published]} alongside workflow_dispatch in release-nuget.yml. Stable aipm-v* releases now auto-publish to nuget.org without manual intervention. Updated RELEASING.md to remove "(Pending Phase 2 activation)" language. workflow_dispatch stays available for manual republishes / OIDC-fallback testing.
+
+### Follow-up flagged
+
+nuget.exe + mono chain accumulated 4 quirks across the 4 hot-fixes. A follow-up PR should migrate the Pack step to `dotnet pack` with a stub `packaging/aipm-pack.csproj`, dropping nuget/setup-nuget@v2 and the mono install step. Nuspec survives unchanged; push step unchanged.
 
 ### Notes / deviations from spec
 

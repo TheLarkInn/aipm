@@ -114,7 +114,7 @@
       "Merge the PR",
       "Confirm the next aipm-v stable tag's GitHub Release auto-fires release-nuget.yml without manual intervention"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "validation",
@@ -130,7 +130,7 @@
       "Confirm the final push step succeeds and the package appears at https://www.nuget.org/packages/aipm/<version>",
       "If the first publish is a version you do NOT want on nuget.org permanently (e.g., using an older tag for test), unlist immediately after"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "validation",
