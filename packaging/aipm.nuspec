@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+  <metadata>
+    <id>aipm</id>
+    <version>$version$</version>
+    <authors>Sean Larkin</authors>
+    <description>aipm - AI plugin manager. Manages AI plugins (Claude, Copilot, Cursor, etc.) across .claude / .github / .ai directories. Distributed as a native Rust CLI for Windows, macOS, and Linux. Consume from an Azure DevOps pipeline via dotnet restore + PackageDownload.</description>
+    <license type="expression">MIT</license>
+    <projectUrl>https://github.com/TheLarkInn/aipm</projectUrl>
+    <repository type="git"
+                url="https://github.com/TheLarkInn/aipm.git"
+                branch="main"
+                commit="$commit$" />
+    <readme>docs\README.md</readme>
+    <tags>ai claude copilot plugin-manager cli rust native cross-platform azure-devops</tags>
+    <copyright>Copyright (c) 2026 Sean Larkin</copyright>
+  </metadata>
+  <files>
+    <file src="runtimes\**" target="runtimes" />
+    <file src="README.md" target="docs\" />
+    <file src="LICENSE" target="" />
+  </files>
+</package>

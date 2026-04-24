@@ -1,0 +1,171 @@
+# Publish aipm to nuget.org as a multi-RID native package.
+#
+# Initial trigger is workflow_dispatch ONLY. The release:published trigger is
+# deliberately omitted until Phase 1 dry-run validates end-to-end packing
+# (see specs/2026-04-22-nuget-publishing-pipeline.md section 8.1).
+#
+# To enable automatic publish on stable releases, add this block under `on:`
+# in a follow-up PR after Phase 1:
+#
+#   release:
+#     types: [published]
+#
+# and the job's `if:` guard already accepts that event:
+#   if: ${{ github.event_name == 'workflow_dispatch' || (startsWith(github.event.release.tag_name, 'aipm-v') && !github.event.release.prerelease) }}
+#
+# Rollback: nuget.org does not allow package deletion, only unlisting. See
+# RELEASING.md for the broken-version runbook.
+
+name: Publish to NuGet
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish (e.g., aipm-v0.22.3). Must already have a published GitHub Release with platform archives.'
+        required: true
+        type: string
+
+concurrency:
+  group: release-nuget-${{ inputs.tag || github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Pack & push aipm to nuget.org
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch'
+          || (startsWith(github.event.release.tag_name, 'aipm-v')
+              && !github.event.release.prerelease) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # required for NuGet Trusted Publishing (OIDC)
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Resolve tag and version
+        id: ver
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          EVENT_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          TAG="${INPUT_TAG:-$EVENT_TAG}"
+          if [ -z "$TAG" ]; then
+            echo "::error::No tag resolved from workflow_dispatch input or release event"
+            exit 1
+          fi
+          case "$TAG" in
+            aipm-v*) ;;
+            *) echo "::error::Tag '$TAG' does not start with 'aipm-v'"; exit 1 ;;
+          esac
+          VERSION="${TAG#aipm-v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag='$TAG' version='$VERSION'"
+
+      - name: Download release archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p archives
+          gh release download "${{ steps.ver.outputs.tag }}" \
+            --pattern 'aipm-*.tar.xz' \
+            --pattern 'aipm-*.zip' \
+            --dir archives \
+            --repo "${{ github.repository }}"
+          ls -la archives
+
+      - name: Unpack into runtimes/<RID>/native layout
+        run: |
+          set -euo pipefail
+          mkdir -p pkg/runtimes
+          declare -A RID_MAP=(
+            [x86_64-unknown-linux-gnu]=linux-x64
+            [x86_64-apple-darwin]=osx-x64
+            [aarch64-apple-darwin]=osx-arm64
+            [x86_64-pc-windows-msvc]=win-x64
+          )
+          for triple in "${!RID_MAP[@]}"; do
+            rid="${RID_MAP[$triple]}"
+            mkdir -p "pkg/runtimes/$rid/native"
+            if [[ "$triple" == *windows* ]]; then
+              archive="archives/aipm-${triple}.zip"
+              test -f "$archive" || { echo "::error::Missing $archive"; exit 1; }
+              unzip -j "$archive" '*/aipm.exe' -d "pkg/runtimes/$rid/native/"
+            else
+              archive="archives/aipm-${triple}.tar.xz"
+              test -f "$archive" || { echo "::error::Missing $archive"; exit 1; }
+              mkdir -p "/tmp/unpack-$rid"
+              tar -xf "$archive" --strip-components=1 -C "/tmp/unpack-$rid"
+              install -m 755 "/tmp/unpack-$rid/aipm" "pkg/runtimes/$rid/native/aipm"
+            fi
+          done
+          cp README.md LICENSE pkg/
+          echo "Staged runtimes/ tree:"
+          find pkg/runtimes -type f -printf '%p (%s bytes)\n'
+
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+
+      - name: Set up NuGet CLI
+        uses: nuget/setup-nuget@v2
+
+      - name: Pack
+        working-directory: pkg
+        run: |
+          set -euo pipefail
+          nuget pack ../packaging/aipm.nuspec \
+            -Version "${{ steps.ver.outputs.version }}" \
+            -Properties "version=${{ steps.ver.outputs.version }};commit=${{ github.sha }}" \
+            -NoDefaultExcludes \
+            -NonInteractive \
+            -OutputDirectory ../out
+
+      - name: Inspect nupkg (sanity check)
+        run: |
+          set -euo pipefail
+          ls -la out/
+          nupkg="out/aipm.${{ steps.ver.outputs.version }}.nupkg"
+          test -f "$nupkg" || { echo "::error::nupkg not produced at $nupkg"; exit 1; }
+          echo "Contents of $nupkg:"
+          unzip -l "$nupkg"
+          runtime_count=$(unzip -l "$nupkg" | grep -cE '^\s+[0-9]+.*runtimes/.*/native/aipm(\.exe)?$')
+          if [ "$runtime_count" -lt 4 ]; then
+            echo "::error::Expected at least 4 runtimes/<RID>/native/aipm[.exe] entries, found $runtime_count"
+            exit 1
+          fi
+          echo "Found $runtime_count runtimes/<RID>/native/aipm[.exe] entries (>=4 required)"
+
+      - name: NuGet OIDC login (Trusted Publishing)
+        id: nuget_login
+        continue-on-error: true
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USERNAME }}
+
+      - name: Push to nuget.org (OIDC)
+        if: steps.nuget_login.outcome == 'success'
+        run: |
+          dotnet nuget push out/*.nupkg \
+            --api-key "${{ steps.nuget_login.outputs.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+
+      - name: Push to nuget.org (API-key fallback)
+        if: steps.nuget_login.outcome != 'success'
+        run: |
+          echo "::warning::OIDC Trusted Publishing failed; falling back to NUGET_API_KEY secret"
+          dotnet nuget push out/*.nupkg \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
