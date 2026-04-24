@@ -1018,6 +1018,23 @@ mod tests {
     }
 
     #[test]
+    fn discover_features_skips_unrecognized_files() {
+        // Covers the `else { continue }` branch in discover_features() at the
+        // `let Some(kind) = classify_feature_kind(file_path) else { continue }` guard.
+        // When a file exists inside a walked directory but does not match any known
+        // feature pattern, classify_feature_kind returns None and the file is silently
+        // skipped — the feature list remains empty.
+        let (_tmp, root) = make_tmp();
+        let ai_dir = root.join(".ai");
+        assert!(std::fs::create_dir_all(&ai_dir).is_ok());
+        // Write a file that cannot be classified as any FeatureKind.
+        assert!(std::fs::write(ai_dir.join("README.txt"), "not a feature").is_ok());
+
+        let features = discover_features(&root, None).expect("discover_features");
+        assert!(features.is_empty(), "unrecognized files should be silently skipped");
+    }
+
+    #[test]
     fn discovered_source_claude_dir_alias_matches_source_dir() {
         // Exercises the `claude_dir()` backward-compat alias on `DiscoveredSource`.
         let tmp = tempfile::tempdir();
