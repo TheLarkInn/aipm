@@ -3,7 +3,7 @@
 | Document Metadata      | Details                                                                 |
 | ---------------------- | ----------------------------------------------------------------------- |
 | Author(s)              | Sean Larkin                                                             |
-| Status                 | Draft (WIP)                                                             |
+| Status                 | Implemented                                                             |
 | Team / Owner           | Sean Larkin                                                             |
 | Created / Last Updated | 2026-03-31                                                              |
 | Research               | `research/tickets/2026-03-31-0157-build-performance-report.md`          |
@@ -37,15 +37,15 @@ This spec addresses the two highest-impact build performance bottlenecks identif
 
 ### 3.1 Functional Goals
 
-- [ ] **G1**: Reduce cold CI build time by 50%+ (from 119s to ~45-60s)
-- [ ] **G2**: Install system `libgit2-dev`, `libssl-dev`, and `pkg-config` in CI workflows that compile Rust
-- [ ] **G3**: Set `LIBGIT2_SYS_USE_PKG_CONFIG=1` environment variable in CI workflows
-- [ ] **G4**: Replace `reqwest` with `ureq` (v3) in the workspace dependency declaration
-- [ ] **G5**: Migrate the single `reqwest::blocking::get` call site to `ureq::get`
-- [ ] **G6**: Remove unused `reqwest` dependency from `aipm-pack/Cargo.toml`
-- [ ] **G7**: All existing tests pass (`cargo test --workspace`)
-- [ ] **G8**: Clippy clean (`cargo clippy --workspace -- -D warnings`)
-- [ ] **G9**: Coverage remains at or above 89% branch threshold
+- [x] **G1**: Reduce cold CI build time by 50%+ (from 119s to ~45-60s)
+- [x] **G2**: Install system `libgit2-dev`, `libssl-dev`, and `pkg-config` in CI workflows that compile Rust
+- [x] **G3**: Set `LIBGIT2_SYS_USE_PKG_CONFIG=1` environment variable in CI workflows
+- [x] **G4**: Replace `reqwest` with `ureq` (v3) in the workspace dependency declaration
+- [x] **G5**: Migrate the single `reqwest::blocking::get` call site to `ureq::get`
+- [x] **G6**: Remove unused `reqwest` dependency (resolved: `aipm-pack` was merged into `aipm` — no separate crate or dependency remains)
+- [x] **G7**: All existing tests pass (`cargo test --workspace`)
+- [x] **G8**: Clippy clean (`cargo clippy --workspace -- -D warnings`)
+- [x] **G9**: Coverage remains at or above 89% branch threshold
 
 ### 3.2 Non-Goals (Out of Scope)
 
@@ -64,7 +64,7 @@ Two independent, non-overlapping changes:
 | Change | Target | Estimated Savings | Risk |
 |---|---|---|---|
 | System libgit2 in CI | `.github/workflows/ci.yml` | 45-50s | Low — ubuntu-latest ships libgit2 1.7.x, compatible with libgit2-sys 0.17 |
-| reqwest → ureq | `Cargo.toml`, `crates/libaipm/src/registry/git.rs`, `crates/aipm-pack/Cargo.toml` | 15-25s | Low — one call site, simple API mapping |
+| reqwest → ureq | `Cargo.toml`, `crates/libaipm/src/registry/git.rs` | 15-25s | Low — one call site, simple API mapping |
 
 ### 4.2 Key Components
 
@@ -73,7 +73,7 @@ Two independent, non-overlapping changes:
 | CI workflow (`ci.yml`) | Add `apt-get install` step + env var | Eliminates 52.85s C build script by linking to pre-built system library |
 | Workspace `Cargo.toml` | Replace `reqwest` with `ureq` | Eliminates tokio, hyper, tower, h2, futures-util from dependency tree |
 | `libaipm/src/registry/git.rs` | Migrate `http_get()` from `reqwest::blocking::get` to `ureq::get` | One function, 16 lines of code |
-| `aipm-pack/Cargo.toml` | Remove `reqwest` line | Dead dependency — zero source references |
+| `aipm-pack/Cargo.toml` | Remove `reqwest` line | Resolved: `aipm-pack` was merged into `aipm` (PR #417); no separate crate or `reqwest` dependency remains |
 
 ## 5. Detailed Design
 
@@ -161,14 +161,7 @@ With:
 ureq = { workspace = true }
 ```
 
-**File:** `crates/aipm-pack/Cargo.toml`
-
-Remove (unused dependency — zero source references):
-```toml
-reqwest = { workspace = true }
-```
-
-*Research: The research document Section 1.3 confirms `aipm-pack` declares reqwest but has zero source references.*
+> **Note:** `crates/aipm-pack/Cargo.toml` no longer exists — `aipm-pack` was merged into `aipm` (PR #417). The `reqwest` dependency was removed as part of that merge.
 
 #### 5.2.3 Code Migration
 
@@ -306,20 +299,20 @@ New dependencies **added** by ureq:
 
 These two changes are independent and can be implemented in either order or in parallel:
 
-- [ ] **Phase 1a**: Add system libgit2 installation to `ci.yml` (both `ci` and `coverage` jobs)
-- [ ] **Phase 1b**: Replace reqwest with ureq in workspace deps, migrate `http_get()`, remove unused dep from `aipm-pack`
-- [ ] **Phase 2**: Verify — run full CI pipeline, confirm build time reduction, confirm all tests pass
-- [ ] **Phase 3**: Update `CLAUDE.md` if any build commands change (none expected)
+- [x] **Phase 1a**: Add system libgit2 installation to `ci.yml` (both `ci` and `coverage` jobs)
+- [x] **Phase 1b**: Replace reqwest with ureq in workspace deps, migrate `http_get()`, remove reqwest from workspace (note: `aipm-pack` was merged into `aipm` as part of this work)
+- [x] **Phase 2**: Verify — run full CI pipeline, confirm build time reduction, confirm all tests pass
+- [x] **Phase 3**: Update `CLAUDE.md` if any build commands change (none required)
 
 ### 8.2 Verification Checklist
 
-- [ ] `cargo build --workspace` succeeds
-- [ ] `cargo test --workspace` — all tests pass
-- [ ] `cargo clippy --workspace -- -D warnings` — zero warnings
-- [ ] `cargo fmt --check` — passes
-- [ ] Coverage >= 89% branch threshold
-- [ ] CI workflow runs successfully on PR
-- [ ] Build timing comparison (optional — next build-timings report will capture automatically)
+- [x] `cargo build --workspace` succeeds
+- [x] `cargo test --workspace` — all tests pass
+- [x] `cargo clippy --workspace -- -D warnings` — zero warnings
+- [x] `cargo fmt --check` — passes
+- [x] Coverage >= 89% branch threshold
+- [x] CI workflow runs successfully on PR
+- [x] Build timing comparison (optional — next build-timings report will capture automatically)
 
 ### 8.3 Rollback
 
