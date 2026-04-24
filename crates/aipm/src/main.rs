@@ -1683,4 +1683,53 @@ mod tests {
         let result = cmd_lint(tmp.path().to_path_buf(), None, "ci-azure", "auto", None, None);
         assert!(result.is_ok(), "ci-azure reporter should succeed on clean dir: {result:?}");
     }
+
+    /// `cmd_lint` returns `Err` when the linter finds at least one error-severity
+    /// diagnostic, covering the `if outcome.error_count > 0` True branch (line 781).
+    /// A plugin.json that is missing required fields (`name`, `author`) triggers
+    /// `plugin/required-fields` at `Severity::Error`.
+    #[test]
+    fn cmd_lint_with_error_diagnostics_returns_err() {
+        let tmp = tempfile::tempdir().unwrap();
+        // Create a plugin.json missing required fields; this fires plugin/required-fields
+        // at Severity::Error, causing outcome.error_count > 0.
+        let plugin_dir = tmp.path().join(".ai").join("my-plugin").join(".claude-plugin");
+        std::fs::create_dir_all(&plugin_dir).unwrap();
+        std::fs::write(
+            plugin_dir.join("plugin.json"),
+            r#"{"version":"0.1.0","description":"A plugin"}"#,
+        )
+        .unwrap();
+
+        let result = cmd_lint(tmp.path().to_path_buf(), None, "human", "never", None, None);
+        assert!(result.is_err(), "cmd_lint must return Err when lint errors are found");
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("lint found"), "error message must mention lint errors: {msg}");
+    }
+
+    /// A rule override value that is a bare valid-severity string (e.g. `"warn"`)
+    /// records a `RuleOverride::Level` entry — covering the
+    /// `else if let Some(severity) = Severity::from_str_config(s)` True branch
+    /// inside `load_lint_config` (the path reached when the value is a non-`"allow"`
+    /// string that IS recognised as a severity level).
+    #[test]
+    fn load_lint_config_string_severity_inserts_level_override() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("aipm.toml"),
+            "[workspace.lints]\n\"skill/oversized\" = \"warn\"\n",
+        )
+        .unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert!(
+            !config.is_suppressed("skill/oversized"),
+            "warn severity must not suppress the rule"
+        );
+        assert_eq!(
+            config.severity_override("skill/oversized"),
+            Some(libaipm::lint::Severity::Warning),
+            "bare 'warn' string must map to a Warning severity override"
+        );
+    }
 }

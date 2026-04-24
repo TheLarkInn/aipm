@@ -2483,6 +2483,25 @@ b = "^2.0"
     }
 
     #[test]
+    fn resolve_workspace_deps_deduplicates_duplicate_inputs() {
+        // When workspace_dep_names contains the same name twice, the `visited`
+        // guard at line 402 (the `continue` branch) prevents it from being
+        // resolved twice.
+        let mut members = BTreeMap::new();
+        let m = make_member("plugin-a", "1.0.0", "");
+        members.insert("plugin-a".to_string(), m);
+
+        let ws_deps = vec!["plugin-a".to_string(), "plugin-a".to_string()];
+        let overrides = BTreeSet::new();
+
+        let result = resolve_workspace_deps(&ws_deps, &members, &overrides);
+        assert!(result.is_ok(), "should succeed with duplicates: {:?}", result.err());
+        let resolved = result.unwrap();
+        assert_eq!(resolved.len(), 1, "duplicate dep should be resolved only once");
+        assert_eq!(resolved[0].name, "plugin-a");
+    }
+
+    #[test]
     fn split_deps_all_workspace() {
         let toml_str = r#"
 [package]
