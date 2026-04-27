@@ -44,21 +44,39 @@ steps:
     inputs: { packageType: sdk, version: 8.x }
 
   - pwsh: |
-      New-Item -ItemType Directory -Force -Path "$(Agent.TempDirectory)/aipm-fetch" | Out-Null
+      $dir = "$(Agent.TempDirectory)/aipm-fetch"
+      New-Item -ItemType Directory -Force -Path $dir | Out-Null
+      # Microsoft.NET.Sdk is bundled with the .NET SDK installed by UseDotNet@2,
+      # so the project file parses without an extra NuGet fetch for the SDK itself.
       @'
-      <Project Sdk="Microsoft.Build.NoTargets/3.7.0">
+      <Project Sdk="Microsoft.NET.Sdk">
         <PropertyGroup>
           <TargetFramework>net8.0</TargetFramework>
+          <NoBuild>true</NoBuild>
+          <IncludeBuildOutput>false</IncludeBuildOutput>
+          <AutomaticallyUseReferenceAssemblyPackages>false</AutomaticallyUseReferenceAssemblyPackages>
           <DisableImplicitNuGetFallbackFolder>true</DisableImplicitNuGetFallbackFolder>
         </PropertyGroup>
         <ItemGroup>
           <PackageDownload Include="aipm" Version="[$(env:AIPM_VERSION)]" />
         </ItemGroup>
       </Project>
-      '@ | Set-Content "$(Agent.TempDirectory)/aipm-fetch/fetch.csproj"
+      '@ | Set-Content "$dir/fetch.csproj"
+      # Pin nuget.org as the only source so the agent's default config (which
+      # may include offline / internal feeds) cannot reroute the restore.
+      @'
+      <?xml version="1.0" encoding="utf-8"?>
+      <configuration>
+        <packageSources>
+          <clear />
+          <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
+        </packageSources>
+      </configuration>
+      '@ | Set-Content "$dir/nuget.config"
     displayName: 'Generate aipm download-only project'
 
   - script: dotnet restore "$(Agent.TempDirectory)/aipm-fetch/fetch.csproj"
+    displayName: 'Restore aipm from nuget.org'
 
   - pwsh: |
       switch ("$(Agent.OS)") { 'Windows_NT'{$o='win';$x='aipm.exe'} 'Linux'{$o='linux';$x='aipm'} 'Darwin'{$o='osx';$x='aipm'} }

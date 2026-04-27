@@ -43,24 +43,28 @@ This is exactly aipm's use case. Key properties:
 - Dependencies are **not** resolved (plus for a leaf tool).
 - Packages extracted into NuGet global-packages folder.
 
-Canonical download-only wrapper csproj:
+Recommended download-only wrapper csproj (uses the bundled `Microsoft.NET.Sdk` so MSBuild can parse the project without an extra NuGet fetch for the SDK itself):
 
 ```xml
-<Project Sdk="Microsoft.Build.NoTargets/1.0.80">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <DisableImplicitNuGetFallbackFolder>true</DisableImplicitNuGetFallbackFolder>
+    <NoBuild>true</NoBuild>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
     <AutomaticallyUseReferenceAssemblyPackages>false</AutomaticallyUseReferenceAssemblyPackages>
+    <DisableImplicitNuGetFallbackFolder>true</DisableImplicitNuGetFallbackFolder>
   </PropertyGroup>
   <ItemGroup>
-    <PackageDownload Include="Aipm" Version="[1.0.0]" />
+    <PackageDownload Include="aipm" Version="[1.0.0]" />
   </ItemGroup>
 </Project>
 ```
 
 `PackageDownload` **cannot** live in `Directory.Packages.props` — it must be in a regular csproj's `<ItemGroup>`. `packages.config` is legacy (non-SDK projects) and does not belong in any new pipeline.
 
-**`GlobalPackageReference`** (from `Directory.Packages.props`) is an alternative, but requires at least one `PackageReference`-style project in the repo. For a pipeline that only needs the CLI, the `NoTargets` + `PackageDownload` wrapper is cleaner.
+The official Microsoft Learn docs show `Microsoft.Build.NoTargets/1.0.80` as the SDK in their PackageDownload example. That works on agents with full nuget.org egress, but adds a hard failure mode on agents where the `Microsoft.Build.NoTargets` SDK package cannot be downloaded — MSBuild can't even parse the project before restore starts. `Microsoft.NET.Sdk` ships bundled with the .NET SDK and avoids that failure mode entirely while producing identical restore behavior.
+
+**`GlobalPackageReference`** (from `Directory.Packages.props`) is an alternative, but requires at least one `PackageReference`-style project in the repo. For a pipeline that only needs the CLI, the `Microsoft.NET.Sdk` + `PackageDownload` wrapper is cleaner.
 
 **Does `NuGetAuthenticate@1` help for public nuget.org?**
 
@@ -166,15 +170,23 @@ steps:
       version: 8.x
 
   - pwsh: |
+      # Microsoft.NET.Sdk is bundled with the .NET SDK installed by UseDotNet@2,
+      # so the project file parses without any extra NuGet fetch for the SDK
+      # itself. (Microsoft.Build.NoTargets would also work but adds a hard
+      # dependency on nuget.org reachability before restore can even start;
+      # if your agent has restricted egress, that fails before aipm is ever
+      # downloaded.)
       $proj = @'
-      <Project Sdk="Microsoft.Build.NoTargets/3.7.0">
+      <Project Sdk="Microsoft.NET.Sdk">
         <PropertyGroup>
           <TargetFramework>net8.0</TargetFramework>
-          <DisableImplicitNuGetFallbackFolder>true</DisableImplicitNuGetFallbackFolder>
+          <NoBuild>true</NoBuild>
+          <IncludeBuildOutput>false</IncludeBuildOutput>
           <AutomaticallyUseReferenceAssemblyPackages>false</AutomaticallyUseReferenceAssemblyPackages>
+          <DisableImplicitNuGetFallbackFolder>true</DisableImplicitNuGetFallbackFolder>
         </PropertyGroup>
         <ItemGroup>
-          <PackageDownload Include="Aipm" Version="[$(env:AIPM_VERSION)]" />
+          <PackageDownload Include="aipm" Version="[$(env:AIPM_VERSION)]" />
         </ItemGroup>
       </Project>
       '@
@@ -230,8 +242,9 @@ steps:
 ```
 
 **Notes:**
-- `Microsoft.Build.NoTargets` is a well-known MSBuild SDK on nuget.org, designed for "project that doesn't build anything, just orchestrates NuGet".
+- `Microsoft.NET.Sdk` is the canonical SDK that ships bundled with every `.NET SDK` install, so the wrapper project file parses without an extra NuGet fetch for the SDK itself. `Microsoft.Build.NoTargets` is a popular alternative, but it must be downloaded from nuget.org before MSBuild can even parse the project — that adds a failure mode if the agent has restricted nuget.org egress (`Could not resolve SDK 'Microsoft.Build.NoTargets/x.y.z'`). With `Microsoft.NET.Sdk` + `<NoBuild>true</NoBuild>` + `<IncludeBuildOutput>false</IncludeBuildOutput>` the restore behavior is identical.
 - Version brackets `[1.0.0]` are **mandatory** for `<PackageDownload>`; floating versions not supported.
+- An explicit `nuget.config` next to the wrapper csproj pins `nuget.org` as the only source. Without `<clear />`, the agent's machine-wide config (which may include Visual Studio offline packages, ADO Artifacts feeds, or corporate mirrors) can route the restore to the wrong place or fail to find `Microsoft.NET.Sdk`-resolved packages.
 - RID resolution is the only platform-aware step.
 - `chmod +x` on non-Windows is defensive.
 
