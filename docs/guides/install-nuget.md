@@ -117,6 +117,8 @@ fail the step. See [Using `aipm lint`](lint.md) for the full reporter reference.
 
 ## See also
 
+- [Installing via NuGet — Step-by-step](install-aipm-nuget-ado.md) — detailed walkthrough with
+  caching, Artifacts proxy, and troubleshooting table
 - [README — Install section](../../README.md#install) — shell and PowerShell installers for
   non-ADO environments
 - [Using `aipm lint`](lint.md) — CI reporters, exit codes, and rule configuration
