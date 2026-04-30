@@ -299,7 +299,7 @@ All available rules, grouped by category:
 
 | Rule | Severity | Description |
 |------|----------|-------------|
-| [`plugin/broken-paths`](../rules/plugin/broken-paths.md) | error | Plugin references a file path that does not exist |
+| [`plugin/broken-paths`](../rules/plugin/broken-paths.md) | error | Skill file contains a `${CLAUDE_SKILL_DIR}/` or `${SKILL_DIR}/` reference to a file that does not exist |
 | [`plugin/missing-manifest`](../rules/plugin/missing-manifest.md) | error | Plugin directory is missing `.claude-plugin/plugin.json` |
 | [`plugin/missing-registration`](../rules/plugin/missing-registration.md) | error | Plugin directory is not listed in `marketplace.json` |
 | [`plugin/required-fields`](../rules/plugin/required-fields.md) | error | `plugin.json` is missing one or more required fields |
