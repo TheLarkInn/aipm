@@ -62,7 +62,7 @@ Quality rules enforced by `aipm lint`:
 
 | Rule | Default | Description |
 |------|---------|-------------|
-| [broken-paths](rules/plugin/broken-paths.md) | error | Plugin manifest references a file that does not exist |
+| [broken-paths](rules/plugin/broken-paths.md) | error | Skill file contains a `${CLAUDE_SKILL_DIR}/` or `${SKILL_DIR}/` reference to a file that does not exist |
 | [missing-manifest](rules/plugin/missing-manifest.md) | error | Plugin directory is missing `.claude-plugin/plugin.json` |
 | [missing-registration](rules/plugin/missing-registration.md) | error | Plugin directory is not listed in `marketplace.json` |
 | [required-fields](rules/plugin/required-fields.md) | error | `plugin.json` is missing one or more required fields |
