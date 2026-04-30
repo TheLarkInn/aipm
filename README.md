@@ -36,7 +36,7 @@ For Azure DevOps pipelines that prefer NuGet over `curl | sh`, restore `aipm` fr
 
 ```yaml
 variables:
-  AIPM_VERSION: '0.22.3'
+  AIPM_VERSION: '0.22.4'
   NUGET_PACKAGES: $(Pipeline.Workspace)/.nuget/packages
 
 steps:
@@ -70,7 +70,7 @@ steps:
   - script: aipm --version
 ```
 
-Public nuget.org needs no service connection or `NuGetAuthenticate@1`. The package ships binaries for `win-x64`, `linux-x64`, `osx-x64`, `osx-arm64`. See [`research/docs/2026-04-22-ado-pipeline-nuget-consume.md`](research/docs/2026-04-22-ado-pipeline-nuget-consume.md) for the full consumer walkthrough.
+Public nuget.org needs no service connection or `NuGetAuthenticate@1`. The package ships binaries for `win-x64`, `linux-x64`, `osx-x64`, `osx-arm64`. See [`docs/guides/install-nuget.md`](docs/guides/install-nuget.md) for the full consumer walkthrough including caching and linting integration.
 
 ### Build from Source
 
