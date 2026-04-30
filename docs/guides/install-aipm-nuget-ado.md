@@ -40,7 +40,7 @@ Pick an `aipm` version from [nuget.org/packages/aipm](https://www.nuget.org/pack
 
 ```yaml
 variables:
-  AIPM_VERSION: '0.22.3'
+  AIPM_VERSION: '0.22.4'
   NUGET_PACKAGES: $(Pipeline.Workspace)/.nuget/packages
 ```
 
@@ -120,7 +120,7 @@ After restore, the binary lives at `$(NUGET_PACKAGES)/aipm/<version>/runtimes/<R
 
 ```yaml
 variables:
-  AIPM_VERSION: '0.22.3'
+  AIPM_VERSION: '0.22.4'
   NUGET_PACKAGES: $(Pipeline.Workspace)/.nuget/packages
 
 steps:
