@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.22.5] - 2026-04-30
+
+### Features
+
+- **`reverse-binary-analysis` agentic workflow** — new weekly workflow that downloads each configured AI engine CLI (`claude`, `copilot-cli`, …), performs parallel LLM-assisted reverse analysis of bundled source, and maintains `research/engine-api-schema.json` and `research/engine-api-changelog.md`. Opens a PR when the schema changes. See `.github/workflows/reverse-binary-analysis.md`.
+
+### Internal / Infrastructure
+
+- **`copilot-setup-steps` Cargo pre-fetch** — pre-fetches all workspace Cargo dependencies during environment setup to prevent network-sandbox build failures inside agentic workflow containers.
+
 ## [0.22.4] - 2026-04-24
 
 ### Features
