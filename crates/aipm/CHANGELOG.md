@@ -1,6 +1,12 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.22.5] - 2026-04-30
+
+### Documentation
+- Add Azure DevOps NuGet installation guide ([#664](https://github.com/TheLarkInn/aipm/pull/664)) (80fe35c)
+- Bump example AIPM_VERSION to 0.22.4 ([#704](https://github.com/TheLarkInn/aipm/pull/704)) (12d758c)
+
 ## [0.22.4] - 2026-04-24
 
 ### Features
