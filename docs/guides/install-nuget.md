@@ -119,5 +119,8 @@ fail the step. See [Using `aipm lint`](lint.md) for the full reporter reference.
 
 - [README — Install section](../../README.md#install) — shell and PowerShell installers for
   non-ADO environments
+- [Installing `aipm` in Azure DevOps via NuGet — Step-by-step](install-aipm-nuget-ado.md) —
+  comprehensive walkthrough covering prerequisites, RID resolution, Artifacts proxy, and
+  troubleshooting
 - [Using `aipm lint`](lint.md) — CI reporters, exit codes, and rule configuration
 - [Source Security](source-security.md) — allowlists and path-traversal protection

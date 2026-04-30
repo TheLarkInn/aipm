@@ -70,7 +70,7 @@ steps:
   - script: aipm --version
 ```
 
-Public nuget.org needs no service connection or `NuGetAuthenticate@1`. The package ships binaries for `win-x64`, `linux-x64`, `osx-x64`, `osx-arm64`. See [`docs/guides/install-nuget.md`](docs/guides/install-nuget.md) for the full consumer walkthrough including caching and linting integration.
+Public nuget.org needs no service connection or `NuGetAuthenticate@1`. The package ships binaries for `win-x64`, `linux-x64`, `osx-x64`, `osx-arm64`. See [`docs/guides/install-nuget.md`](docs/guides/install-nuget.md) for the quick-start walkthrough and [`docs/guides/install-aipm-nuget-ado.md`](docs/guides/install-aipm-nuget-ado.md) for the comprehensive step-by-step guide including version pinning, Artifacts proxy, and troubleshooting.
 
 ### Build from Source
 

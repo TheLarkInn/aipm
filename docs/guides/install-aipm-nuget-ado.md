@@ -228,5 +228,6 @@ Violations appear as collapsible per-file groups with `##vso[task.logissue]` ann
 ## See also
 
 - [NuGet package on nuget.org](https://www.nuget.org/packages/aipm)
+- [Installing via NuGet (quick-start)](install-nuget.md) — shorter overview with quick-start YAML
 - [Using `aipm lint`](lint.md) — lint flags, reporters, and CI integration
 - [RELEASING.md](../../RELEASING.md) — release and rollback runbook including NuGet unlist procedure
