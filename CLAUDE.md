@@ -71,19 +71,25 @@ Do **not** remove or weaken `CARGO_NET_RETRY` (currently `10`) or the `--locked`
 
 ## Agentic Workflows
 
-The repository uses [GitHub Agentic Workflows](https://githubnext.com/projects/agentics) (`.github/workflows/*.md` compiled via `gh aw compile`) for automated maintenance tasks. All workflows are set to `timeout-minutes: 45`.
+The repository uses [GitHub Agentic Workflows](https://githubnext.com/projects/agentics) (`.github/workflows/*.md` compiled via `gh aw compile`) for automated maintenance tasks.
 
-| Workflow file | Schedule | Purpose |
-|---|---|---|
-| `improve-coverage.md` | Every 15 min | Finds uncovered branches, writes tests, opens PRs |
-| `daily-qa.md` | Every 3 h | Validates build, tests, and documentation health |
-| `docs-updater.md` | Weekdays daily | Syncs docs with recent code changes |
-| `update-docs.md` | On push to `main` | Updates docs on every merge |
-| `build-timings.md` | Weekdays daily | Analyzes compilation bottlenecks |
+| Workflow file | Timeout | Schedule | Purpose |
+|---|---|---|---|
+| `improve-coverage.md` | 45 min | Every 15 min | Finds uncovered branches, writes tests, opens PRs |
+| `daily-qa.md` | 45 min | Every 3 h | Validates build, tests, and documentation health |
+| `docs-updater.md` | 45 min | Weekdays daily | Syncs docs with recent code changes |
+| `update-docs.md` | 45 min | On push to `main` | Updates docs on every merge |
+| `build-timings.md` | 45 min | Weekdays daily | Analyzes compilation bottlenecks |
+| `reverse-binary-analysis.md` | 120 min | Weekly | Downloads AI engine CLIs, extracts plugin API surface, updates `research/engine-api-schema.json`, opens PR when schema changes |
+| `research-codebase.md` | 30 min | On `research` label applied to issue | Runs Copilot CLI to research the codebase, posts findings as the issue body, and relabels with `spec review` |
 
-### Why 45 minutes?
+### Why different timeouts?
 
-The full agent cycle (nightly toolchain install → build → test → coverage → analysis → PR creation) consistently exceeded shorter limits — `improve-coverage` failed 29+ times at 30 min ([#367](https://github.com/TheLarkInn/aipm/issues/367)), `daily-qa` at 15 min, `docs-updater` at 20 min. **Do not lower these timeouts.** If a workflow still times out, investigate the agent logic — do not reduce the limit.
+Most maintenance workflows are capped at **45 minutes**: the full agent cycle (nightly toolchain install → build → test → coverage → analysis → PR creation) consistently exceeded shorter limits — `improve-coverage` failed 29+ times at 30 min ([#367](https://github.com/TheLarkInn/aipm/issues/367)), `daily-qa` at 15 min, `docs-updater` at 20 min.
+
+`reverse-binary-analysis` requires **120 minutes** because it installs and analyses multiple engine packages in parallel, which alone can take 30–60 minutes before any writing begins.
+
+**Do not lower these timeouts.** If a workflow still times out, investigate the agent logic — do not reduce the limit.
 
 ### Modifying workflow files
 
