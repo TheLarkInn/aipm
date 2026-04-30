@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Features
 
 - **NuGet publishing pipeline** — `aipm` is now published to [nuget.org](https://www.nuget.org/packages/aipm) as a multi-RID native package (`win-x64`, `linux-x64`, `osx-x64`, `osx-arm64`), enabling Azure DevOps pipelines to install via `dotnet restore` without `curl | sh`. See [docs/guides/install-nuget.md](docs/guides/install-nuget.md).
-- **Azure DevOps lint reporter enrichment** — `ci-azure` reporter now emits richer `##vso[task.logissue]` lines with `help_text` and `help_url` fields, collapsible per-file `##[group]` sections, and a `SucceededWithIssues` completion signal on warnings-only runs.
+- **Azure DevOps lint reporter enrichment** — `ci-azure` reporter now emits richer `##vso[task.logissue]` lines that include help text and help URL in the logissue message body, collapsible per-file `##[group]` sections, and a `SucceededWithIssues` completion signal on warnings-only runs.
 
 ### Documentation
 
