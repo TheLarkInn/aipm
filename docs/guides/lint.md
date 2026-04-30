@@ -189,6 +189,10 @@ carries a `code=<rule_id>` property so ADO can link it to a work-item rule. When
 has warnings but no errors, the step exits `0` and the pipeline marks it yellow
 (`SucceededWithIssues`) rather than green.
 
+> **Installing `aipm` in ADO:** For pipelines that prefer NuGet over `curl | sh`, see
+> [Installing `aipm` via NuGet (Azure DevOps)](install-aipm-nuget-ado.md) for a complete
+> step-by-step guide including version pinning, RID resolution, and package caching.
+
 ### Generic CI (fail on errors only)
 
 ```bash
