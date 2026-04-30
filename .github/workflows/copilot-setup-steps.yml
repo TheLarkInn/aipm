@@ -18,15 +18,25 @@ jobs:
     permissions:
       contents: read
 
+    env:
+      CARGO_NET_RETRY: 10
+      LIBGIT2_SYS_USE_PKG_CONFIG: "1"
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Rust toolchain (stable + nightly for coverage)
+      - name: Install stable Rust toolchain (clippy, rustfmt)
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           components: clippy, rustfmt
+
+      - name: Install nightly Rust toolchain (llvm-tools for coverage)
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          toolchain: nightly
+          components: llvm-tools-preview
 
       - name: Install system libraries (libgit2, OpenSSL)
         run: sudo apt-get update && sudo apt-get install -y libgit2-dev libssl-dev pkg-config
@@ -35,7 +45,4 @@ jobs:
         uses: Swatinem/rust-cache@v2
 
       - name: Pre-fetch all Cargo dependencies
-        run: cargo fetch
-        env:
-          CARGO_NET_RETRY: 10
-          LIBGIT2_SYS_USE_PKG_CONFIG: "1"
+        run: cargo fetch --locked
