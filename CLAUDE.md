@@ -53,6 +53,22 @@ cargo +nightly llvm-cov report --doctests --branch \
 
 Verify the TOTAL branch column shows ≥ 89%. For HTML or lcov output, append `--html --open` or `--lcov --output-path lcov.info` to the report command.
 
+## Copilot Coding Agent Setup
+
+The file `.github/workflows/copilot-setup-steps.yml` defines the pre-build environment for the [GitHub Copilot coding agent](https://docs.github.com/en/copilot/using-github-copilot/using-claude-sonnet-in-github-copilot). It runs before every agent task and installs all toolchain prerequisites so the sandbox does not need network access during the actual build:
+
+| Step | Purpose |
+|---|---|
+| `dtolnay/rust-toolchain@stable` | Installs `clippy` and `rustfmt` |
+| `dtolnay/rust-toolchain@nightly` | Installs `llvm-tools-preview` for coverage |
+| `apt-get install libgit2-dev libssl-dev pkg-config` | Native system libraries required by `git2` and OpenSSL crates |
+| `Swatinem/rust-cache@v2` | Caches the Cargo registry and build artefacts across runs |
+| `cargo fetch --locked` | **Pre-fetches all Cargo dependencies** so they are available in the offline sandbox environment |
+
+> **Why `cargo fetch --locked`?** The Copilot agent sandbox has restricted network access after the setup phase. Without this step the build fails because crates cannot be downloaded during `cargo build`. Pre-fetching under `--locked` also guarantees the exact dependency graph recorded in `Cargo.lock` is used — no accidental updates. This step was added to fix the [#700](https://github.com/TheLarkInn/aipm/pull/700) sandbox build failures.
+
+Do **not** remove or weaken `CARGO_NET_RETRY` (currently `10`) or the `--locked` flag — both are necessary for reliability in flaky network conditions.
+
 ## Agentic Workflows
 
 The repository uses [GitHub Agentic Workflows](https://githubnext.com/projects/agentics) (`.github/workflows/*.md` compiled via `gh aw compile`) for automated maintenance tasks. All workflows are set to `timeout-minutes: 45`.
