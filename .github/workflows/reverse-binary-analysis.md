@@ -7,7 +7,7 @@ description: >
 on:
   schedule: weekly
   workflow_dispatch:
-timeout-minutes: 45
+timeout-minutes: 120
 permissions:
   contents: read
   issues: read
