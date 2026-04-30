@@ -676,6 +676,35 @@ mod tests {
         );
     }
 
+    /// Covers: `synced=false` + `git_dir.exists()=true` → `fetch_index` → `Repository::open`
+    /// fails because the `.git` directory is not a valid git repository.
+    ///
+    /// This exercises the error branch at the `git2::Repository::open` call inside
+    /// `fetch_index`, which returns `Err(Error::Io { reason: "failed to open registry cache …" })`.
+    #[test]
+    fn fetch_index_returns_err_when_git_dir_is_invalid() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let cache_root = tmp.path().join("cache");
+        let url = "https://invalid.example.com/index.git";
+
+        // Git::new() creates cache_dir with synced=false.
+        let git = Git::new(url, &cache_root).expect("Git::new should succeed");
+
+        // Create a fake (empty) .git directory so ensure_index takes the fetch path.
+        let git_dir = git.cache_dir.join(".git");
+        std::fs::create_dir_all(&git_dir).expect("create fake .git dir");
+
+        // Triggers: ensure_index → synced=false → git_dir.exists()=true →
+        //           fetch_index → Repository::open fails → Err.
+        let result = git.get_metadata("any-pkg");
+        assert!(result.is_err(), "expected Err when cache dir has invalid .git: {result:?}");
+        let err_msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+        assert!(
+            err_msg.contains("failed to open registry cache"),
+            "unexpected error message: {err_msg}"
+        );
+    }
+
     /// Covers the checksum-mismatch branch inside `download()`:
     /// the server returns bytes whose SHA-512 does not match the index entry.
     #[test]
