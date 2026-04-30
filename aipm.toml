@@ -1,2 +1,6 @@
 [workspace.lints.ignore]
 paths = ["**/fixtures/**"]
+
+[workspace.lints."instructions/oversized"]
+lines = 200
+characters = 20000

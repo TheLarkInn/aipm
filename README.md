@@ -632,7 +632,9 @@ In short: `apm` is a useful prototype that proves the problem space. AIPM is des
 
 ## Contributing
 
-Contributions and suggestions are welcome! Please open an issue or pull request on [GitHub](https://github.com/thelarkinn/aipm).
+Contributions and suggestions are welcome! See [`docs/guides/contributing.md`](docs/guides/contributing.md) for the full guide: dev environment setup, build/test/lint commands, coverage requirements, and how to submit a PR.
+
+For AI coding agent rules and project conventions, see [CLAUDE.md](CLAUDE.md).
 
 ## License
 
