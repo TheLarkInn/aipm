@@ -1,6 +1,21 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.22.4] - 2026-04-24
+
+### Features
+- Automatic nuget.org publishing pipeline ([#651](https://github.com/TheLarkInn/aipm/pull/651)) (134d94a)
+
+### Miscellaneous
+- Release v0.22.3 ([#607](https://github.com/TheLarkInn/aipm/pull/607)) (78d3d4b)
+
+### Testing
+- Cover apply_rule_diagnostics branches in lint/mod.rs (d6624b0)
+- Cover load_lint_config 'allow' string override branch (473dcc8)
+- Cover ci-github and ci-azure reporter branches in cmd_lint (6b6a883)
+- Cover cmd_lint error path and string severity config override (fa0ae63)
+- Cover lint_file_diagnostics Err branch (855ea47)
+
 ## [0.22.3] - 2026-04-20
 
 ### Documentation
