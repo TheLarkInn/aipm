@@ -41,7 +41,7 @@ safe-outputs:
 You are an expert AI agent performing **reverse binary analysis** of AI engine CLI runtimes to
 track their plugin APIs and keep aipm's detection, migration, and lint rules up to date.
 
-## Objectives (per issue #132)
+## Objectives (per issues #132 and #697)
 
 - Download each configured AI engine CLI binary.
 - Spawn **parallel analysis** (one agent thread per engine) that reads the minified/bundled source
@@ -54,11 +54,14 @@ track their plugin APIs and keep aipm's detection, migration, and lint rules up 
   - Engine detection and discovery logic
   - Size limits logic
   - Every known rule
+  - **Every internal valid tool call** (tool names) the engine recognizes and can invoke
 - Produce suggestions for:
   - Adaptor/detector fixes in this codebase
   - New unit test cases
   - Behavior variants to handle
-- Update (or create) `research/engine-api-schema.json` — a canonical schema of all discovered APIs.
+  - Cross-engine tool compatibility warnings (for the `valid-tool-name` lint rule, issue #697)
+- Update (or create) `research/engine-api-schema.json` — a canonical schema of all discovered APIs,
+  including the per-engine tool-call catalog.
 - Update (or create) `research/engine-api-changelog.md` — a versioned changelog that records every
   API change, when it was first observed, and the engine version at that time.
 - Open a PR when the schema or changelog has changed.
@@ -148,6 +151,17 @@ Specifically look for and extract:
 - **detection heuristics**: logic used to detect whether a repo uses this engine.
 - **discovery algorithm**: how plugins, skills, or extensions are discovered.
 - **every rule or validation**: any validation or lint rules baked into the engine.
+- **internal tool calls**: every tool name (function/tool call identifier) the engine internally
+  recognizes and can invoke.  These are the names a plugin author can use in `tools:` or skill
+  declarations.  Look for:
+  - Tool registration tables, dispatch maps, or switch/case blocks routing tool names to handlers.
+  - String literals that look like tool identifiers (e.g. `"Read"`, `"Write"`, `"Bash"`,
+    `"web_fetch"`, `"computer_use"`, `"mcp__<server>__<tool>"`).
+  - Any exported or documented list of built-in tools.
+  - Tool aliases and deprecated names.
+  - Tool availability flags (e.g. tools only available in certain modes or tiers).
+  Record each tool as: `{ "name": "<tool-name>", "aliases": [...], "deprecated": false,
+  "notes": "<any restrictions or tier requirements>" }`.
 
 #### 4b — Compare to existing schema
 
@@ -164,6 +178,32 @@ Based on the diff, suggest concrete changes needed in this codebase:
 1. **Adaptor/detector fixes** — paths in `crates/libaipm/` that may need updating.
 2. **New unit test cases** — specific scenarios that should be tested.
 3. **Behaviour variants** — edge cases or new features to handle.
+
+#### 4d — Cross-engine tool compatibility analysis (issue #697)
+
+Using the `tool_calls` extracted for all engines, compute:
+
+- **Shared tools**: tool names present in every engine's catalog — these are always safe to use
+  regardless of which engine a plugin targets.
+- **Engine-exclusive tools**: tool names present in only one engine (e.g. `Read` may exist only in
+  `copilot-cli`; `web_fetch` may exist only in `claude`).  These should trigger a
+  `valid-tool-name` warning when a plugin uses them without restricting its `engines` field to the
+  supporting engine.
+- **Missing-engine warnings**: for each tool, list which engines do **not** support it.
+
+Record the results as:
+
+```jsonc
+{
+  "shared_tools": ["<tool>", ...],
+  "engine_exclusive_tools": {
+    "<tool>": { "supported_by": ["<engine>"], "unsupported_by": ["<engine>"] }
+  }
+}
+```
+
+This data feeds the `valid-tool-name` lint rule (issue #697): if a plugin declares no `engines`
+restriction but uses an engine-exclusive tool, aipm should warn.
 
 ### 5 — Update `research/engine-api-schema.json`
 
@@ -191,7 +231,16 @@ Merge all extracted API surfaces into the schema file.  Structure:
       "size_limits": { ... },
       "detection_heuristics": [ ... ],
       "discovery_algorithm": [ ... ],
-      "rules": [ ... ]
+      "rules": [ ... ],
+      "tool_calls": [
+        { "name": "<tool-name>", "aliases": [...], "deprecated": false, "notes": "<restrictions>" }
+      ]
+    }
+  },
+  "tool_compatibility": {
+    "shared_tools": ["<tool>"],
+    "engine_exclusive_tools": {
+      "<tool>": { "supported_by": ["<engine>"], "unsupported_by": ["<engine>"] }
     }
   },
   "suggestions": {
@@ -245,7 +294,9 @@ Then use `create-pull-request` with:
 - **Body** that includes:
   1. **Summary table**: engine → old version → new version.
   2. **API changes**: full diff for each engine (added / removed / changed fields).
-  3. **Suggestions**: adaptor/detector fixes, new test cases, behaviour variants.
-  4. **Links**: reference to issue #132.
+  3. **Tool-call catalog changes**: tools added, removed, or changed per engine; updated
+     `shared_tools` and `engine_exclusive_tools` cross-engine compatibility table.
+  4. **Suggestions**: adaptor/detector fixes, new test cases, behaviour variants.
+  5. **Links**: reference to issue #132 and issue #697.
 
 Label the PR with `automation` and `analysis`.
