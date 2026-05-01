@@ -172,6 +172,13 @@ mod tests {
         assert!(package_path("@/name").is_err());
     }
 
+    #[test]
+    fn index_path_scoped_no_slash_errors() {
+        // A scoped name without a '/' (e.g. "@noslash") has no separator,
+        // so split_once('/') returns None and the ok_or_else error path fires.
+        assert!(package_path("@noslash").is_err());
+    }
+
     // --- parse_index_file tests ---
 
     #[test]

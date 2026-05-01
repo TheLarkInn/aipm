@@ -849,6 +849,16 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn parse_registry_non_empty_name_empty_version_is_error() {
+        // "my-package@" splits at '@' into name="my-package" and version="".
+        // This covers the `version.is_empty()` branch of the `||` in
+        // `parse_registry_spec` (line 319), which is never triggered by the
+        // `name.is_empty()` short-circuit when the name is non-empty.
+        let result = "my-package@".parse::<Spec>();
+        assert!(result.is_err());
+    }
+
     // ---- Canonical key ----
 
     #[test]
