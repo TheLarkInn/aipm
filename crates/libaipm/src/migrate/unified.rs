@@ -749,4 +749,47 @@ mod tests {
         assert_eq!(v[0].name, "a");
         assert_eq!(v[1].name, "z");
     }
+
+    /// Covers `dedup_agent_artifacts`: when two Agent artifacts share a name
+    /// and one ends with `.agent.md`, only the `.agent.md` version survives.
+    #[test]
+    fn dedup_agent_artifacts_dot_agent_md_wins_over_plain_md() {
+        use super::super::ArtifactKind;
+
+        let plain = Artifact {
+            kind: ArtifactKind::Agent,
+            name: "foo".into(),
+            source_path: PathBuf::from("/repo/.claude/agents/foo.md"),
+            files: Vec::new(),
+            referenced_scripts: Vec::new(),
+            metadata: Default::default(),
+        };
+        let dot_agent = Artifact {
+            kind: ArtifactKind::Agent,
+            name: "foo".into(),
+            source_path: PathBuf::from("/repo/.claude/agents/foo.agent.md"),
+            files: Vec::new(),
+            referenced_scripts: Vec::new(),
+            metadata: Default::default(),
+        };
+        let mut artifacts = vec![plain, dot_agent];
+        dedup_agent_artifacts(&mut artifacts);
+        assert_eq!(artifacts.len(), 1, "deduplication must keep exactly one artifact");
+        assert!(
+            artifacts[0]
+                .source_path
+                .file_name()
+                .is_some_and(|n| n.to_string_lossy().ends_with(".agent.md")),
+            "the .agent.md variant must survive deduplication"
+        );
+    }
+
+    /// Covers `is_dot_agent_md`: detects `.agent.md` suffix case-insensitively.
+    #[test]
+    fn is_dot_agent_md_detects_suffix() {
+        assert!(is_dot_agent_md(Path::new("/repo/.claude/agents/foo.agent.md")));
+        assert!(is_dot_agent_md(Path::new("FOO.AGENT.MD")));
+        assert!(!is_dot_agent_md(Path::new("/repo/.claude/agents/foo.md")));
+        assert!(!is_dot_agent_md(Path::new("/repo/.claude/agents/agent.md")));
+    }
 }
