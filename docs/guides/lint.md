@@ -28,6 +28,7 @@ aipm lint --source .github
 | `--reporter <FMT>` | Output format: `human` (default), `json`, `ci-github`, `ci-azure` |
 | `--color <MODE>` | Color output: `auto` (default), `always`, `never` |
 | `--max-depth <N>` | Maximum directory traversal depth |
+| `--no-summary` | Suppress the default scan summary line printed to stderr |
 
 > **Deprecated flag:** `--format` is a hidden alias for `--reporter` kept for backward
 > compatibility. Prefer `--reporter` in all new scripts and CI configurations.
