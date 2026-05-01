@@ -43,7 +43,9 @@ use super::dry_run;
 use super::emitter;
 use super::reconciler;
 use super::registrar;
-use super::{Action, Artifact, Error, Options, OtherFile, Outcome, PluginEntry, PluginPlan};
+use super::{
+    Action, Artifact, ArtifactKind, Error, Options, OtherFile, Outcome, PluginEntry, PluginPlan,
+};
 
 /// Run the unified migrate pipeline.
 ///
@@ -112,7 +114,66 @@ fn group_adapter_artifacts(
             }
         }
     }
+    // Dedup Agent artifacts that share a name. Mirrors the legacy
+    // `CopilotAgentDetector` precedence rule where `.agent.md` wins over
+    // `.md` for the same stem. Without this, a repo containing both
+    // `agents/foo.md` and `agents/foo.agent.md` would emit two artifacts
+    // with the same derived name and trigger spurious `Renamed` actions.
+    for artifacts in by_root.values_mut() {
+        dedup_agent_artifacts(artifacts);
+    }
     Ok(by_root)
+}
+
+/// Dedup `Agent` artifacts that share a name. When both `foo.md` and
+/// `foo.agent.md` were discovered (the unified pipeline produces a
+/// `DiscoveredFeature` per file), keep only the one whose `source_path`
+/// ends with `.agent.md`. Mirrors the legacy `CopilotAgentDetector`
+/// precedence rule.
+fn dedup_agent_artifacts(artifacts: &mut Vec<Artifact>) {
+    use std::collections::BTreeMap;
+    let mut chosen: BTreeMap<String, usize> = BTreeMap::new();
+    let mut drop_indices: Vec<usize> = Vec::new();
+    for (idx, artifact) in artifacts.iter().enumerate() {
+        if artifact.kind != ArtifactKind::Agent {
+            continue;
+        }
+        match chosen.get(&artifact.name) {
+            None => {
+                chosen.insert(artifact.name.clone(), idx);
+            },
+            Some(&existing_idx) => {
+                let new_is_dot_agent = is_dot_agent_md(&artifact.source_path);
+                let existing_is_dot_agent =
+                    artifacts.get(existing_idx).is_some_and(|a| is_dot_agent_md(&a.source_path));
+                if new_is_dot_agent && !existing_is_dot_agent {
+                    // New `.agent.md` wins; drop the existing `.md`.
+                    drop_indices.push(existing_idx);
+                    chosen.insert(artifact.name.clone(), idx);
+                } else {
+                    // Existing wins (already `.agent.md` or both `.md`);
+                    // drop the new one.
+                    drop_indices.push(idx);
+                }
+            },
+        }
+    }
+    if drop_indices.is_empty() {
+        return;
+    }
+    drop_indices.sort_unstable();
+    drop_indices.dedup();
+    // Drop in reverse order so earlier indices stay valid as we remove.
+    for idx in drop_indices.into_iter().rev() {
+        artifacts.remove(idx);
+    }
+}
+
+/// `true` if the path's filename ends with `.agent.md` (case-insensitive).
+fn is_dot_agent_md(path: &Path) -> bool {
+    path.file_name()
+        .map(|n| n.to_string_lossy().to_ascii_lowercase())
+        .is_some_and(|n| n.ends_with(".agent.md"))
 }
 
 /// Enumerate `.claude` / `.github` source directories under `opts.dir` so

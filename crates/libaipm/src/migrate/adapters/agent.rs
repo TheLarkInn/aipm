@@ -51,12 +51,18 @@ impl Adapter for CopilotAgentAdapter {
         };
         let name = metadata.name.clone().unwrap_or(stem_from_filename);
 
+        // Extract script references using the Copilot prefix so the emitter
+        // can copy referenced scripts alongside the agent artifact (parity
+        // with the legacy CopilotAgentDetector).
+        let referenced_scripts =
+            skill_common::extract_script_references(&content, "${COPILOT_AGENT_DIR}/");
+
         Ok(Artifact {
             kind: ArtifactKind::Agent,
             name,
             source_path: feat.path.clone(),
             files: Vec::new(),
-            referenced_scripts: Vec::new(),
+            referenced_scripts,
             metadata,
         })
     }

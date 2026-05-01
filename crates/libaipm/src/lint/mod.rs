@@ -22,6 +22,13 @@ use crate::fs::Fs;
 pub use diagnostic::{Diagnostic, Severity};
 pub use rule::Rule;
 
+/// The canonical engine source-root directory names that the scan summary
+/// reports as "scanned". Root-level instruction files (e.g. `/repo/CLAUDE.md`)
+/// have a `source_root` pointing at the project directory itself; reporting
+/// that name in the summary would leak the user's repo / tempdir name, so we
+/// filter it out.
+const RECOGNIZED_SOURCE_NAMES: &[&str] = &[".claude", ".github", ".ai"];
+
 /// Check if a file path matches any of the given glob ignore patterns.
 fn is_ignored(path: &str, patterns: &[String]) -> bool {
     for pattern in patterns {
@@ -139,14 +146,21 @@ pub fn lint(opts: &Options, fs: &dyn Fs) -> Result<Outcome, Error> {
     };
     let discovered = crate::discovery::discover(&opts.dir, &discover_opts, fs)?;
 
-    // Track which source types were scanned (deduplicated).
+    // Track which source types were scanned (deduplicated). Only the
+    // canonical engine roots (.claude / .github / .ai) are reported —
+    // root-level instruction files like `CLAUDE.md` have a `source_root`
+    // pointing at the project directory itself, which we skip so the
+    // summary doesn't leak the user's repo / tempdir name.
     for f in &discovered.features {
-        let src = f
-            .source_root
-            .file_name()
-            .map_or_else(|| "other".to_string(), |n| n.to_string_lossy().into_owned());
-        if !sources_scanned.contains(&src) {
-            sources_scanned.push(src);
+        let Some(name_os) = f.source_root.file_name() else {
+            continue;
+        };
+        let name = name_os.to_string_lossy().into_owned();
+        if !RECOGNIZED_SOURCE_NAMES.contains(&name.as_str()) {
+            continue;
+        }
+        if !sources_scanned.contains(&name) {
+            sources_scanned.push(name);
         }
     }
 
