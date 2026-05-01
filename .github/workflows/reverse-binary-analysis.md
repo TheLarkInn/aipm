@@ -76,7 +76,7 @@ defaults:
 {
   "engines": [
     { "name": "claude",      "source": "npm", "package": "@anthropic-ai/claude-code" },
-    { "name": "copilot-cli", "source": "npm", "package": "@github/copilot-cli"       }
+    { "name": "copilot-cli", "source": "npm", "package": "@github/copilot"           }
   ]
 }
 ```
