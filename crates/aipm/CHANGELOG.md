@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.23.0] - 2026-05-01
+
+### Documentation
+- Add NuGet installation guide and update CHANGELOG for v0.22.4 ([#702](https://github.com/TheLarkInn/aipm/pull/702)) (fbb0eca)
+
+### Testing
+- Cover cmd_lint text/color branches and fix lockfile assertion short-circuits (8a9d094)
+
 ## [0.22.5] - 2026-04-30
 
 ### Documentation
