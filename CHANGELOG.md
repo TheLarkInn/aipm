@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- **`aipm migrate` and `aipm lint` now detect skills under `.github/copilot/skills/<name>/SKILL.md`** — closes issue [#725](https://github.com/TheLarkInn/aipm/issues/725). The customer's nested layout (where `.github/copilot/` contains a `skills/` subdirectory) was previously invisible to the migrate detector. The unified discovery pipeline now finds skills at all three Copilot layouts: `.github/skills/<name>/`, `.github/copilot/<name>/`, and `.github/copilot/skills/<name>/`.
+- **`aipm lint` now recognises `<engine>-instructions.md` files** — `copilot-instructions.md`, `claude-instructions.md`, `agents-instructions.md`, and `gemini-instructions.md` are all classified as instruction files. Closes the second silent-drop case from issue #725.
+
+### Added
+
+- **`aipm migrate` and `aipm lint` print a scan summary by default** — a single line on stderr describing what the discovery walker matched (`"Scanned N directories in [.github, .claude]; matched 3 skills, 1 instruction"`). Suppressed via `--no-summary` or when `--log-format=json` is set.
+- **`AIPM_UNIFIED_DISCOVERY` environment variable** — opt-in flag for the new unified discovery + adapters pipeline that drives the issue #725 fix. Default OFF during the soak window; will be flipped to default ON in a follow-up release. Set to `"1"` to enable.
+
+### Internal / Infrastructure
+
+- **Unified discovery module** — new `crates/libaipm/src/discovery/` containing walker + classifier + adapter pipeline shared by both `migrate` and `lint`. Replaces the asymmetric two-pipeline architecture documented in `research/docs/2026-05-01-github-copilot-skills-migrate-lint-silent-failure.md`. The legacy detector path remains the default; set `AIPM_UNIFIED_DISCOVERY=1` to opt into the new path.
+
 ## [0.22.5] - 2026-04-30
 
 ### Features

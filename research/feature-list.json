@@ -265,14 +265,12 @@
     "category": "docs",
     "description": "Documentation updates for the new CopilotSubrootWithSkills layout and CHANGELOG entry",
     "steps": [
-      "Edit docs/guides/migrate.md lines 60-67 to add `.github/copilot/skills/<name>/SKILL.md` to the table of recognized Copilot skill layouts",
-      "Edit docs/guides/migrating-existing-configs.md line 46 similarly",
-      "Add a CHANGELOG.md entry under the next unreleased version: `### Fixed - aipm migrate and aipm lint now detect skills under .github/copilot/skills/<name>/SKILL.md (issue #725)` and `### Fixed - aipm lint now recognizes <engine>-instructions.md files (e.g. copilot-instructions.md, claude-instructions.md)` and `### Added - aipm migrate and aipm lint print a scan summary by default; suppress with --quiet`",
-      "Add a CHANGELOG note about the AIPM_UNIFIED_DISCOVERY env var being default-off in this release",
-      "Verify the docs build (if there is a docs build step in CI) — confirm with `grep -l docs .github/workflows/`",
-      "No code changes; cargo build/test/clippy/fmt should still pass (no production code touched)"
+      "Edit docs/guides/migrate.md to add `.github/copilot/skills/<name>/` to the Copilot skill layouts table and the explanatory note (with link to issue #725)",
+      "Edit docs/guides/migrating-existing-configs.md similarly",
+      "Add CHANGELOG.md [Unreleased] section: ### Fixed for #725 skill detection + <engine>-instructions.md recognition; ### Added for default scan summary (--no-summary, not --quiet, since --quiet was renamed in feature 15) and AIPM_UNIFIED_DISCOVERY env var; ### Internal note about the unified discovery module",
+      "No code changes; cargo build/test/clippy/fmt still pass (docs-only)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test",

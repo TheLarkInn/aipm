@@ -400,3 +400,19 @@ Cargo verifier:
 - build/test/clippy/fmt: PASS
 - coverage: 94.89% (>= 89%, jumped from 90.22% — likely re-clean of llvm-cov state surfaced more covered branches)
 - overall: PASS
+
+## 2026-05-01 — Feature 18: Documentation updates — DONE
+
+Updated docs and CHANGELOG to reflect the customer-fix and unified-discovery rollout:
+
+- `docs/guides/migrate.md`: extended the Copilot skill-layouts table to include `.github/copilot/skills/<name>/`. Updated the explanatory note to reference issue #725 and the `AIPM_UNIFIED_DISCOVERY=1` opt-in.
+- `docs/guides/migrating-existing-configs.md`: same skill-layouts row update.
+- `CHANGELOG.md`: new `[Unreleased]` section with:
+  - `### Fixed`: #725 skill detection across all 3 Copilot layouts; `<engine>-instructions.md` filename recognition.
+  - `### Added`: default scan summary (with `--no-summary` and json-mode auto-suppression); `AIPM_UNIFIED_DISCOVERY` env var (default-OFF for soak window).
+  - `### Internal`: unified discovery module pointer to the research doc.
+
+Cargo verifier:
+- build/test/clippy/fmt: PASS
+- coverage: 90.26% (>= 89%)
+- overall: PASS
