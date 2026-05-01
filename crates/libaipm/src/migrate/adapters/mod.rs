@@ -18,6 +18,14 @@
 //! This module ships with an empty registry. Each engine-specific adapter
 //! (Claude × 6, Copilot × 6) is added in subsequent spec features.
 
+pub mod agent;
+pub mod hook;
+pub mod skill;
+
+pub use agent::CopilotAgentAdapter;
+pub use hook::CopilotHookAdapter;
+pub use skill::CopilotSkillAdapter;
+
 use crate::discovery::DiscoveredFeature;
 use crate::fs::Fs;
 
@@ -49,12 +57,15 @@ pub trait Adapter: Send + Sync {
 
 /// Build the canonical adapter registry, in resolution order.
 ///
-/// Currently empty — each engine-specific adapter lands in its own spec
-/// feature. Tests assert the order is stable so the orchestrator can rely
-/// on first-match-wins.
+/// Order is engine then kind: Copilot adapters first (most-specific
+/// `.github/copilot/...` shapes), then Claude adapters. Within an engine,
+/// adapters are listed by kind (Skill, Agent, Hook). Adapters for the
+/// remaining migrate kinds (MCP / Extension / LSP / Command / `OutputStyle`)
+/// land in a follow-up feature once the unified discovery learns to
+/// classify them — those kinds have no `FeatureKind` variants today.
 #[must_use]
 pub fn all() -> Vec<Box<dyn Adapter>> {
-    Vec::new()
+    vec![Box::new(CopilotSkillAdapter), Box::new(CopilotAgentAdapter), Box::new(CopilotHookAdapter)]
 }
 
 #[cfg(test)]
@@ -80,20 +91,19 @@ mod tests {
         // Compile-time check via type inference: the function must return
         // exactly Vec<Box<dyn Adapter>>.
         let registry: Vec<Box<dyn Adapter>> = all();
-        // The registry is intentionally empty until adapters land.
-        assert_eq!(registry.len(), 0, "registry currently empty; adapters added in later features");
+        // Currently 3 Copilot adapters (skill, agent, hook). Claude adapters
+        // land in feature 13; non-FeatureKind-aligned kinds (MCP / Extension
+        // / LSP / Command / OutputStyle) land in a follow-up feature.
+        assert_eq!(registry.len(), 3);
     }
 
     #[test]
-    fn registry_iteration_is_safe_when_empty() {
-        // The orchestrator iterates the registry; an empty registry should
-        // simply yield nothing without panicking.
+    fn registry_names_are_stable_and_ordered() {
+        // First-match-wins resolution depends on order being deterministic
+        // and well-known to the orchestrator + tests.
         let registry = all();
-        let mut count = 0_usize;
-        for _adapter in &registry {
-            count += 1;
-        }
-        assert_eq!(count, 0);
+        let names: Vec<&str> = registry.iter().map(|a| a.name()).collect();
+        assert_eq!(names, vec!["copilot-skill", "copilot-agent", "copilot-hook"]);
     }
 
     #[test]

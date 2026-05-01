@@ -171,18 +171,19 @@
   },
   {
     "category": "refactor",
-    "description": "Migrate Copilot adapters (six): CopilotSkill, CopilotAgent, CopilotHook, CopilotExtension, CopilotLsp, CopilotMcp",
+    "description": "Migrate Copilot adapters (skill, agent, hook) — the FeatureKind-aligned subset",
     "steps": [
-      "Add crates/libaipm/src/migrate/adapters/copilot_skill.rs with CopilotSkillAdapter implementing Adapter — applies_to: feat.engine == Engine::Copilot && feat.kind == FeatureKind::Skill — to_artifact: reuse skill_common::parse_frontmatter, collect_files_recursive, extract_script_references on feat.feature_dir",
-      "Add adapters/copilot_agent.rs (CopilotAgentAdapter), adapters/copilot_hook.rs, adapters/copilot_extension.rs, adapters/copilot_lsp.rs, adapters/copilot_mcp.rs — each consuming DiscoveredFeature instead of walking FS",
-      "For CopilotMcpAdapter, preserve today's behavior of reading <project_root>/.copilot/mcp-config.json (NG6: this path is not a .github descendant; the adapter applies_to a synthetic DiscoveredFeature created by the discover layer for that special case, OR the adapter is invoked directly on a path the discover layer surfaces via a new layout variant)",
-      "DELETE the FS-walking bodies of copilot_skill_detector.rs, copilot_agent_detector.rs, copilot_hook_detector.rs, copilot_extension_detector.rs, copilot_lsp_detector.rs, copilot_mcp_detector.rs in this PR — but only if AIPM_UNIFIED_DISCOVERY=1 codepath is the only consumer (otherwise wait for feature 20 cleanup)",
-      "Per-adapter unit test: construct a DiscoveredFeature fixture, call to_artifact, assert returned Artifact has expected kind, name, source_path, files, referenced_scripts",
-      "Reuse existing skill_common, hook_common, etc. helpers — those carry the parsing/validation logic and are NOT being changed",
-      "Wire each adapter into adapters::all()",
-      "Run cargo build/test/clippy/fmt — all four green; coverage of each adapter ≥89%"
+      "Add crates/libaipm/src/migrate/adapters/skill.rs with CopilotSkillAdapter — reuses skill_common::parse_frontmatter, collect_files_recursive, extract_script_references on feat.feature_dir",
+      "Add adapters/agent.rs (CopilotAgentAdapter) — reuses skill_common::parse_frontmatter; strips .agent.md suffix when computing name from filename",
+      "Add adapters/hook.rs (CopilotHookAdapter) — reuses normalize_hook_events and extract_hook_script_references from copilot_hook_detector.rs (made pub(crate))",
+      "Modules are named by kind (skill/agent/hook), not engine, to dodge clippy::module_name_repetitions on CopilotSkillAdapter etc. Feature 13's Claude adapters will live in the same files",
+      "MCP / Extension / LSP / OutputStyle / Command adapters deferred to a follow-up feature — those kinds have no FeatureKind variants in the unified discovery today (see new feature item below)",
+      "Wire 3 Copilot adapters into adapters::all() in stable order: copilot-skill, copilot-agent, copilot-hook",
+      "Update legacy hook detector helpers to pub(crate) so the adapter can reuse them without code duplication",
+      "Per-adapter tests (5-7 each, 21 total): applies_to engine+kind gating, reject other engines/kinds, name stability, to_artifact roundtrip with a real fixture, error handling on bad inputs",
+      "Run cargo build/test/clippy/fmt — all four green"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

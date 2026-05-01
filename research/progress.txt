@@ -266,3 +266,23 @@ Cargo verifier:
 - build/test/clippy/fmt: PASS
 - coverage: 90.08% (>= 89%)
 - overall: PASS
+
+## 2026-05-01 — Feature 12: Migrate Copilot adapters (skill/agent/hook) — DONE
+
+Added 3 Copilot adapters in `crates/libaipm/src/migrate/adapters/`:
+- `skill.rs` → `CopilotSkillAdapter` (applies_to: Engine::Copilot + FeatureKind::Skill; reuses skill_common helpers).
+- `agent.rs` → `CopilotAgentAdapter` (applies_to: Copilot + Agent; strips .agent.md suffix from filename when computing default name).
+- `hook.rs` → `CopilotHookAdapter` (applies_to: Copilot + Hook; reuses normalize_hook_events + extract_hook_script_references from copilot_hook_detector.rs which were made pub(crate)).
+
+Module naming: files are named by KIND (skill/agent/hook), not by engine. This dodges clippy::module_name_repetitions on `CopilotSkillAdapter`/etc. Feature 13's Claude adapters will live in the SAME files (`skill.rs` will hold both `CopilotSkillAdapter` and `ClaudeSkillAdapter`).
+
+Scope deviation from spec: only 3 of the 6 Copilot detectors map to existing FeatureKind variants. MCP/Extension/LSP have no FeatureKind variants in the unified discovery today, so their adapters cannot be written until the discovery layer learns to classify those file types. Documented in the feature step. Feature 14's orchestrator switch will fall back to legacy detectors for those kinds; full adapter coverage is a follow-up.
+
+`adapters::all()` now returns 3 adapters in stable order: copilot-skill, copilot-agent, copilot-hook.
+
+Tests added (21 total): for each adapter — applies_to engine+kind gating, rejects-other-engine, rejects-other-kind, name stability, to_artifact roundtrip on a real tempdir fixture, error handling on bad inputs.
+
+Cargo verifier:
+- build/test/clippy/fmt: PASS
+- coverage: 90.13% (>= 89%)
+- overall: PASS
