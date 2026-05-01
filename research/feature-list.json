@@ -109,17 +109,18 @@
     "category": "refactor",
     "description": "Public discover() API with AIPM_UNIFIED_DISCOVERY feature flag and dispatch to walker + classifier",
     "steps": [
-      "In crates/libaipm/src/discovery/mod.rs add pub struct DiscoverOptions { max_depth, source_filter, follow_symlinks } with #[derive(Debug, Default)]",
+      "DiscoverOptions { max_depth, source_filter, follow_symlinks } added in feature 7",
       "Add pub fn discover(project_root: &Path, opts: &DiscoverOptions, fs: &dyn Fs) -> Result<DiscoveredSet, Error>",
-      "Read env var AIPM_UNIFIED_DISCOVERY via std::env::var; if value == \"1\" call unified_discover(...), else call legacy_compat::discover_features_compat(...)",
-      "unified_discover impl: call walker::walk to get file paths, call classify::classify on each, accumulate into DiscoveredSet { features, scanned_dirs, skipped }",
-      "Apply opts.source_filter post-classification: if Some(s), retain only features whose source_root file_name matches s",
-      "Add tracing::trace! on each layout match decision and tracing::debug! on each skip per spec §7.2",
-      "Add Error variants if needed (extend the existing libaipm::Error or local discovery::Error per existing convention — confirm by grep on existing Error definitions)",
-      "Unit tests: with AIPM_UNIFIED_DISCOVERY=1 against a fixture tree, expect specific DiscoveredSet contents; with flag unset/=0, expect legacy behavior matches today's discover_features output bit-for-bit",
+      "Read env var AIPM_UNIFIED_DISCOVERY via std::env::var; if value == \"1\" call unified_discover(...), else call legacy_discover(...)",
+      "unified_discover: call walker::walk, call classify::classify on each file, accumulate into DiscoveredSet { features, scanned_dirs, skipped }",
+      "legacy_discover (inline; feature 9 will extract to legacy_compat module): delegate to discover_features and map each legacy DiscoveredFeature → new types::DiscoveredFeature, dropping features whose path has no recognized engine ancestor",
+      "Apply opts.source_filter post-classification: retain only features whose source_root file_name matches",
+      "tracing::trace! on each classified feature, tracing::debug! on each skipped path",
+      "Add UNIFIED_DISCOVERY_ENV constant for the env-var name",
+      "Unit tests (8): unified_enabled return values, unified finds #725 tree (3 skills + 1 instructions), legacy finds canonical skills, legacy finds #725 skill files (today's grandparent==skills branch already does), legacy drops copilot-instructions.md while unified finds it (the actual lint-side #725 fix), unified carries walker skipped dirs, source_filter retains only matching, source_filter no-match returns empty, empty root, apply_source_filter no-filter keeps all. Tests serialize via static Mutex around env-var manipulation",
       "Run cargo build/test/clippy/fmt — all four green"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

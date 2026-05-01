@@ -159,3 +159,28 @@ Cargo verifier:
 - build/test/clippy/fmt: PASS
 - coverage: 89.99% (>= 89%)
 - overall: PASS
+
+## 2026-05-01 — Feature 8: Public discover() API + AIPM_UNIFIED_DISCOVERY flag — DONE
+
+Added `pub fn discover(project_root, opts, fs) -> Result<DiscoveredSet, Error>` and `UNIFIED_DISCOVERY_ENV` const to `crates/libaipm/src/discovery/mod.rs`.
+
+Behavior:
+- Reads `AIPM_UNIFIED_DISCOVERY` env var; `"1"` → unified path; anything else → legacy path. Default off; the spec rollout flips this in feature 20 (Phase 2).
+- `unified_discover`: calls `walker::walk` then `classify::classify` on each file, building DiscoveredSet. Emits `tracing::trace!` per classified feature and `tracing::debug!` per skipped path.
+- `legacy_discover`: inline adapter (feature 9 will extract). Delegates to `discover_features` and maps each legacy DiscoveredFeature → new `types::DiscoveredFeature` (kind, engine inferred via `infer_engine_root`, layout=Canonical, source_root, feature_dir=parent, path). Features without an engine ancestor are dropped (small known divergence — same set the unified path would also drop).
+- `apply_source_filter`: post-classification filter retaining features whose source_root file_name matches the option string.
+
+Important correction discovered while writing tests: the research's "lint silently drops the #725 layout" was wrong about the SKILL files. Today's `discover_features` (lint's walker) already finds skills at `.github/copilot/skills/<x>/SKILL.md` via `classify_feature_kind`'s `grandparent_name == "skills"` branch. The actual lint-side silent drop in #725 is the `copilot-instructions.md` filename (case C in instruction.rs, fixed by feature 5). The migrate-side silent drop on the SKILL files is in `CopilotSkillDetector` (a different code path, not `discover_features`) and is fixed by feature 14's adapter switch.
+
+Updated test naming/content accordingly:
+- `discover_legacy_finds_issue_725_skill_files` (today's lint already finds them).
+- `discover_legacy_drops_copilot_instructions_md_unified_finds_it` (the actual lint-side fix demonstration).
+
+Tests (15 in discovery::tests): unified_enabled exact-"1" semantics, unified finds full #725 tree (3 skills + 1 instructions), legacy finds canonical skills, legacy finds #725 skill files, the legacy/unified instructions divergence, walker skipped dirs propagated, source_filter retains only matching, source_filter no-match → empty, empty root → empty set, apply_source_filter no-filter keeps all.
+
+Tests serialize env-var manipulation via a `static ENV_LOCK: Mutex<()>` to avoid races with cargo's parallel test runner. PoisonError handling uses `unwrap_or_else(PoisonError::into_inner)` (not denied by clippy).
+
+Cargo verifier:
+- build/test/clippy/fmt: PASS
+- coverage: 90.06% (>= 89%, crossed 90%)
+- overall: PASS
