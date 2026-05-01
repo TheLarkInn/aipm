@@ -697,6 +697,37 @@ mod tests {
         );
     }
 
+    /// Covers the `if !source_dir.exists()` early-return branch in
+    /// `enumerate_sources`: when `opts.source` points to a directory that
+    /// does not exist the function returns an empty Vec and `run` produces
+    /// an empty `Outcome` with no actions.
+    #[test]
+    fn unified_migrate_source_dir_not_found_returns_empty_outcome() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        init_marketplace(root);
+
+        // ".nonexistent" is never created, so source_dir.exists() == false
+        let opts = Options {
+            dir: root,
+            source: Some(".nonexistent"),
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let ai_dir = root.join(".ai");
+        let outcome = run(&opts, &ai_dir, &Real)
+            .expect("run should succeed even when the named source dir is absent");
+
+        assert_eq!(outcome.actions.len(), 0, "no artifacts — source directory did not exist");
+        assert_eq!(
+            outcome.scan_counts.total(),
+            0,
+            "no features after filtering by the pinned (nonexistent) source root"
+        );
+    }
+
     /// Smoke check that artifact ordering is stable across repeated runs
     /// by virtue of the per-source `(kind, name)` sort.
     #[test]
