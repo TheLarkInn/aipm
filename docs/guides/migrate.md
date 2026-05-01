@@ -37,6 +37,7 @@ aipm migrate --source .claude
 | `--source <SRC>` | Scan a single source folder (e.g., `.claude`). Omit to discover recursively |
 | `--max-depth <N>` | Maximum depth for recursive source discovery |
 | `--manifest` | Generate `aipm.toml` plugin manifests for each migrated plugin |
+| `--no-summary` | Suppress the default scan summary line printed to stderr |
 
 ## Detected Artifact Types
 
@@ -66,10 +67,10 @@ aipm migrate --source .claude
 
 > **Note**: The Copilot CLI stores skills in `.github/copilot/` by default. The
 > legacy `.github/skills/` path is also supported, as is the nested
-> `.github/copilot/skills/<name>/SKILL.md` shape (issue [#725]). All three
-> layouts are scanned automatically; each subdirectory containing a `SKILL.md`
-> file is detected as a skill artifact when running with the unified discovery
-> pipeline (set `AIPM_UNIFIED_DISCOVERY=1` during the rollout window).
+> `.github/copilot/skills/<name>/SKILL.md` shape (fixed in [#725]). All three
+> layouts are scanned automatically by the unified discovery pipeline, which is
+> unconditionally on. The previous `AIPM_UNIFIED_DISCOVERY=1` opt-in env var
+> has been retired.
 >
 > [#725]: https://github.com/TheLarkInn/aipm/issues/725
 
