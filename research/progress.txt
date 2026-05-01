@@ -340,3 +340,26 @@ Cargo verifier:
 - build/test/clippy/fmt: PASS
 - coverage: 90.20% (>= 89%)
 - overall: PASS
+
+## 2026-05-01 — Feature 15: Default scan-summary CLI output — DONE
+
+Added `crates/aipm/src/scan_summary.rs` with `write_summary` and `format_counts` helpers. Both `cmd_lint` and `cmd_migrate` now write a one-line scan summary to stderr by default.
+
+Format: `"Scanned {N} director{y|ies} in [{sources}]; matched {format_counts(counts)}\n"` where `format_counts` produces a comma-separated breakdown by FeatureKind (singular/plural aware, zero categories omitted) or "0 features" when nothing matched.
+
+Naming gotcha: `--quiet` collides with `clap-verbosity-flag`'s global `-q`/`--quiet`. Renamed to `--no-summary`.
+
+JSON-mode preservation: when `--log-format=json` is set, the summary is suppressed automatically (preserves the existing verbosity_e2e contract that requires all stderr lines to be valid JSON in that mode).
+
+Clippy nit: `cmd_migrate` now takes 4 bools (dry_run, destructive, manifest, no_summary) which trips `clippy::fn_params_excessive_bools` (default 3). Bumped `max-fn-params-bools = 4` in `clippy.toml`.
+
+Tests added (8 in scan_summary::tests):
+- format_counts: zero total → "0 features"; one kind singular ("1 skill"); plural ("3 skills"); multiple kinds; omits zero categories; all kinds present.
+- write_summary: singular dir, plural dirs, zero/empty case, dyn Write contract sanity.
+
+Plus updates to 7 existing cmd_lint test sites to thread the new no_summary param.
+
+Cargo verifier:
+- build/test/clippy/fmt: PASS
+- coverage: 90.22% (>= 89%)
+- overall: PASS

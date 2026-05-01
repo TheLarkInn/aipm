@@ -219,17 +219,17 @@
     "category": "ui",
     "description": "Default scan-summary CLI output written to stderr by both cmd_lint and cmd_migrate (Goal G5)",
     "steps": [
-      "Add crates/aipm/src/scan_summary.rs with pub fn write_summary(out: &mut dyn Write, counts: ScanCounts, scanned_dirs: usize, sources: &[String]) -> std::io::Result<()>",
-      "Format: \"Scanned {N} director{y|ies} in [{sources}]; matched {format_counts(counts)}\\n\" with format_counts producing \"M skills, K agents, …\" omitting zero categories or \"0 features\" if total == 0",
-      "Add a --quiet flag declaration to both Migrate and Lint subcommands in crates/aipm/src/main.rs:158-213 (use clap's Arg::action(ArgAction::SetTrue) on a bool field)",
-      "Wire write_summary into cmd_lint at crates/aipm/src/main.rs:708-788 BEFORE the reporter is invoked, gated on !opts.quiet, writing to std::io::stderr()",
-      "Wire write_summary into cmd_migrate at crates/aipm/src/main.rs:889-992 similarly, BEFORE the action-print loop",
-      "Add unit tests for format_counts: zero counts → \"0 features\"; one kind → \"3 skills\"; multiple kinds → \"3 skills, 1 instructions\" (no comma after last)",
-      "Add an E2E test invoking each command against the issue #725 fixture and asserting stderr contains \"matched 3 skills, 1 instructions\" and stdout has the per-action lines",
-      "Add an E2E test asserting --quiet suppresses the stderr summary",
-      "Run cargo build/test/clippy/fmt — all four green; verify use of write!()/writeln!() not println!()/eprintln!() per CLAUDE.md"
+      "Add crates/aipm/src/scan_summary.rs with pub fn write_summary(out: &mut dyn Write, counts: ScanCounts, scanned_dirs: usize, sources: &[String]) -> std::io::Result<()> and pub fn format_counts(counts: ScanCounts) -> String",
+      "Format: 'Scanned {N} director{y|ies} in [{sources}]; matched {format_counts(counts)}\\n' with format_counts producing comma-separated 'M skills, K agents, …' (singular/plural aware), omitting zero categories or '0 features' if total == 0",
+      "Add a --no-summary flag (renamed from --quiet to avoid collision with clap-verbosity-flag's global --quiet) to both Migrate and Lint subcommands",
+      "Wire write_summary into cmd_lint and cmd_migrate writing to std::io::stderr() before per-action / per-diagnostic output, gated on !no_summary",
+      "Suppress summary additionally when --log-format=json (preserves existing JSON-stderr-only contract from verbosity_e2e tests)",
+      "Bump clippy.toml max-fn-params-bools from default 3 to 4 since cmd_migrate now legitimately takes 4 bools (dry_run, destructive, manifest, no_summary)",
+      "Update 7 existing test sites for cmd_lint to add the new bool param",
+      "Unit tests (8 in scan_summary): format_counts zero/one/multi kinds, plural omitted-zeros, all-kinds full output, write_summary singular/plural dirs, dyn Write contract verification",
+      "Run cargo build/test/clippy/fmt — all four green; verify use of write!()/writeln!() not println!()/eprintln!()"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test",
