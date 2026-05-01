@@ -286,3 +286,22 @@ Cargo verifier:
 - build/test/clippy/fmt: PASS
 - coverage: 90.13% (>= 89%)
 - overall: PASS
+
+## 2026-05-01 — Feature 13: Migrate Claude adapters (skill, agent) — DONE
+
+Added 2 Claude adapters into the existing per-kind module files:
+- `skill.rs` → `ClaudeSkillAdapter` alongside `CopilotSkillAdapter`. Extracts only `${CLAUDE_SKILL_DIR}/` script references (no `${SKILL_DIR}/` — that's a Copilot convention).
+- `agent.rs` → `ClaudeAgentAdapter` alongside `CopilotAgentAdapter`. Uses `${CLAUDE_AGENT_DIR}/` for script extraction and records the agent filename in `files` (relative to agents dir) — matches today's AgentDetector behavior. Does NOT strip `.agent.md` suffix (that's Copilot-only).
+
+Scope deviation from spec: only 2 of the 6 Claude adapters can be implemented today.
+- ClaudeHookAdapter deferred: today's HookDetector reads `.claude/settings.json` which the unified discovery doesn't classify (no FeatureKind variant). Needs settings.json discovery support before the adapter can fire.
+- ClaudeCommandAdapter / ClaudeMcpAdapter / ClaudeOutputStyleAdapter deferred: no FeatureKind variants for Command / Mcp / OutputStyle (parallel to the deferred Copilot adapters).
+
+`adapters::all()` now returns 5 adapters in stable order: copilot-skill, copilot-agent, copilot-hook, claude-skill, claude-agent.
+
+Tests added (14 total): 7 per Claude adapter — applies_to engine+kind gating, rejects-other-engine, rejects-other-kind, name stability, to_artifact roundtrip with real fixture, script-reference extraction with engine-specific prefix, edge cases (no frontmatter name → filename stem; no .agent.md suffix stripping for Claude).
+
+Cargo verifier:
+- build/test/clippy/fmt: PASS
+- coverage: 90.18% (>= 89%)
+- overall: PASS

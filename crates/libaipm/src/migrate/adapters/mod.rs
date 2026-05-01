@@ -22,9 +22,9 @@ pub mod agent;
 pub mod hook;
 pub mod skill;
 
-pub use agent::CopilotAgentAdapter;
+pub use agent::{ClaudeAgentAdapter, CopilotAgentAdapter};
 pub use hook::CopilotHookAdapter;
-pub use skill::CopilotSkillAdapter;
+pub use skill::{ClaudeSkillAdapter, CopilotSkillAdapter};
 
 use crate::discovery::DiscoveredFeature;
 use crate::fs::Fs;
@@ -65,7 +65,13 @@ pub trait Adapter: Send + Sync {
 /// classify them — those kinds have no `FeatureKind` variants today.
 #[must_use]
 pub fn all() -> Vec<Box<dyn Adapter>> {
-    vec![Box::new(CopilotSkillAdapter), Box::new(CopilotAgentAdapter), Box::new(CopilotHookAdapter)]
+    vec![
+        Box::new(CopilotSkillAdapter),
+        Box::new(CopilotAgentAdapter),
+        Box::new(CopilotHookAdapter),
+        Box::new(ClaudeSkillAdapter),
+        Box::new(ClaudeAgentAdapter),
+    ]
 }
 
 #[cfg(test)]
@@ -91,10 +97,11 @@ mod tests {
         // Compile-time check via type inference: the function must return
         // exactly Vec<Box<dyn Adapter>>.
         let registry: Vec<Box<dyn Adapter>> = all();
-        // Currently 3 Copilot adapters (skill, agent, hook). Claude adapters
-        // land in feature 13; non-FeatureKind-aligned kinds (MCP / Extension
-        // / LSP / Command / OutputStyle) land in a follow-up feature.
-        assert_eq!(registry.len(), 3);
+        // Currently 5 adapters: Copilot (skill, agent, hook) + Claude
+        // (skill, agent). Claude hook needs `.claude/settings.json`
+        // discovery support and is deferred. MCP/Extension/LSP/Command/
+        // OutputStyle have no FeatureKind variants and are also deferred.
+        assert_eq!(registry.len(), 5);
     }
 
     #[test]
@@ -103,7 +110,10 @@ mod tests {
         // and well-known to the orchestrator + tests.
         let registry = all();
         let names: Vec<&str> = registry.iter().map(|a| a.name()).collect();
-        assert_eq!(names, vec!["copilot-skill", "copilot-agent", "copilot-hook"]);
+        assert_eq!(
+            names,
+            vec!["copilot-skill", "copilot-agent", "copilot-hook", "claude-skill", "claude-agent"]
+        );
     }
 
     #[test]

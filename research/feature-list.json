@@ -187,18 +187,17 @@
   },
   {
     "category": "refactor",
-    "description": "Migrate Claude adapters (six): ClaudeSkill, ClaudeAgent, ClaudeCommand, ClaudeHook, ClaudeMcp, ClaudeOutputStyle",
+    "description": "Migrate Claude adapters (skill, agent) — the FeatureKind-aligned subset",
     "steps": [
-      "Add crates/libaipm/src/migrate/adapters/claude_skill.rs (ClaudeSkillAdapter), claude_agent.rs (ClaudeAgentAdapter), claude_command.rs (ClaudeCommandAdapter), claude_hook.rs (ClaudeHookAdapter), claude_mcp.rs (ClaudeMcpAdapter), claude_output_style.rs (ClaudeOutputStyleAdapter)",
-      "Each implements applies_to checking feat.engine == Engine::Claude && feat.kind == FeatureKind::<expected>",
-      "to_artifact for ClaudeSkillAdapter reuses skill_common (same as the Copilot one); the only difference is the engine tag carried through",
-      "ClaudeMcpAdapter preserves today's behavior of reading <project_root>/.mcp.json (mirror to CopilotMcpAdapter pattern)",
-      "ClaudeOutputStyleAdapter handles .claude/output-styles/ files (per today's output_style_detector.rs:10) — needs a new FeatureKind::OutputStyle variant if not already present (check existing FeatureKind enum)",
-      "Per-adapter unit test on a DiscoveredFeature fixture",
-      "Wire each into adapters::all()",
+      "Add ClaudeSkillAdapter to crates/libaipm/src/migrate/adapters/skill.rs alongside CopilotSkillAdapter — extracts only ${CLAUDE_SKILL_DIR}/ references (no ${SKILL_DIR}/ — Copilot-specific)",
+      "Add ClaudeAgentAdapter to crates/libaipm/src/migrate/adapters/agent.rs — uses ${CLAUDE_AGENT_DIR}/ prefix and records agent filename in `files`",
+      "ClaudeHookAdapter deferred: today's HookDetector reads .claude/settings.json which the unified discovery doesn't classify (no FeatureKind variant). Needs settings.json discovery support before the adapter can fire",
+      "ClaudeCommandAdapter / ClaudeMcpAdapter / ClaudeOutputStyleAdapter deferred: no FeatureKind variants for Command / Mcp / OutputStyle (same as Copilot deferred adapters)",
+      "Wire 2 Claude adapters into adapters::all() in stable order: copilot-skill, copilot-agent, copilot-hook, claude-skill, claude-agent",
+      "Per-adapter unit tests (7 each, 14 total): applies_to engine+kind, rejects-other-engine, rejects-other-kind, name stability, to_artifact roundtrip with real fixture, script-reference extraction with engine-specific prefix, error/edge cases",
       "Run cargo build/test/clippy/fmt — all four green"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
