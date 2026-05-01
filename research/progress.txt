@@ -68,3 +68,26 @@ Cargo verifier:
 - build/test/clippy/fmt: PASS
 - coverage: 89.74% (>= 89%)
 - overall: PASS
+
+## 2026-05-01 — Feature 4: Layout matchers for non-skill features — DONE
+
+Added five non-skill matchers to `crates/libaipm/src/discovery/layout.rs`:
+
+- `match_agent(path, engine, source_root)` — `*.md` whose parent directory is named `agents`. Mirrors today's `classify_feature_kind` agent branch (`discovery_legacy.rs:265-266`). Instruction-file precedence is the dispatcher's responsibility (later spec feature).
+- `match_hook(path, engine, source_root)` — `hooks.json` whose parent is either the engine source root (CopilotHookDetector accommodation) OR a directory literally named `hooks` (today's classify_feature_kind line 267-268).
+- `match_plugin(path, engine, source_root)` — `aipm.toml` with grandparent `.ai`. Mirrors today's line 269-270.
+- `match_marketplace(path, engine, source_root)` — `marketplace.json` with parent `.claude-plugin` and grandparent `.ai`. Mirrors lines 271-275.
+- `match_plugin_json(path, engine, source_root)` — `plugin.json` with parent `.claude-plugin` and great-grandparent `.ai`. Mirrors lines 276-287.
+
+All non-skill matchers return `Layout::Canonical` since skill is the only feature kind whose layout shape varies. `feature_dir` is set to `path.parent()` per spec.
+
+Helpers added: `parent_name_lossy(path)` and `ancestor_name_lossy(path, depth)` for clean lookups.
+
+Re-exported from `discovery/mod.rs` as `match_agent`, `match_hook`, `match_marketplace`, `match_plugin`, `match_plugin_json` alongside the existing `match_skill`.
+
+Tests added: 20 covering canonical positive cases for each matcher, plus negative cases (wrong parent, wrong filename, wrong grandparent, missing engine root). The test file now has 37 total layout tests.
+
+Cargo verifier:
+- build/test/clippy/fmt: PASS
+- coverage: 89.81% (>= 89%)
+- overall: PASS

@@ -58,7 +58,7 @@
       "Unit tests for each matcher: positive cases (each canonical layout) and negative cases (wrong parent name, missing engine root)",
       "Run cargo build/test/clippy/fmt — all four green"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

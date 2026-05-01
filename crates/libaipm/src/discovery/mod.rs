@@ -27,7 +27,9 @@ pub mod types;
 
 // New foundation types — accessible through both the submodule and the
 // `types::` / `scan_report::` paths and re-exported here for convenience.
-pub use layout::match_skill;
+pub use layout::{
+    match_agent, match_hook, match_marketplace, match_plugin, match_plugin_json, match_skill,
+};
 pub use scan_report::{DiscoveredSet, ScanCounts, SkipReason};
 pub use source::infer_engine_root;
 pub use types::{Engine, Layout};
