@@ -20,12 +20,14 @@
 //! `crate::discovery::DiscoveredFeature` will be removed once the lint and
 //! migrate pipelines are switched over in later spec features.
 
+pub mod layout;
 pub mod scan_report;
 pub mod source;
 pub mod types;
 
 // New foundation types — accessible through both the submodule and the
 // `types::` / `scan_report::` paths and re-exported here for convenience.
+pub use layout::match_skill;
 pub use scan_report::{DiscoveredSet, ScanCounts, SkipReason};
 pub use source::infer_engine_root;
 pub use types::{Engine, Layout};

@@ -45,3 +45,26 @@ Cargo verifier:
 - build/test/clippy/fmt: PASS
 - coverage: 89.69% (>= 89%)
 - overall: PASS
+
+## 2026-05-01 — Feature 3: Skill layout grammar (THE customer fix for #725) — DONE
+
+Added `crates/libaipm/src/discovery/layout.rs` with `pub fn match_skill(path, engine, source_root) -> Option<DiscoveredFeature>` plus a private `pick_layout_for_skill` helper.
+
+Behavior:
+- Case A: any ancestor name between path's parent and source_root (exclusive) literally equals "skills" → match as Skill. This is the customer fix for #725 (`.github/copilot/skills/<x>/SKILL.md` works because "skills" is in the ancestors list).
+- Case B: engine == Copilot AND grandparent (ancestors[1]) == "copilot" → match as Layout::CopilotSubroot (existing aipm accommodation `.github/copilot/<name>/SKILL.md`).
+- pick_layout_for_skill pattern-matches the ancestors slice to choose the right Layout variant. Arms ordered most-specific-first:
+  1. `[_, "skills", "copilot", ..]` → CopilotSubrootWithSkills (#725)
+  2. `[_, "copilot", ..]` → CopilotSubroot
+  3. `[_, "skills", "<.dot>", _, ..]` → AiNested
+  4. `[_, "skills", _, ..]` if engine==Ai → AiPlugin
+  5. default → Canonical
+
+Re-exported as `pub use layout::match_skill` from `discovery/mod.rs`.
+
+Tests (17 total): each of 5 layouts (canonical Claude, canonical Copilot, CopilotSubroot, CopilotSubrootWithSkills with #725's exact path, AiPlugin, AiNested), the all-three-skills #725 batch, flat skills layout, structural fields (feature_dir + path), plus 5 negative cases (skill at engine root, skill directly under copilot dir without a <name> sub-dir, copilot subroot only matches Copilot engine, skill with no skills ancestor, AiPlugin gated to Ai engine).
+
+Cargo verifier:
+- build/test/clippy/fmt: PASS
+- coverage: 89.74% (>= 89%)
+- overall: PASS

@@ -43,7 +43,7 @@
       "Add negative tests: .github/copilot/SKILL.md (no skills ancestor, no <name> dir) → None; .github/SKILL.md → None; .github/skills/SKILL.md (flat) → still matched as Canonical per today's grandparent==skills branch",
       "Run cargo build/test/clippy/fmt — all four green; coverage on layout.rs ≥89%"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
