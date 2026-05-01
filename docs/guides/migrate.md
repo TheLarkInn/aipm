@@ -37,6 +37,7 @@ aipm migrate --source .claude
 | `--source <SRC>` | Scan a single source folder (e.g., `.claude`). Omit to discover recursively |
 | `--max-depth <N>` | Maximum depth for recursive source discovery |
 | `--manifest` | Generate `aipm.toml` plugin manifests for each migrated plugin |
+| `--no-summary` | Suppress the scan summary line printed to stderr by default |
 
 ## Detected Artifact Types
 
@@ -64,12 +65,11 @@ aipm migrate --source .claude
 | GitHub extensions | `.github/extensions/<name>/` | `composite` plugin |
 | LSP servers | `.github/lsp.json` or `lsp.json` | `lsp` plugin |
 
-> **Note**: The Copilot CLI stores skills in `.github/copilot/` by default. The
-> legacy `.github/skills/` path is also supported, as is the nested
-> `.github/copilot/skills/<name>/SKILL.md` shape (issue [#725]). All three
-> layouts are scanned automatically; each subdirectory containing a `SKILL.md`
-> file is detected as a skill artifact when running with the unified discovery
-> pipeline (set `AIPM_UNIFIED_DISCOVERY=1` during the rollout window).
+> **Note**: The Copilot CLI stores skills in `.github/copilot/` by default.
+> The legacy `.github/skills/` path is also supported, as is the nested
+> `.github/copilot/skills/<name>/SKILL.md` layout (issue [#725]). All three
+> layouts are scanned automatically — the unified discovery pipeline is always
+> active and requires no environment-variable opt-in.
 >
 > [#725]: https://github.com/TheLarkInn/aipm/issues/725
 
@@ -126,6 +126,23 @@ To migrate a single known directory instead of searching recursively:
 
 ```bash
 aipm migrate --source .claude
+```
+
+## Scan Summary
+
+After every run, `aipm migrate` prints a single line to **stderr** describing what the
+discovery walker found:
+
+```
+Scanned 4 directories in [.github, .claude]; matched 3 skills, 1 instruction
+```
+
+The summary is shown by default so that "scanned but nothing matched" outcomes are never
+silent. It is suppressed automatically when `--log-format=json` is in effect (keeping
+stdout machine-parseable), and can be suppressed manually with `--no-summary`:
+
+```bash
+aipm migrate --no-summary
 ```
 
 ## Generating Manifests
