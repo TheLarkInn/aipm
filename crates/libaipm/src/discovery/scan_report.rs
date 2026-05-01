@@ -57,19 +57,6 @@ pub enum SkipReason {
         /// The directory name that matched the skip list.
         name: String,
     },
-    /// A file looked feature-like (e.g. named `SKILL.md`) but did not match any
-    /// known layout.
-    UnknownLayout {
-        /// The file path that was rejected.
-        path: PathBuf,
-        /// The nearest engine source root, if any.
-        near_root: Option<PathBuf>,
-    },
-    /// A path component was not valid UTF-8 and could not be processed.
-    InvalidUtf8 {
-        /// The offending path.
-        path: PathBuf,
-    },
 }
 
 /// The result of a single discovery walk.
@@ -223,27 +210,6 @@ mod tests {
         assert!(
             matches!(&reason, SkipReason::SkipDirByName { name, .. } if name == "node_modules")
         );
-    }
-
-    #[test]
-    fn skip_reason_unknown_layout() {
-        let reason = SkipReason::UnknownLayout {
-            path: PathBuf::from(".github/copilot/SKILL.md"),
-            near_root: Some(PathBuf::from(".github")),
-        };
-        assert!(matches!(
-            &reason,
-            SkipReason::UnknownLayout { near_root: Some(p), .. } if p == &PathBuf::from(".github")
-        ));
-    }
-
-    #[test]
-    fn skip_reason_invalid_utf8() {
-        let reason = SkipReason::InvalidUtf8 { path: PathBuf::from("/some/path") };
-        assert!(matches!(
-            &reason,
-            SkipReason::InvalidUtf8 { path } if path == &PathBuf::from("/some/path")
-        ));
     }
 
     #[test]

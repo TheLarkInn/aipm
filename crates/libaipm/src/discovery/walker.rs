@@ -170,9 +170,8 @@ mod tests {
         let names: Vec<&str> = result
             .skipped
             .iter()
-            .filter_map(|r| match r {
-                SkipReason::SkipDirByName { name, .. } => Some(name.as_str()),
-                _ => None,
+            .map(|r| match r {
+                SkipReason::SkipDirByName { name, .. } => name.as_str(),
             })
             .collect();
         assert!(names.contains(&"node_modules"), "expected node_modules in skipped: {names:?}");
@@ -275,10 +274,10 @@ mod tests {
         let recorded = result
             .skipped
             .iter()
-            .find_map(|r| match r {
-                SkipReason::SkipDirByName { path, .. } => Some(path.clone()),
-                _ => None,
+            .map(|r| match r {
+                SkipReason::SkipDirByName { path, .. } => path.clone(),
             })
+            .next()
             .expect("at least one SkipDirByName record");
         assert!(recorded.ends_with("node_modules"));
     }

@@ -47,12 +47,15 @@ pub enum Engine {
 
 /// The layout shape under which a skill (or other feature) was discovered.
 ///
-/// Distinguishes the four supported skill layouts plus the `.ai/` plugin shapes:
+/// Distinguishes the three supported skill layouts:
 /// - `Canonical`: `<root>/skills/<name>/SKILL.md` (e.g. `.claude/skills/`, `.github/skills/`).
 /// - `CopilotSubroot`: `<root>/copilot/<name>/SKILL.md` (legacy aipm accommodation).
 /// - `CopilotSubrootWithSkills`: `<root>/copilot/skills/<name>/SKILL.md` (issue #725 layout).
-/// - `AiNested`: `<root>/<plugin>/.claude/skills/<name>/SKILL.md` (post-migrate authoring tree).
-/// - `AiPlugin`: `<root>/<plugin>/skills/<name>/SKILL.md` (flat `.ai/` plugin tree).
+///
+/// Note: `.ai/<plugin>/.claude/...` paths are classified by the innermost
+/// engine root (the inner `.claude`), so they take the corresponding
+/// `Canonical`/`CopilotSubroot*` shape under that inner root rather than a
+/// dedicated `.ai/` plugin variant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Layout {
     /// `<root>/skills/<name>/SKILL.md` and `<root>/agents/<name>.md` shapes.
@@ -61,10 +64,6 @@ pub enum Layout {
     CopilotSubroot,
     /// `<root>/copilot/skills/<name>/SKILL.md` — issue #725 layout.
     CopilotSubrootWithSkills,
-    /// `<root>/<plugin>/.claude/skills/<name>/SKILL.md` — nested authoring tree.
-    AiNested,
-    /// `<root>/<plugin>/skills/<name>/SKILL.md` — flat `.ai/` plugin tree.
-    AiPlugin,
 }
 
 /// A discovered AI plugin feature file along with the engine, layout, and root
@@ -131,8 +130,7 @@ mod tests {
     fn layout_variants_are_distinct() {
         assert_ne!(Layout::Canonical, Layout::CopilotSubroot);
         assert_ne!(Layout::CopilotSubroot, Layout::CopilotSubrootWithSkills);
-        assert_ne!(Layout::CopilotSubrootWithSkills, Layout::AiNested);
-        assert_ne!(Layout::AiNested, Layout::AiPlugin);
+        assert_ne!(Layout::Canonical, Layout::CopilotSubrootWithSkills);
     }
 
     #[test]

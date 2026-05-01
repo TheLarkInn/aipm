@@ -241,7 +241,7 @@ mod tests {
         let path = PathBuf::from("/repo/.ai/my-plugin/skills/my-skill/SKILL.md");
         let feat = classify_at(&path, &root).expect("should match");
         assert_eq!(feat.engine, Engine::Ai);
-        assert_eq!(feat.layout, Layout::AiPlugin);
+        assert_eq!(feat.layout, Layout::Canonical);
     }
 
     // --- negative paths that look feature-like but don't match ---

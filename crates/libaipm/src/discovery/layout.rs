@@ -37,8 +37,6 @@ use super::types::{DiscoveredFeature, Engine, FeatureKind, Layout};
 /// | [`Layout::Canonical`] | `<root>/skills/<name>/SKILL.md` (also flat `<root>/skills/SKILL.md`) |
 /// | [`Layout::CopilotSubroot`] | `<root>/copilot/<name>/SKILL.md` (Copilot only) |
 /// | [`Layout::CopilotSubrootWithSkills`] | `<root>/copilot/skills/<name>/SKILL.md` (issue #725) |
-/// | [`Layout::AiPlugin`] | `<root>/<plugin>/skills/<name>/SKILL.md` (Ai engine, post-migrate) |
-/// | [`Layout::AiNested`] | `<root>/<plugin>/<.engine>/skills/<name>/SKILL.md` (Ai engine, nested) |
 ///
 /// Returns `None` for paths that don't match any known shape.
 #[must_use]
@@ -56,7 +54,7 @@ pub fn match_skill(path: &Path, engine: Engine, source_root: &Path) -> Option<Di
         }
     }
 
-    let layout = pick_layout_for_skill(&ancestors, engine);
+    let layout = pick_layout_for_skill(&ancestors);
     Some(DiscoveredFeature {
         kind: FeatureKind::Skill,
         engine,
@@ -77,12 +75,11 @@ fn collect_ancestors(path: &Path, source_root: &Path) -> Vec<OsString> {
         .collect()
 }
 
-/// Decide which [`Layout`] best describes a skill given its ancestors slice
-/// and the engine.
+/// Decide which [`Layout`] best describes a skill given its ancestors slice.
 ///
 /// Pattern arms are ordered most-specific to least-specific so that deeper
 /// matches win over their prefixes.
-fn pick_layout_for_skill(ancestors: &[OsString], engine: Engine) -> Layout {
+fn pick_layout_for_skill(ancestors: &[OsString]) -> Layout {
     let names: Vec<String> = ancestors.iter().map(|n| n.to_string_lossy().into_owned()).collect();
     let slice: Vec<&str> = names.iter().map(String::as_str).collect();
     match slice.as_slice() {
@@ -90,10 +87,6 @@ fn pick_layout_for_skill(ancestors: &[OsString], engine: Engine) -> Layout {
         [_, s, c, ..] if *s == "skills" && *c == "copilot" => Layout::CopilotSubrootWithSkills,
         // <root>/copilot/<name>/SKILL.md
         [_, c, ..] if *c == "copilot" => Layout::CopilotSubroot,
-        // .ai/<plugin>/<.engine>/skills/<name>/SKILL.md (nested authoring)
-        [_, s, dot, _plugin, ..] if *s == "skills" && dot.starts_with('.') => Layout::AiNested,
-        // .ai/<plugin>/skills/<name>/SKILL.md (post-migrate flat)
-        [_, s, _plugin, ..] if *s == "skills" && engine == Engine::Ai => Layout::AiPlugin,
         // .claude/skills/<name>/SKILL.md, .github/skills/<name>/SKILL.md, flat etc.
         _ => Layout::Canonical,
     }
@@ -326,21 +319,31 @@ mod tests {
     }
 
     #[test]
-    fn ai_plugin_layout() {
+    fn ai_plugin_flat_layout_falls_through_to_canonical() {
+        // `.ai/<plugin>/skills/<name>/SKILL.md` is no longer recognized as a
+        // dedicated `AiPlugin` layout — the unified pipeline classifies these
+        // paths under the innermost engine root, so the bare `.ai/` source
+        // root case (kept here only for matcher-level coverage) falls through
+        // to `Canonical`.
         let root = PathBuf::from("/repo/.ai");
         let path = PathBuf::from("/repo/.ai/my-plugin/skills/my-skill/SKILL.md");
         let feat = match_skill(&path, Engine::Ai, &root).expect("should match");
         assert_eq!(feat.engine, Engine::Ai);
-        assert_eq!(feat.layout, Layout::AiPlugin);
+        assert_eq!(feat.layout, Layout::Canonical);
     }
 
     #[test]
-    fn ai_nested_layout() {
+    fn ai_nested_layout_falls_through_to_canonical() {
+        // `.ai/<plugin>/.claude/skills/<name>/SKILL.md` no longer has a
+        // dedicated `AiNested` layout. In the real pipeline,
+        // `infer_engine_root` picks the innermost `.claude` here — but with
+        // the bare `.ai/` source root supplied directly, the matcher falls
+        // through to `Canonical`.
         let root = PathBuf::from("/repo/.ai");
         let path = PathBuf::from("/repo/.ai/my-plugin/.claude/skills/my-skill/SKILL.md");
         let feat = match_skill(&path, Engine::Ai, &root).expect("should match");
         assert_eq!(feat.engine, Engine::Ai);
-        assert_eq!(feat.layout, Layout::AiNested);
+        assert_eq!(feat.layout, Layout::Canonical);
     }
 
     // --- positive: flat layout still works ---
@@ -415,26 +418,27 @@ mod tests {
     }
 
     #[test]
-    fn ai_plugin_only_for_ai_engine() {
+    fn ai_plugin_path_with_claude_engine_is_canonical() {
         // For .ai/<plugin>/skills/<name>/SKILL.md called with engine=Claude
-        // (e.g. caller mis-attributed engine), the AiPlugin arm fails its
-        // engine guard → falls through to Canonical.
+        // — falls through to Canonical (no dedicated AiPlugin layout exists
+        // any more; the unified pipeline routes such paths via the innermost
+        // engine root anyway).
         let root = PathBuf::from("/repo/.ai");
         let path = PathBuf::from("/repo/.ai/my-plugin/skills/my-skill/SKILL.md");
         let feat = match_skill(&path, Engine::Claude, &root).expect("should match");
-        // Falls through to Canonical because the AiPlugin arm requires Ai engine.
         assert_eq!(feat.layout, Layout::Canonical);
     }
 
     #[test]
-    fn ai_nested_does_not_require_specific_engine() {
-        // The AiNested arm doesn't gate on engine — it gates on a dot-prefixed
-        // ancestor. Verify: with engine=Claude (still pretty unusual), it
-        // still picks AiNested if the shape matches.
+    fn ai_nested_path_falls_through_regardless_of_engine() {
+        // `.ai/<plugin>/.claude/skills/<name>/SKILL.md` no longer has a
+        // dedicated layout. The real pipeline classifies such paths under
+        // the innermost `.claude` root; here we only verify the matcher's
+        // bare-`.ai`-root behavior is `Canonical` for both engines.
         let root = PathBuf::from("/repo/.ai");
         let path = PathBuf::from("/repo/.ai/my-plugin/.claude/skills/my-skill/SKILL.md");
         let feat = match_skill(&path, Engine::Claude, &root).expect("should match");
-        assert_eq!(feat.layout, Layout::AiNested);
+        assert_eq!(feat.layout, Layout::Canonical);
     }
 
     // --- structural fields ---
