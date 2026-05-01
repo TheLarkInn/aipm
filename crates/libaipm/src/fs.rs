@@ -614,6 +614,44 @@ mod tests {
         assert_ne!(result.err().map(|e| e.kind()), Some(std::io::ErrorKind::NotFound));
     }
 
+    /// Covers the default implementations of the optional `Fs` methods
+    /// (lines 53–90). A `MinimalFs` that only implements the five required
+    /// methods is used to invoke each default, confirming they return the
+    /// expected "not implemented" errors (or `false` for `is_symlink`).
+    #[test]
+    fn default_fs_methods_return_unsupported() {
+        struct MinimalFs;
+        impl Fs for MinimalFs {
+            fn exists(&self, _: &Path) -> bool {
+                false
+            }
+            fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+                Ok(())
+            }
+            fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+                Ok(())
+            }
+            fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+                Ok(String::new())
+            }
+            fn read_dir(&self, _: &Path) -> std::io::Result<Vec<DirEntry>> {
+                Ok(Vec::new())
+            }
+        }
+
+        let fs = MinimalFs;
+        let p = Path::new("/any");
+
+        assert!(fs.remove_file(p).is_err(), "remove_file default must error");
+        assert!(fs.remove_dir_all(p).is_err(), "remove_dir_all default must error");
+        assert!(fs.hard_link(p, p).is_err(), "hard_link default must error");
+        assert!(fs.copy_file(p, p).is_err(), "copy_file default must error");
+        assert!(fs.symlink_dir(p, p).is_err(), "symlink_dir default must error");
+        assert!(fs.read_link(p).is_err(), "read_link default must error");
+        assert!(!fs.is_symlink(p), "is_symlink default must return false");
+        assert!(fs.atomic_write(p, b"").is_err(), "atomic_write default must error");
+    }
+
     #[test]
     fn real_read_dir_distinguishes_files_and_dirs() {
         let tmp = tempfile::tempdir();
