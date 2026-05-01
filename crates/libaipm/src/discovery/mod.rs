@@ -26,6 +26,7 @@ pub mod layout;
 pub mod scan_report;
 pub mod source;
 pub mod types;
+pub mod walker;
 
 // New foundation types — accessible through both the submodule and the
 // `types::` / `scan_report::` paths and re-exported here for convenience.
@@ -37,6 +38,24 @@ pub use layout::{
 pub use scan_report::{DiscoveredSet, ScanCounts, SkipReason};
 pub use source::infer_engine_root;
 pub use types::{Engine, Layout};
+pub use walker::{walk, WalkResult};
+
+/// Options controlling a single discovery walk.
+///
+/// Consumed by [`walker::walk`] (and, in a later spec feature, by
+/// `discover()`). The defaults — no depth limit, no source filter,
+/// don't follow symlinks — match today's `discover_features` behavior.
+#[derive(Debug, Default, Clone)]
+pub struct DiscoverOptions {
+    /// Maximum walk depth from the project root. `None` means unlimited.
+    pub max_depth: Option<usize>,
+    /// Optional filter on the engine source root (e.g. `".github"`). Applied
+    /// post-classification by `discover()`; the walker itself walks the full
+    /// project tree.
+    pub source_filter: Option<String>,
+    /// When `true`, the walker follows symlinks. Defaults to `false`.
+    pub follow_symlinks: bool,
+}
 
 // Re-exports from the legacy module so existing call sites
 // (`crate::discovery::Error`, `crate::discovery::DiscoveredFeature`, …) keep

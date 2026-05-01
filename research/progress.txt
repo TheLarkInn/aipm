@@ -138,3 +138,24 @@ Cargo verifier (after fmt fix on a trailing comma):
 - build/test/clippy/fmt: PASS
 - coverage: 89.92% (>= 89%)
 - overall: PASS
+
+## 2026-05-01 — Feature 7: Walker — DONE
+
+Added `crates/libaipm/src/discovery/walker.rs` with `pub fn walk(project_root, opts) -> Result<WalkResult, Error>`. Also added `pub struct DiscoverOptions { max_depth, source_filter, follow_symlinks }` (Debug, Default, Clone) to `discovery/mod.rs` ahead of feature 8.
+
+Behavior:
+- Wraps `ignore::WalkBuilder` with hidden(false) so .claude/.github/.ai are descended into; git_ignore/global/exclude all true; follow_links from opts; max_depth honored.
+- filter_entry prunes directories whose name is in SKIP_DIRS (`node_modules`, `target`, `.git`, `vendor`, `__pycache__`, `dist`, `build`) and records a `SkipReason::SkipDirByName` via an Arc<Mutex<Vec<SkipReason>>> shared between the filter closure and the post-walk drain.
+- Source filter is deferred to discover() (the spec's "fail closed" alternative); walker walks the full tree.
+- Outputs sorted for deterministic ordering.
+
+WalkResult: `{ files: Vec<PathBuf>, scanned_dirs: Vec<PathBuf>, skipped: Vec<SkipReason> }`.
+
+Re-exported as `pub use walker::{walk, WalkResult}` from `discovery/mod.rs`.
+
+Tests (11): empty dir, files+dirs, SKIP_DIRS pruning + recording, max_depth honored, dot-dirs visible, issue #725 tree visible end-to-end, gitignored files excluded (test creates an empty `.git/` dir so the ignore crate honors `.gitignore` per its docs), follow_symlinks=false on Unix, skip-reason path recording, deep tree without max_depth, sorted output.
+
+Cargo verifier:
+- build/test/clippy/fmt: PASS
+- coverage: 89.99% (>= 89%)
+- overall: PASS

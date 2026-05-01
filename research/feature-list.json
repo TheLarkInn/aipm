@@ -94,15 +94,16 @@
     "description": "Walker that wraps ignore::WalkBuilder with SKIP_DIRS, max_depth, source_filter, follow_symlinks=false",
     "steps": [
       "Add crates/libaipm/src/discovery/walker.rs with pub fn walk(project_root: &Path, opts: &DiscoverOptions) -> Result<WalkResult, Error> where WalkResult carries Vec<PathBuf> of file paths and Vec<PathBuf> of directories scanned plus Vec<SkipReason>",
-      "Build ignore::WalkBuilder with hidden(false), git_ignore(true), git_global(true), git_exclude(true), follow_links(false)",
+      "Build ignore::WalkBuilder with hidden(false), git_ignore(true), git_global(true), git_exclude(true), follow_links(opts.follow_symlinks)",
       "Apply opts.max_depth if Some via builder.max_depth(Some(d))",
-      "Add filter_entry that skips directories whose name is in SKIP_DIRS (= &[\"node_modules\", \"target\", \".git\", \"vendor\", \"__pycache__\", \"dist\", \"build\"]) — emit a SkipReason::SkipDirByName for each",
-      "If opts.source_filter is Some(s), prune the walk to only descend into directories under <project_root>/<s> (or fail closed and let the walker just walk everything; the source filter is enforced in classify post-walk for simplicity)",
-      "Collect Vec<PathBuf> of file paths and dirs walked; convert ignore::Error to Error::WalkFailed with .to_string()",
-      "Unit tests: empty dir → empty result; tree with node_modules → emits SkipReason; max_depth honored; gitignore'd files excluded; symlinks not followed",
-      "Run cargo build/test/clippy/fmt — all four green; no .unwrap() in production paths"
+      "Add filter_entry that skips directories whose name is in SKIP_DIRS — emit a SkipReason::SkipDirByName for each via Arc<Mutex<Vec<SkipReason>>> shared between the closure and the post-walk drain",
+      "Defer source_filter to discover() (post-classification); walker walks the full tree per spec ('fail closed' alternative)",
+      "Collect Vec<PathBuf> of file paths and dirs walked; convert ignore::Error to Error::WalkFailed with .to_string(); sort outputs for determinism",
+      "Add pub struct DiscoverOptions { max_depth, source_filter, follow_symlinks } with #[derive(Debug, Default, Clone)] in discovery/mod.rs (anticipating feature 8)",
+      "Unit tests (11): empty dir, files+dirs, SKIP_DIRS pruning + recording, max_depth honored, dot-dirs visible, issue #725 tree visible, gitignored files excluded (with .git/ marker so the ignore crate honors .gitignore), follow_symlinks=false (Unix), skip-reason path recording, deep tree without max_depth, sorted output",
+      "Run cargo build/test/clippy/fmt — all four green; no .unwrap()/.expect() in production paths"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
