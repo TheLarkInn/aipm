@@ -7,7 +7,8 @@
 //!
 //! The summary goes to stderr (not stdout) so machine-parseable
 //! reporters (`json`, `ci-github`, `ci-azure`) keep stdout clean.
-//! `--quiet` suppresses the line.
+//! `--no-summary` suppresses the line, and it is also auto-suppressed
+//! under `--log-format=json`.
 
 use std::io::Write;
 

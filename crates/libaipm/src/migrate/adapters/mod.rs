@@ -15,8 +15,11 @@
 //! `applies_to` precise enough that this never happens in practice — engine
 //! + kind discriminate the 12 adapters cleanly.
 //!
-//! This module ships with an empty registry. Each engine-specific adapter
-//! (Claude × 6, Copilot × 6) is added in subsequent spec features.
+//! Currently ships with 5 adapters (Copilot skill/agent/hook + Claude
+//! skill/agent). Adapters for additional kinds (Claude hook via
+//! `settings.json`, MCP, Extension, LSP, Command, `OutputStyle`) are
+//! deferred to a follow-up feature once the unified discovery learns to
+//! classify those file types.
 
 pub mod agent;
 pub mod hook;

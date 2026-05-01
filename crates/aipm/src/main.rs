@@ -906,6 +906,33 @@ pub(crate) fn load_lint_config(dir: &Path) -> libaipm::lint::config::Config {
     config
 }
 
+/// Build the sources list shown in the scan summary.
+///
+/// When `--source` is given we honor that explicit choice. Otherwise we
+/// derive the set of source-root segments (`.github`, `.claude`, `.ai`)
+/// that appear anywhere in the scanned directory paths so recursive
+/// `aipm migrate` (which discovers across roots) reports what was
+/// actually walked instead of `(none)`.
+fn derive_summary_sources(source: Option<&str>, scanned_dirs: &[PathBuf]) -> Vec<String> {
+    if let Some(s) = source {
+        return vec![s.to_string()];
+    }
+    let mut found: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for dir in scanned_dirs {
+        for component in dir.components() {
+            if let std::path::Component::Normal(os) = component {
+                if let Some(seg) = os.to_str() {
+                    if matches!(seg, ".github" | ".claude" | ".ai") {
+                        found.insert(seg.to_string());
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    found.into_iter().collect()
+}
+
 fn cmd_migrate(
     dry_run: bool,
     destructive: bool,
@@ -922,12 +949,7 @@ fn cmd_migrate(
     let result = libaipm::migrate::migrate(&opts, &libaipm::fs::Real)?;
 
     if !no_summary {
-        // Build a sources list from the source_root file_names of any
-        // PluginCreated actions; fall back to the --source flag, else empty.
-        let mut sources: Vec<String> = Vec::new();
-        if let Some(s) = source {
-            sources.push(s.to_string());
-        }
+        let sources = derive_summary_sources(source, &result.scanned_dirs);
         let mut stderr = std::io::stderr();
         let _ = scan_summary::write_summary(
             &mut stderr,

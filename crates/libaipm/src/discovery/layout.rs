@@ -109,8 +109,11 @@ fn pick_layout_for_skill(ancestors: &[OsString], engine: Engine) -> Layout {
 /// agent detection.
 #[must_use]
 pub fn match_agent(path: &Path, engine: Engine, source_root: &Path) -> Option<DiscoveredFeature> {
-    let file_name = path.file_name()?.to_string_lossy();
-    if !file_name.ends_with(".md") {
+    // Match the dispatch contract from `classify::classify`, which routes
+    // here using a case-insensitive `.md` extension check. Using a
+    // case-sensitive `ends_with(".md")` here silently rejected files like
+    // `FOO.MD` that the dispatcher had already accepted.
+    if !path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("md")) {
         return None;
     }
     let parent_name = parent_name_lossy(path)?;

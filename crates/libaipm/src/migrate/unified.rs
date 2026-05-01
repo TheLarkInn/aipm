@@ -28,7 +28,7 @@
 //! the default during the rollout window. A follow-up feature extends
 //! discovery and adapters to cover them.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use crate::discovery::{DiscoverOptions, DiscoveredSet};
@@ -39,7 +39,7 @@ use super::dry_run;
 use super::emitter;
 use super::reconciler;
 use super::registrar;
-use super::{Action, Artifact, Error, Options, Outcome, PluginEntry};
+use super::{Action, Artifact, Error, Options, OtherFile, Outcome, PluginEntry};
 
 /// Run the unified migrate pipeline.
 ///
@@ -106,12 +106,18 @@ pub fn run(opts: &Options<'_>, ai_dir: &Path, fs: &dyn Fs) -> Result<Outcome, Er
 
 /// Walk the discovered set and route each feature through `adapters::all()`,
 /// grouping resulting artifacts by their `source_root` for the reconciler.
+///
+/// Uses [`BTreeMap`] (not `HashMap`) so iteration order is deterministic
+/// across runs — migrate emits actions in source-root order, and within
+/// each root the artifacts are sorted by `(kind, name)`. Without this,
+/// `PluginCreated` / `MarketplaceRegistered` ordering would shuffle
+/// between invocations and snapshot tests would flake.
 fn group_artifacts_by_root(
     discovered: &DiscoveredSet,
     fs: &dyn Fs,
-) -> Result<HashMap<PathBuf, Vec<Artifact>>, Error> {
+) -> Result<BTreeMap<PathBuf, Vec<Artifact>>, Error> {
     let registry = adapters::all();
-    let mut by_root: HashMap<PathBuf, Vec<Artifact>> = HashMap::new();
+    let mut by_root: BTreeMap<PathBuf, Vec<Artifact>> = BTreeMap::new();
     for feat in &discovered.features {
         for adapter in &registry {
             if adapter.applies_to(feat) {
@@ -126,27 +132,42 @@ fn group_artifacts_by_root(
             }
         }
     }
+    // Stable per-root ordering: sort by (kind, name) so emitted actions
+    // are deterministic regardless of the discovery walk order.
+    for artifacts in by_root.values_mut() {
+        artifacts.sort_by(|a, b| {
+            (format!("{:?}", a.kind), &a.name).cmp(&(format!("{:?}", b.kind), &b.name))
+        });
+    }
     Ok(by_root)
 }
 
 /// Write a dry-run report containing the artifacts the unified path
-/// found. Mirrors the legacy migrate's dry-run behavior.
+/// found. Mirrors the legacy migrate's dry-run behavior — including
+/// running the reconciler per `source_root` so unclaimed/dependency
+/// files show up in the "Other files" section of the report (parity
+/// with the non-dry-run path, which also reconciles per `source_root`).
 fn write_dry_run_report(
     opts: &Options<'_>,
     ai_dir: &Path,
     discovered: &DiscoveredSet,
-    artifacts_by_root: &HashMap<PathBuf, Vec<Artifact>>,
+    artifacts_by_root: &BTreeMap<PathBuf, Vec<Artifact>>,
     fs: &dyn Fs,
 ) -> Result<Outcome, Error> {
     let all_artifacts: Vec<Artifact> = artifacts_by_root.values().flatten().cloned().collect();
     let existing_plugins = super::collect_existing_plugin_names(ai_dir, fs)?;
+    let mut all_other_files: Vec<OtherFile> = Vec::new();
+    for (source_root, artifacts) in artifacts_by_root {
+        let other_files = reconciler::reconcile(source_root, artifacts, fs)?;
+        all_other_files.extend(other_files);
+    }
     let report = dry_run::generate_report(
         &all_artifacts,
         &existing_plugins,
         opts.source.unwrap_or("unified"),
         opts.manifest,
         opts.destructive,
-        &Vec::new(),
+        &all_other_files,
     );
     let report_path = opts.dir.join("aipm-migrate-dryrun-report.md");
     fs.write_file(&report_path, report.as_bytes())?;

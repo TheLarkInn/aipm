@@ -40,7 +40,10 @@ impl Adapter for CopilotHookAdapter {
         // Normalize legacy event names to the canonical camelCase forms.
         let normalized = normalize_hook_events(&json);
         let hooks_content =
-            serde_json::to_string_pretty(&normalized).unwrap_or_else(|_| "{}".to_string());
+            serde_json::to_string_pretty(&normalized).map_err(|e| Error::ConfigParse {
+                path: feat.path.clone(),
+                reason: format!("failed to serialize normalized hooks: {e}"),
+            })?;
 
         let referenced_scripts = extract_hook_script_references(&normalized);
 
