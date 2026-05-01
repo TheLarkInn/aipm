@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.23.0] - 2026-05-01
+
+### Documentation
+- Add NuGet installation guide and update CHANGELOG for v0.22.4 ([#702](https://github.com/TheLarkInn/aipm/pull/702)) (fbb0eca)
+
+### Testing
+- Cover fetch_index error path when cache .git is invalid (0e641f1)
+- Cover cmd_lint text/color branches and fix lockfile assertion short-circuits (8a9d094)
+- Cover default Fs trait method implementations (91f68de)
+
 ## [0.22.5] - 2026-04-30
 
 ### Documentation
