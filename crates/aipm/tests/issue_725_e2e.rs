@@ -2,13 +2,9 @@
 //!
 //! These tests drive the compiled `aipm` binary against the customer's
 //! exact directory layout (`.github/copilot/skills/<x>/SKILL.md` plus
-//! `.github/copilot/copilot-instructions.md`) and assert the
-//! AIPM_UNIFIED_DISCOVERY=1 path discovers everything the legacy detectors
-//! miss.
-//!
-//! Test 4 is a "regression fence" that pins today's pre-fix behavior
-//! (legacy path silently misses #725) so we'd notice if the legacy
-//! detectors started covering the layout by accident.
+//! `.github/copilot/copilot-instructions.md`) and assert that the unified
+//! discovery + adapters pipeline (now the default — no opt-in env var)
+//! discovers everything the legacy detectors used to miss.
 
 // Integration test crates inherit workspace lints. Relax restrictions
 // that are appropriate for test code (unwrap/expect/panic are normal in
@@ -62,20 +58,16 @@ fn build_issue_725_fixture(root: &Path) {
 }
 
 // =========================================================================
-// Test 1: migrate under unified discovery finds all 3 skills + instruction
+// Test 1: migrate (unified by default) finds all 3 skills + instruction
 // =========================================================================
 
 #[test]
-fn migrate_unified_finds_issue_725_skills() {
+fn migrate_finds_issue_725_skills() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     build_issue_725_fixture(root);
 
-    let output = aipm()
-        .env("AIPM_UNIFIED_DISCOVERY", "1")
-        .args(["migrate", root.to_str().unwrap()])
-        .output()
-        .unwrap();
+    let output = aipm().args(["migrate", root.to_str().unwrap()]).output().unwrap();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -102,20 +94,16 @@ fn migrate_unified_finds_issue_725_skills() {
 }
 
 // =========================================================================
-// Test 2: lint under unified discovery prints scan summary on stderr
+// Test 2: lint prints scan summary on stderr
 // =========================================================================
 
 #[test]
-fn lint_unified_summary_visible() {
+fn lint_summary_visible() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     build_issue_725_fixture(root);
 
-    let output = aipm()
-        .env("AIPM_UNIFIED_DISCOVERY", "1")
-        .args(["lint", root.to_str().unwrap()])
-        .output()
-        .unwrap();
+    let output = aipm().args(["lint", root.to_str().unwrap()]).output().unwrap();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -148,11 +136,7 @@ fn lint_no_summary_suppresses_stderr_summary() {
     let root = tmp.path();
     build_issue_725_fixture(root);
 
-    let output = aipm()
-        .env("AIPM_UNIFIED_DISCOVERY", "1")
-        .args(["lint", "--no-summary", root.to_str().unwrap()])
-        .output()
-        .unwrap();
+    let output = aipm().args(["lint", "--no-summary", root.to_str().unwrap()]).output().unwrap();
 
     let stderr = String::from_utf8_lossy(&output.stderr);
 
@@ -163,55 +147,17 @@ fn lint_no_summary_suppresses_stderr_summary() {
 }
 
 // =========================================================================
-// Test 4: legacy path (default OFF) silently misses #725 — regression fence
+// Test 4: ci-github reporter — diagnostics on stdout, summary on stderr
 // =========================================================================
 
 #[test]
-fn migrate_legacy_path_misses_issue_725() {
+fn lint_ci_github_summary_on_stderr_diagnostics_on_stdout() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
     build_issue_725_fixture(root);
 
-    let output = aipm()
-        .env_remove("AIPM_UNIFIED_DISCOVERY")
-        .args(["migrate", root.to_str().unwrap()])
-        .output()
-        .unwrap();
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    // Legacy path silently succeeds (the bug behind #725).
-    assert!(
-        output.status.success(),
-        "legacy migrate should silent-succeed\nstdout: {stdout}\nstderr: {stderr}"
-    );
-
-    // Regression fence: zero "Migrated skill" lines — pins today's
-    // pre-fix behavior so a future change to the legacy detectors that
-    // accidentally fixes this would surface here.
-    let migrated_lines = stdout.lines().filter(|l| l.starts_with("Migrated skill")).count();
-    assert_eq!(
-        migrated_lines, 0,
-        "legacy path should NOT migrate any #725 skills; got stdout: {stdout}"
-    );
-}
-
-// =========================================================================
-// Test 5: ci-github reporter — diagnostics on stdout, summary on stderr
-// =========================================================================
-
-#[test]
-fn lint_ci_github_unified_summary_on_stderr_diagnostics_on_stdout() {
-    let tmp = tempfile::tempdir().unwrap();
-    let root = tmp.path();
-    build_issue_725_fixture(root);
-
-    let output = aipm()
-        .env("AIPM_UNIFIED_DISCOVERY", "1")
-        .args(["lint", "--reporter", "ci-github", root.to_str().unwrap()])
-        .output()
-        .unwrap();
+    let output =
+        aipm().args(["lint", "--reporter", "ci-github", root.to_str().unwrap()]).output().unwrap();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);

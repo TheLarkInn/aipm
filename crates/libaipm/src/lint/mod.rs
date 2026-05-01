@@ -1599,46 +1599,18 @@ mod tests {
         let root = tmp.path();
         write_issue_725_tree(root);
 
-        crate::discovery::test_env::with_unified_discovery_env(Some("1"), || {
-            let opts = Options {
-                dir: root.to_path_buf(),
-                source: None,
-                config: config::Config::default(),
-                max_depth: None,
-            };
-            let outcome = lint(&opts, &crate::fs::Real).expect("lint should succeed");
-            assert_eq!(outcome.scan_counts.skills, 3, "expected 3 skills under #725 layout");
-            assert_eq!(
-                outcome.scan_counts.instructions, 1,
-                "unified path must find copilot-instructions.md (the #725 lint-side fix)"
-            );
-        });
-    }
-
-    #[test]
-    fn lint_legacy_finds_issue_725_skills_but_drops_copilot_instructions() {
-        // Without AIPM_UNIFIED_DISCOVERY=1 the legacy compat path runs.
-        // Today's classifier finds the skill files (via the
-        // grandparent_name=="skills" branch) but silently drops
-        // copilot-instructions.md. This test pins that pre-fix behavior so
-        // the unified-vs-legacy delta is verified.
-        let tmp = tempfile::tempdir().expect("tempdir");
-        let root = tmp.path();
-        write_issue_725_tree(root);
-
-        crate::discovery::test_env::with_unified_discovery_env(Some("0"), || {
-            let opts = Options {
-                dir: root.to_path_buf(),
-                source: None,
-                config: config::Config::default(),
-                max_depth: None,
-            };
-            let outcome = lint(&opts, &crate::fs::Real).expect("lint should succeed");
-            // Legacy classifier already finds the skill files at this layout.
-            assert_eq!(outcome.scan_counts.skills, 3);
-            // Legacy classifier silently drops copilot-instructions.md.
-            assert_eq!(outcome.scan_counts.instructions, 0);
-        });
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let outcome = lint(&opts, &crate::fs::Real).expect("lint should succeed");
+        assert_eq!(outcome.scan_counts.skills, 3, "expected 3 skills under #725 layout");
+        assert_eq!(
+            outcome.scan_counts.instructions, 1,
+            "unified path must find copilot-instructions.md (the #725 lint-side fix)"
+        );
     }
 
     #[test]
@@ -1647,21 +1619,19 @@ mod tests {
         let root = tmp.path();
         write_issue_725_tree(root);
 
-        crate::discovery::test_env::with_unified_discovery_env(Some("1"), || {
-            let opts = Options {
-                dir: root.to_path_buf(),
-                source: None,
-                config: config::Config::default(),
-                max_depth: None,
-            };
-            let outcome = lint(&opts, &crate::fs::Real).expect("lint should succeed");
-            assert_eq!(outcome.scan_counts.total(), 4);
-            // Walker must have visited at least the .github/ subtree.
-            assert!(
-                outcome.scanned_dirs.iter().any(|p| p.to_string_lossy().contains(".github")),
-                ".github/ must appear in scanned_dirs"
-            );
-        });
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let outcome = lint(&opts, &crate::fs::Real).expect("lint should succeed");
+        assert_eq!(outcome.scan_counts.total(), 4);
+        // Walker must have visited at least the .github/ subtree.
+        assert!(
+            outcome.scanned_dirs.iter().any(|p| p.to_string_lossy().contains(".github")),
+            ".github/ must appear in scanned_dirs"
+        );
     }
 
     #[test]
@@ -1680,18 +1650,16 @@ mod tests {
         .expect("write");
         write_issue_725_tree(root);
 
-        crate::discovery::test_env::with_unified_discovery_env(Some("1"), || {
-            let opts = Options {
-                dir: root.to_path_buf(),
-                source: Some(".github".to_string()),
-                config: config::Config::default(),
-                max_depth: None,
-            };
-            let outcome = lint(&opts, &crate::fs::Real).expect("lint should succeed");
-            // Only the .github features should remain — the .claude skill is
-            // filtered out by source_filter inside discover().
-            assert_eq!(outcome.scan_counts.skills, 3, "filter to .github keeps 3 skills");
-            assert_eq!(outcome.scan_counts.instructions, 1);
-        });
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: Some(".github".to_string()),
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let outcome = lint(&opts, &crate::fs::Real).expect("lint should succeed");
+        // Only the .github features should remain — the .claude skill is
+        // filtered out by source_filter inside discover().
+        assert_eq!(outcome.scan_counts.skills, 3, "filter to .github keeps 3 skills");
+        assert_eq!(outcome.scan_counts.instructions, 1);
     }
 }

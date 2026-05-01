@@ -55,10 +55,10 @@ pub struct AipmWorld {
     registry_versions: Vec<version::Version>,
     /// Selected version from resolution.
     selected_version: Option<version::Version>,
-    /// When `true`, BDD-driven invocations of the `aipm` CLI run with
-    /// `AIPM_UNIFIED_DISCOVERY=1` so that scenarios exercising the
-    /// customer-fix layouts (issue #725) hit the unified discovery path.
-    /// Setup steps that lay out a unified-only fixture should flip this on.
+    /// Legacy flag that toggled `AIPM_UNIFIED_DISCOVERY=1` for issue #725
+    /// scenarios. The unified path is now unconditionally on, so this
+    /// flag is a no-op kept only to avoid editing every setup step that
+    /// flipped it. Remove once those step bodies are simplified.
     unified_discovery: bool,
 }
 
@@ -112,13 +112,10 @@ fn run_command(world: &mut AipmWorld, full_cmd: &str, working_dir: Option<&str>)
 
     cmd.args(args);
     cmd.current_dir(&cwd);
-    // Enable unified discovery only when a setup step has flipped the flag
-    // (e.g. fixtures using `.github/copilot/skills/<name>/SKILL.md` from
-    // issue #725). Other scenarios continue to exercise the legacy
-    // discovery path until unified becomes the default.
-    if world.unified_discovery {
-        cmd.env("AIPM_UNIFIED_DISCOVERY", "1");
-    }
+    // Unified discovery is now the default — the env var is gone. The
+    // `world.unified_discovery` flag is preserved as a no-op to avoid
+    // breaking existing setup steps.
+    let _ = world.unified_discovery;
 
     let output = cmd.output().expect("execute command");
     world.last_stdout = String::from_utf8_lossy(&output.stdout).to_string();
