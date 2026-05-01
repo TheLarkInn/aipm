@@ -305,3 +305,38 @@ Cargo verifier:
 - build/test/clippy/fmt: PASS
 - coverage: 90.18% (>= 89%)
 - overall: PASS
+
+## 2026-05-01 — Feature 14: Migrate orchestrator switch — DONE
+
+The customer-fix integration step on the migrate side. Adds env-var dispatch to a unified migrate path that uses discovery::discover + adapters.
+
+Key changes:
+
+1. **Outcome extended** with `scan_counts: ScanCounts` and `scanned_dirs: Vec<PathBuf>` fields, plus `#[derive(Default)]`. Populated by the unified path; defaulted by legacy.
+
+2. **New module `crates/libaipm/src/migrate/unified.rs`** with:
+   - `pub fn run(opts, ai_dir, fs)` — drives the unified pipeline.
+   - `impl From<&Options<'_>> for DiscoverOptions` — maps max_depth, source, follow_symlinks=false.
+   - `pub(crate) fn unified_enabled()` — mirrors `discovery::unified_enabled` so the env var has one source of truth across discovery and migrate.
+
+3. **`migrate::migrate()` dispatch**: when `unified::unified_enabled()` returns true → `unified::run`. When false → today's legacy code (unchanged).
+
+4. **Pipeline structure**: discovery::discover walks once → group artifacts by source_root via adapters::all() with first-match-wins → reconciler::reconcile per source root → emitter::emit_plugin per artifact → registrar::register_plugins. Returns Outcome with scan_counts and scanned_dirs populated.
+
+5. **Outcome construction sites updated** (delegated to general-purpose subagent): 12 sites in migrate/mod.rs + 1 in cleanup.rs. All use `..Outcome::default()` spread.
+
+6. **Limitations documented**: adapters today cover Skill/Agent (both engines) + Copilot Hook only. Claude Hook (settings.json), MCP, Extension, LSP, Command, OutputStyle still require the legacy detector path. Flag is default-OFF for soak window so legacy is user-facing default.
+
+Naming gotcha: original function name `migrate_unified` triggered clippy::module_name_repetitions because the module is `unified`. Renamed to `unified::run`.
+
+Tests added (5 in migrate::unified::tests):
+- `unified_enabled_returns_true_only_for_exact_one` — env-var gating semantics.
+- `unified_migrate_finds_issue_725_skills` — THE customer fix demonstration: 3 plugins migrated from `.github/copilot/skills/{skill-alpha,skill-beta,skill-gamma}/SKILL.md`.
+- `unified_migrate_dry_run_writes_report` — dry-run path produces report.
+- `unified_migrate_empty_tree_returns_empty_outcome` — empty-tree path returns OK without panicking.
+- `discover_options_from_options_maps_correctly` — From impl.
+
+Cargo verifier:
+- build/test/clippy/fmt: PASS
+- coverage: 90.20% (>= 89%)
+- overall: PASS

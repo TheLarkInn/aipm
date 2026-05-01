@@ -21,6 +21,7 @@ pub mod reconciler;
 pub mod registrar;
 pub mod skill_common;
 pub mod skill_detector;
+pub mod unified;
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -206,9 +207,17 @@ pub enum Action {
 }
 
 /// Result of migration.
+#[derive(Default)]
 pub struct Outcome {
     /// Actions taken during migration.
     pub actions: Vec<Action>,
+    /// Aggregated counts of features the discovery walker classified.
+    /// Populated when the unified migrate path runs (`AIPM_UNIFIED_DISCOVERY=1`);
+    /// `Default::default()` when the legacy detector path runs.
+    pub scan_counts: crate::discovery::ScanCounts,
+    /// Directories the discovery walker descended into. Populated under the
+    /// unified path; empty under legacy.
+    pub scanned_dirs: Vec<std::path::PathBuf>,
 }
 
 impl Outcome {
@@ -263,6 +272,7 @@ pub fn migrate(opts: &Options<'_>, fs: &dyn Fs) -> Result<Outcome, Error> {
         source = ?opts.source,
         dry_run = opts.dry_run,
         destructive = opts.destructive,
+        unified = unified::unified_enabled(),
         "starting migration"
     );
     let ai_dir = opts.dir.join(".ai");
@@ -270,6 +280,13 @@ pub fn migrate(opts: &Options<'_>, fs: &dyn Fs) -> Result<Outcome, Error> {
     // 1. Validate .ai/ exists
     if !fs.exists(&ai_dir) {
         return Err(Error::MarketplaceNotFound(ai_dir));
+    }
+
+    // Dispatch on AIPM_UNIFIED_DISCOVERY env var. Default-OFF during the
+    // soak window per the spec rollout plan; flipped to default-ON in a
+    // later spec feature.
+    if unified::unified_enabled() {
+        return unified::run(opts, &ai_dir, fs);
     }
 
     opts.source.map_or_else(
@@ -342,7 +359,10 @@ fn migrate_single_source(
         );
         let report_path = dir.join("aipm-migrate-dryrun-report.md");
         fs.write_file(&report_path, report.as_bytes())?;
-        return Ok(Outcome { actions: vec![Action::DryRunReport { path: report_path }] });
+        return Ok(Outcome {
+            actions: vec![Action::DryRunReport { path: report_path }],
+            ..Outcome::default()
+        });
     }
 
     let mut actions = Vec::new();
@@ -381,7 +401,7 @@ fn migrate_single_source(
         actions.push(Action::MarketplaceRegistered { name: entry.name.clone() });
     }
 
-    Ok(Outcome { actions })
+    Ok(Outcome { actions, ..Outcome::default() })
 }
 
 /// Recursive discovery migration mode (when `--source` is not provided).
@@ -403,7 +423,7 @@ fn migrate_recursive(
         "discovered source directories for recursive migration"
     );
     if discovered.is_empty() {
-        return Ok(Outcome { actions: Vec::new() });
+        return Ok(Outcome { actions: Vec::new(), ..Outcome::default() });
     }
 
     // Parallel detection: run detectors across discovered dirs concurrently
@@ -472,7 +492,10 @@ fn migrate_recursive(
         );
         let report_path = dir.join("aipm-migrate-dryrun-report.md");
         fs.write_file(&report_path, report.as_bytes())?;
-        return Ok(Outcome { actions: vec![Action::DryRunReport { path: report_path }] });
+        return Ok(Outcome {
+            actions: vec![Action::DryRunReport { path: report_path }],
+            ..Outcome::default()
+        });
     }
 
     tracing::debug!("emitting plugins");
@@ -563,7 +586,7 @@ fn emit_and_register(
         "emission and registration complete"
     );
 
-    Ok(Outcome { actions: all_actions })
+    Ok(Outcome { actions: all_actions, ..Outcome::default() })
 }
 
 /// Collect names of existing plugins in .ai/ directory.
@@ -897,7 +920,7 @@ mod tests {
 
     #[test]
     fn has_migrated_artifacts_empty() {
-        let outcome = Outcome { actions: Vec::new() };
+        let outcome = Outcome { actions: Vec::new(), ..Outcome::default() };
         assert!(!outcome.has_migrated_artifacts());
     }
 
@@ -913,6 +936,7 @@ mod tests {
                 },
                 Action::MarketplaceRegistered { name: "y".to_string() },
             ],
+            ..Outcome::default()
         };
         assert!(!outcome.has_migrated_artifacts());
     }
@@ -929,13 +953,14 @@ mod tests {
                     source_is_dir: true,
                 },
             ],
+            ..Outcome::default()
         };
         assert!(outcome.has_migrated_artifacts());
     }
 
     #[test]
     fn migrated_sources_empty() {
-        let outcome = Outcome { actions: Vec::new() };
+        let outcome = Outcome { actions: Vec::new(), ..Outcome::default() };
         assert!(outcome.migrated_sources().is_empty());
     }
 
@@ -958,6 +983,7 @@ mod tests {
                 },
                 Action::MarketplaceRegistered { name: "deploy".to_string() },
             ],
+            ..Outcome::default()
         };
         let sources = outcome.migrated_sources();
         assert_eq!(sources.len(), 2);
@@ -1178,6 +1204,7 @@ mod tests {
                 },
                 Action::MarketplaceRegistered { name: "my-plugin".to_string() },
             ],
+            ..Outcome::default()
         };
         let sources = outcome.migrated_sources();
         assert_eq!(sources.len(), 1);
@@ -1214,7 +1241,8 @@ mod tests {
 
         let result = migrate(&opts, &fs);
         assert!(result.is_ok(), "expected Ok for unrecognized source type");
-        let outcome = result.unwrap_or_else(|_| Outcome { actions: Vec::new() });
+        let outcome =
+            result.unwrap_or_else(|_| Outcome { actions: Vec::new(), ..Outcome::default() });
         assert!(
             outcome.actions.is_empty(),
             "expected no actions when custom source has no detectable artifacts"

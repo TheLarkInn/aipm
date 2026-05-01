@@ -201,19 +201,19 @@
   },
   {
     "category": "refactor",
-    "description": "Migrate orchestrator switch: replace migrate_recursive and migrate_single_source bodies with discovery::discover + adapters loop",
+    "description": "Migrate orchestrator switch: env-var dispatch to a unified path that uses discovery::discover + adapters",
     "steps": [
-      "Edit crates/libaipm/src/migrate/mod.rs:387-479 (migrate_recursive) — replace `let discovered = crate::discovery::discover_source_dirs(dir, &[\".claude\", \".github\"], max_depth)?;` and the per-source detector dispatch with `let discovered = crate::discovery::discover(dir, &opts.into(), fs)?;`",
-      "Replace the per-detector loop with: `for feat in &discovered.features { for adapter in adapters::all() { if adapter.applies_to(feat) { all_artifacts.push(adapter.to_artifact(feat, fs)?); break; } } }` (first-match-wins per the trait contract)",
-      "Edit crates/libaipm/src/migrate/mod.rs:301-384 (migrate_single_source) similarly — pass opts.source as DiscoverOptions::source_filter; remove the detectors_for_source fallback",
-      "Add From<&Options> for DiscoverOptions impl that maps max_depth, source, and follow_symlinks=false",
-      "Wire AIPM_UNIFIED_DISCOVERY check: when env var != \"1\" the function falls through to today's detector path (legacy_compat — keep for one release)",
-      "Update Outcome to include scan_counts and scanned_dirs (mirror to lint's Outcome change)",
-      "Update all migrate tests that construct Outcome to populate the new fields",
-      "Confirm reconciler.rs and emitter.rs are unchanged — they continue to consume Vec<Artifact> + plans the same way",
-      "Run cargo build/test/clippy/fmt — all four green; coverage on migrate/mod.rs preserved"
+      "Add new module crates/libaipm/src/migrate/unified.rs with pub fn run(opts, ai_dir, fs) that drives the unified pipeline: discovery::discover → group artifacts by source_root via adapters::all() (first-match-wins) → reconciler::reconcile → emitter::emit_plugin per artifact → registrar::register_plugins → return Outcome with scan_counts + scanned_dirs",
+      "Add `impl From<&Options<'_>> for DiscoverOptions` mapping max_depth, source, follow_symlinks=false",
+      "In migrate::migrate(), check unified::unified_enabled() (mirrors discovery::unified_enabled). When true → unified::run; when false → today's legacy detector path (unchanged)",
+      "Add scan_counts: ScanCounts and scanned_dirs: Vec<PathBuf> to Outcome with #[derive(Default)]; populated by the unified path, defaulted by legacy",
+      "Update all 13 internal Outcome { ... } construction sites in migrate/mod.rs and 1 in cleanup.rs to include `..Outcome::default()` spread (delegated to general-purpose subagent)",
+      "Reconciler.rs and emitter.rs unchanged — unified path reuses the existing artifact contract",
+      "Limitations documented in unified.rs: adapters cover Skill/Agent (both engines) + Copilot Hook only. Claude Hook (settings.json), MCP, Extension, LSP, Command, OutputStyle still require the legacy path. The flag is default-OFF for the soak window so legacy is the user-facing default",
+      "5 unit tests in migrate::unified::tests: unified_enabled gating, customer #725 layout migrates 3 skills (the actual fix demonstration), dry_run writes report, empty tree returns empty outcome, From<&Options> mapping",
+      "Run cargo build/test/clippy/fmt — all four green"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ui",

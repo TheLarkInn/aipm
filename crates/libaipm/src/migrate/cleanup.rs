@@ -183,7 +183,7 @@ mod tests {
     }
 
     fn make_outcome(actions: Vec<Action>) -> Outcome {
-        Outcome { actions }
+        Outcome { actions, ..Outcome::default() }
     }
 
     fn plugin_created(name: &str, source: &str, plugin_type: &str, source_is_dir: bool) -> Action {
