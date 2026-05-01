@@ -1386,7 +1386,7 @@ features = ["json"]
         let result = install(&crate::fs::Real, &config, &registry);
         assert!(result.is_err());
         let err = format!("{}", result.err().unwrap());
-        assert!(err.contains("lockfile") || err.contains("locked"));
+        assert!(err.contains("lockfile"), "expected 'lockfile' in error: {err}");
     }
 
     #[test]
@@ -1925,7 +1925,7 @@ pkg-a = "^1.0"
         let result = install(&crate::fs::Real, &config, &registry);
         assert!(result.is_err());
         let msg = format!("{}", result.unwrap_err());
-        assert!(msg.contains("lockfile") || msg.contains("locked"), "unexpected error: {msg}");
+        assert!(msg.contains("lockfile"), "unexpected error: {msg}");
     }
 
     // =========================================================================

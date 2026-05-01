@@ -1732,4 +1732,25 @@ mod tests {
             "bare 'warn' string must map to a Warning severity override"
         );
     }
+
+    /// `cmd_lint` with the legacy `"text"` reporter maps it to `"human"`, covering
+    /// the `"text" => "human"` match arm inside `cmd_lint`.
+    #[test]
+    fn cmd_lint_text_reporter_maps_to_human() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = cmd_lint(tmp.path().to_path_buf(), None, "text", "auto", None, None);
+        assert!(
+            result.is_ok(),
+            "\"text\" reporter (mapped to human) should succeed on a clean dir: {result:?}"
+        );
+    }
+
+    /// `cmd_lint` with `color = "always"` selects `ColorChoice::Always`, covering
+    /// the `"always" => ColorChoice::Always` match arm inside `cmd_lint`.
+    #[test]
+    fn cmd_lint_color_always_selects_color_choice() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = cmd_lint(tmp.path().to_path_buf(), None, "human", "always", None, None);
+        assert!(result.is_ok(), "color=always should succeed on a clean dir: {result:?}");
+    }
 }
