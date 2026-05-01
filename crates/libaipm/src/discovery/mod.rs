@@ -31,6 +31,9 @@ pub mod source;
 pub mod types;
 pub mod walker;
 
+#[cfg(test)]
+pub(crate) mod test_env;
+
 // New foundation types — accessible through both the submodule and the
 // `types::` / `scan_report::` paths and re-exported here for convenience.
 pub use classify::classify as classify_path;
@@ -60,17 +63,17 @@ pub struct DiscoverOptions {
     pub follow_symlinks: bool,
 }
 
-// Re-exports from the legacy module so existing call sites
-// (`crate::discovery::Error`, `crate::discovery::DiscoveredFeature`, …) keep
-// resolving to their original types during the incremental migration.
-pub use crate::discovery_legacy::{
-    discover_claude_dirs, discover_features, discover_source_dirs, DiscoveredFeature,
-    DiscoveredSource, Error, SourceContext,
-};
+// `DiscoveredFeature` now resolves to the new shape — lint has been switched
+// over (feature 10). Migrate's remaining direct uses go through
+// `crate::discovery_legacy::DiscoveredFeature` until feature 14 swaps it.
+pub use types::{DiscoveredFeature, FeatureKind};
 
-// `FeatureKind` lives in the new `types` submodule but is re-exported here
-// so existing call sites that say `crate::discovery::FeatureKind` keep working.
-pub use types::FeatureKind;
+// Re-exports from the legacy module for the still-legacy migrate pipeline
+// (`Error`, `SourceContext`, `DiscoveredSource`, the legacy free functions).
+pub use crate::discovery_legacy::{
+    discover_claude_dirs, discover_features, discover_source_dirs, DiscoveredSource, Error,
+    SourceContext,
+};
 
 /// The environment variable that opts into the unified discovery path.
 ///
@@ -161,26 +164,8 @@ mod tests {
         fs::write(path, "").expect("touch file");
     }
 
-    /// Process-wide lock so env-var-dependent tests in this module don't race.
-    /// `AIPM_UNIFIED_DISCOVERY` is process-global; cargo runs tests in
-    /// parallel, so we serialize manually.
-    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-
-    /// Run `body` with [`UNIFIED_DISCOVERY_ENV`] set to `value` (or unset if
-    /// `None`). Restores the previous value on completion. Holds [`ENV_LOCK`]
-    /// for the duration of `body` to prevent races with peer tests.
     fn with_env_var<F: FnOnce()>(value: Option<&str>, body: F) {
-        let _guard = ENV_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
-        let prev = std::env::var(UNIFIED_DISCOVERY_ENV).ok();
-        match value {
-            Some(v) => std::env::set_var(UNIFIED_DISCOVERY_ENV, v),
-            None => std::env::remove_var(UNIFIED_DISCOVERY_ENV),
-        }
-        body();
-        match prev {
-            Some(v) => std::env::set_var(UNIFIED_DISCOVERY_ENV, v),
-            None => std::env::remove_var(UNIFIED_DISCOVERY_ENV),
-        }
+        super::test_env::with_unified_discovery_env(value, body);
     }
 
     #[test]

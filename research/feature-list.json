@@ -139,17 +139,21 @@
     "category": "functional",
     "description": "Lint integration: replace lint's call to discover_features with discovery::discover; surface scan_counts and scanned_dirs in Outcome",
     "steps": [
-      "Edit crates/libaipm/src/lint/mod.rs:125 to replace `let features = crate::discovery::discover_features(&opts.dir, opts.max_depth)?;` with calls to `crate::discovery::discover(&opts.dir, &DiscoverOptions { max_depth: opts.max_depth, source_filter: opts.source.clone(), follow_symlinks: false }, fs)?` returning a DiscoveredSet",
-      "Update the existing lint loop to iterate discovered.features instead of features",
-      "Add scan_counts: ScanCounts and scanned_dirs: Vec<PathBuf> to the Outcome struct (crates/libaipm/src/lint/mod.rs:174-192)",
-      "Populate Outcome.scan_counts = discovered.counts() and Outcome.scanned_dirs = discovered.scanned_dirs.clone()",
-      "Update ALL existing lint tests that construct or assert on Outcome to include the new fields (Default impls or explicit ..Default::default())",
-      "Confirm the existing --source filter still works: today's filter logic at crates/libaipm/src/lint/mod.rs:128-138 should be removed (now handled inside discover via opts.source_filter)",
-      "Add a focused integration test: write the issue #725 fixture tree, run lint with AIPM_UNIFIED_DISCOVERY=1, assert outcome.scan_counts.skills == 3 AND outcome.scan_counts.instructions == 1 AND no error_count regression",
-      "Add a regression test: run lint on the same fixture WITHOUT the env var; assert behavior matches today (no skills found, lint silently passes)",
+      "Switch crate::discovery::DiscoveredFeature re-export from legacy to new shape (types::DiscoveredFeature)",
+      "Edit crates/libaipm/src/lint/mod.rs lint() to call crate::discovery::discover with DiscoverOptions { max_depth, source_filter: opts.source.clone(), follow_symlinks: false }",
+      "Update run_rules_for_feature to use new fields (path, engine, layout); is_inside_ai now checks Engine::Ai OR any .ai path component (preserves the legacy 'any .ai ancestor counts' semantics for nested .ai/<plugin>/.claude/ layouts)",
+      "Add scan_counts: ScanCounts and scanned_dirs: Vec<PathBuf> to Outcome; #[derive(Default)] on Outcome",
+      "Populate Outcome.scan_counts = discovered.counts() and Outcome.scanned_dirs = discovered.scanned_dirs",
+      "Remove inline --source post-filter (now handled inside discover())",
+      "Add classify::classify fallback for root-level instruction files: when infer_engine_root returns None, synthesize (Engine::Ai, project_root) so files like /repo/CLAUDE.md still classify as Instructions (preserves today's lint behavior on project-root instruction files)",
+      "Apply same fallback in legacy_compat::discover_features_compat to keep both paths consistent",
+      "Update lint::tests::lint_outcome_default_counts and 33 reporter.rs Outcome literals to include new fields via ..Outcome::default() spread",
+      "Update legacy_compat test 'project_root_instructions_dropped' to assert kept-with-Ai-fallback behavior (renamed to project_root_instructions_kept_with_ai_fallback)",
+      "Add discovery::test_env::with_unified_discovery_env helper module with shared static Mutex; both discovery::tests and lint::tests use it for env-var serialization across modules",
+      "Add 4 lint integration tests for the issue #725 fixture: unified mode finds 3 skills + 1 instructions; legacy mode finds 3 skills + 0 instructions (the silent drop being fixed); Outcome carries scan_counts and scanned_dirs; source_filter propagated to discover()",
       "Run cargo build/test/clippy/fmt — all four green; coverage on lint/mod.rs preserved"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

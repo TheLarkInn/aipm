@@ -212,3 +212,35 @@ Cargo verifier:
 - build/test/clippy/fmt: PASS
 - coverage: 90.08% (>= 89%)
 - overall: PASS
+
+## 2026-05-01 — Feature 10: Lint integration — DONE
+
+The customer-fix integration step. lint now calls the unified `discovery::discover` API instead of `discover_features` directly.
+
+Key changes:
+1. **`crate::discovery::DiscoveredFeature` re-export switched** from `discovery_legacy::DiscoveredFeature` (legacy shape) to `types::DiscoveredFeature` (new shape). Lint code now uses the new fields (`path`, `engine`, `layout`, `source_root`, `feature_dir`).
+2. **`lint()` rewrite** at `crates/libaipm/src/lint/mod.rs`:
+   - Calls `crate::discovery::discover(&opts.dir, &DiscoverOptions { max_depth, source_filter: opts.source.clone(), follow_symlinks: false }, fs)`.
+   - Removes inline `--source` post-filter (now handled inside `discover()`).
+   - Maps the new `source_root` (PathBuf) back to a `String` for `sources_scanned` via `file_name().to_string_lossy()`.
+3. **`run_rules_for_feature` rewrite**: `feature.path` (was `file_path`); `is_inside_ai` now checks `engine == Engine::Ai` OR any `.ai` path component (preserves the legacy "any .ai ancestor" semantics for nested `.ai/<plugin>/.claude/` layouts where the new `infer_engine_root` returns the innermost engine).
+4. **`Outcome` extended** with `scan_counts: ScanCounts` and `scanned_dirs: Vec<PathBuf>`. `#[derive(Default)]` added so callers can use `..Outcome::default()` spread.
+5. **Fallback for root-level instruction files**: `classify::classify` AND `legacy_compat::discover_features_compat` now use `(Engine::Ai, project_root)` when `infer_engine_root` returns None, so files like `/repo/CLAUDE.md` still classify as Instructions in both unified and legacy paths. Preserves today's behavior on the two existing tests `lint_discovers_oversized_instruction_file` and `lint_config_overrides_thresholds`.
+
+Test infrastructure:
+- New `discovery/test_env.rs` (cfg(test)) module with `pub(crate) fn with_unified_discovery_env` and a shared static Mutex<()>. Both `discovery::tests` and `lint::tests` use it to serialize `AIPM_UNIFIED_DISCOVERY` env-var manipulation across modules.
+
+Tests:
+- 33 reporter.rs `Outcome { ... }` constructions updated via `..Outcome::default()` spread (delegated to general-purpose sub-agent).
+- 1 lint::tests::lint_outcome_default_counts updated to spread + assert new fields.
+- legacy_compat::tests::project_root_instructions_dropped → renamed to project_root_instructions_kept_with_ai_fallback, with new assertions on the (Engine::Ai, project_root) fallback.
+- 4 new lint::tests for issue #725:
+  - `lint_unified_finds_issue_725_skills_and_instructions` — unified mode: 3 skills + 1 instructions.
+  - `lint_legacy_finds_issue_725_skills_but_drops_copilot_instructions` — legacy mode: 3 skills + 0 instructions (the silent drop the unified path fixes).
+  - `lint_outcome_carries_scan_counts_and_dirs` — Outcome carries the new fields.
+  - `lint_source_filter_propagated_to_discover` — source_filter handled inside discover().
+
+Cargo verifier:
+- build/test/clippy/fmt: PASS
+- coverage: 90.08% (>= 89%)
+- overall: PASS

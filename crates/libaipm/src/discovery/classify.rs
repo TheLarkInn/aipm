@@ -25,7 +25,7 @@ use super::layout::{
     match_agent, match_hook, match_marketplace, match_plugin, match_plugin_json, match_skill,
 };
 use super::source;
-use super::types::DiscoveredFeature;
+use super::types::{DiscoveredFeature, Engine};
 
 /// Classify `path` as a discovered feature, given the `project_root`.
 ///
@@ -42,12 +42,23 @@ pub fn classify(path: &Path, project_root: &Path, _fs: &dyn Fs) -> Option<Discov
     let file_name_os = path.file_name()?;
     let file_name = file_name_os.to_string_lossy();
 
-    let (engine, source_root) = source::infer_engine_root(path, project_root)?;
+    let inferred = source::infer_engine_root(path, project_root);
 
-    // Instruction files first — wins over the agent rule.
-    if let Some(feat) = instruction::classify(&file_name, path, engine, &source_root) {
+    // Instruction files first — they can match WITHOUT an engine ancestor
+    // (e.g. `/repo/CLAUDE.md` at the project root). For root-level
+    // instructions we synthesize an engine context — `Engine::Ai` with the
+    // project_root as source_root — since these instructions logically
+    // apply to the marketplace as a whole. Instruction precedence is also
+    // important here so that files like `agents/AGENTS.md` are classified
+    // as Instructions, not Agent.
+    let (instr_engine, instr_source_root) =
+        inferred.clone().unwrap_or_else(|| (Engine::Ai, project_root.to_path_buf()));
+    if let Some(feat) = instruction::classify(&file_name, path, instr_engine, &instr_source_root) {
         return Some(feat);
     }
+
+    // All other feature kinds require a real engine ancestor.
+    let (engine, source_root) = inferred?;
 
     match file_name.as_ref() {
         "SKILL.md" => match_skill(path, engine, &source_root),

@@ -15,7 +15,7 @@ use crate::fs::Fs;
 
 use super::scan_report::DiscoveredSet;
 use super::source;
-use super::types::{DiscoveredFeature, Layout};
+use super::types::{DiscoveredFeature, Engine, Layout};
 use super::DiscoverOptions;
 
 /// Run today's `discover_features` and adapt its output into a
@@ -57,14 +57,12 @@ pub fn discover_features_compat(
     let legacy = discover_features(project_root, opts.max_depth)?;
     let mut features: Vec<DiscoveredFeature> = Vec::with_capacity(legacy.len());
     for f in legacy {
-        let Some((engine, source_root)) = source::infer_engine_root(&f.file_path, project_root)
-        else {
-            tracing::debug!(
-                path = %f.file_path.display(),
-                "legacy feature dropped: no recognized engine ancestor"
-            );
-            continue;
-        };
+        // For features without an engine ancestor (e.g. project-root
+        // CLAUDE.md), synthesize a (Engine::Ai, project_root) context.
+        // This matches `classify::classify`'s fallback so the unified and
+        // legacy paths agree on root-level instruction files.
+        let (engine, source_root) = source::infer_engine_root(&f.file_path, project_root)
+            .unwrap_or_else(|| (Engine::Ai, project_root.to_path_buf()));
         features.push(DiscoveredFeature {
             kind: f.kind,
             engine,
@@ -162,18 +160,21 @@ mod tests {
     }
 
     #[test]
-    fn project_root_instructions_dropped_no_engine_ancestor() {
-        // CLAUDE.md at the project root has no .claude/.github/.ai ancestor
-        // → infer_engine_root returns None → compat drops it.
+    fn project_root_instructions_kept_with_ai_fallback() {
+        // CLAUDE.md at the project root has no .claude/.github/.ai ancestor.
+        // Today's `discover_features` classifies it as Instructions; the
+        // compat layer uses an `(Engine::Ai, project_root)` fallback so we
+        // don't drop the file (matches classify::classify's fallback for
+        // the unified path).
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path();
         touch(&root.join("CLAUDE.md"));
         let set = discover_features_compat(root, &DiscoverOptions::default(), &Real)
             .expect("compat should succeed");
-        // Today's discover_features WOULD return this as Instructions with
-        // source_context=None; our shape can't represent that, so it's
-        // dropped. Documented divergence.
-        assert_eq!(set.counts().instructions, 0);
+        assert_eq!(set.counts().instructions, 1);
+        let inst = set.features.first().expect("at least one feature");
+        assert_eq!(inst.engine, Engine::Ai);
+        assert_eq!(inst.source_root, root);
     }
 
     #[test]
