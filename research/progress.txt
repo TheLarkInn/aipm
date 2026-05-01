@@ -91,3 +91,22 @@ Cargo verifier:
 - build/test/clippy/fmt: PASS
 - coverage: 89.81% (>= 89%)
 - overall: PASS
+
+## 2026-05-01 — Feature 5: Instruction classifier — DONE
+
+Added `crates/libaipm/src/discovery/instruction.rs` with `pub fn classify(file_name, path, engine, source_root) -> Option<DiscoveredFeature>` that recognizes three filename shapes case-insensitively:
+
+1. **Exact name** in `INSTRUCTION_FILENAMES` (`claude.md`, `agents.md`, `copilot.md`, `instructions.md`, `gemini.md`) — preserved from `discovery_legacy.rs:185-186`.
+2. **`*.instructions.md` suffix** — preserved from `discovery_legacy::classify_feature_kind`.
+3. **`<engine>-instructions.md`** where engine ∈ {copilot, claude, agents, gemini} — closes the issue #725 silent-drop gap (`copilot-instructions.md`).
+
+Implementation note (deviation from spec text): the spec suggested a `Lazy<Regex>` static. Since `regex` is not a direct dependency of libaipm and the pattern is fixed (one of four prefixes plus a literal suffix), I used `str::strip_suffix` + `matches!` over the prefix set instead. This avoids adding a new dep AND dodges the `.unwrap()` concern on `Lazy<Regex>` static init that the spec itself flagged. Updated feature-list.json step text accordingly.
+
+Re-exported as `pub use instruction::classify as classify_instruction` from `discovery/mod.rs`.
+
+Tests: 22 covering each Case A name (5), Case B suffix (3), Case C engine-prefix (4), case-insensitivity (3), negative cases (5: random.md, wrong-order, unknown-engine, wrong suffix, .bak extension, empty, just `-instructions.md`), and structural fields (path/engine pass-through, feature_dir = None for instructions).
+
+Cargo verifier:
+- build/test/clippy/fmt: PASS
+- coverage: 89.87% (>= 89%)
+- overall: PASS

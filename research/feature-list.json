@@ -65,15 +65,15 @@
     "description": "Instruction classifier with new `<engine>-instructions.md` regex (closes the `copilot-instructions.md` silent-drop gap)",
     "steps": [
       "Add crates/libaipm/src/discovery/instruction.rs with const INSTRUCTION_FILENAMES: &[&str] = &[\"claude.md\", \"agents.md\", \"copilot.md\", \"instructions.md\", \"gemini.md\"] (preserved from today's discovery.rs:186)",
-      "Define static ENGINE_INSTRUCTIONS_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r\"^(?i)(copilot|claude|agents|gemini)-instructions\\.md$\").unwrap_or_else(|_| /* infallible at compile time but satisfy clippy::unwrap_used by handling */)). Note: prefer once_cell::sync::Lazy with a const-built regex pattern; if Regex::new fails at static init, propagate via OnceCell or build the regex at module init under a fallible API to avoid .unwrap()",
+      "Implement <engine>-instructions.md detection via str::strip_suffix + matches! over the prefix set [copilot, claude, agents, gemini] — avoids adding the regex crate as a direct dep and dodges the .unwrap() concern on Lazy<Regex> static init",
       "Add pub fn classify(file_name: &str, path: &Path, engine: Engine, source_root: &Path) -> Option<DiscoveredFeature>",
-      "Match logic: lowercase file_name, then return Some(Instructions) if (a) name in INSTRUCTION_FILENAMES OR (b) name ends with \".instructions.md\" OR (c) ENGINE_INSTRUCTIONS_RE matches",
-      "Add unit tests: copilot.md → match (case A); my-thing.instructions.md → match (case B); copilot-instructions.md → match (case C, the #725 fix); claude-instructions.md → match (case C); gemini-instructions.md → match; agents-instructions.md → match; reject instructions-copilot.md (wrong order); reject random.md; reject COPILOT-INSTRUCTIONS.md handled by case-insensitive flag",
+      "Match logic: lowercase file_name, then return Some(Instructions) if (a) name in INSTRUCTION_FILENAMES OR (b) name ends with \".instructions.md\" OR (c) matches_engine_instructions returns true",
+      "Add unit tests: copilot.md → match (case A); my-thing.instructions.md → match (case B); copilot-instructions.md → match (case C, the #725 fix); claude-instructions.md → match (case C); gemini-instructions.md → match; agents-instructions.md → match; reject instructions-copilot.md (wrong order); reject random.md; COPILOT-INSTRUCTIONS.md handled via case-insensitive lowercase",
       "Wire pub use instruction::classify as classify_instruction from discovery/mod.rs",
-      "Add regex to libaipm Cargo.toml dev-deps if not already present (workspace already uses regex elsewhere — confirm with grep before adding)",
-      "Run cargo build/test/clippy/fmt — all four green; verify zero .unwrap() in production code path"
+      "No regex dep added (str-only matching); zero .unwrap() in production code path",
+      "Run cargo build/test/clippy/fmt — all four green"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
