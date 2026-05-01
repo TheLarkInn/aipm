@@ -21,11 +21,13 @@
 //! migrate pipelines are switched over in later spec features.
 
 pub mod scan_report;
+pub mod source;
 pub mod types;
 
 // New foundation types — accessible through both the submodule and the
 // `types::` / `scan_report::` paths and re-exported here for convenience.
 pub use scan_report::{DiscoveredSet, ScanCounts, SkipReason};
+pub use source::infer_engine_root;
 pub use types::{Engine, Layout};
 
 // Re-exports from the legacy module so existing call sites

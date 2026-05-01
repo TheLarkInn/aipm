@@ -28,7 +28,7 @@
       "Re-export pub use source::infer_engine_root from discovery/mod.rs",
       "Run cargo build/test/clippy/fmt — all four green"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

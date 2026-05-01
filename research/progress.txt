@@ -26,3 +26,22 @@ Cargo verifier report:
 - overall: PASS
 
 Forbidden patterns check (.unwrap, .expect, panic!, todo!, println!, eprintln!, dbg!): none in new files.
+
+## 2026-05-01 — Feature 2: Engine-root inference helper — DONE
+
+Added `crates/libaipm/src/discovery/source.rs` with `pub fn infer_engine_root(path: &Path, project_root: &Path) -> Option<(Engine, PathBuf)>`.
+
+Behavior:
+- Walks path.ancestors() upward until project_root is reached.
+- Returns the FIRST ancestor whose file_name matches `.claude` (Claude), `.github` (Copilot), or `.ai` (Ai). Innermost wins, mirroring the unified-discovery design where each feature is associated with the engine that authored it, not the marketplace host that contains it.
+- Handles non-UTF-8 path components via `to_string_lossy()` — invalid UTF-8 simply doesn't match any engine root.
+- Returns None if path == project_root, or if no engine ancestor exists.
+
+Re-exported from `discovery/mod.rs` as `pub use source::infer_engine_root`.
+
+Tests added: 14 covering .claude canonical, .github canonical, .github/copilot/skills/<x> (issue #725 layout), .ai/<plugin>, nested .ai/<plugin>/.claude (innermost wins), no-engine-ancestor, path == project_root, project_root is engine dir, relative paths with and without dot prefix, deeply nested .ai > .github > .claude (innermost wins), unrelated dotted dirs ignored, path outside project_root, project_root at filesystem root.
+
+Cargo verifier:
+- build/test/clippy/fmt: PASS
+- coverage: 89.69% (>= 89%)
+- overall: PASS
