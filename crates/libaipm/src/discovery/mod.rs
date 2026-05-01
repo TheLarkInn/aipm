@@ -20,6 +20,7 @@
 //! `crate::discovery::DiscoveredFeature` will be removed once the lint and
 //! migrate pipelines are switched over in later spec features.
 
+pub mod classify;
 pub mod instruction;
 pub mod layout;
 pub mod scan_report;
@@ -28,6 +29,7 @@ pub mod types;
 
 // New foundation types — accessible through both the submodule and the
 // `types::` / `scan_report::` paths and re-exported here for convenience.
+pub use classify::classify as classify_path;
 pub use instruction::classify as classify_instruction;
 pub use layout::{
     match_agent, match_hook, match_marketplace, match_plugin, match_plugin_json, match_skill,

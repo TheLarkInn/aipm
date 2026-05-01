@@ -82,12 +82,12 @@
       "Add crates/libaipm/src/discovery/classify.rs with pub fn classify(path: &Path, root: &Path, fs: &dyn Fs) -> Option<DiscoveredFeature>",
       "Extract file_name and call source::infer_engine_root(path, root) — return None if no engine root found",
       "Try instruction::classify first (filename-only, ancestry-independent) — if Some, return it",
-      "Match on file_name: SKILL.md → layout::match_skill; hooks.json → layout::match_hook; aipm.toml → layout::match_plugin; marketplace.json → layout::match_marketplace; plugin.json → layout::match_plugin_json; *.md → layout::match_agent; otherwise → None",
+      "Match on file_name: SKILL.md → layout::match_skill; hooks.json → layout::match_hook; aipm.toml → layout::match_plugin; marketplace.json → layout::match_marketplace; plugin.json → layout::match_plugin_json; *.md (via path.extension() with eq_ignore_ascii_case to satisfy clippy::case_sensitive_file_extension_comparisons) → layout::match_agent; otherwise → None",
       "Add unit tests covering the dispatch matrix: each filename × each engine combination, plus the #725 tree exactly",
       "Re-export pub use classify::classify as classify_path from discovery/mod.rs",
       "Run cargo build/test/clippy/fmt — all four green"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

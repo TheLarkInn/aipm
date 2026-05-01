@@ -110,3 +110,31 @@ Cargo verifier:
 - build/test/clippy/fmt: PASS
 - coverage: 89.87% (>= 89%)
 - overall: PASS
+
+## 2026-05-01 — Feature 6: Top-level classifier dispatch — DONE
+
+Added `crates/libaipm/src/discovery/classify.rs` with `pub fn classify(path: &Path, project_root: &Path, _fs: &dyn Fs) -> Option<DiscoveredFeature>`.
+
+Algorithm:
+1. Extract file_name from path; None → return None.
+2. Call `source::infer_engine_root(path, project_root)`; None → return None (no engine ancestor).
+3. Try `instruction::classify(file_name, path, engine, source_root)` first — wins over the agent rule so that `agents/AGENTS.md` is classified as Instructions, not Agent (preserves today's classify_feature_kind precedence comment at discovery_legacy.rs:259-260).
+4. Match on file_name:
+   - `SKILL.md` → match_skill
+   - `hooks.json` → match_hook
+   - `aipm.toml` → match_plugin
+   - `marketplace.json` → match_marketplace
+   - `plugin.json` → match_plugin_json
+   - `*.md` (case-insensitive via `path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("md"))`) → match_agent
+   - else → None
+
+The `_fs` parameter is reserved per spec for matchers that may need filesystem validation in later spec features. Today's matchers are path-only.
+
+Re-exported as `pub use classify::classify as classify_path` from `discovery/mod.rs`.
+
+Tests: 20 covering engine-root gating (no engine root → None, unrecognized filename → None), instruction precedence (uppercase AGENTS.md, copilot.md, copilot-instructions.md, *.instructions.md), filename dispatch matrix (SKILL.md, hooks.json variants, aipm.toml, marketplace.json, plugin.json, agent .md), engine attribution (Copilot, Ai), the issue #725 full tree (3 skills + copilot-instructions.md), and negative cases (SKILL.md without skills ancestor, random .md outside agents, aipm.toml outside .ai).
+
+Cargo verifier (after fmt fix on a trailing comma):
+- build/test/clippy/fmt: PASS
+- coverage: 89.92% (>= 89%)
+- overall: PASS
