@@ -114,7 +114,7 @@ pub fn discover(
 
 /// `true` when [`UNIFIED_DISCOVERY_ENV`] is set to exactly `"1"`.
 fn unified_enabled() -> bool {
-    std::env::var(UNIFIED_DISCOVERY_ENV).map(|v| v == "1").unwrap_or(false)
+    std::env::var(UNIFIED_DISCOVERY_ENV).is_ok_and(|v| v == "1")
 }
 
 /// Unified pipeline: walk the tree, classify each file, apply source filter.

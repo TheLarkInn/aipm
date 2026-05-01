@@ -172,7 +172,7 @@ impl<'a> From<&'a Options<'a>> for DiscoverOptions {
 /// Mirrors `discovery::unified_enabled()` so the env var has a single
 /// source-of-truth meaning across discovery and migrate.
 pub(crate) fn unified_enabled() -> bool {
-    std::env::var(crate::discovery::UNIFIED_DISCOVERY_ENV).map(|v| v == "1").unwrap_or(false)
+    std::env::var(crate::discovery::UNIFIED_DISCOVERY_ENV).is_ok_and(|v| v == "1")
 }
 
 #[cfg(test)]
