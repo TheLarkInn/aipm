@@ -7,6 +7,7 @@
 pub mod acquirer;
 pub mod cache;
 pub mod discovery;
+mod discovery_legacy;
 pub mod engine;
 pub mod frontmatter;
 pub mod fs;

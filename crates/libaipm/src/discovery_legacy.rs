@@ -1,29 +1,21 @@
-//! Recursive directory discovery for AI tool source directories.
+//! Legacy recursive directory discovery for AI tool source directories.
 //!
 //! Uses the `ignore` crate for gitignore-aware directory traversal.
 //! Shared by both the `lint` and `migrate` pipelines.
+//!
+//! NOTE: this module is the legacy source of `FeatureKind`, `DiscoveredFeature`,
+//! `SourceContext`, `DiscoveredSource`, `Error`, and the free functions
+//! `discover_features` / `discover_source_dirs` / `discover_claude_dirs`. The
+//! types live here only until the unified discovery module replaces them per
+//! `specs/2026-05-01-unified-discovery-and-copilot-skill-detection.md`.
+//!
+//! `FeatureKind` itself has moved to `crate::discovery::feature::FeatureKind`;
+//! it is imported below and re-used by the legacy `DiscoveredFeature` so the
+//! enum is defined in a single place going forward.
 
 use std::path::{Path, PathBuf};
 
-/// The kind of AI plugin feature discovered.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FeatureKind {
-    /// A skill file (`SKILL.md` inside a `skills/` directory).
-    Skill,
-    /// An agent file (`*.md` inside an `agents/` directory).
-    Agent,
-    /// A hook file (`hooks.json` inside a `hooks/` directory).
-    Hook,
-    /// A plugin manifest (`aipm.toml` inside a `.ai/<plugin>/` directory).
-    Plugin,
-    /// A marketplace manifest (`marketplace.json` at `.ai/.claude-plugin/marketplace.json`).
-    Marketplace,
-    /// A plugin JSON manifest (`plugin.json` at `.ai/<plugin>/.claude-plugin/plugin.json`).
-    PluginJson,
-    /// An instruction file (CLAUDE.md, AGENTS.md, COPILOT.md, INSTRUCTIONS.md, GEMINI.md, or
-    /// `*.instructions.md`) anywhere in the project tree.
-    Instructions,
-}
+pub use crate::discovery::types::FeatureKind;
 
 /// The source directory context for a discovered feature.
 #[derive(Debug, Clone)]

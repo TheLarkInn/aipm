@@ -1,80 +1,28 @@
-## 2026-04-22 — aipm NuGet publishing pipeline
+## 2026-05-01 — Feature 1: Foundation types for unified discovery module — DONE
 
-Spec: specs/2026-04-22-nuget-publishing-pipeline.md
-Research: research/docs/2026-04-22-nuget-publishing-pipeline.md (+ 3 supporting docs)
+Implemented per spec `specs/2026-05-01-unified-discovery-and-copilot-skill-detection.md`.
 
-### Completed
+Changes:
+- Renamed `crates/libaipm/src/discovery.rs` → `crates/libaipm/src/discovery_legacy.rs`.
+- Declared `mod discovery_legacy;` (private) in `lib.rs`.
+- Added new module folder `crates/libaipm/src/discovery/` containing:
+  - `mod.rs` — public API surface that re-exports both new types (Engine, Layout, DiscoveredSet, ScanCounts, SkipReason, FeatureKind) and legacy items (Error, DiscoveredFeature, SourceContext, DiscoveredSource, discover_features, discover_source_dirs, discover_claude_dirs).
+  - `types.rs` — Engine, Layout, FeatureKind (moved from legacy), and the new DiscoveredFeature struct with shape { kind, engine, layout, source_root, feature_dir, path }.
+  - `scan_report.rs` — DiscoveredSet, ScanCounts, SkipReason, with `counts()` aggregator and `is_empty()` helper.
+- Updated `discovery_legacy.rs` to import FeatureKind from `crate::discovery::types::FeatureKind` (single source of truth).
 
-Features #1-#4 (setup, completed by human on nuget.org + GitHub UI):
-  - nuget.org account confirmed for TheLarkInn
-  - Trusted Publishing policy configured: repo_owner=TheLarkInn, repo=aipm, workflow_file=release-nuget.yml, env=(blank)
-  - NUGET_USERNAME repo secret set in TheLarkInn/aipm -> Settings -> Secrets -> Actions
-  - NUGET_API_KEY fallback secret set (scoped to aipm* glob)
+Deviation from spec: the spec said `feature.rs` for the new types module. `clippy::module_name_repetitions` rejects `pub enum FeatureKind` and `pub struct DiscoveredFeature` inside a module named `feature`. Renamed to `types.rs` to follow the existing `manifest/types.rs` convention. Updated feature-list.json accordingly.
 
-Feature #5 -- packaging/aipm.nuspec created
-  - id=aipm, version=$version$, commit=$commit$
-  - No <packageTypes> (defaults to Dependency -- Round 2 decision)
-  - Files: runtimes/** -> runtimes, README.md -> docs/, LICENSE -> root
-  - Tags include azure-devops to aid discovery
+All callers continue to compile unchanged thanks to discovery/mod.rs re-exports. The new shape of DiscoveredFeature is accessible via `crate::discovery::types::DiscoveredFeature`; the legacy shape remains at `crate::discovery::DiscoveredFeature` until later spec features.
 
-Feature #6 -- .github/workflows/release-nuget.yml created
-  - SHIPPED WITH workflow_dispatch-ONLY TRIGGER for Phase 1 safety.
-  - release:published trigger deliberately omitted; will be added via follow-up PR (see feature #6b) after Phase 1 dry-run validates.
-  - Inline comment block at top of workflow documents the safety gate and how to enable release-auto-publish.
-  - Concurrency group keyed on inputs.tag || github.event.release.tag_name to handle both trigger shapes.
-  - Job if: accepts either workflow_dispatch OR a non-prerelease aipm-v release.
-  - OIDC primary (NuGet/login@v1, continue-on-error) with NUGET_API_KEY fallback.
-  - Sanity-check step fails if fewer than 4 runtimes/<RID>/native/aipm entries found in the produced nupkg.
+Tests added: 9 in types.rs + 10 in scan_report.rs covering Default, Clone, PartialEq, variant distinctness, counts aggregation across each FeatureKind, is_empty true/false, SkipReason variants.
 
-Feature #15 -- README.md updated
-  - Added NuGet shields.io badge alongside CI/codecov badges
-  - Added "### Azure DevOps Pipeline (NuGet)" subsection between PowerShell and Build from Source
-  - Includes minimal pipeline YAML with UseDotNet@2, NoTargets csproj, PackageDownload, RID-resolve pwsh, ##vso[task.prependpath]
-  - Links to research/docs/2026-04-22-ado-pipeline-nuget-consume.md for full walkthrough
+Cargo verifier report:
+- build: PASS
+- test: PASS (2007 lib + 74 BDD scenarios + integration)
+- clippy: PASS (zero warnings under -D warnings)
+- fmt: PASS
+- coverage: PASS (89.65% TOTAL branch, threshold 89%)
+- overall: PASS
 
-Feature #16 -- RELEASING.md created at repo root
-  - Documents the normal release flow (release-plz -> cargo-dist -> nuget)
-  - Documents rollback procedure: nuget.org unlist (no delete), crates.io yank, GitHub Release delete + tag removal
-  - Notes current "workflow_dispatch-only" status of release-nuget.yml and how to trigger a manual dry-run
-  - Cross-references all three release-related specs
-
-### Deferred (human-action blockers)
-
-Features #8-#14 -- Validation + security tests
-  - All require real release cuts, real nuget.org state changes, or external test environments (ADO, forked repo).
-  - Handled by human outside this agent session.
-
-Feature #17 -- Spec status flip to Implemented
-  - Blocked until all validation features pass.
-
-## 2026-04-24 -- Phase 1 dry-run + trigger flip
-
-### Phase 1 dry-run (feature #7) -- PASSED
-
-First Phase 1 dry-run surfaced four real bugs in sequence, each fixed via a separate hot-fix PR:
-
-- #654 -- Windows zip layout. cargo-dist's Windows zip is FLAT (aipm.exe at archive root) while Unix tarballs use a subdirectory. Fixed unzip pattern from '*/aipm.exe' to '*aipm.exe'.
-- #655 -- mono not installed. ubuntu-latest no longer ships mono pre-installed; nuget.exe needs it. Added apt-get install mono-devel before the Pack step.
-- #657 -- BasePath not set. nuget pack resolves <file src=""> entries relative to the nuspec's directory (packaging/), not CWD (pkg/). Added -BasePath . flag.
-- #659 -- nuspec path quirks. Empty target="" on LICENSE line + trailing-backslash target="docs\" on README + backslash paths in <readme> metadata all broke on mono. Normalized to forward slashes + explicit target filenames.
-
-After #659 merged, run succeeded end-to-end. aipm 0.22.3 queued for nuget.org validation/indexing (~10-60 min automated scan + repo signing).
-
-### Trigger flip (feature #6b) -- this commit
-
-Added release:{types:[published]} alongside workflow_dispatch in release-nuget.yml. Stable aipm-v* releases now auto-publish to nuget.org without manual intervention. Updated RELEASING.md to remove "(Pending Phase 2 activation)" language. workflow_dispatch stays available for manual republishes / OIDC-fallback testing.
-
-### Follow-up flagged
-
-nuget.exe + mono chain accumulated 4 quirks across the 4 hot-fixes. A follow-up PR should migrate the Pack step to `dotnet pack` with a stub `packaging/aipm-pack.csproj`, dropping nuget/setup-nuget@v2 and the mono install step. Nuspec survives unchanged; push step unchanged.
-
-### Notes / deviations from spec
-
-1. Spec section 5.4 shows `on: release: types: [published]` as the initial trigger. Implementation deliberately ships with workflow_dispatch ONLY first, per Phase 1 dry-run convention. New feature #6b tracks the trigger flip after Phase 1.
-2. Spec section 5.4 step 5 is "Copy README.md and LICENSE" -- implemented identically in the workflow.
-3. Workflow uses case-sensitive `TheLarkInn/aipm` repo owner to match the Trusted Publishing policy binding exactly (nuget.org docs say matching is case-insensitive, but keep it consistent).
-4. `icon` metadata field was left out of the nuspec (spec section 9 open question -- no icon asset exists yet; v1.1 can add it).
-
-### Quality gate
-
-Running cargo verifier next to confirm no Rust regressions from these non-Rust changes.
+Forbidden patterns check (.unwrap, .expect, panic!, todo!, println!, eprintln!, dbg!): none in new files.

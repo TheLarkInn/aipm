@@ -1,287 +1,314 @@
 [
   {
-    "category": "setup",
-    "description": "Secure the nuget.org package ID 'aipm' and establish the publishing account",
+    "category": "refactor",
+    "description": "Foundation types for unified discovery module (Engine, FeatureKind, Layout, DiscoveredFeature, DiscoveredSet, ScanCounts, SkipReason)",
     "steps": [
-      "Confirm ownership of a nuget.org account under the handle 'TheLarkInn' or selarkin (create one at https://www.nuget.org/users/account if missing)",
-      "Verify the email on file matches the intended owner (selarkin@microsoft.com)",
-      "Check that nuget.org does not already have a package named 'aipm' owned by another account; if it does, escalate to account@nuget.org",
-      "Record the exact nuget.org profile handle string — this becomes the value stored in the NUGET_USERNAME secret (profile handle, NOT email)",
-      "Document that prefix reservation for 'aipm*' is deferred until satellite packages ship (borderline case per ID prefix reservation policy: prefixes shorter than 4 chars are discouraged; 4 is borderline)"
+      "Create directory crates/libaipm/src/discovery/ as a module folder (mod.rs sibling to today's discovery.rs which is left untouched in this step)",
+      "Add crates/libaipm/src/discovery/types.rs defining pub enum Engine { Claude, Copilot, Ai }, pub enum Layout { Canonical, CopilotSubroot, CopilotSubrootWithSkills, AiNested, AiPlugin }, pub struct DiscoveredFeature { kind, engine, layout, source_root, feature_dir, path } with derives Debug, Clone, PartialEq, Eq (renamed from feature.rs to types.rs to follow existing manifest/types.rs convention and avoid clippy::module_name_repetitions)",
+      "Move pub enum FeatureKind from today's discovery.rs into discovery/types.rs (re-export from the old location for now to avoid breaking lint callers)",
+      "Add crates/libaipm/src/discovery/scan_report.rs defining pub struct DiscoveredSet { features, scanned_dirs, skipped }, pub struct ScanCounts { skills, agents, hooks, instructions, plugins, marketplaces, plugin_jsons }, pub enum SkipReason { SkipDirByName, UnknownLayout, InvalidUtf8 } with Default impls",
+      "Implement DiscoveredSet::counts() that aggregates ScanCounts from features, and DiscoveredSet::is_empty()",
+      "Add crates/libaipm/src/discovery/mod.rs that pub uses Engine, FeatureKind, Layout, DiscoveredFeature, DiscoveredSet, ScanCounts, SkipReason",
+      "Wire the new module into crates/libaipm/src/lib.rs as `pub mod discovery;` (rename old discovery.rs to discovery_legacy.rs and declare as private mod discovery_legacy; existing imports still work via re-exports from discovery/mod.rs)",
+      "Add unit tests in types.rs and scan_report.rs covering Default impls, counts() aggregation across each FeatureKind, is_empty true/false, and SkipReason variant construction",
+      "Run cargo build --workspace, cargo test --workspace, cargo clippy --workspace -- -D warnings, cargo fmt --check — all four must be green with zero warnings",
+      "Confirm no .unwrap()/.expect()/panic!()/println! anywhere per CLAUDE.md lint policy"
     ],
     "passes": true
   },
   {
-    "category": "setup",
-    "description": "Configure NuGet Trusted Publishing (OIDC) policy on nuget.org for GitHub Actions",
+    "category": "refactor",
+    "description": "Engine-root inference helper that walks ancestors to identify .claude/.github/.ai roots (replaces classify_source_context and source_type_from_path)",
     "steps": [
-      "Log in to nuget.org with the owner account",
-      "Navigate to username dropdown → Trusted Publishing → Add policy",
-      "Set Repository Owner = TheLarkInn",
-      "Set Repository = aipm",
-      "Set Workflow File = release-nuget.yml (filename only, NOT path)",
-      "Leave Environment blank in v1 (Round 1 decision: no manual gate)",
-      "Save the policy — note that it is 'temporarily active' for 7 days until the first successful publish fuses it to immutable repo/owner IDs",
-      "If the Trusted Publishing tab is not visible on the account, request enrollment and document the date; fall back to API-key-only publish until OIDC access is granted"
+      "Add crates/libaipm/src/discovery/source.rs with pub fn infer_engine_root(path: &Path, project_root: &Path) -> Option<(Engine, PathBuf)>",
+      "Walk path.ancestors() until project_root is reached; return on first ancestor whose file_name matches .claude (Engine::Claude), .github (Engine::Copilot), or .ai (Engine::Ai)",
+      "Handle the boundary case where path == project_root (return None)",
+      "Handle non-UTF-8 path components gracefully without unwrap (use to_string_lossy or skip)",
+      "Add unit tests covering: .claude/skills/<name>/SKILL.md → (Claude, .claude); .github/copilot/skills/<x>/SKILL.md → (Copilot, .github); .ai/<plugin>/skills/<x>/SKILL.md → (Ai, .ai); nested .ai/<plugin>/.claude/skills/<x>/SKILL.md → (Claude, the inner .claude); path with no engine ancestor → None",
+      "Re-export pub use source::infer_engine_root from discovery/mod.rs",
+      "Run cargo build/test/clippy/fmt — all four green"
     ],
-    "passes": true
-  },
-  {
-    "category": "setup",
-    "description": "Generate and store the NUGET_API_KEY fallback secret scoped to the aipm* glob",
-    "steps": [
-      "Log in to nuget.org, navigate to username dropdown → API Keys → Create",
-      "Set Key Name = 'github-actions-aipm-fallback'",
-      "Set Package Owner = TheLarkInn (self)",
-      "Set Scopes = 'Push new packages and package versions'",
-      "Set Glob Pattern = 'aipm*' (covers aipm plus any future aipm.Foo satellite IDs)",
-      "Set Expiration = 365 days (rotate annually; shorten when OIDC is verified working)",
-      "Copy the generated key value immediately (nuget.org only shows it once)",
-      "In GitHub, navigate to TheLarkInn/aipm → Settings → Secrets and variables → Actions → New repository secret",
-      "Add secret name 'NUGET_API_KEY' with the generated key as the value",
-      "Verify the secret appears in the secrets list (values are masked; presence is confirmed by name)"
-    ],
-    "passes": true
-  },
-  {
-    "category": "setup",
-    "description": "Add NUGET_USERNAME repository secret for OIDC exchange",
-    "steps": [
-      "In GitHub, navigate to TheLarkInn/aipm → Settings → Secrets and variables → Actions → New repository secret",
-      "Add secret name 'NUGET_USERNAME' with value equal to the public nuget.org profile handle recorded in feature #1",
-      "Verify the secret appears in the secrets list",
-      "Document in the repo that this is a low-sensitivity secret (public handle) but is set via the secret mechanism to satisfy NuGet/login@v1's input shape"
-    ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "functional",
-    "description": "Create packaging/aipm.nuspec with metadata, license, runtimes/, and documentation file mappings",
+    "description": "Skill layout grammar (THE customer fix for #725): any `skills` ancestor up to engine root, OR parent is a known engine sub-root (e.g. `copilot`)",
     "steps": [
-      "Create a new directory 'packaging/' at the repository root",
-      "Create 'packaging/aipm.nuspec' with content matching spec §5.3 exactly",
-      "Set <id>aipm</id>, <version>$version$</version>, <authors>Sean Larkin</authors>",
-      "Set <description> text from spec §5.3 (aipm - AI plugin manager...)",
-      "Set <license type=\"expression\">MIT</license>",
-      "Set <projectUrl>https://github.com/TheLarkInn/aipm</projectUrl>",
-      "Set <repository type=\"git\" url=\"...\" branch=\"main\" commit=\"$commit$\" />",
-      "Set <readme>docs\\README.md</readme>",
-      "Set <tags>ai claude copilot plugin-manager cli rust native cross-platform azure-devops</tags>",
-      "Set <copyright>Copyright (c) 2026 Sean Larkin</copyright>",
-      "Do NOT include <packageTypes> (defaults to Dependency — Round 2 decision)",
-      "Set <files> section to include 'runtimes\\**' → runtimes, 'README.md' → docs\\, 'LICENSE' → package root",
-      "Commit the file; verify with `nuget pack packaging/aipm.nuspec -Version 0.0.0-test -Properties 'version=0.0.0-test;commit=abcdef'` locally that pack succeeds with a fixture runtimes/ tree"
+      "Add crates/libaipm/src/discovery/layout.rs with pub fn match_skill(path: &Path, engine: Engine, source_root: &Path) -> Option<DiscoveredFeature>",
+      "Implement the ancestor walk: collect file_name() of each ancestor between path's parent and source_root (exclusive)",
+      "Case A — any ancestor name == \"skills\" → return Some with FeatureKind::Skill and Layout chosen by pick_layout_for_skill()",
+      "Case B — engine == Engine::Copilot AND grandparent name == \"copilot\" → return Some with Layout::CopilotSubroot (the existing aipm accommodation)",
+      "Implement helper fn pick_layout_for_skill(ancestors, engine) that pattern-matches on the ancestors slice to pick: CopilotSubrootWithSkills (skills+copilot ancestors — the #725 case), CopilotSubroot (copilot only), AiNested (skills + dot-prefixed plugin ancestor), AiPlugin (Ai engine + skills), or Canonical (default)",
+      "Add unit tests covering ALL FIVE layouts plus issue #725's exact tree (.github/copilot/skills/skill-alpha/SKILL.md, skill-beta, skill-gamma) — assert each returns Some with the correct Layout variant and engine",
+      "Add negative tests: .github/copilot/SKILL.md (no skills ancestor, no <name> dir) → None; .github/SKILL.md → None; .github/skills/SKILL.md (flat) → still matched as Canonical per today's grandparent==skills branch",
+      "Run cargo build/test/clippy/fmt — all four green; coverage on layout.rs ≥89%"
     ],
-    "passes": true
+    "passes": false
+  },
+  {
+    "category": "refactor",
+    "description": "Layout matchers for non-skill features: agent, hook, plugin (aipm.toml), marketplace, plugin.json",
+    "steps": [
+      "In crates/libaipm/src/discovery/layout.rs add pub fn match_agent(path, engine, source_root) — accepts <root>/agents/*.md per today's classify_feature_kind line 273-274",
+      "Add pub fn match_hook — accepts <root>/hooks.json AND <root>/hooks/hooks.json per today's classify_feature_kind line 275-276 plus today's CopilotHookDetector at copilot_hook_detector.rs:20-26",
+      "Add pub fn match_plugin — accepts <root>/<plugin>/aipm.toml when grandparent is .ai per today's classify_feature_kind line 277-278",
+      "Add pub fn match_marketplace — accepts .ai/<plugin>/.claude-plugin/marketplace.json per today's line 279-283",
+      "Add pub fn match_plugin_json — accepts .ai/<plugin>/.claude-plugin/plugin.json with great-grandparent == .ai per today's line 284-295",
+      "Each matcher returns Option<DiscoveredFeature> with the appropriate FeatureKind, Engine (from arg), Layout::Canonical for non-skill kinds, and feature_dir set to path.parent()",
+      "Unit tests for each matcher: positive cases (each canonical layout) and negative cases (wrong parent name, missing engine root)",
+      "Run cargo build/test/clippy/fmt — all four green"
+    ],
+    "passes": false
   },
   {
     "category": "functional",
-    "description": "Create .github/workflows/release-nuget.yml — the publish workflow (initial: workflow_dispatch-only trigger for Phase 1 safety)",
+    "description": "Instruction classifier with new `<engine>-instructions.md` regex (closes the `copilot-instructions.md` silent-drop gap)",
     "steps": [
-      "Create '.github/workflows/release-nuget.yml'",
-      "Set name: 'Publish to NuGet'",
-      "IMPORTANT — ship INITIAL version with workflow_dispatch trigger ONLY (no release:published). Deferred to a follow-up PR once Phase 1 dry-run passes (see feature #6b). This prevents the first merge to main from auto-publishing to nuget.org on the next release.",
-      "Set workflow_dispatch input: tag (required, the aipm-v<semver> tag whose GitHub Release holds the platform archives)",
-      "Set concurrency group: 'release-nuget-${{ inputs.tag || github.event.release.tag_name }}' with cancel-in-progress: false",
-      "Add job 'publish' with if: github.event_name == 'workflow_dispatch' || (startsWith(github.event.release.tag_name, 'aipm-v') && !github.event.release.prerelease)",
-      "Set runs-on: ubuntu-latest, timeout-minutes: 20",
-      "Set permissions: contents: read, id-token: write (id-token: write is REQUIRED for OIDC)",
-      "Step 1: actions/checkout@v4 with persist-credentials: false",
-      "Step 2: Resolve tag and version — prefer inputs.tag for workflow_dispatch, fall back to github.event.release.tag_name. Validate prefix 'aipm-v', strip to derive version.",
-      "Step 3: gh release download <tag> --pattern 'aipm-*.tar.xz' --pattern 'aipm-*.zip' --dir archives --repo ${{ github.repository }}",
-      "Step 4: Bash script unpacks archives into pkg/runtimes/<RID>/native/ for all 4 RID mappings (x86_64-unknown-linux-gnu→linux-x64, x86_64-apple-darwin→osx-x64, aarch64-apple-darwin→osx-arm64, x86_64-pc-windows-msvc→win-x64), chmod +x on non-Windows",
-      "Step 5: Copy README.md and LICENSE into pkg/",
-      "Step 6: actions/setup-dotnet@v4 with dotnet-version: 8.x",
-      "Step 7: nuget/setup-nuget@v2",
-      "Step 8: Run `nuget pack ../packaging/aipm.nuspec -Version $VERSION -Properties 'version=$VERSION;commit=$SHA' -NoDefaultExcludes -NonInteractive -OutputDirectory ../out` from pkg/ directory",
-      "Step 9: Sanity check — list nupkg contents, grep for 'runtimes/', fail if fewer than 4 runtimes/ entries found",
-      "Step 10: NuGet/login@v1 with user: ${{ secrets.NUGET_USERNAME }}, id: nuget_login, continue-on-error: true",
-      "Step 11: Conditional push via OIDC if nuget_login.outcome == 'success': dotnet nuget push out/*.nupkg --api-key from step output --source https://api.nuget.org/v3/index.json --skip-duplicate",
-      "Step 12: Conditional fallback push if nuget_login.outcome != 'success': dotnet nuget push with --api-key ${{ secrets.NUGET_API_KEY }}, emit ::warning:: that OIDC failed"
+      "Add crates/libaipm/src/discovery/instruction.rs with const INSTRUCTION_FILENAMES: &[&str] = &[\"claude.md\", \"agents.md\", \"copilot.md\", \"instructions.md\", \"gemini.md\"] (preserved from today's discovery.rs:186)",
+      "Define static ENGINE_INSTRUCTIONS_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r\"^(?i)(copilot|claude|agents|gemini)-instructions\\.md$\").unwrap_or_else(|_| /* infallible at compile time but satisfy clippy::unwrap_used by handling */)). Note: prefer once_cell::sync::Lazy with a const-built regex pattern; if Regex::new fails at static init, propagate via OnceCell or build the regex at module init under a fallible API to avoid .unwrap()",
+      "Add pub fn classify(file_name: &str, path: &Path, engine: Engine, source_root: &Path) -> Option<DiscoveredFeature>",
+      "Match logic: lowercase file_name, then return Some(Instructions) if (a) name in INSTRUCTION_FILENAMES OR (b) name ends with \".instructions.md\" OR (c) ENGINE_INSTRUCTIONS_RE matches",
+      "Add unit tests: copilot.md → match (case A); my-thing.instructions.md → match (case B); copilot-instructions.md → match (case C, the #725 fix); claude-instructions.md → match (case C); gemini-instructions.md → match; agents-instructions.md → match; reject instructions-copilot.md (wrong order); reject random.md; reject COPILOT-INSTRUCTIONS.md handled by case-insensitive flag",
+      "Wire pub use instruction::classify as classify_instruction from discovery/mod.rs",
+      "Add regex to libaipm Cargo.toml dev-deps if not already present (workspace already uses regex elsewhere — confirm with grep before adding)",
+      "Run cargo build/test/clippy/fmt — all four green; verify zero .unwrap() in production code path"
     ],
-    "passes": true
+    "passes": false
+  },
+  {
+    "category": "refactor",
+    "description": "Top-level classifier dispatch that routes a path to the right layout/instruction matcher",
+    "steps": [
+      "Add crates/libaipm/src/discovery/classify.rs with pub fn classify(path: &Path, root: &Path, fs: &dyn Fs) -> Option<DiscoveredFeature>",
+      "Extract file_name and call source::infer_engine_root(path, root) — return None if no engine root found",
+      "Try instruction::classify first (filename-only, ancestry-independent) — if Some, return it",
+      "Match on file_name: SKILL.md → layout::match_skill; hooks.json → layout::match_hook; aipm.toml → layout::match_plugin; marketplace.json → layout::match_marketplace; plugin.json → layout::match_plugin_json; *.md → layout::match_agent; otherwise → None",
+      "Add unit tests covering the dispatch matrix: each filename × each engine combination, plus the #725 tree exactly",
+      "Re-export pub use classify::classify as classify_path from discovery/mod.rs",
+      "Run cargo build/test/clippy/fmt — all four green"
+    ],
+    "passes": false
+  },
+  {
+    "category": "refactor",
+    "description": "Walker that wraps ignore::WalkBuilder with SKIP_DIRS, max_depth, source_filter, follow_symlinks=false",
+    "steps": [
+      "Add crates/libaipm/src/discovery/walker.rs with pub fn walk(project_root: &Path, opts: &DiscoverOptions) -> Result<WalkResult, Error> where WalkResult carries Vec<PathBuf> of file paths and Vec<PathBuf> of directories scanned plus Vec<SkipReason>",
+      "Build ignore::WalkBuilder with hidden(false), git_ignore(true), git_global(true), git_exclude(true), follow_links(false)",
+      "Apply opts.max_depth if Some via builder.max_depth(Some(d))",
+      "Add filter_entry that skips directories whose name is in SKIP_DIRS (= &[\"node_modules\", \"target\", \".git\", \"vendor\", \"__pycache__\", \"dist\", \"build\"]) — emit a SkipReason::SkipDirByName for each",
+      "If opts.source_filter is Some(s), prune the walk to only descend into directories under <project_root>/<s> (or fail closed and let the walker just walk everything; the source filter is enforced in classify post-walk for simplicity)",
+      "Collect Vec<PathBuf> of file paths and dirs walked; convert ignore::Error to Error::WalkFailed with .to_string()",
+      "Unit tests: empty dir → empty result; tree with node_modules → emits SkipReason; max_depth honored; gitignore'd files excluded; symlinks not followed",
+      "Run cargo build/test/clippy/fmt — all four green; no .unwrap() in production paths"
+    ],
+    "passes": false
+  },
+  {
+    "category": "refactor",
+    "description": "Public discover() API with AIPM_UNIFIED_DISCOVERY feature flag and dispatch to walker + classifier",
+    "steps": [
+      "In crates/libaipm/src/discovery/mod.rs add pub struct DiscoverOptions { max_depth, source_filter, follow_symlinks } with #[derive(Debug, Default)]",
+      "Add pub fn discover(project_root: &Path, opts: &DiscoverOptions, fs: &dyn Fs) -> Result<DiscoveredSet, Error>",
+      "Read env var AIPM_UNIFIED_DISCOVERY via std::env::var; if value == \"1\" call unified_discover(...), else call legacy_compat::discover_features_compat(...)",
+      "unified_discover impl: call walker::walk to get file paths, call classify::classify on each, accumulate into DiscoveredSet { features, scanned_dirs, skipped }",
+      "Apply opts.source_filter post-classification: if Some(s), retain only features whose source_root file_name matches s",
+      "Add tracing::trace! on each layout match decision and tracing::debug! on each skip per spec §7.2",
+      "Add Error variants if needed (extend the existing libaipm::Error or local discovery::Error per existing convention — confirm by grep on existing Error definitions)",
+      "Unit tests: with AIPM_UNIFIED_DISCOVERY=1 against a fixture tree, expect specific DiscoveredSet contents; with flag unset/=0, expect legacy behavior matches today's discover_features output bit-for-bit",
+      "Run cargo build/test/clippy/fmt — all four green"
+    ],
+    "passes": false
+  },
+  {
+    "category": "refactor",
+    "description": "Legacy compat shim that wraps today's discover_features so the unified path is opt-in for one release",
+    "steps": [
+      "Add crates/libaipm/src/discovery/legacy_compat.rs with pub fn discover_features_compat(root: &Path, opts: &DiscoverOptions, fs: &dyn Fs) -> Result<DiscoveredSet, Error>",
+      "Internally call today's discover_features(root, opts.max_depth) and adapt the Vec<DiscoveredFeature> output (today's type, which currently lives in discovery.rs) into the new DiscoveredSet wrapper with empty scanned_dirs and skipped (legacy didn't track these)",
+      "Adapt today's DiscoveredFeature shape (kind, source_context, path) into the new shape (kind, engine, layout, source_root, feature_dir, path) by mapping source_context.source_type to Engine and setting layout = Layout::Canonical (legacy doesn't know layouts)",
+      "If today's discover_features is moved into discovery_legacy.rs in feature 1, route the call through that module name",
+      "Unit test: against a known tree, assert legacy_compat::discover_features_compat returns features whose count matches today's lint outcome",
+      "Run cargo build/test/clippy/fmt — all four green; coverage of legacy_compat ≥89% (mostly mapping logic, easy to cover)"
+    ],
+    "passes": false
   },
   {
     "category": "functional",
-    "description": "Flip release-nuget.yml trigger from workflow_dispatch-only to also include release:published (AFTER Phase 1 dry-run passes)",
+    "description": "Lint integration: replace lint's call to discover_features with discovery::discover; surface scan_counts and scanned_dirs in Outcome",
     "steps": [
-      "Wait until feature #7 (Phase 1 dry-run) completes successfully against at least one real aipm-v tag",
-      "Open a follow-up PR modifying .github/workflows/release-nuget.yml",
-      "Add release trigger block under `on:`: `release: { types: [published] }` alongside the existing workflow_dispatch",
-      "Keep the concurrency group and job `if:` guard as-is (both already handle the release:published event shape)",
-      "Update the inline comment at the top of the workflow to reflect that release-auto-publish is now ACTIVE",
-      "Update RELEASING.md to remove the '(Pending Phase 2 activation)' note",
-      "Merge the PR",
-      "Confirm the next aipm-v stable tag's GitHub Release auto-fires release-nuget.yml without manual intervention"
-    ],
-    "passes": true
-  },
-  {
-    "category": "validation",
-    "description": "Phase 1 dry-run: invoke workflow_dispatch against an existing aipm-v tag and verify pack succeeds end-to-end",
-    "steps": [
-      "Go to Actions → Publish to NuGet → Run workflow",
-      "Select branch: main",
-      "Enter tag input: an existing aipm-v<semver> tag whose GitHub Release contains the 4 platform archives (e.g., the current latest)",
-      "Run the workflow",
-      "Verify all steps pass: checkout, tag resolve, gh release download, unpack, setup-dotnet, setup-nuget, pack, sanity check",
-      "Verify the sanity-check step finds at least 4 runtimes/<RID>/native/aipm entries in the nupkg listing",
-      "Verify the NuGet OIDC login step succeeds (OIDC primary path)",
-      "Confirm the final push step succeeds and the package appears at https://www.nuget.org/packages/aipm/<version>",
-      "If the first publish is a version you do NOT want on nuget.org permanently (e.g., using an older tag for test), unlist immediately after"
-    ],
-    "passes": true
-  },
-  {
-    "category": "validation",
-    "description": "Phase 2 alpha publish: first end-to-end publish under a disposable pre-release tag, then unlist",
-    "steps": [
-      "Cut a pre-release tag aipm-v<next-patch>-alpha.1 via release-plz or manually",
-      "Temporarily relax the !github.event.release.prerelease guard in release-nuget.yml (comment it out for this run)",
-      "Wait for release.yml to produce the GitHub Release",
-      "Verify release-nuget.yml triggers and completes successfully",
-      "Verify the package appears on nuget.org at https://www.nuget.org/packages/aipm/<version>",
-      "Download the published nupkg from nuget.org and re-verify its structure",
-      "Immediately unlist the alpha version via nuget.org → aipm package page → Manage Package → Listing → Uncheck 'List in search results'",
-      "Restore the !prerelease guard in release-nuget.yml in a follow-up PR",
-      "Confirm the alpha version is now hidden from nuget.org search (but still resolves for anyone who pinned to that exact version)"
+      "Edit crates/libaipm/src/lint/mod.rs:125 to replace `let features = crate::discovery::discover_features(&opts.dir, opts.max_depth)?;` with calls to `crate::discovery::discover(&opts.dir, &DiscoverOptions { max_depth: opts.max_depth, source_filter: opts.source.clone(), follow_symlinks: false }, fs)?` returning a DiscoveredSet",
+      "Update the existing lint loop to iterate discovered.features instead of features",
+      "Add scan_counts: ScanCounts and scanned_dirs: Vec<PathBuf> to the Outcome struct (crates/libaipm/src/lint/mod.rs:174-192)",
+      "Populate Outcome.scan_counts = discovered.counts() and Outcome.scanned_dirs = discovered.scanned_dirs.clone()",
+      "Update ALL existing lint tests that construct or assert on Outcome to include the new fields (Default impls or explicit ..Default::default())",
+      "Confirm the existing --source filter still works: today's filter logic at crates/libaipm/src/lint/mod.rs:128-138 should be removed (now handled inside discover via opts.source_filter)",
+      "Add a focused integration test: write the issue #725 fixture tree, run lint with AIPM_UNIFIED_DISCOVERY=1, assert outcome.scan_counts.skills == 3 AND outcome.scan_counts.instructions == 1 AND no error_count regression",
+      "Add a regression test: run lint on the same fixture WITHOUT the env var; assert behavior matches today (no skills found, lint silently passes)",
+      "Run cargo build/test/clippy/fmt — all four green; coverage on lint/mod.rs preserved"
     ],
     "passes": false
   },
   {
-    "category": "validation",
-    "description": "Phase 3 first stable publish: verify the normal release flow publishes to nuget.org automatically",
+    "category": "refactor",
+    "description": "Migrate Adapter trait + adapters::all() registry replacing the old Detector trait",
     "steps": [
-      "Wait for the next stable release-plz PR to merge (or manually trigger one)",
-      "Verify release-plz creates the aipm-v<semver> tag",
-      "Verify release.yml builds the 4-target matrix and creates the GitHub Release",
-      "Verify release-nuget.yml triggers automatically on release:published",
-      "Verify release-nuget.yml publishes via OIDC (preferred) OR falls back to API key if OIDC rollout incomplete",
-      "Confirm the package appears on nuget.org under the stable version",
-      "Confirm the nuget.org page shows repository signature (automatic on ingest) and metadata fields (license, projectUrl, repository commit, readme rendering)",
-      "Do NOT unlist — this is the first production publish"
+      "Add crates/libaipm/src/migrate/adapters/mod.rs with pub trait Adapter { fn name(&self) -> &'static str; fn applies_to(&self, feat: &DiscoveredFeature) -> bool; fn to_artifact(&self, feat: &DiscoveredFeature, fs: &dyn Fs) -> Result<Artifact, Error>; }",
+      "Add pub fn all() -> Vec<Box<dyn Adapter>> that returns the 12 adapters (initially empty; populated as each adapter feature lands)",
+      "Keep the existing Detector trait at crates/libaipm/src/migrate/detector.rs ALIVE during this transition — it stays the default until the orchestrator switch (feature 14)",
+      "Add a unit test asserting adapters::all() returns Vec of Box<dyn Adapter> with stable name() ordering",
+      "Verify Adapter::applies_to specifies behavior when multiple adapters match the same DiscoveredFeature (per spec §9 open question — the trait doc-comment specifies first-match-wins by registry order)",
+      "Run cargo build/test/clippy/fmt — all four green"
     ],
     "passes": false
   },
   {
-    "category": "validation",
-    "description": "End-to-end ADO pipeline consumer smoke test across all three Microsoft-hosted agent images",
+    "category": "refactor",
+    "description": "Migrate Copilot adapters (six): CopilotSkill, CopilotAgent, CopilotHook, CopilotExtension, CopilotLsp, CopilotMcp",
     "steps": [
-      "Create a disposable Azure DevOps project (or use an existing sandbox)",
-      "Commit an azure-pipelines.yml matching research/docs/2026-04-22-ado-pipeline-nuget-consume.md section 5",
-      "Set matrix strategy with three legs: ubuntu-latest, windows-latest, macOS-latest",
-      "Set AIPM_VERSION variable to the version published in Phase 3",
-      "Verify NUGET_PACKAGES variable is set to $(Pipeline.Workspace)/.nuget/packages",
-      "Verify the pipeline successfully writes and restores a Microsoft.Build.NoTargets csproj with <PackageDownload Include=\"aipm\" Version=\"[$(AIPM_VERSION)]\" />",
-      "Verify the pwsh RID-resolve step picks the correct runtimes/<RID>/native/aipm[.exe] for each agent OS/arch combo",
-      "Verify ##vso[task.prependpath] correctly adds the binary directory to PATH",
-      "Verify the `aipm --version` smoke-test step runs successfully on all three legs",
-      "Verify chmod +x happened on non-Windows legs (binary executable bit preserved through NuGet extraction)"
+      "Add crates/libaipm/src/migrate/adapters/copilot_skill.rs with CopilotSkillAdapter implementing Adapter — applies_to: feat.engine == Engine::Copilot && feat.kind == FeatureKind::Skill — to_artifact: reuse skill_common::parse_frontmatter, collect_files_recursive, extract_script_references on feat.feature_dir",
+      "Add adapters/copilot_agent.rs (CopilotAgentAdapter), adapters/copilot_hook.rs, adapters/copilot_extension.rs, adapters/copilot_lsp.rs, adapters/copilot_mcp.rs — each consuming DiscoveredFeature instead of walking FS",
+      "For CopilotMcpAdapter, preserve today's behavior of reading <project_root>/.copilot/mcp-config.json (NG6: this path is not a .github descendant; the adapter applies_to a synthetic DiscoveredFeature created by the discover layer for that special case, OR the adapter is invoked directly on a path the discover layer surfaces via a new layout variant)",
+      "DELETE the FS-walking bodies of copilot_skill_detector.rs, copilot_agent_detector.rs, copilot_hook_detector.rs, copilot_extension_detector.rs, copilot_lsp_detector.rs, copilot_mcp_detector.rs in this PR — but only if AIPM_UNIFIED_DISCOVERY=1 codepath is the only consumer (otherwise wait for feature 20 cleanup)",
+      "Per-adapter unit test: construct a DiscoveredFeature fixture, call to_artifact, assert returned Artifact has expected kind, name, source_path, files, referenced_scripts",
+      "Reuse existing skill_common, hook_common, etc. helpers — those carry the parsing/validation logic and are NOT being changed",
+      "Wire each adapter into adapters::all()",
+      "Run cargo build/test/clippy/fmt — all four green; coverage of each adapter ≥89%"
     ],
     "passes": false
   },
   {
-    "category": "validation",
-    "description": "Restore-in-csproj smoke test in an external repository",
+    "category": "refactor",
+    "description": "Migrate Claude adapters (six): ClaudeSkill, ClaudeAgent, ClaudeCommand, ClaudeHook, ClaudeMcp, ClaudeOutputStyle",
     "steps": [
-      "Create a throwaway GitHub repo or local directory",
-      "Create a .NET SDK-style csproj using Microsoft.Build.NoTargets/3.7.0+ SDK",
-      "Add <PackageDownload Include=\"aipm\" Version=\"[<published-version>]\" /> to an ItemGroup",
-      "Set TargetFramework to net8.0 or later",
-      "Create a nuget.config pinning only nuget.org as the package source",
-      "Run `dotnet restore`",
-      "Verify restore succeeds with exit code 0",
-      "Verify the binary materializes at ~/.nuget/packages/aipm/<version>/runtimes/<current-RID>/native/aipm[.exe]",
-      "Verify the binary is executable (on non-Windows)",
-      "Invoke the binary directly from that path: <path>/aipm --version — confirm expected version string",
-      "Repeat on a second OS (Windows or macOS) to confirm RID selection"
+      "Add crates/libaipm/src/migrate/adapters/claude_skill.rs (ClaudeSkillAdapter), claude_agent.rs (ClaudeAgentAdapter), claude_command.rs (ClaudeCommandAdapter), claude_hook.rs (ClaudeHookAdapter), claude_mcp.rs (ClaudeMcpAdapter), claude_output_style.rs (ClaudeOutputStyleAdapter)",
+      "Each implements applies_to checking feat.engine == Engine::Claude && feat.kind == FeatureKind::<expected>",
+      "to_artifact for ClaudeSkillAdapter reuses skill_common (same as the Copilot one); the only difference is the engine tag carried through",
+      "ClaudeMcpAdapter preserves today's behavior of reading <project_root>/.mcp.json (mirror to CopilotMcpAdapter pattern)",
+      "ClaudeOutputStyleAdapter handles .claude/output-styles/ files (per today's output_style_detector.rs:10) — needs a new FeatureKind::OutputStyle variant if not already present (check existing FeatureKind enum)",
+      "Per-adapter unit test on a DiscoveredFeature fixture",
+      "Wire each into adapters::all()",
+      "Run cargo build/test/clippy/fmt — all four green"
     ],
     "passes": false
   },
   {
-    "category": "validation",
-    "description": "Idempotency verification — re-running the workflow on the same tag is a no-op",
+    "category": "refactor",
+    "description": "Migrate orchestrator switch: replace migrate_recursive and migrate_single_source bodies with discovery::discover + adapters loop",
     "steps": [
-      "After Phase 3, navigate to Actions → Publish to NuGet",
-      "Find the successful run from Phase 3",
-      "Click 'Re-run all jobs'",
-      "Verify the workflow runs to completion with exit code 0",
-      "Verify the push step logs 'already exists' or 'skipped' for the version (due to --skip-duplicate)",
-      "Verify no new package version appears on nuget.org",
-      "Document this idempotency behavior in a comment at the top of release-nuget.yml"
+      "Edit crates/libaipm/src/migrate/mod.rs:387-479 (migrate_recursive) — replace `let discovered = crate::discovery::discover_source_dirs(dir, &[\".claude\", \".github\"], max_depth)?;` and the per-source detector dispatch with `let discovered = crate::discovery::discover(dir, &opts.into(), fs)?;`",
+      "Replace the per-detector loop with: `for feat in &discovered.features { for adapter in adapters::all() { if adapter.applies_to(feat) { all_artifacts.push(adapter.to_artifact(feat, fs)?); break; } } }` (first-match-wins per the trait contract)",
+      "Edit crates/libaipm/src/migrate/mod.rs:301-384 (migrate_single_source) similarly — pass opts.source as DiscoverOptions::source_filter; remove the detectors_for_source fallback",
+      "Add From<&Options> for DiscoverOptions impl that maps max_depth, source, and follow_symlinks=false",
+      "Wire AIPM_UNIFIED_DISCOVERY check: when env var != \"1\" the function falls through to today's detector path (legacy_compat — keep for one release)",
+      "Update Outcome to include scan_counts and scanned_dirs (mirror to lint's Outcome change)",
+      "Update all migrate tests that construct Outcome to populate the new fields",
+      "Confirm reconciler.rs and emitter.rs are unchanged — they continue to consume Vec<Artifact> + plans the same way",
+      "Run cargo build/test/clippy/fmt — all four green; coverage on migrate/mod.rs preserved"
     ],
     "passes": false
   },
   {
-    "category": "validation",
-    "description": "OIDC fallback path test — intentionally break Trusted Publishing and verify the API-key fallback works",
+    "category": "ui",
+    "description": "Default scan-summary CLI output written to stderr by both cmd_lint and cmd_migrate (Goal G5)",
     "steps": [
-      "Before cutting the next test release, log in to nuget.org and temporarily disable the Trusted Publishing policy for TheLarkInn/aipm (or delete it)",
-      "Cut a disposable pre-release tag aipm-v<next>-rc.1 for this test (relax the !prerelease guard temporarily)",
-      "Observe release-nuget.yml fire",
-      "Verify the NuGet/login@v1 step fails (continue-on-error lets the workflow proceed)",
-      "Verify the fallback push step runs with --api-key from NUGET_API_KEY",
-      "Verify the rc.1 package publishes successfully to nuget.org",
-      "Verify the GitHub Actions log emits the ::warning:: that OIDC Trusted Publishing failed",
-      "Re-enable the Trusted Publishing policy on nuget.org",
-      "Unlist the rc.1 package",
-      "Restore the !prerelease guard"
+      "Add crates/aipm/src/scan_summary.rs with pub fn write_summary(out: &mut dyn Write, counts: ScanCounts, scanned_dirs: usize, sources: &[String]) -> std::io::Result<()>",
+      "Format: \"Scanned {N} director{y|ies} in [{sources}]; matched {format_counts(counts)}\\n\" with format_counts producing \"M skills, K agents, …\" omitting zero categories or \"0 features\" if total == 0",
+      "Add a --quiet flag declaration to both Migrate and Lint subcommands in crates/aipm/src/main.rs:158-213 (use clap's Arg::action(ArgAction::SetTrue) on a bool field)",
+      "Wire write_summary into cmd_lint at crates/aipm/src/main.rs:708-788 BEFORE the reporter is invoked, gated on !opts.quiet, writing to std::io::stderr()",
+      "Wire write_summary into cmd_migrate at crates/aipm/src/main.rs:889-992 similarly, BEFORE the action-print loop",
+      "Add unit tests for format_counts: zero counts → \"0 features\"; one kind → \"3 skills\"; multiple kinds → \"3 skills, 1 instructions\" (no comma after last)",
+      "Add an E2E test invoking each command against the issue #725 fixture and asserting stderr contains \"matched 3 skills, 1 instructions\" and stdout has the per-action lines",
+      "Add an E2E test asserting --quiet suppresses the stderr summary",
+      "Run cargo build/test/clippy/fmt — all four green; verify use of write!()/writeln!() not println!()/eprintln!() per CLAUDE.md"
     ],
     "passes": false
   },
   {
-    "category": "security",
-    "description": "Verify forks cannot publish and renamed workflows cannot publish",
+    "category": "test",
+    "description": "BDD scenarios for issue #725 — Copilot CLI nested skills layout for both migrate and lint",
     "steps": [
-      "Fork TheLarkInn/aipm to a test GitHub account (or have someone else do so)",
-      "Create a fake release tag in the fork (e.g., aipm-v99.0.0)",
-      "Verify the fork's release-nuget.yml does not receive NUGET_USERNAME, NUGET_API_KEY, or an OIDC id-token (confirmed by GitHub Actions' standard secret-isolation behavior)",
-      "Verify any push attempt from the fork would be rejected by nuget.org (OIDC policy binding or missing API key)",
-      "In a branch of the main repo, rename release-nuget.yml to release-nuget-test.yml",
-      "Trigger via workflow_dispatch (or push a test tag)",
-      "Verify the NuGet/login@v1 OIDC step fails because the workflow filename no longer matches the TP policy binding",
-      "Revert the rename",
-      "Document these tests in a SECURITY.md or inline workflow comments"
+      "Edit tests/features/manifest/migrate.feature and add `Rule: Copilot CLI nested skills layout (.github/copilot/skills/) is discovered` immediately after the existing rule at line 187",
+      "Add Scenario: \"Migrate skills from .github/copilot/skills/\" with steps creating skill-alpha, skill-beta, skill-gamma per #725's tree, running `aipm migrate --source .github`, asserting all three skills are migrated and registered",
+      "Add Scenario: \"Recursive migrate finds nested .github/copilot/skills/\" running `aipm migrate` (no --source) and asserting the same outcome",
+      "Edit tests/features/guardrails/quality.feature to add a scenario: \"Lint reports issues for skills under .github/copilot/skills/\" with a SKILL.md missing description; assert lint exits non-zero",
+      "Edit tests/features/guardrails/quality.feature to add a scenario for `.github/copilot/copilot-instructions.md` triggering instructions_oversized when over budget",
+      "Add new BDD step `given_copilot_nested_skill_exists` in crates/libaipm/tests/bdd.rs that writes `<base>/.github/copilot/skills/<name>/SKILL.md` with given content (mirroring the existing given_copilot_skill_exists at line 756-766 but with the extra skills/ segment)",
+      "Add new BDD step `given_copilot_instructions_file_exists` writing `<base>/.github/copilot/copilot-instructions.md`",
+      "Run AIPM_UNIFIED_DISCOVERY=1 cargo test --workspace; all new BDD scenarios pass",
+      "Run cargo clippy --workspace -- -D warnings, cargo fmt --check"
+    ],
+    "passes": false
+  },
+  {
+    "category": "test",
+    "description": "End-to-end integration tests against issue #725's exact tree for both commands",
+    "steps": [
+      "Add crates/aipm/tests/issue_725_e2e.rs creating a tempdir with the exact tree from #725: .github/copilot/skills/{skill-alpha,skill-beta,skill-gamma}/SKILL.md plus .github/copilot/copilot-instructions.md plus a .ai/.claude-plugin/marketplace.json (so migrate has a valid output target)",
+      "Test 1 — `aipm migrate` (with AIPM_UNIFIED_DISCOVERY=1 in env): assert exit code 0, stderr contains \"matched 3 skills, 1 instructions\", stdout contains 3 \"Migrated skill\" lines, .ai/<plugin>/skills/{skill-alpha,…}/SKILL.md exist",
+      "Test 2 — `aipm lint` (with AIPM_UNIFIED_DISCOVERY=1): assert exit code 0, stderr contains the matched line, stdout's reporter output is sensible (human reporter shows \"no issues found\" for valid skills)",
+      "Test 3 — `aipm lint --quiet` against the same tree: assert stderr is silent",
+      "Test 4 — `aipm migrate` WITHOUT AIPM_UNIFIED_DISCOVERY (legacy path): assert exit code 0 AND zero migrated artifacts (today's bug behavior preserved when flag is off — this asserts the regression fence)",
+      "Test 5 — `aipm lint --reporter ci-github` with AIPM_UNIFIED_DISCOVERY=1 against the tree: assert stdout has zero diagnostics AND stderr has the scan summary",
+      "Use std::process::Command to invoke the compiled binary; do NOT use any test helper that bypasses the CLI",
+      "Run cargo build/test/clippy/fmt — all four green; new tests run in CI and locally"
     ],
     "passes": false
   },
   {
     "category": "docs",
-    "description": "Update README.md installation section to include a NuGet row",
+    "description": "Documentation updates for the new CopilotSubrootWithSkills layout and CHANGELOG entry",
     "steps": [
-      "Locate the installation section in README.md (likely under '## Installation' or similar)",
-      "Add a new row or subsection for NuGet with the header 'Azure DevOps / NuGet'",
-      "Include a short description: 'Install aipm from nuget.org in an Azure Pipelines job'",
-      "Provide a minimal YAML snippet showing UseDotNet@2, the NoTargets PackageDownload csproj, dotnet restore, and a pwsh RID-resolve step with ##vso[task.prependpath]",
-      "Link to research/docs/2026-04-22-ado-pipeline-nuget-consume.md for the full example",
-      "Add a nuget.org shields.io badge near the top of the README alongside the existing crates.io and Homebrew badges: https://img.shields.io/nuget/v/aipm",
-      "Verify the README renders correctly on GitHub after push"
+      "Edit docs/guides/migrate.md lines 60-67 to add `.github/copilot/skills/<name>/SKILL.md` to the table of recognized Copilot skill layouts",
+      "Edit docs/guides/migrating-existing-configs.md line 46 similarly",
+      "Add a CHANGELOG.md entry under the next unreleased version: `### Fixed - aipm migrate and aipm lint now detect skills under .github/copilot/skills/<name>/SKILL.md (issue #725)` and `### Fixed - aipm lint now recognizes <engine>-instructions.md files (e.g. copilot-instructions.md, claude-instructions.md)` and `### Added - aipm migrate and aipm lint print a scan summary by default; suppress with --quiet`",
+      "Add a CHANGELOG note about the AIPM_UNIFIED_DISCOVERY env var being default-off in this release",
+      "Verify the docs build (if there is a docs build step in CI) — confirm with `grep -l docs .github/workflows/`",
+      "No code changes; cargo build/test/clippy/fmt should still pass (no production code touched)"
     ],
-    "passes": true
+    "passes": false
   },
   {
-    "category": "docs",
-    "description": "Document the rollback/unlist runbook for a broken published version",
+    "category": "test",
+    "description": "Coverage gate verification: 89% branch coverage workspace-wide; discovery/ module coverage ≥89% per-module",
     "steps": [
-      "Either create RELEASING.md at the repo root or add a comment block at the top of .github/workflows/release-nuget.yml",
-      "Document Step 1: Unlist the broken version immediately at https://www.nuget.org/packages/aipm/<version> → Manage Package → Listing → Uncheck 'List in search results'",
-      "Document Step 2: Cut a patch release via release-plz (or a manual commit + tag) containing the fix",
-      "Document Step 3: Verify the new patch version publishes and is listed",
-      "Document Step 4: Nothing deletes from nuget.org — the broken version remains resolvable by anyone who pinned to it; this is an intentional property of the NuGet protocol",
-      "Cross-reference the runbook from the spec's §5.5 State Management section"
+      "Run the coverage pipeline from CLAUDE.md: `cargo +nightly llvm-cov clean --workspace`",
+      "Run `cargo +nightly llvm-cov --no-report --workspace --branch`",
+      "Run `cargo +nightly llvm-cov --no-report --doc`",
+      "Run `cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs|lsp\\.rs)'`",
+      "Verify TOTAL branch column ≥89%",
+      "Run `cargo +nightly llvm-cov report --doctests --branch --html --open` and inspect each new file in crates/libaipm/src/discovery/ — every file ≥89% branch coverage",
+      "If any file is below the threshold, identify the uncovered branches and add focused unit tests to close them BEFORE marking this feature complete",
+      "Pay special attention to instruction.rs (the regex), layout.rs (the ancestor-walk pick_layout_for_skill match arms), and source.rs (the engine-root inference)"
     ],
-    "passes": true
+    "passes": false
   },
   {
-    "category": "docs",
-    "description": "Mark specs/2026-04-22-nuget-publishing-pipeline.md status as Implemented once all above features pass",
+    "category": "functional",
+    "description": "Phase 2 — flip AIPM_UNIFIED_DISCOVERY default to ON (separate release after Phase 1 soaks)",
     "steps": [
-      "When features #1 through #17 are all marked passes: true, edit the spec frontmatter",
-      "Change `status: Draft (WIP)` to `status: Implemented`",
-      "Add an 'Implemented:' date field with today's date",
-      "Add a brief 'Implementation Notes' section at the bottom listing any deviations from the spec discovered during implementation",
-      "Update the research doc research/docs/2026-04-22-nuget-publishing-pipeline.md 'Open Questions' section to mark resolved items as ANSWERED with the resolution",
-      "Commit and close any linked GitHub Issue tracking this work"
+      "Edit crates/libaipm/src/discovery/mod.rs to flip the default: when env var is not set, use unified path; only when env var == \"0\" use legacy_compat",
+      "Update CHANGELOG.md noting the default flip; mention how users can opt out with AIPM_UNIFIED_DISCOVERY=0 in case of issues",
+      "Update docs/guides/migrate.md and docs/guides/migrating-existing-configs.md to remove any \"experimental\" caveats",
+      "Run the full test suite and coverage gate again to confirm no regressions in the default-on configuration",
+      "This is a SEPARATE PR/release per spec §8.1 Phase 2 — do NOT bundle with Phase 1"
+    ],
+    "passes": false
+  },
+  {
+    "category": "cleanup",
+    "description": "Phase 3 — delete legacy_compat, the env-var check, and the FS-walking bodies of the old detectors (separate release after Phase 2)",
+    "steps": [
+      "Delete crates/libaipm/src/discovery_legacy.rs (or the temporary discovery.rs that was renamed in feature 1)",
+      "Delete crates/libaipm/src/discovery/legacy_compat.rs",
+      "Remove the AIPM_UNIFIED_DISCOVERY env-var check from discovery::discover; the function unconditionally calls unified_discover",
+      "Delete crates/libaipm/src/migrate/detector.rs (Detector trait + claude_detectors + copilot_detectors + detectors_for_source)",
+      "For each old *_detector.rs (skill_detector.rs, agent_detector.rs, command_detector.rs, hook_detector.rs, mcp_detector.rs, output_style_detector.rs, copilot_skill_detector.rs, copilot_agent_detector.rs, copilot_hook_detector.rs, copilot_extension_detector.rs, copilot_lsp_detector.rs, copilot_mcp_detector.rs) — keep the parsing/validation helpers (skill_common etc.) but delete the Detector impl and the FS-walking bodies",
+      "Update mod declarations in crates/libaipm/src/migrate/mod.rs to drop the deleted modules",
+      "Verify no callers of discover_source_dirs or discover_claude_dirs remain (`grep -rn 'discover_source_dirs\\|discover_claude_dirs' crates/`)",
+      "Run cargo build/test/clippy/fmt — all four green; coverage gate still ≥89%",
+      "Update CHANGELOG.md noting removal of the env var and legacy code paths",
+      "This is a SEPARATE PR/release per spec §8.1 Phase 3 — do NOT bundle with Phase 1 or Phase 2"
     ],
     "passes": false
   }
