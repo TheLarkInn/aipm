@@ -159,14 +159,15 @@
     "category": "refactor",
     "description": "Migrate Adapter trait + adapters::all() registry replacing the old Detector trait",
     "steps": [
-      "Add crates/libaipm/src/migrate/adapters/mod.rs with pub trait Adapter { fn name(&self) -> &'static str; fn applies_to(&self, feat: &DiscoveredFeature) -> bool; fn to_artifact(&self, feat: &DiscoveredFeature, fs: &dyn Fs) -> Result<Artifact, Error>; }",
-      "Add pub fn all() -> Vec<Box<dyn Adapter>> that returns the 12 adapters (initially empty; populated as each adapter feature lands)",
-      "Keep the existing Detector trait at crates/libaipm/src/migrate/detector.rs ALIVE during this transition — it stays the default until the orchestrator switch (feature 14)",
-      "Add a unit test asserting adapters::all() returns Vec of Box<dyn Adapter> with stable name() ordering",
-      "Verify Adapter::applies_to specifies behavior when multiple adapters match the same DiscoveredFeature (per spec §9 open question — the trait doc-comment specifies first-match-wins by registry order)",
+      "Add crates/libaipm/src/migrate/adapters/mod.rs with pub trait Adapter: Send + Sync with name(), applies_to(&DiscoveredFeature), to_artifact(&DiscoveredFeature, &dyn Fs) -> Result<Artifact, Error>",
+      "Add pub fn all() -> Vec<Box<dyn Adapter>> returning empty vec (12 adapters land in features 12 and 13)",
+      "Module-level doc-comment specifies first-match-wins resolution policy when multiple adapters claim the same DiscoveredFeature; orchestrator (feature 14) iterates all() in order",
+      "Keep the existing Detector trait at migrate/detector.rs ALIVE during the transition — feature 14's orchestrator switch is what removes it",
+      "Wire pub mod adapters into crates/libaipm/src/migrate/mod.rs",
+      "Unit tests (4): registry returns the right type, registry iterates safely when empty, stub adapter doesn't apply / has stable name, trait is dyn-object-safe (Box<dyn Adapter> compiles and dispatches)",
       "Run cargo build/test/clippy/fmt — all four green"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

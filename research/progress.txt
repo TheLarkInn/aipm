@@ -244,3 +244,25 @@ Cargo verifier:
 - build/test/clippy/fmt: PASS
 - coverage: 90.08% (>= 89%)
 - overall: PASS
+
+## 2026-05-01 — Feature 11: Migrate Adapter trait + adapters::all() registry — DONE
+
+Added `crates/libaipm/src/migrate/adapters/mod.rs` with:
+- `pub trait Adapter: Send + Sync` with three methods: `name()`, `applies_to(&DiscoveredFeature) -> bool`, `to_artifact(&DiscoveredFeature, &dyn Fs) -> Result<Artifact, Error>`.
+- `pub fn all() -> Vec<Box<dyn Adapter>>` returning an empty vec for now. The 12 adapters land in features 12 (Copilot ×6) and 13 (Claude ×6).
+- Module-level doc-comment specifies first-match-wins resolution policy: orchestrator iterates the registry in order and selects the first adapter whose applies_to returns true.
+
+The legacy Detector trait at `migrate/detector.rs` stays ALIVE during this transition; feature 14's orchestrator switch is what migrates the actual call sites.
+
+Wired `pub mod adapters` into `migrate/mod.rs`.
+
+Tests (4):
+- `registry_is_a_vec_of_box_dyn_adapter` — type sanity check via inferred return type.
+- `registry_iteration_is_safe_when_empty` — empty vec iteration completes without panic.
+- `stub_adapter_does_not_apply` — a test-only StubAdapter has stable name and applies_to returns false.
+- `adapter_trait_is_object_safe` — Box<dyn Adapter> compiles and dispatches via dyn (guards against accidental generic methods that would break object safety).
+
+Cargo verifier:
+- build/test/clippy/fmt: PASS
+- coverage: 90.08% (>= 89%)
+- overall: PASS

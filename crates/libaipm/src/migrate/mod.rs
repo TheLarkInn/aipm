@@ -1,5 +1,6 @@
 //! Migration pipeline: scan AI tool configurations and convert to marketplace plugins.
 
+pub mod adapters;
 pub mod agent_detector;
 pub mod cleanup;
 pub mod command_detector;
