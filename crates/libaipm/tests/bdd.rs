@@ -55,6 +55,11 @@ pub struct AipmWorld {
     registry_versions: Vec<version::Version>,
     /// Selected version from resolution.
     selected_version: Option<version::Version>,
+    /// Legacy flag that toggled `AIPM_UNIFIED_DISCOVERY=1` for issue #725
+    /// scenarios. The unified path is now unconditionally on, so this
+    /// flag is a no-op kept only to avoid editing every setup step that
+    /// flipped it. Remove once those step bodies are simplified.
+    unified_discovery: bool,
 }
 
 impl AipmWorld {
@@ -107,6 +112,10 @@ fn run_command(world: &mut AipmWorld, full_cmd: &str, working_dir: Option<&str>)
 
     cmd.args(args);
     cmd.current_dir(&cwd);
+    // Unified discovery is now the default — the env var is gone. The
+    // `world.unified_discovery` flag is preserved as a no-op to avoid
+    // breaking existing setup steps.
+    let _ = world.unified_discovery;
 
     let output = cmd.output().expect("execute command");
     world.last_stdout = String::from_utf8_lossy(&output.stdout).to_string();
@@ -763,6 +772,57 @@ async fn given_copilot_skill_exists(world: &mut AipmWorld, name: String, dir: St
         format!("---\nname: {name}\ndescription: {name} skill\n---\n{name} instructions"),
     )
     .expect("write SKILL.md");
+}
+
+#[given(expr = "a copilot nested skill {string} exists in {string}")]
+async fn given_copilot_nested_skill_exists(world: &mut AipmWorld, name: String, dir: String) {
+    // Customer's #725 layout: `.github/copilot/skills/<name>/SKILL.md`.
+    let base = world.dir_path(&dir);
+    let skill_dir = base.join(".github").join("copilot").join("skills").join(&name);
+    std::fs::create_dir_all(&skill_dir).expect("create copilot nested skill dir");
+    std::fs::write(
+        skill_dir.join("SKILL.md"),
+        format!("---\nname: {name}\ndescription: {name} skill\n---\n{name} instructions"),
+    )
+    .expect("write SKILL.md");
+    world.unified_discovery = true;
+}
+
+#[given(expr = "a copilot instructions file with {int} lines exists in {string}")]
+async fn given_copilot_instructions_file_exists(
+    world: &mut AipmWorld,
+    line_count: usize,
+    dir: String,
+) {
+    let base = world.dir_path(&dir);
+    let copilot_dir = base.join(".github").join("copilot");
+    std::fs::create_dir_all(&copilot_dir).expect("create .github/copilot dir");
+    let mut content = String::new();
+    for i in 0..line_count {
+        content.push_str(&format!("line {i}\n"));
+    }
+    std::fs::write(copilot_dir.join("copilot-instructions.md"), content)
+        .expect("write copilot-instructions.md");
+    world.unified_discovery = true;
+}
+
+#[given(expr = "a copilot nested skill {string} with no description exists in {string}")]
+async fn given_copilot_nested_skill_no_description(
+    world: &mut AipmWorld,
+    name: String,
+    dir: String,
+) {
+    let base = world.dir_path(&dir);
+    let skill_dir = base.join(".github").join("copilot").join("skills").join(&name);
+    std::fs::create_dir_all(&skill_dir).expect("create copilot nested skill dir");
+    // Frontmatter with no `description` key — triggers
+    // `skill/missing-description` lint diagnostic.
+    std::fs::write(
+        skill_dir.join("SKILL.md"),
+        format!("---\nname: {name}\n---\n{name} instructions\n"),
+    )
+    .expect("write SKILL.md");
+    world.unified_discovery = true;
 }
 
 #[given(expr = "a command {string} exists in {string}")]

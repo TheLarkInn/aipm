@@ -16,11 +16,18 @@ pub use error::Error;
 
 use std::path::PathBuf;
 
-use crate::discovery::{DiscoveredFeature, FeatureKind};
+use crate::discovery::{DiscoverOptions, DiscoveredFeature, Engine, FeatureKind, ScanCounts};
 use crate::fs::Fs;
 
 pub use diagnostic::{Diagnostic, Severity};
 pub use rule::Rule;
+
+/// The canonical engine source-root directory names that the scan summary
+/// reports as "scanned". Root-level instruction files (e.g. `/repo/CLAUDE.md`)
+/// have a `source_root` pointing at the project directory itself; reporting
+/// that name in the summary would leak the user's repo / tempdir name, so we
+/// filter it out.
+const RECOGNIZED_SOURCE_NAMES: &[&str] = &[".claude", ".github", ".ai"];
 
 /// Check if a file path matches any of the given glob ignore patterns.
 fn is_ignored(path: &str, patterns: &[String]) -> bool {
@@ -76,13 +83,21 @@ fn run_rules_for_feature(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Result<(), Error> {
     tracing::trace!(
-        feature = %feature.file_path.display(),
+        feature = %feature.path.display(),
         kind = ?feature.kind,
-        source = ?feature.source_context.as_ref().map(|c| &c.source_type),
+        engine = ?feature.engine,
+        layout = ?feature.layout,
         "dispatching rules for feature"
     );
 
-    let is_inside_ai = feature.source_context.as_ref().is_some_and(|ctx| ctx.source_type == ".ai");
+    // "Inside .ai/" semantics preserved from the legacy classifier: any
+    // `.ai` ancestor anywhere in the path counts. The new shape's `engine`
+    // field reports the INNERMOST engine root, so a nested layout like
+    // `.ai/<plugin>/.claude/skills/x/SKILL.md` would have `engine=Claude`
+    // even though it's logically inside the marketplace. Walking the path
+    // components catches both cases.
+    let is_inside_ai =
+        feature.engine == Engine::Ai || feature.path.components().any(|c| c.as_os_str() == ".ai");
 
     // 1. Quality rules — run on ALL features regardless of location.
     let quality_rules = rules::quality_rules_for_kind(&feature.kind, config);
@@ -90,7 +105,7 @@ fn run_rules_for_feature(
         if config.is_suppressed(rule.id()) {
             continue;
         }
-        let rule_diagnostics = rule.check_file(&feature.file_path, fs)?;
+        let rule_diagnostics = rule.check_file(&feature.path, fs)?;
         apply_rule_diagnostics(rule.as_ref(), rule_diagnostics, config, diagnostics);
     }
 
@@ -100,7 +115,7 @@ fn run_rules_for_feature(
     if !is_inside_ai && feature.kind != FeatureKind::Instructions {
         let rule = rules::misplaced_features_rule(feature, ai_exists);
         if !config.is_suppressed(rule.id()) {
-            let rule_diagnostics = rule.check_file(&feature.file_path, fs)?;
+            let rule_diagnostics = rule.check_file(&feature.path, fs)?;
             apply_rule_diagnostics(&rule, rule_diagnostics, config, diagnostics);
         }
     }
@@ -121,26 +136,31 @@ pub fn lint(opts: &Options, fs: &dyn Fs) -> Result<Outcome, Error> {
     let mut all_diagnostics = Vec::new();
     let mut sources_scanned = Vec::new();
 
-    // Single-pass: discover all feature files in the project tree.
-    let features = crate::discovery::discover_features(&opts.dir, opts.max_depth)?;
-
-    // Apply --source filter if provided.
-    let features: Vec<_> = if let Some(ref source_filter) = opts.source {
-        features
-            .into_iter()
-            .filter(|f| {
-                f.source_context.as_ref().is_some_and(|ctx| ctx.source_type == *source_filter)
-            })
-            .collect()
-    } else {
-        features
+    // Single-pass: discover all feature files in the project tree via the
+    // unified discover() API. Source filtering is applied internally; we no
+    // longer post-filter here.
+    let discover_opts = DiscoverOptions {
+        max_depth: opts.max_depth,
+        source_filter: opts.source.clone(),
+        follow_symlinks: false,
     };
+    let discovered = crate::discovery::discover(&opts.dir, &discover_opts, fs)?;
 
-    // Track which source types were scanned (deduplicated).
-    for f in &features {
-        let src = f.source_context.as_ref().map_or("other", |ctx| ctx.source_type.as_str());
-        if !sources_scanned.contains(&src.to_string()) {
-            sources_scanned.push(src.to_string());
+    // Track which source types were scanned (deduplicated). Only the
+    // canonical engine roots (.claude / .github / .ai) are reported —
+    // root-level instruction files like `CLAUDE.md` have a `source_root`
+    // pointing at the project directory itself, which we skip so the
+    // summary doesn't leak the user's repo / tempdir name.
+    for f in &discovered.features {
+        let Some(name_os) = f.source_root.file_name() else {
+            continue;
+        };
+        let name = name_os.to_string_lossy().into_owned();
+        if !RECOGNIZED_SOURCE_NAMES.contains(&name.as_str()) {
+            continue;
+        }
+        if !sources_scanned.contains(&name) {
+            sources_scanned.push(name);
         }
     }
 
@@ -148,7 +168,7 @@ pub fn lint(opts: &Options, fs: &dyn Fs) -> Result<Outcome, Error> {
     let ai_exists = fs.exists(&opts.dir.join(".ai"));
 
     // Run rules per discovered feature.
-    for feature in &features {
+    for feature in &discovered.features {
         run_rules_for_feature(feature, ai_exists, fs, &opts.config, &mut all_diagnostics)?;
     }
 
@@ -163,7 +183,17 @@ pub fn lint(opts: &Options, fs: &dyn Fs) -> Result<Outcome, Error> {
     let error_count = all_diagnostics.iter().filter(|d| d.severity == Severity::Error).count();
     let warning_count = all_diagnostics.iter().filter(|d| d.severity == Severity::Warning).count();
 
-    Ok(Outcome { diagnostics: all_diagnostics, error_count, warning_count, sources_scanned })
+    let scan_counts = discovered.counts();
+    let scanned_dirs = discovered.scanned_dirs;
+
+    Ok(Outcome {
+        diagnostics: all_diagnostics,
+        error_count,
+        warning_count,
+        sources_scanned,
+        scan_counts,
+        scanned_dirs,
+    })
 }
 
 /// Options for running the lint pipeline.
@@ -180,7 +210,7 @@ pub struct Options {
 }
 
 /// Outcome of a lint run.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Outcome {
     /// All diagnostics found.
     pub diagnostics: Vec<Diagnostic>,
@@ -190,6 +220,10 @@ pub struct Outcome {
     pub warning_count: usize,
     /// Source types that were scanned.
     pub sources_scanned: Vec<String>,
+    /// Aggregated counts of features discovered, broken down by `FeatureKind`.
+    pub scan_counts: ScanCounts,
+    /// Every directory the discovery walker descended into.
+    pub scanned_dirs: Vec<PathBuf>,
 }
 
 #[cfg(test)]
@@ -376,10 +410,13 @@ mod tests {
             error_count: 0,
             warning_count: 0,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         assert_eq!(outcome.error_count, 0);
         assert_eq!(outcome.warning_count, 0);
         assert!(outcome.diagnostics.is_empty());
+        assert_eq!(outcome.scan_counts.total(), 0);
+        assert!(outcome.scanned_dirs.is_empty());
     }
 
     #[test]
@@ -1541,5 +1578,102 @@ mod tests {
                 .contains("ignored-skill")),
             "ignored-skill diagnostic should be filtered by rule ignore path"
         );
+    }
+
+    // --- Issue #725 integration: customer's .github/copilot/skills/<x>/SKILL.md
+    // tree must be picked up by lint. The unified path additionally finds
+    // .github/copilot/copilot-instructions.md (which today's legacy classifier
+    // silently drops). ---
+
+    fn touch(path: &Path) {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).expect("create parent dir");
+        }
+        std::fs::write(path, "").expect("touch file");
+    }
+
+    /// Build the customer's #725 fixture tree under `root`.
+    fn write_issue_725_tree(root: &Path) {
+        for name in ["skill-alpha", "skill-beta", "skill-gamma"] {
+            let dir = root.join(format!(".github/copilot/skills/{name}"));
+            std::fs::create_dir_all(&dir).expect("create skill dir");
+            std::fs::write(
+                dir.join("SKILL.md"),
+                format!("---\nname: {name}\ndescription: A skill for {name}\n---\n\n# {name}\n"),
+            )
+            .expect("write SKILL.md");
+        }
+        touch(&root.join(".github/copilot/copilot-instructions.md"));
+        std::fs::create_dir_all(root.join(".ai")).expect("create .ai dir");
+    }
+
+    #[test]
+    fn lint_unified_finds_issue_725_skills_and_instructions() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        write_issue_725_tree(root);
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let outcome = lint(&opts, &crate::fs::Real).expect("lint should succeed");
+        assert_eq!(outcome.scan_counts.skills, 3, "expected 3 skills under #725 layout");
+        assert_eq!(
+            outcome.scan_counts.instructions, 1,
+            "unified path must find copilot-instructions.md (the #725 lint-side fix)"
+        );
+    }
+
+    #[test]
+    fn lint_outcome_carries_scan_counts_and_dirs() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        write_issue_725_tree(root);
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let outcome = lint(&opts, &crate::fs::Real).expect("lint should succeed");
+        assert_eq!(outcome.scan_counts.total(), 4);
+        // Walker must have visited at least the .github/ subtree.
+        assert!(
+            outcome.scanned_dirs.iter().any(|p| p.to_string_lossy().contains(".github")),
+            ".github/ must appear in scanned_dirs"
+        );
+    }
+
+    #[test]
+    fn lint_source_filter_propagated_to_discover() {
+        // Source filter is now handled inside discover(); confirm the
+        // post-classify retain happens and excludes engines that don't match.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        // .claude skill that should be filtered out.
+        let claude_dir = root.join(".claude/skills/claude-skill");
+        std::fs::create_dir_all(&claude_dir).expect("create");
+        std::fs::write(
+            claude_dir.join("SKILL.md"),
+            "---\nname: claude-skill\ndescription: A claude skill\n---\n\n# claude-skill\n",
+        )
+        .expect("write");
+        write_issue_725_tree(root);
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: Some(".github".to_string()),
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let outcome = lint(&opts, &crate::fs::Real).expect("lint should succeed");
+        // Only the .github features should remain — the .claude skill is
+        // filtered out by source_filter inside discover().
+        assert_eq!(outcome.scan_counts.skills, 3, "filter to .github keeps 3 skills");
+        assert_eq!(outcome.scan_counts.instructions, 1);
     }
 }

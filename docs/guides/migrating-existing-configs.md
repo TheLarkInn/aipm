@@ -43,7 +43,7 @@ The report lists every detected artifact, the plugin it will be grouped into, an
 
 | Artifact | Source location | Plugin type |
 |----------|----------------|-------------|
-| Skills | `.github/skills/<name>/` or `.github/copilot/<name>/` | `skill` |
+| Skills | `.github/skills/<name>/`, `.github/copilot/<name>/`, or `.github/copilot/skills/<name>/` | `skill` |
 | Agents | `.github/agents/<name>.md` or `<name>.agent.md` | `agent` |
 | MCP servers | `.copilot/mcp-config.json` | `mcp` |
 | Hooks | `.github/hooks.json` or `.github/hooks/hooks.json` | `hook` |

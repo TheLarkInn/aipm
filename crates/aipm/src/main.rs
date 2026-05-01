@@ -4,6 +4,7 @@
 
 mod error;
 mod lsp;
+mod scan_summary;
 mod wizard;
 mod wizard_tty;
 
@@ -180,6 +181,10 @@ enum Commands {
         /// Maximum directory traversal depth.
         #[arg(long)]
         max_depth: Option<usize>,
+
+        /// Suppress the default scan summary (one stderr line describing what was matched).
+        #[arg(long = "no-summary")]
+        no_summary: bool,
     },
 
     /// Migrate AI tool configurations into marketplace plugins.
@@ -210,6 +215,10 @@ enum Commands {
         /// Project directory.
         #[arg(default_value = ".")]
         dir: PathBuf,
+
+        /// Suppress the default scan summary (one stderr line describing what was matched).
+        #[arg(long = "no-summary")]
+        no_summary: bool,
     },
 
     /// Scaffold new plugins in a marketplace directory.
@@ -712,6 +721,7 @@ fn cmd_lint(
     color: &str,
     format: Option<&str>,
     max_depth: Option<usize>,
+    no_summary: bool,
 ) -> Result<(), error::CliError> {
     let dir = resolve_dir(dir)?;
 
@@ -756,6 +766,16 @@ fn cmd_lint(
     let opts = libaipm::lint::Options { dir: dir.clone(), source, config, max_depth };
 
     let outcome = libaipm::lint::lint(&opts, &libaipm::fs::Real)?;
+
+    if !no_summary {
+        let mut stderr = std::io::stderr();
+        let _ = scan_summary::write_summary(
+            &mut stderr,
+            outcome.scan_counts,
+            outcome.scanned_dirs.len(),
+            &outcome.sources_scanned,
+        );
+    }
 
     let mut stdout = std::io::stdout();
     match effective_reporter {
@@ -886,6 +906,33 @@ pub(crate) fn load_lint_config(dir: &Path) -> libaipm::lint::config::Config {
     config
 }
 
+/// Build the sources list shown in the scan summary.
+///
+/// When `--source` is given we honor that explicit choice. Otherwise we
+/// derive the set of source-root segments (`.github`, `.claude`, `.ai`)
+/// that appear anywhere in the scanned directory paths so recursive
+/// `aipm migrate` (which discovers across roots) reports what was
+/// actually walked instead of `(none)`.
+fn derive_summary_sources(source: Option<&str>, scanned_dirs: &[PathBuf]) -> Vec<String> {
+    if let Some(s) = source {
+        return vec![s.to_string()];
+    }
+    let mut found: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for dir in scanned_dirs {
+        for component in dir.components() {
+            if let std::path::Component::Normal(os) = component {
+                if let Some(seg) = os.to_str() {
+                    if matches!(seg, ".github" | ".claude" | ".ai") {
+                        found.insert(seg.to_string());
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    found.into_iter().collect()
+}
+
 fn cmd_migrate(
     dry_run: bool,
     destructive: bool,
@@ -893,12 +940,24 @@ fn cmd_migrate(
     max_depth: Option<usize>,
     manifest: bool,
     dir: PathBuf,
+    no_summary: bool,
 ) -> Result<(), error::CliError> {
     let dir = resolve_dir(dir)?;
     let opts =
         libaipm::migrate::Options { dir: &dir, source, dry_run, destructive, max_depth, manifest };
 
     let result = libaipm::migrate::migrate(&opts, &libaipm::fs::Real)?;
+
+    if !no_summary {
+        let sources = derive_summary_sources(source, &result.scanned_dirs);
+        let mut stderr = std::io::stderr();
+        let _ = scan_summary::write_summary(
+            &mut stderr,
+            result.scan_counts,
+            result.scanned_dirs.len(),
+            &sources,
+        );
+    }
 
     let mut stdout = std::io::stdout();
     for action in &result.actions {
@@ -1172,11 +1231,21 @@ fn run() -> Result<(), error::CliError> {
                 cmd_list(linked, dir)
             }
         },
-        Some(Commands::Lint { dir, source, reporter, color, format, max_depth }) => {
-            cmd_lint(dir, source, &reporter, &color, format.as_deref(), max_depth)
+        Some(Commands::Lint { dir, source, reporter, color, format, max_depth, no_summary }) => {
+            let suppress = no_summary || cli.log_format == "json";
+            cmd_lint(dir, source, &reporter, &color, format.as_deref(), max_depth, suppress)
         },
-        Some(Commands::Migrate { dry_run, destructive, source, max_depth, manifest, dir }) => {
-            cmd_migrate(dry_run, destructive, source.as_deref(), max_depth, manifest, dir)
+        Some(Commands::Migrate {
+            dry_run,
+            destructive,
+            source,
+            max_depth,
+            manifest,
+            dir,
+            no_summary,
+        }) => {
+            let suppress = no_summary || cli.log_format == "json";
+            cmd_migrate(dry_run, destructive, source.as_deref(), max_depth, manifest, dir, suppress)
         },
         Some(Commands::Make { subcommand }) => match subcommand {
             MakeSubcommand::Plugin { name, engine, features, yes, dir } => {
@@ -1268,7 +1337,8 @@ mod tests {
     #[test]
     fn cmd_lint_unknown_reporter_returns_err() {
         let tmp = tempfile::tempdir().unwrap();
-        let result = cmd_lint(tmp.path().to_path_buf(), None, "not-a-reporter", "auto", None, None);
+        let result =
+            cmd_lint(tmp.path().to_path_buf(), None, "not-a-reporter", "auto", None, None, false);
         let err = result.unwrap_err().to_string();
         assert!(err.contains("unknown reporter"), "unexpected error: {err}");
     }
@@ -1287,6 +1357,7 @@ mod tests {
             "auto",
             None,
             None,
+            false,
         );
         assert!(result.is_err(), "cmd_lint with unsupported source should fail");
         let msg = result.unwrap_err().to_string();
@@ -1670,7 +1741,8 @@ mod tests {
     #[test]
     fn cmd_lint_ci_github_reporter_succeeds_on_clean_dir() {
         let tmp = tempfile::tempdir().unwrap();
-        let result = cmd_lint(tmp.path().to_path_buf(), None, "ci-github", "auto", None, None);
+        let result =
+            cmd_lint(tmp.path().to_path_buf(), None, "ci-github", "auto", None, None, false);
         assert!(result.is_ok(), "ci-github reporter should succeed on clean dir: {result:?}");
     }
 
@@ -1680,7 +1752,8 @@ mod tests {
     #[test]
     fn cmd_lint_ci_azure_reporter_succeeds_on_clean_dir() {
         let tmp = tempfile::tempdir().unwrap();
-        let result = cmd_lint(tmp.path().to_path_buf(), None, "ci-azure", "auto", None, None);
+        let result =
+            cmd_lint(tmp.path().to_path_buf(), None, "ci-azure", "auto", None, None, false);
         assert!(result.is_ok(), "ci-azure reporter should succeed on clean dir: {result:?}");
     }
 
@@ -1701,7 +1774,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = cmd_lint(tmp.path().to_path_buf(), None, "human", "never", None, None);
+        let result = cmd_lint(tmp.path().to_path_buf(), None, "human", "never", None, None, false);
         assert!(result.is_err(), "cmd_lint must return Err when lint errors are found");
         let msg = result.unwrap_err().to_string();
         assert!(msg.contains("lint found"), "error message must mention lint errors: {msg}");
@@ -1738,7 +1811,7 @@ mod tests {
     #[test]
     fn cmd_lint_text_reporter_maps_to_human() {
         let tmp = tempfile::tempdir().unwrap();
-        let result = cmd_lint(tmp.path().to_path_buf(), None, "text", "auto", None, None);
+        let result = cmd_lint(tmp.path().to_path_buf(), None, "text", "auto", None, None, false);
         assert!(
             result.is_ok(),
             "\"text\" reporter (mapped to human) should succeed on a clean dir: {result:?}"
@@ -1750,7 +1823,7 @@ mod tests {
     #[test]
     fn cmd_lint_color_always_selects_color_choice() {
         let tmp = tempfile::tempdir().unwrap();
-        let result = cmd_lint(tmp.path().to_path_buf(), None, "human", "always", None, None);
+        let result = cmd_lint(tmp.path().to_path_buf(), None, "human", "always", None, None, false);
         assert!(result.is_ok(), "color=always should succeed on a clean dir: {result:?}");
     }
 }

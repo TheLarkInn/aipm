@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- **`aipm migrate` and `aipm lint` now detect skills under `.github/copilot/skills/<name>/SKILL.md`** — closes issue [#725](https://github.com/TheLarkInn/aipm/issues/725). The customer's nested layout (where `.github/copilot/` contains a `skills/` subdirectory) was previously invisible to the migrate detector. The unified discovery pipeline now finds skills at all three Copilot layouts: `.github/skills/<name>/`, `.github/copilot/<name>/`, and `.github/copilot/skills/<name>/`.
+- **`aipm lint` now recognises `<engine>-instructions.md` files** — `copilot-instructions.md`, `claude-instructions.md`, `agents-instructions.md`, and `gemini-instructions.md` are all classified as instruction files. Closes the second silent-drop case from issue #725.
+
+### Added
+
+- **`aipm migrate` and `aipm lint` print a scan summary by default** — a single line on stderr describing what the discovery walker matched (`"Scanned N directories in [.github, .claude]; matched 3 skills, 1 instruction"`). Suppressed via `--no-summary` or when `--log-format=json` is set.
+
+### Changed
+
+- **Unified discovery is now unconditionally on** — the previous `AIPM_UNIFIED_DISCOVERY` opt-in env var has been removed. `aipm migrate` and `aipm lint` always go through the new walker + classifier + adapters pipeline. **Breaking change** (alpha): callers that set `AIPM_UNIFIED_DISCOVERY=0` to pin legacy behavior will silently get the unified path. The project is in alpha and breaking changes are accepted.
+
+### Internal / Infrastructure
+
+- **Unified discovery module** — `crates/libaipm/src/discovery/` containing walker + classifier shared by both `migrate` and `lint`, plus the migrate adapter pipeline at `crates/libaipm/src/migrate/adapters/`. Replaces the asymmetric two-pipeline architecture documented in `research/docs/2026-05-01-github-copilot-skills-migrate-lint-silent-failure.md`.
+- **Hybrid migrate orchestrator** — `migrate::unified::run` now invokes the unified adapters for kinds with `FeatureKind` variants (Skill, Agent, Copilot Hook) and falls back to the legacy detectors per source dir for the deferred kinds (Claude embedded `settings.json` hook, MCP, Extension, LSP, Command, OutputStyle). Package-scoped sources merge all artifacts (adapter + legacy) into a single plugin named after the package.
+- **Retired** `discovery::UNIFIED_DISCOVERY_ENV`, `discovery::unified_enabled()`, `migrate::unified::unified_enabled()`, the `discovery::legacy_compat` adapter module, the `discovery::test_env` test helper, the legacy `migrate_recursive` / `migrate_single_source` paths, and `discovery_legacy::discover_features` (only the source-dir enumeration helpers remain).
+
 ## [0.22.5] - 2026-04-30
 
 ### Features

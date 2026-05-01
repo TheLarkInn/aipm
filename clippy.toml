@@ -13,6 +13,10 @@ too-large-for-stack = 200
 # Struct bool limit (default 3; workspace_init::Options legitimately uses 4)
 max-struct-bools = 4
 
+# Function parameter bool limit (default 3; cmd_migrate legitimately uses 4
+# after adding the --no-summary suppression flag in the unified discovery rollout)
+max-fn-params-bools = 4
+
 # Performance: trivial copy size
 trivial-copy-size-limit = 8
 

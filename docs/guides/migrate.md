@@ -57,7 +57,7 @@ aipm migrate --source .claude
 
 | Artifact | Source Location | Migrated As |
 |----------|----------------|-------------|
-| Skills | `.github/skills/<name>/` or `.github/copilot/<name>/` | `skill` plugin |
+| Skills | `.github/skills/<name>/`, `.github/copilot/<name>/`, or `.github/copilot/skills/<name>/` | `skill` plugin |
 | Agents | `.github/agents/<name>.md` or `<name>.agent.md` | `agent` plugin |
 | MCP servers | `.copilot/mcp-config.json` | `mcp` plugin |
 | Hooks | `.github/hooks.json` or `.github/hooks/hooks.json` | `hook` plugin |
@@ -65,9 +65,13 @@ aipm migrate --source .claude
 | LSP servers | `.github/lsp.json` or `lsp.json` | `lsp` plugin |
 
 > **Note**: The Copilot CLI stores skills in `.github/copilot/` by default. The
-> legacy `.github/skills/` path is also supported. Both directories are scanned
-> automatically; each subdirectory containing a `SKILL.md` file is detected as a
-> skill artifact.
+> legacy `.github/skills/` path is also supported, as is the nested
+> `.github/copilot/skills/<name>/SKILL.md` shape (issue [#725]). All three
+> layouts are scanned automatically; each subdirectory containing a `SKILL.md`
+> file is detected as a skill artifact when running with the unified discovery
+> pipeline (set `AIPM_UNIFIED_DISCOVERY=1` during the rollout window).
+>
+> [#725]: https://github.com/TheLarkInn/aipm/issues/725
 
 Files that are not claimed by any detector (e.g., scripts referenced from a
 skill) are also migrated and tracked.

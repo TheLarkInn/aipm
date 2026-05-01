@@ -468,6 +468,7 @@ mod tests {
             error_count: 1,
             warning_count: 1,
             sources_scanned: vec![".claude".to_string(), ".ai".to_string()],
+            ..Outcome::default()
         }
     }
 
@@ -490,6 +491,7 @@ mod tests {
             error_count: 0,
             warning_count: 0,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         Text.report(&outcome, &mut buf).ok();
@@ -516,6 +518,7 @@ mod tests {
             error_count: 0,
             warning_count: 1,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         Text.report(&outcome, &mut buf).ok();
@@ -544,6 +547,7 @@ mod tests {
             error_count: 1,
             warning_count: 0,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         Text.report(&outcome, &mut buf).ok();
@@ -575,6 +579,7 @@ mod tests {
             error_count: 0,
             warning_count: 1,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         reporter.report(&outcome, &mut buf).ok();
@@ -614,6 +619,7 @@ mod tests {
             error_count: 1,
             warning_count: 0,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         Json.report(&outcome, &mut buf).ok();
@@ -647,6 +653,7 @@ mod tests {
             error_count: 0,
             warning_count: 0,
             sources_scanned: vec![".ai".to_string()],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         Json.report(&outcome, &mut buf).ok();
@@ -697,6 +704,7 @@ mod tests {
             error_count: 0,
             warning_count: 0,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         CiGitHub.report(&outcome, &mut buf).ok();
@@ -723,6 +731,7 @@ mod tests {
             error_count: 0,
             warning_count: 1,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         CiGitHub.report(&outcome, &mut buf).ok();
@@ -752,6 +761,7 @@ mod tests {
             error_count: 0,
             warning_count: 0,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         CiAzure.report(&outcome, &mut buf).ok();
@@ -778,6 +788,7 @@ mod tests {
             error_count: 0,
             warning_count: 1,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         CiAzure.report(&outcome, &mut buf).ok();
@@ -865,6 +876,7 @@ mod tests {
             error_count: 0,
             warning_count: 1,
             sources_scanned: vec![],
+            ..Outcome::default()
         }
     }
 
@@ -986,6 +998,7 @@ mod tests {
             error_count: 0,
             warning_count: 1,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         CiAzure.report(&outcome, &mut buf).ok();
@@ -1034,6 +1047,7 @@ mod tests {
             error_count: 0,
             warning_count: 0,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         CiAzure.report(&outcome, &mut buf).ok();
@@ -1062,6 +1076,7 @@ mod tests {
             error_count: 1,
             warning_count: 0,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         CiAzure.report(&outcome, &mut buf).ok();
@@ -1082,6 +1097,7 @@ mod tests {
             error_count: 0,
             warning_count: 2,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         CiAzure.report(&outcome, &mut buf).ok();
@@ -1109,6 +1125,7 @@ mod tests {
             error_count: 0,
             warning_count: 4,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         CiAzure.report(&outcome, &mut buf).ok();
@@ -1147,6 +1164,7 @@ mod tests {
             error_count: 0,
             warning_count: 3,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         CiAzure.report(&outcome, &mut buf).ok();
@@ -1218,6 +1236,7 @@ mod tests {
             error_count: 1,
             warning_count: 1,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         CiAzure.report(&outcome, &mut buf).ok();
@@ -1285,6 +1304,7 @@ mod tests {
             error_count: 0,
             warning_count: 1,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         reporter.report(&outcome, &mut buf).ok();
@@ -1316,6 +1336,7 @@ mod tests {
             error_count: 0,
             warning_count: 1,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         reporter.report(&outcome, &mut buf).ok();
@@ -1345,6 +1366,7 @@ mod tests {
             error_count: 0,
             warning_count: 1,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         reporter.report(&outcome, &mut buf).ok();
@@ -1373,6 +1395,7 @@ mod tests {
             error_count: 0,
             warning_count: 1,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         reporter.report(&outcome, &mut buf).ok();
@@ -1389,6 +1412,7 @@ mod tests {
             error_count: 0,
             warning_count: 0,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         reporter.report(&outcome, &mut buf).ok();
@@ -1421,6 +1445,7 @@ mod tests {
             error_count: 0,
             warning_count: 1,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         reporter.report(&outcome, &mut buf).ok();
@@ -1454,6 +1479,7 @@ mod tests {
             error_count: 1,
             warning_count: 0,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         reporter.report(&outcome, &mut buf).ok();
@@ -1483,6 +1509,7 @@ mod tests {
             error_count: 0,
             warning_count: 1,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         reporter.report(&outcome, &mut buf).ok();
@@ -1519,6 +1546,7 @@ mod tests {
             error_count: 0,
             warning_count: 1,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         reporter.report(&outcome, &mut buf).ok();
@@ -1575,6 +1603,7 @@ mod tests {
             error_count: 1,
             warning_count: 0,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         CiGitHub.report(&outcome, &mut buf).ok();
@@ -1601,6 +1630,7 @@ mod tests {
             error_count: 1,
             warning_count: 0,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         CiAzure.report(&outcome, &mut buf).ok();
@@ -1650,6 +1680,7 @@ mod tests {
             error_count: 1,
             warning_count: 0,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         reporter.report(&outcome, &mut buf).ok();
@@ -1685,6 +1716,7 @@ mod tests {
             error_count: 0,
             warning_count: 1,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         reporter.report(&outcome, &mut buf).ok();
@@ -1717,6 +1749,7 @@ mod tests {
             error_count: 0,
             warning_count: 0,
             sources_scanned: vec![],
+            ..Outcome::default()
         };
         let mut buf = Vec::new();
         CiAzure.report(&outcome, &mut buf).ok();

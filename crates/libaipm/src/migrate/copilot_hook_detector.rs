@@ -69,7 +69,7 @@ impl Detector for CopilotHookDetector {
 }
 
 /// Normalize legacy Copilot hook event names to canonical camelCase names.
-fn normalize_hook_event_name(name: &str) -> &str {
+pub(crate) fn normalize_hook_event_name(name: &str) -> &str {
     match name {
         "SessionStart" => "sessionStart",
         "SessionEnd" => "sessionEnd",
@@ -86,7 +86,7 @@ fn normalize_hook_event_name(name: &str) -> &str {
 
 /// Normalize all top-level keys in a hooks JSON object.
 /// Merges arrays when both legacy and canonical keys map to the same canonical name.
-fn normalize_hook_events(json: &serde_json::Value) -> serde_json::Value {
+pub(crate) fn normalize_hook_events(json: &serde_json::Value) -> serde_json::Value {
     let Some(obj) = json.as_object() else {
         return json.clone();
     };
@@ -111,13 +111,13 @@ fn normalize_hook_events(json: &serde_json::Value) -> serde_json::Value {
 }
 
 /// Extract script references from command hooks in the normalized JSON.
-fn extract_hook_script_references(json: &serde_json::Value) -> Vec<PathBuf> {
+pub(crate) fn extract_hook_script_references(json: &serde_json::Value) -> Vec<PathBuf> {
     let mut scripts = Vec::new();
     collect_command_scripts(json, &mut scripts);
     scripts
 }
 
-fn collect_command_scripts(value: &serde_json::Value, scripts: &mut Vec<PathBuf>) {
+pub(crate) fn collect_command_scripts(value: &serde_json::Value, scripts: &mut Vec<PathBuf>) {
     match value {
         serde_json::Value::Object(map) => {
             let is_command_type =
