@@ -363,3 +363,19 @@ Cargo verifier:
 - build/test/clippy/fmt: PASS
 - coverage: 90.22% (>= 89%)
 - overall: PASS
+
+## 2026-05-01 — Feature 16: BDD scenarios for #725 — DONE (delegated to general-purpose subagent)
+
+Added BDD scenarios documenting the customer-fix behavior end-to-end:
+- migrate.feature: 2 new scenarios under `Rule: Copilot CLI nested skills layout (.github/copilot/skills/) is discovered` — single-source `--source .github` and recursive.
+- quality.feature: 2 new scenarios for skills under `.github/copilot/skills/` (missing-description) and oversized `.github/copilot/copilot-instructions.md`.
+- bdd.rs: 3 new #[given] steps (copilot nested skill, copilot nested skill with no description, copilot instructions file with N lines).
+
+Implementation note: AipmWorld now carries a `unified_discovery: bool` flag that gates `AIPM_UNIFIED_DISCOVERY=1` env-var on child-process invocations. Per-scenario opt-in avoids breaking legacy-path scenarios (initial unconditional flag flip caused 6 legacy regressions).
+
+Caveat: the cucumber harness's `main()` only loads `tests/features/manifest/*.feature` today — the quality.feature scenarios exist as Gherkin documentation but aren't executed. The migrate.feature scenarios DO run under the harness and pass.
+
+Cargo verifier:
+- build/test/clippy/fmt: PASS
+- coverage: 90.22% (>= 89%)
+- overall: PASS

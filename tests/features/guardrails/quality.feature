@@ -48,6 +48,26 @@ Feature: AI-assisted plugin quality guardrails
       When the user runs "aipm lint"
       Then the command succeeds with "no issues found"
 
+    # Issue #725 — Copilot CLI nested layout: skills live at
+    # `.github/copilot/skills/<name>/SKILL.md` and shared instructions at
+    # `.github/copilot/copilot-instructions.md`. Lint must surface
+    # quality issues in this layout.
+
+    Scenario: Lint reports issues for skills under .github/copilot/skills/
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a copilot nested skill "skill-alpha" with no description exists in "my-project"
+      When the user runs "aipm lint" in "my-project"
+      Then the error contains "skill-alpha"
+      And the error contains "missing required field: description"
+
+    Scenario: Lint flags oversized .github/copilot/copilot-instructions.md
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a copilot instructions file with 110 lines exists in "my-project"
+      When the user runs "aipm lint" in "my-project"
+      Then the error contains "instructions/oversized"
+
   Rule: Publish gate enforces minimum quality
 
     @serial

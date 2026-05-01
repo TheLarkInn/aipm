@@ -204,6 +204,45 @@ Feature: Migrate AI tool configurations into marketplace plugins
       And a file "aipm-migrate-dryrun-report.md" exists in "my-project"
       And the file "aipm-migrate-dryrun-report.md" in "my-project" contains "deploy"
 
+  Rule: Copilot CLI nested skills layout (.github/copilot/skills/) is discovered
+
+    # Issue #725 — the customer ships their Copilot CLI skills under
+    # `.github/copilot/skills/<name>/SKILL.md`. The unified discovery
+    # path picks this up; the legacy detector does not.
+
+    Scenario: Migrate skills from .github/copilot/skills/
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a copilot nested skill "skill-alpha" exists in "my-project"
+      And a copilot nested skill "skill-beta" exists in "my-project"
+      And a copilot nested skill "skill-gamma" exists in "my-project"
+      When the user runs "aipm migrate --source .github" in "my-project"
+      Then the command succeeds
+      And a plugin directory exists at ".ai/skill-alpha/" in "my-project"
+      And a plugin directory exists at ".ai/skill-beta/" in "my-project"
+      And a plugin directory exists at ".ai/skill-gamma/" in "my-project"
+      And a file ".ai/skill-alpha/skills/skill-alpha/SKILL.md" exists in "my-project"
+      And a file ".ai/skill-beta/skills/skill-beta/SKILL.md" exists in "my-project"
+      And a file ".ai/skill-gamma/skills/skill-gamma/SKILL.md" exists in "my-project"
+      And the marketplace.json in "my-project" contains plugin "skill-alpha"
+      And the marketplace.json in "my-project" contains plugin "skill-beta"
+      And the marketplace.json in "my-project" contains plugin "skill-gamma"
+
+    Scenario: Recursive migrate finds nested .github/copilot/skills/
+      Given an empty directory "my-project"
+      And a workspace initialized in "my-project"
+      And a copilot nested skill "skill-alpha" exists in "my-project"
+      And a copilot nested skill "skill-beta" exists in "my-project"
+      And a copilot nested skill "skill-gamma" exists in "my-project"
+      When the user runs "aipm migrate" in "my-project"
+      Then the command succeeds
+      And a plugin directory exists at ".ai/skill-alpha/" in "my-project"
+      And a plugin directory exists at ".ai/skill-beta/" in "my-project"
+      And a plugin directory exists at ".ai/skill-gamma/" in "my-project"
+      And the marketplace.json in "my-project" contains plugin "skill-alpha"
+      And the marketplace.json in "my-project" contains plugin "skill-beta"
+      And the marketplace.json in "my-project" contains plugin "skill-gamma"
+
   Rule: Prerequisites are validated
 
     Scenario: Error when marketplace directory is missing
