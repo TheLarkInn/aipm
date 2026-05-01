@@ -192,6 +192,20 @@ mod tests {
     }
 
     #[test]
+    fn discovered_set_counts_empty_set_returns_zeros() {
+        let set = DiscoveredSet::default();
+        let counts = set.counts();
+        assert_eq!(counts.skills, 0);
+        assert_eq!(counts.agents, 0);
+        assert_eq!(counts.hooks, 0);
+        assert_eq!(counts.instructions, 0);
+        assert_eq!(counts.plugins, 0);
+        assert_eq!(counts.marketplaces, 0);
+        assert_eq!(counts.plugin_jsons, 0);
+        assert_eq!(counts.total(), 0);
+    }
+
+    #[test]
     fn discovered_set_is_empty_false_with_features() {
         let set = DiscoveredSet {
             features: vec![make_feature(FeatureKind::Skill)],
@@ -207,9 +221,11 @@ mod tests {
             path: PathBuf::from("node_modules"),
             name: "node_modules".to_string(),
         };
-        assert!(
-            matches!(&reason, SkipReason::SkipDirByName { name, .. } if name == "node_modules")
-        );
+        assert!(matches!(&reason, SkipReason::SkipDirByName { .. }));
+        if let SkipReason::SkipDirByName { name, path } = &reason {
+            assert_eq!(name, "node_modules");
+            assert_eq!(path, &PathBuf::from("node_modules"));
+        }
     }
 
     #[test]
