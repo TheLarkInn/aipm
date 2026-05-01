@@ -1,0 +1,176 @@
+{
+  "generated_at": "2026-05-01T23:27:35Z",
+  "engines": [
+    { "name": "claude", "source": "npm", "package": "@anthropic-ai/claude-code" },
+    { "name": "copilot-cli", "source": "npm", "package": "@github/copilot-cli" }
+  ],
+  "versions": {
+    "claude": "2.1.126",
+    "copilot-cli": "unavailable"
+  },
+  "apis": {
+    "claude": {
+      "manifest_fields": [],
+      "settings_paths": [
+        ".claude/settings.json",
+        ".claude/settings.local.json",
+        "~/.claude/settings.json",
+        ".claude/CLAUDE.md",
+        "CLAUDE.md"
+      ],
+      "folder_conventions": [
+        ".claude/",
+        ".claude/commands/",
+        ".claude/agents/"
+      ],
+      "skill_registration": {
+        "slash_commands": "Markdown files in .claude/commands/ — frontmatter with 'description', 'tools', 'mode'",
+        "agents": "Markdown files in .claude/agents/ — frontmatter with 'model', 'tools', 'isolation', 'mode'"
+      },
+      "lsp_config": {},
+      "mcp_config": {
+        "config_paths": [
+          ".claude/mcp.json",
+          "~/.claude/mcp.json"
+        ],
+        "tools": ["ListMcpResources", "Mcp", "ReadMcpResource"],
+        "tool_prefix": "mcp__<server>__<tool>"
+      },
+      "output_styles": [
+        "text",
+        "image",
+        "notebook",
+        "pdf",
+        "parts",
+        "file_unchanged"
+      ],
+      "size_limits": {
+        "head_limit_default": 250,
+        "head_limit_unlimited": 0
+      },
+      "detection_heuristics": [
+        "CLAUDE.md present at repo root or .claude/ directory",
+        ".claude/settings.json present",
+        "ANTHROPIC_API_KEY environment variable"
+      ],
+      "discovery_algorithm": [
+        "Scans .claude/commands/ for slash commands (*.md files)",
+        "Scans .claude/agents/ for sub-agents (*.md files)",
+        "Reads MCP server list from .claude/mcp.json or ~/.claude/mcp.json"
+      ],
+      "rules": [
+        "file_path must be absolute for FileEdit, FileWrite",
+        "notebook_path must be absolute for NotebookEdit",
+        "head_limit default 250, pass 0 for unlimited",
+        "mode must be one of: acceptEdits, auto, bypassPermissions, default, dontAsk, plan",
+        "isolation must be 'worktree' if set",
+        "model must be one of: sonnet, opus, haiku"
+      ],
+      "tool_calls": [
+        { "name": "Agent", "aliases": [], "deprecated": false, "notes": "Spawns a sub-agent; supports isolation=worktree; async_launched variant for background agents" },
+        { "name": "Bash", "aliases": [], "deprecated": false, "notes": "Executes shell commands" },
+        { "name": "TaskOutput", "aliases": [], "deprecated": false, "notes": "Records task output; internal tool for agent orchestration" },
+        { "name": "ExitPlanMode", "aliases": [], "deprecated": false, "notes": "Exits plan approval mode" },
+        { "name": "FileEdit", "aliases": [], "deprecated": false, "notes": "Edits a file at absolute path; returns modified/added status" },
+        { "name": "FileRead", "aliases": [], "deprecated": false, "notes": "Reads files; supports text, image, notebook, pdf, parts output types" },
+        { "name": "FileWrite", "aliases": [], "deprecated": false, "notes": "Writes file at absolute path; create or update type" },
+        { "name": "Glob", "aliases": [], "deprecated": false, "notes": "Glob pattern search with optional path and head_limit" },
+        { "name": "Grep", "aliases": [], "deprecated": false, "notes": "ripgrep search with output_mode (content/files_with_matches/count), context flags, head_limit" },
+        { "name": "TaskStop", "aliases": [], "deprecated": false, "notes": "Stops the current task; internal tool" },
+        { "name": "ListMcpResources", "aliases": [], "deprecated": false, "notes": "Lists available MCP server resources" },
+        { "name": "Mcp", "aliases": [], "deprecated": false, "notes": "Invokes an MCP tool; output is string" },
+        { "name": "NotebookEdit", "aliases": [], "deprecated": false, "notes": "Edits Jupyter notebook cells; absolute path required; supports code/markdown cell types and replace/insert/delete edit modes" },
+        { "name": "ReadMcpResource", "aliases": [], "deprecated": false, "notes": "Reads an MCP resource by URI" },
+        { "name": "TodoWrite", "aliases": [], "deprecated": false, "notes": "Writes a todo list; items have status pending/in_progress/completed and optional chip labels (max 12 chars)" },
+        { "name": "WebFetch", "aliases": [], "deprecated": false, "notes": "Fetches a URL; counted in server_tool_use.web_fetch_requests" },
+        { "name": "WebSearch", "aliases": [], "deprecated": false, "notes": "Performs web search; counted in server_tool_use.web_search_requests" },
+        { "name": "AskUserQuestion", "aliases": [], "deprecated": false, "notes": "Asks the user a question; optional source identifier for analytics" },
+        { "name": "EnterWorktree", "aliases": [], "deprecated": false, "notes": "Enters a git worktree isolation context" },
+        { "name": "ExitWorktree", "aliases": [], "deprecated": false, "notes": "Exits a git worktree; action=keep or remove; requires confirmation for uncommitted files" }
+      ]
+    },
+    "copilot-cli": {
+      "manifest_fields": [],
+      "settings_paths": [],
+      "folder_conventions": [],
+      "skill_registration": {},
+      "lsp_config": {},
+      "mcp_config": {},
+      "output_styles": [],
+      "size_limits": {},
+      "detection_heuristics": [],
+      "discovery_algorithm": [],
+      "rules": [],
+      "tool_calls": [],
+      "download_error": "Package '@github/copilot-cli' not found in npm registry — skipped this run"
+    }
+  },
+  "tool_compatibility": {
+    "shared_tools": [],
+    "engine_exclusive_tools": {
+      "Agent": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "Bash": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "TaskOutput": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "ExitPlanMode": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "FileEdit": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "FileRead": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "FileWrite": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "Glob": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "Grep": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "TaskStop": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "ListMcpResources": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "Mcp": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "NotebookEdit": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "ReadMcpResource": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "TodoWrite": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "WebFetch": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "WebSearch": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "AskUserQuestion": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "EnterWorktree": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] },
+      "ExitWorktree": { "supported_by": ["claude"], "unsupported_by": ["copilot-cli"] }
+    }
+  },
+  "suggestions": {
+    "claude": {
+      "adaptor_fixes": [
+        "crates/libaipm/src/detect.rs (or equivalent): ensure detection checks for .claude/settings.json and CLAUDE.md at repo root and .claude/ directory",
+        "crates/libaipm/src/lint.rs (or equivalent): add valid-tool-name rule that cross-references tool_compatibility.engine_exclusive_tools — warn if a plugin declares no 'engines' restriction but uses a Claude-exclusive tool name",
+        "crates/libaipm/src/install.rs: when installing claude-code plugins, scan .claude/commands/ and .claude/agents/ for manifests",
+        "crates/libaipm/src/migrate.rs: handle 'isolation: worktree' field in agent frontmatter",
+        "MCP config discovery: scan .claude/mcp.json in addition to project root mcp.json"
+      ],
+      "test_cases": [
+        "Detection: repo with only CLAUDE.md at root should be detected as claude engine",
+        "Detection: repo with .claude/settings.json should be detected as claude engine",
+        "Lint/valid-tool-name: plugin targeting 'all' engines using 'NotebookEdit' should produce a warning",
+        "Lint/valid-tool-name: plugin with engines=[claude] using 'NotebookEdit' should pass",
+        "Install: .claude/commands/*.md files are discovered and registered as slash commands",
+        "Install: .claude/agents/*.md files are discovered and registered as sub-agents",
+        "Migration: agent frontmatter with isolation=worktree roundtrips correctly",
+        "MCP: ListMcpResources, Mcp, ReadMcpResource tool names are accepted for claude engine",
+        "Size: head_limit=0 means unlimited; head_limit absent means default 250",
+        "Mode: valid values are acceptEdits, auto, bypassPermissions, default, dontAsk, plan"
+      ],
+      "behaviour_variants": [
+        "Agent tool can return two variants: 'completed' (sync) and 'async_launched' (background) — handle both in output parsing",
+        "FileRead returns 5 output variants: text, image, notebook, pdf, parts — handle each",
+        "FileEdit and FileWrite require absolute paths — lint or normalize relative paths",
+        "TodoWrite chip labels must be ≤ 12 characters — add validation",
+        "ExitWorktree with action=remove and uncommitted files requires explicit confirmation field",
+        "service_tier can be standard, priority, or batch — may affect rate limits in aipm tooling",
+        "cache_creation has ephemeral_1h and ephemeral_5m token counts — potentially useful for cost tracking"
+      ]
+    },
+    "copilot-cli": {
+      "adaptor_fixes": [
+        "Package '@github/copilot-cli' is not published to npm. Check if the package has been renamed or moved to a different registry. Possible alternatives: '@githubnext/github-copilot-cli', 'github-copilot-cli'."
+      ],
+      "test_cases": [
+        "Verify correct npm package name for GitHub Copilot CLI before next analysis run"
+      ],
+      "behaviour_variants": [
+        "Package unavailable on npm — all tool_calls and API surface for copilot-cli are unknown until package is found"
+      ]
+    }
+  }
+}
