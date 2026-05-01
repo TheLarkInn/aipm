@@ -184,3 +184,31 @@ Cargo verifier:
 - build/test/clippy/fmt: PASS
 - coverage: 90.06% (>= 89%, crossed 90%)
 - overall: PASS
+
+## 2026-05-01 — Feature 9: legacy_compat module — DONE
+
+Extracted the inline `legacy_discover` from feature 8 into a dedicated `crates/libaipm/src/discovery/legacy_compat.rs` module with `pub fn discover_features_compat(project_root, opts, fs) -> Result<DiscoveredSet, Error>`.
+
+Behavior unchanged from feature 8's inline version:
+- Delegates to today's `discover_features` (in `discovery_legacy.rs`).
+- Maps each legacy DiscoveredFeature → new types::DiscoveredFeature by inferring engine via `source::infer_engine_root`, setting layout = Canonical (legacy doesn't know layouts), and using path.parent() as feature_dir.
+- Drops features whose path has no recognized engine ancestor (small known divergence from today's behavior on project-root CLAUDE.md, etc. — same set the unified path also drops).
+- Applies opts.source_filter post-classification.
+- `_fs` parameter accepted for API symmetry (legacy uses its own filesystem access).
+
+`discovery::discover()` now delegates the legacy branch to `legacy_compat::discover_features_compat`.
+
+Tests added (8 in discovery::legacy_compat::tests):
+- Empty root → empty set.
+- Canonical skills (.claude/skills/x/SKILL.md AND .github/skills/y/SKILL.md) round-trip with correct engine/layout/source_root/feature_dir.
+- #725 skill files visible via the legacy grandparent==skills branch.
+- copilot-instructions.md dropped (the actual #725 lint-side bug; fix lives in the unified path).
+- Project-root CLAUDE.md dropped (no engine ancestor — documented divergence).
+- source_filter retains only matching engine.
+- max_depth propagated to the legacy walker.
+- .ai/ marketplace + plugin.json + aipm.toml all classified as Ai engine.
+
+Cargo verifier:
+- build/test/clippy/fmt: PASS
+- coverage: 90.08% (>= 89%)
+- overall: PASS

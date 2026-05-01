@@ -25,6 +25,7 @@ use std::path::Path;
 pub mod classify;
 pub mod instruction;
 pub mod layout;
+pub mod legacy_compat;
 pub mod scan_report;
 pub mod source;
 pub mod types;
@@ -104,7 +105,7 @@ pub fn discover(
     if unified_enabled() {
         unified_discover(project_root, opts, fs)
     } else {
-        legacy_discover(project_root, opts)
+        legacy_compat::discover_features_compat(project_root, opts, fs)
     }
 }
 
@@ -137,44 +138,6 @@ fn unified_discover(
     }
     apply_source_filter(&mut features, opts.source_filter.as_deref());
     Ok(DiscoveredSet { features, scanned_dirs: walked.scanned_dirs, skipped: walked.skipped })
-}
-
-/// Legacy adapter: delegate to `discover_features` and map each legacy
-/// `DiscoveredFeature` into the new shape.
-///
-/// In a later spec feature this is extracted into a standalone
-/// `legacy_compat` submodule; today it lives inline so feature 8 stays
-/// self-contained without depending on feature 9.
-///
-/// Legacy features whose path has no recognized engine ancestor (e.g. a
-/// project-root `CLAUDE.md`) are dropped here — the new shape's `engine`
-/// field has no fallback variant. This is a known small divergence in the
-/// legacy compat path; the unified path's classifier has the same
-/// "no-engine, no-feature" behavior, so the two paths agree on the dropped
-/// set.
-fn legacy_discover(project_root: &Path, opts: &DiscoverOptions) -> Result<DiscoveredSet, Error> {
-    let legacy = discover_features(project_root, opts.max_depth)?;
-    let mut features: Vec<types::DiscoveredFeature> = Vec::with_capacity(legacy.len());
-    for f in legacy {
-        let Some((engine, source_root)) = source::infer_engine_root(&f.file_path, project_root)
-        else {
-            tracing::debug!(
-                path = %f.file_path.display(),
-                "legacy feature dropped: no recognized engine ancestor"
-            );
-            continue;
-        };
-        features.push(types::DiscoveredFeature {
-            kind: f.kind,
-            engine,
-            layout: Layout::Canonical,
-            source_root,
-            feature_dir: f.file_path.parent().map(std::path::Path::to_path_buf),
-            path: f.file_path,
-        });
-    }
-    apply_source_filter(&mut features, opts.source_filter.as_deref());
-    Ok(DiscoveredSet { features, scanned_dirs: Vec::new(), skipped: Vec::new() })
 }
 
 /// Retain only features whose `source_root` `file_name` matches `filter`.

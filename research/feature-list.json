@@ -127,13 +127,13 @@
     "description": "Legacy compat shim that wraps today's discover_features so the unified path is opt-in for one release",
     "steps": [
       "Add crates/libaipm/src/discovery/legacy_compat.rs with pub fn discover_features_compat(root: &Path, opts: &DiscoverOptions, fs: &dyn Fs) -> Result<DiscoveredSet, Error>",
-      "Internally call today's discover_features(root, opts.max_depth) and adapt the Vec<DiscoveredFeature> output (today's type, which currently lives in discovery.rs) into the new DiscoveredSet wrapper with empty scanned_dirs and skipped (legacy didn't track these)",
-      "Adapt today's DiscoveredFeature shape (kind, source_context, path) into the new shape (kind, engine, layout, source_root, feature_dir, path) by mapping source_context.source_type to Engine and setting layout = Layout::Canonical (legacy doesn't know layouts)",
-      "If today's discover_features is moved into discovery_legacy.rs in feature 1, route the call through that module name",
-      "Unit test: against a known tree, assert legacy_compat::discover_features_compat returns features whose count matches today's lint outcome",
-      "Run cargo build/test/clippy/fmt — all four green; coverage of legacy_compat ≥89% (mostly mapping logic, easy to cover)"
+      "Internally call today's discover_features(root, opts.max_depth) and adapt the Vec<DiscoveredFeature> output (today's type, which lives in discovery_legacy.rs) into the new DiscoveredSet wrapper with empty scanned_dirs and skipped (legacy didn't track these)",
+      "Adapt today's DiscoveredFeature shape (kind, source_context, path) into the new shape (kind, engine, layout, source_root, feature_dir, path) by inferring engine via source::infer_engine_root and setting layout = Layout::Canonical (legacy doesn't know layouts)",
+      "Update discovery::discover() to delegate the legacy branch to legacy_compat::discover_features_compat (replaces the inline legacy_discover from feature 8)",
+      "Unit tests (8): empty root, canonical skills round-trip with engine and layout assertions, #725 skill files visible via the legacy grandparent==skills branch, copilot-instructions.md dropped (the actual #725 lint-side bug, fix lives in unified path), project-root CLAUDE.md dropped (no engine ancestor — documented divergence), source_filter retains only matching, max_depth propagated to the legacy walker, .ai/ marketplace + plugin.json + aipm.toml all classified with engine=Ai",
+      "Run cargo build/test/clippy/fmt — all four green; coverage of legacy_compat ≥89%"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
