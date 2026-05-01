@@ -141,10 +141,11 @@ aipm migrate [OPTIONS] [DIR]
 | `--source <SRC>` | Source folder to scan (e.g., `.claude`). Omit to discover recursively |
 | `--max-depth <N>` | Maximum depth for recursive discovery |
 | `--manifest` | Generate `aipm.toml` manifests for migrated plugins |
+| `--no-summary` | Suppress the default scan summary line printed to stderr |
 
 **Claude Code (`.claude/`) artifact types:** skills (`SKILL.md`), agents (`agents/*.md`), MCP servers (`.mcp.json`), hooks (`hooks.json`), commands (`commands/*.md`), output styles.
 
-**Copilot CLI (`.github/`) artifact types:** skills (`.github/skills/<name>/`), agents (`.github/agents/<name>.md` or `<name>.agent.md`), MCP servers (`.copilot/mcp-config.json`), hooks (`.github/hooks.json`), GitHub extensions (`.github/extensions/<name>/`), LSP servers (`.github/lsp.json`).
+**Copilot CLI (`.github/`) artifact types:** skills (`.github/skills/<name>/`, `.github/copilot/<name>/`, or `.github/copilot/skills/<name>/`), agents (`.github/agents/<name>.md` or `<name>.agent.md`), MCP servers (`.copilot/mcp-config.json`), hooks (`.github/hooks.json`), GitHub extensions (`.github/extensions/<name>/`), LSP servers (`.github/lsp.json`).
 
 See also: [`docs/guides/migrate.md`](docs/guides/migrate.md) for a comprehensive reference, or [`docs/guides/migrating-existing-configs.md`](docs/guides/migrating-existing-configs.md) for a step-by-step walkthrough.
 
@@ -266,8 +267,9 @@ See also: [`docs/guides/local-development.md`](docs/guides/local-development.md)
 Check AI plugin configurations and instruction files for quality issues across all detected
 source directories. `aipm lint` covers `skill/`, `agent/`, `hook/`, `plugin/`,
 `marketplace/`, `instructions/`, and `source/` categories — including checks on
-`CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, and
-`*.instructions.md` files anywhere in the project tree.
+`CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`,
+`*.instructions.md`, and `<engine>-instructions.md` files (e.g. `copilot-instructions.md`)
+anywhere in the project tree.
 
 ```
 aipm lint [OPTIONS] [DIR]
@@ -279,6 +281,7 @@ aipm lint [OPTIONS] [DIR]
 | `--reporter <FMT>` | Output format: `human` (default), `json`, `ci-github`, `ci-azure` |
 | `--color <MODE>` | Color output: `auto` (default), `always`, `never` |
 | `--max-depth <N>` | Maximum directory traversal depth |
+| `--no-summary` | Suppress the default scan summary line printed to stderr |
 
 Exits with a non-zero status code when violations are found, making it safe to use in CI pipelines. Use `--reporter ci-github` for GitHub Actions annotations or `--reporter ci-azure` for Azure Pipelines.
 

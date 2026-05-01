@@ -4,7 +4,9 @@
 **Fixable:** No
 
 Checks that instruction files (`CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`,
-`INSTRUCTIONS.md`, and `*.instructions.md` files anywhere in the project tree) do not exceed
+`INSTRUCTIONS.md`, `*.instructions.md`, and `<engine>-instructions.md` files such as
+`copilot-instructions.md`, `claude-instructions.md`, `agents-instructions.md`, and
+`gemini-instructions.md` anywhere in the project tree) do not exceed
 configurable line and character limits. Oversized instruction files slow down context loading,
 consume more tokens, and may be truncated or rejected by AI runtimes.
 

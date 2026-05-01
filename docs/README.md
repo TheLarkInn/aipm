@@ -78,7 +78,7 @@ Quality rules enforced by `aipm lint`:
 
 | Rule | Default | Description |
 |------|---------|-------------|
-| [oversized](rules/instructions/oversized.md) | warn | Instruction file (`CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, `*.instructions.md`) exceeds the configured line or character limit |
+| [oversized](rules/instructions/oversized.md) | warn | Instruction file (`CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, `*.instructions.md`, `<engine>-instructions.md`) exceeds the configured line or character limit |
 
 ### `source/`
 
