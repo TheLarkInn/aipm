@@ -792,4 +792,79 @@ mod tests {
         assert!(!is_dot_agent_md(Path::new("/repo/.claude/agents/foo.md")));
         assert!(!is_dot_agent_md(Path::new("/repo/.claude/agents/agent.md")));
     }
+
+    /// Covers the `else` branch of `dedup_agent_artifacts` when both the
+    /// existing and the new artifact are `.agent.md` files with the same name.
+    /// In this case `!existing_is_dot_agent` is `false`, so the new one is
+    /// dropped and the first `.agent.md` is kept.
+    #[test]
+    fn dedup_agent_artifacts_both_dot_agent_md_keeps_first() {
+        use super::super::ArtifactKind;
+
+        let first = Artifact {
+            kind: ArtifactKind::Agent,
+            name: "foo".into(),
+            source_path: PathBuf::from("/repo/.claude/agents/foo.agent.md"),
+            files: Vec::new(),
+            referenced_scripts: Vec::new(),
+            metadata: Default::default(),
+        };
+        let second = Artifact {
+            kind: ArtifactKind::Agent,
+            name: "foo".into(),
+            source_path: PathBuf::from("/repo/.claude/agents/foo.agent.md"),
+            files: Vec::new(),
+            referenced_scripts: Vec::new(),
+            metadata: Default::default(),
+        };
+        let mut artifacts = vec![first, second];
+        dedup_agent_artifacts(&mut artifacts);
+        assert_eq!(
+            artifacts.len(),
+            1,
+            "deduplication must keep exactly one artifact when both are .agent.md"
+        );
+        assert!(
+            artifacts[0]
+                .source_path
+                .file_name()
+                .is_some_and(|n| n.to_string_lossy().ends_with(".agent.md")),
+            "surviving artifact must be the .agent.md variant"
+        );
+    }
+
+    /// Covers the `True` branch of `if let Some(first) = per_artifact.first_mut()`
+    /// inside the second loop of `build_plugin_plans` (lines 302-326): when
+    /// `adapter_artifacts` contains a root that is NOT in any `DiscoveredSource`
+    /// the loop processes those orphan artifacts and attaches `other_files` to
+    /// the first resulting `PluginPlan`.
+    #[test]
+    fn build_plugin_plans_adapter_orphan_root_produces_plan() {
+        use std::collections::BTreeMap;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let orphan_root = tmp.path().join("orphan");
+        std::fs::create_dir_all(&orphan_root).expect("create orphan dir");
+
+        let artifact = Artifact {
+            kind: ArtifactKind::Skill,
+            name: "orphan-skill".into(),
+            source_path: orphan_root.join("skills/foo/SKILL.md"),
+            files: Vec::new(),
+            referenced_scripts: Vec::new(),
+            metadata: Default::default(),
+        };
+
+        let mut adapter_artifacts: BTreeMap<PathBuf, Vec<Artifact>> = BTreeMap::new();
+        adapter_artifacts.insert(orphan_root.clone(), vec![artifact]);
+
+        // Empty sources → handled_roots is empty → orphan_root is not handled.
+        let sources: Vec<DiscoveredSource> = Vec::new();
+
+        let plans =
+            build_plugin_plans(&adapter_artifacts, &sources, &Real).expect("build plans ok");
+        assert_eq!(plans.len(), 1, "orphan adapter artifact should produce exactly one plan");
+        assert_eq!(plans[0].name, "orphan-skill");
+        assert!(!plans[0].is_package_scoped);
+    }
 }
