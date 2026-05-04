@@ -44,7 +44,7 @@
       "Run `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` — all four green. The deleted-branch behavior is still active in instruction.rs; the e2e tests now assert on the post-cut count regardless.",
       "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 3 complete — e2e fixture + count assertions updated; format_counts zero-case verified as <string>.`"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
