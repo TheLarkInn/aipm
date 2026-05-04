@@ -788,24 +788,6 @@ async fn given_copilot_nested_skill_exists(world: &mut AipmWorld, name: String, 
     world.unified_discovery = true;
 }
 
-#[given(expr = "a copilot instructions file with {int} lines exists in {string}")]
-async fn given_copilot_instructions_file_exists(
-    world: &mut AipmWorld,
-    line_count: usize,
-    dir: String,
-) {
-    let base = world.dir_path(&dir);
-    let copilot_dir = base.join(".github").join("copilot");
-    std::fs::create_dir_all(&copilot_dir).expect("create .github/copilot dir");
-    let mut content = String::new();
-    for i in 0..line_count {
-        content.push_str(&format!("line {i}\n"));
-    }
-    std::fs::write(copilot_dir.join("copilot-instructions.md"), content)
-        .expect("write copilot-instructions.md");
-    world.unified_discovery = true;
-}
-
 #[given(expr = "a copilot nested skill {string} with no description exists in {string}")]
 async fn given_copilot_nested_skill_no_description(
     world: &mut AipmWorld,

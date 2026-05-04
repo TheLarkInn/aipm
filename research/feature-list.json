@@ -27,7 +27,7 @@
       "Run `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` — all four green. The deleted step is unreferenced; the deleted scenario was the only consumer; no regressions.",
       "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 2 complete — BDD step + quality.feature scenario for engine-prefix branch deleted.`"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test",
