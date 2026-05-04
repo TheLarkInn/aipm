@@ -191,7 +191,7 @@
       "tests/generated_tables.rs: assert Engine::ALL.len() >= 2, VALID_TOOLS contains 'bash' and 'Bash', TOOL_COMPATIBILITY non-empty, every entry has a non-empty support set, HOOK_EVENTS_BY_ENGINE has entries for each Engine variant",
       "Verify cargo test -p libaipm-engine-spec passes all three tests"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

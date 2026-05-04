@@ -28,5 +28,8 @@ syn = "2"
 proc-macro2 = "1"
 quote = "1"
 
+[dev-dependencies]
+jsonschema = { workspace = true }
+
 [lints]
 workspace = true

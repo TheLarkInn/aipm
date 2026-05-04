@@ -458,6 +458,49 @@ Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.09%.
 Next: feature #16 — add libaipm-engine-spec integration tests
 (schema_validation, schema_export_drift, generated_tables) under tests/.
 
+## 2026-05-04 — Feature #16: integration tests
+
+Added three integration test files under
+crates/libaipm-engine-spec/tests/:
+
+  schema_validation.rs (2 tests):
+    - data_file_validates_against_committed_meta_schema: builds a
+      jsonschema validator from the committed meta-schema and validates
+      data/engine-api-schema.json
+    - data_file_round_trips_through_engine_api_schema_file: parses the
+      data file into types::EngineApiSchemaFile and asserts
+      meta_schema_version + non-empty engines
+
+  schema_export_drift.rs (1 test):
+    - committed_schema_matches_schemars_export: derives schemars schema
+      and compares semantically (serde_json::Value equality) against
+      the committed schemas/engine-api.schema.json. Failure message
+      points at the export-schema bin.
+
+  generated_tables.rs (5 tests):
+    - Engine::ALL has ≥ 2 entries
+    - ENGINES aligns with Engine::ALL
+    - VALID_TOOLS contains "bash" + "Bash"
+    - TOOL_COMPATIBILITY non-empty with all-non-empty support sets
+      and no unknown bits
+    - HOOK_EVENTS_BY_ENGINE has a non-empty entry for each Engine variant
+
+Cargo.toml: added jsonschema to [dev-dependencies] (needed for the
+validation test; previously only in [build-dependencies]).
+
+Lint hygiene: dropped the `unwrap_or_else(|| panic!(...))` form in
+favour of `assert!(entry.is_some(), ...)` + `entry.expect("checked")`
+because workspace's panic = "deny" applies even in tests.
+
+Total tests: 36 unit + 8 integration = 44 passing.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.09%.
+
+Next: feature #17 — wire libaipm to depend on libaipm-engine-spec
+(add path dep, re-export Engine, EngineSet, MarketplaceHost, paths,
+constraints from libaipm).
+
+
 
 
 
