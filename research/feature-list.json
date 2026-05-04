@@ -381,7 +381,7 @@
       "crates/aipm/src/wizard_tty.rs:145 replace match engine.as_str() string arms with typed match on Engine",
       "Verify cargo build -p aipm and tests/cli_tests.rs pass"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

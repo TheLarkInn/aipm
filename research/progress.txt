@@ -1020,6 +1020,37 @@ Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.18%.
 Next: feature #32 — update aipm CLI (wizard, main, wizard_tty) to use
 generated Engine and paths constants.
 
+## 2026-05-04 — Feature #32: aipm CLI uses paths constants
+
+Bulk of this feature was already completed by feature #28's
+parse_engine_arg sub-agent (main.rs:1074-1077 string match arms became
+parse_engine_arg + EngineSet flow; wizard_tty.rs:145 same).
+
+Remaining production-code occurrences in this feature's scope:
+
+  main.rs:345 — `dir.join(".ai")` → `dir.join(libaipm::paths::AI_DOT)`
+  main.rs:730 — SUPPORTED_SOURCES const now references paths::CLAUDE_DOT
+    / GITHUB_DOT / AI_DOT instead of inline literals
+  main.rs:925 — `matches!(seg, ".github" | ".claude" | ".ai")` rewrote
+    as a chain of `seg == paths::X || ...` because Rust match patterns
+    can't reference non-pattern const &str values
+
+Deliberately left intact:
+  wizard.rs:297 — ENGINE_OPTIONS = ["Claude Code", "Copilot CLI", "Both"]
+    These are user-facing display labels, not engine identifiers.
+    Replacing with raw kebab-case (engine.name() returns "claude" /
+    "copilot-cli") would be a UX regression. The "Both" pseudo-engine
+    has no spec equivalent at all. Kept as a UI-presentation concern.
+
+Tests pass: aipm 135 + 20 + 24 + 7 + 4 + 33 + 10 = 233 across all
+target binaries.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.18%.
+
+Next: feature #33 — update reverse-binary-analysis.md workflow prompt
+for new schema fields and paths.
+
+
 
 
 

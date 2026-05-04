@@ -342,7 +342,7 @@ fn resolve_plugins_dir(dir: &Path) -> PathBuf {
             tracing::debug!(path = %manifest_path.display(), error = %e, "could not load manifest, using .ai");
         },
     }
-    dir.join(".ai")
+    dir.join(libaipm::paths::AI_DOT)
 }
 
 /// Get the global content-addressable store path (`~/.aipm/store/`).
@@ -727,7 +727,8 @@ fn cmd_lint(
 
     // Validate --source against supported set
     if let Some(ref src) = source {
-        const SUPPORTED_SOURCES: &[&str] = &[".claude", ".github", ".ai"];
+        const SUPPORTED_SOURCES: &[&str] =
+            &[libaipm::paths::CLAUDE_DOT, libaipm::paths::GITHUB_DOT, libaipm::paths::AI_DOT];
         if !SUPPORTED_SOURCES.contains(&src.as_str()) {
             return Err(format!(
                 "unsupported source '{src}'; valid sources: .claude, .github, .ai"
@@ -922,7 +923,10 @@ fn derive_summary_sources(source: Option<&str>, scanned_dirs: &[PathBuf]) -> Vec
         for component in dir.components() {
             if let std::path::Component::Normal(os) = component {
                 if let Some(seg) = os.to_str() {
-                    if matches!(seg, ".github" | ".claude" | ".ai") {
+                    if seg == libaipm::paths::GITHUB_DOT
+                        || seg == libaipm::paths::CLAUDE_DOT
+                        || seg == libaipm::paths::AI_DOT
+                    {
                         found.insert(seg.to_string());
                         break;
                     }
