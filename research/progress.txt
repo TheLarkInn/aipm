@@ -522,6 +522,53 @@ Next: feature #18 — replace crates/libaipm/src/engine.rs Engine enum
 with a re-export of the generated Engine, with backwards-compat alias
 for `Engine::Copilot` → `CopilotCli`.
 
+## 2026-05-04 — Feature #18: replace engine.rs local Engine enum
+
+Sub-agent (general-purpose) executed the refactor. Files modified:
+
+  crates/libaipm/src/engine.rs (~318 → ~290 lines)
+    - Deleted local pub enum Engine { Claude, Copilot } and its
+      inherent impl block (marker_paths, marketplace_manifest_path,
+      name, all_names, format_marker_requirement methods)
+    - Deleted impl Display for Engine
+    - Added pub use libaipm_engine_spec::Engine
+    - Added free helpers: marker_paths, marketplace_manifest_path,
+      display_name (const fn), all_names, format_marker_requirement
+    - Rewrote validate_via_manifest / validate_via_markers to use
+      free helpers; display_name(engine) for error UI strings;
+      engine.name() for lowercase comparison against aipm.toml
+    - Updated 13 unit tests: Engine::Copilot → Engine::CopilotCli;
+      .to_string() → display_name(); copilot marketplace path now
+      .json (not .toml) per Q2b "schema wins"
+
+  crates/libaipm/src/installed.rs (5 small edits)
+    - Production line 119: Engine::all_names() → crate::engine::all_names()
+    - Test sites 384/396/416: Engine::Copilot → Engine::CopilotCli
+    - 2 manifest-string tests: "copilot" → "copilot-cli"
+
+  crates/libaipm/src/acquirer.rs — no changes needed (only used
+    Engine::Claude; the import via the re-export still resolves).
+
+Observable behaviour changes (per Q2b "schema wins"):
+  - `Engine::name()` now returns kebab-case ("claude", "copilot-cli")
+    not legacy lowercase ("claude", "copilot"). Manifests written
+    with all_names() now contain "copilot-cli".
+  - copilot marketplace_manifest_path is now ".github/plugin/marketplace.json"
+    (was .toml in legacy code).
+  - Claude has TWO marker paths now (.claude-plugin/plugin.json AND
+    .claude-plugin/plugin.toml), per the build.rs marker_paths_for
+    helper. The single-marker test was rewritten to assert the marker
+    filename appears (no longer asserts "missing" prefix).
+
+Total libaipm tests: 2122 passing.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.09%.
+
+Next: feature #19 — replace crates/libaipm/src/discovery/types.rs
+Engine { Claude, Copilot, Ai } enum with libaipm_engine_spec::Engine
++ a hand-written MarketplaceHost enum for the .ai/ marketplace concept.
+
+
 
 
 

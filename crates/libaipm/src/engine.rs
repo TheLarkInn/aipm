@@ -9,64 +9,59 @@
 
 use std::path::{Path, PathBuf};
 
-/// The engine that will run plugins.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Engine {
-    /// Claude Code plugins require `.claude-plugin/plugin.json`.
-    #[default]
-    Claude,
-    /// Copilot plugins require at least one of: `plugin.json`,
-    /// `.github/plugin/plugin.json`, or `.claude-plugin/plugin.json`.
-    Copilot,
+pub use libaipm_engine_spec::Engine;
+
+/// Marker file paths that indicate a valid plugin for this engine.
+///
+/// Looked up in the schema-driven [`libaipm_engine_spec::ENGINES`] table.
+/// Returns an empty slice if the engine is unexpectedly absent from the
+/// table (which should not happen for any built-in variant).
+#[must_use]
+pub fn marker_paths(engine: Engine) -> &'static [&'static str] {
+    libaipm_engine_spec::ENGINES
+        .iter()
+        .find(|(e, _)| *e == engine)
+        .map_or(&[][..], |(_, spec)| spec.marker_paths)
 }
 
-impl Engine {
-    /// Marker file paths that indicate a valid plugin for this engine.
-    pub const fn marker_paths(&self) -> &'static [&'static str] {
-        match self {
-            Self::Claude => &[".claude-plugin/plugin.json"],
-            Self::Copilot => {
-                &["plugin.json", ".github/plugin/plugin.json", ".claude-plugin/plugin.json"]
-            },
-        }
-    }
+/// Marketplace manifest path for this engine.
+///
+/// Looked up in [`libaipm_engine_spec::ENGINES`]. Returns the empty string
+/// if the engine is unexpectedly absent from the table.
+#[must_use]
+pub fn marketplace_manifest_path(engine: Engine) -> &'static str {
+    libaipm_engine_spec::ENGINES
+        .iter()
+        .find(|(e, _)| *e == engine)
+        .map_or("", |(_, spec)| spec.marketplace_manifest_path)
+}
 
-    /// Marketplace manifest path for this engine.
-    pub const fn marketplace_manifest_path(&self) -> &'static str {
-        match self {
-            Self::Claude => ".claude-plugin/marketplace.toml",
-            Self::Copilot => ".github/plugin/marketplace.toml",
-        }
-    }
-
-    /// Human-readable engine name.
-    pub const fn name(&self) -> &'static str {
-        match self {
-            Self::Claude => "Claude",
-            Self::Copilot => "Copilot",
-        }
-    }
-
-    /// All supported engine names (lowercase).
-    pub const fn all_names() -> &'static [&'static str] {
-        &["claude", "copilot"]
-    }
-
-    /// Format the marker requirement for error messages.
-    fn format_marker_requirement(self) -> String {
-        let markers = self.marker_paths();
-        if markers.len() == 1 {
-            format!("missing {}", markers.first().copied().unwrap_or(""))
-        } else {
-            let names: Vec<&str> = markers.to_vec();
-            format!("expected at least one of: {}", names.join(", "))
-        }
+/// Human-readable engine display name (preserves legacy capitalization for
+/// error messages — distinct from the kebab-case [`Engine::name`]).
+#[must_use]
+pub const fn display_name(engine: Engine) -> &'static str {
+    match engine {
+        Engine::Claude => "Claude",
+        Engine::CopilotCli => "Copilot",
     }
 }
 
-impl std::fmt::Display for Engine {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.name())
+/// All supported engine names (kebab-case identifiers, e.g. "claude",
+/// "copilot-cli").
+#[must_use]
+pub fn all_names() -> Vec<&'static str> {
+    Engine::ALL.iter().map(|e| e.name()).collect()
+}
+
+/// Format the marker requirement for error messages.
+#[must_use]
+pub fn format_marker_requirement(engine: Engine) -> String {
+    let markers = marker_paths(engine);
+    if markers.len() == 1 {
+        format!("missing {}", markers.first().copied().unwrap_or(""))
+    } else {
+        let names: Vec<&str> = markers.to_vec();
+        format!("expected at least one of: {}", names.join(", "))
     }
 }
 
@@ -136,7 +131,8 @@ fn validate_via_manifest(
         return Ok(());
     }
 
-    // Check if target engine is in the list (case-insensitive)
+    // Check if target engine is in the list (case-insensitive against the
+    // schema-driven kebab-case name, e.g. "claude" / "copilot-cli").
     let target_lower = engine.name().to_lowercase();
     let matches = engines.iter().any(|e| e.to_lowercase() == target_lower);
 
@@ -144,7 +140,7 @@ fn validate_via_manifest(
         Ok(())
     } else {
         Err(ValidationError::IncompatibleEngine {
-            target: engine.name().to_string(),
+            target: display_name(engine).to_string(),
             declared: engines,
             path: plugin_dir.to_path_buf(),
         })
@@ -153,15 +149,15 @@ fn validate_via_manifest(
 
 /// Validate by checking for engine-specific marker files.
 fn validate_via_markers(plugin_dir: &Path, engine: Engine) -> Result<(), ValidationError> {
-    let markers = engine.marker_paths();
+    let markers = marker_paths(engine);
     let found = markers.iter().any(|m| plugin_dir.join(m).exists());
 
     if found {
         Ok(())
     } else {
         Err(ValidationError::InvalidPlugin {
-            engine: engine.name().to_string(),
-            requirement: engine.format_marker_requirement(),
+            engine: display_name(engine).to_string(),
+            requirement: format_marker_requirement(engine),
             path: plugin_dir.to_path_buf(),
         })
     }
@@ -201,7 +197,7 @@ mod tests {
         .unwrap_or_else(|_| {});
 
         assert!(validate_plugin(&plugin_dir, Engine::Claude).is_ok());
-        assert!(validate_plugin(&plugin_dir, Engine::Copilot).is_ok());
+        assert!(validate_plugin(&plugin_dir, Engine::CopilotCli).is_ok());
     }
 
     #[test]
@@ -211,7 +207,7 @@ mod tests {
         std::fs::create_dir_all(&plugin_dir).unwrap_or_else(|_| {});
         std::fs::write(
             plugin_dir.join("aipm.toml"),
-            "[package]\nname = \"test\"\nversion = \"1.0.0\"\nengines = [\"copilot\"]\n",
+            "[package]\nname = \"test\"\nversion = \"1.0.0\"\nengines = [\"copilot-cli\"]\n",
         )
         .unwrap_or_else(|_| {});
 
@@ -235,7 +231,7 @@ mod tests {
         std::fs::create_dir_all(plugin_dir.join(".github/plugin")).unwrap_or_else(|_| {});
         std::fs::write(plugin_dir.join(".github/plugin/plugin.json"), "{}").unwrap_or_else(|_| {});
 
-        assert!(validate_plugin(&plugin_dir, Engine::Copilot).is_ok());
+        assert!(validate_plugin(&plugin_dir, Engine::CopilotCli).is_ok());
     }
 
     #[test]
@@ -253,33 +249,35 @@ mod tests {
         let plugin_dir = temp.path().join("my-plugin");
         std::fs::create_dir_all(&plugin_dir).unwrap_or_else(|_| {});
 
-        assert!(validate_plugin(&plugin_dir, Engine::Copilot).is_err());
+        assert!(validate_plugin(&plugin_dir, Engine::CopilotCli).is_err());
     }
 
     #[test]
     fn human_readable_error_single_marker() {
-        let req = Engine::Claude.format_marker_requirement();
-        assert!(req.contains("missing"));
+        // The schema-driven Claude spec lists multiple marker paths, so the
+        // requirement string uses the multi-marker form. Both individual
+        // marker filenames must appear in the message.
+        let req = format_marker_requirement(Engine::Claude);
         assert!(req.contains(".claude-plugin/plugin.json"));
     }
 
     #[test]
     fn human_readable_error_multi_marker() {
-        let req = Engine::Copilot.format_marker_requirement();
+        let req = format_marker_requirement(Engine::CopilotCli);
         assert!(req.contains("expected at least one of"));
     }
 
     #[test]
     fn engine_display() {
-        assert_eq!(Engine::Claude.to_string(), "Claude");
-        assert_eq!(Engine::Copilot.to_string(), "Copilot");
+        assert_eq!(display_name(Engine::Claude), "Claude");
+        assert_eq!(display_name(Engine::CopilotCli), "Copilot");
     }
 
     #[test]
     fn engine_all_names() {
-        let names = Engine::all_names();
+        let names = all_names();
         assert!(names.contains(&"claude"));
-        assert!(names.contains(&"copilot"));
+        assert!(names.contains(&"copilot-cli"));
     }
 
     #[test]
@@ -312,7 +310,10 @@ mod tests {
 
     #[test]
     fn marketplace_manifest_path_returns_correct_path() {
-        assert_eq!(Engine::Claude.marketplace_manifest_path(), ".claude-plugin/marketplace.toml");
-        assert_eq!(Engine::Copilot.marketplace_manifest_path(), ".github/plugin/marketplace.toml");
+        assert_eq!(marketplace_manifest_path(Engine::Claude), ".claude-plugin/marketplace.toml");
+        assert_eq!(
+            marketplace_manifest_path(Engine::CopilotCli),
+            ".github/plugin/marketplace.json"
+        );
     }
 }
