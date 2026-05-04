@@ -37,9 +37,93 @@ When a plugin is installed, aipm validates engine compatibility:
 | Claude | `.claude-plugin/plugin.json` |
 | Copilot | Any of: `plugin.json`, `.github/plugin/plugin.json`, `.claude-plugin/plugin.json` |
 
+### Convention Files
+
+Each engine scans for specific convention files that carry project-level instructions. Understanding these helps you author files that are picked up correctly at runtime.
+
+| File | Engine(s) | Default location(s) |
+|------|-----------|---------------------|
+| `CLAUDE.md` | Claude, Copilot | repo root, `.claude/` |
+| `copilot-instructions.md` | Copilot | `.github/` |
+| `AGENTS.md` | Copilot | repo root |
+| `GEMINI.md` | Copilot | repo root |
+
+> **Multi-engine repos**: Copilot reads `CLAUDE.md` and `AGENTS.md` alongside its own `copilot-instructions.md`. This means a single repo can carry instructions for multiple AI engines without duplication.
+
+### Settings Paths
+
+Each engine reads runtime configuration from specific paths:
+
+| Engine | Settings paths |
+|--------|----------------|
+| Claude | `.claude/settings.json`, `.claude/settings.local.json` |
+| Copilot | `.github/copilot/settings.json`, `.github/copilot/settings.local.json`, `.claude/settings.json`, `.claude/settings.local.json`, `~/.copilot/mcp-config.json` |
+
+The `*.local.json` variants are user-local overrides that should be excluded from version control (add them to `.gitignore`).
+
 ### Forward Compatibility
 
 Unknown engine names (e.g., from a newer schema) are preserved as-is. They won't match any current engine but will be stored and compared correctly.
+
+## Tool Availability
+
+Not all tools are available on every engine. Writing agent files that reference engine-exclusive tools will cause runtime errors when the plugin runs on the wrong engine.
+
+### Shared Tools (all engines)
+
+These tools work identically on both Claude and Copilot:
+
+| Tool | Description |
+|------|-------------|
+| `bash` | Execute shell commands |
+| `glob` | Glob pattern file search |
+| `grep` | Search file contents |
+| `web_fetch` | Fetch a web URL |
+
+### Claude-exclusive Tools
+
+These tools are only available when the plugin runs under Claude:
+
+| Tool | Notes |
+|------|-------|
+| `Task` / `Agent` | Spawn sub-agent; supports `isolation:worktree` |
+| `Edit` / `FileEdit` | Edit file content |
+| `Read` / `FileRead` | Read file (text, image, notebook, pdf) |
+| `Write` / `FileWrite` | Write file content |
+| `WebSearch` | Web search |
+| `TodoWrite` | Write todo items |
+| `mcp`, `list_mcp_resources`, `read_mcp_resource` | MCP tool invocation |
+| `notebook_edit` | Edit Jupyter notebook cells |
+| `ask_user_question` | Ask user a question interactively |
+| `enter_worktree`, `exit_worktree` | Git worktree isolation |
+| `exit_plan_mode`, `task_output`, `task_stop` | Task lifecycle controls |
+
+### Copilot-exclusive Tools
+
+These tools are only available when the plugin runs under GitHub Copilot:
+
+| Tool | Notes |
+|------|-------|
+| `get_file_contents`, `git_apply_patch` | File and patch operations |
+| GitHub API tools | `get_pull_request`, `list_issues`, `create_issue`, etc. |
+| `browser_navigate`, `browser_click`, … | Browser automation |
+| Azure/cloud tools | `cosmos`, `keyvault`, `storage`, etc. |
+| `store_memory` | Persist facts across turns |
+| `semantic_issues_search` | Semantic search over issues |
+| `sql` | Execute SQL queries |
+| `report_intent`, `get_current_time`, `convert_time` | Utility tools |
+
+### Restricting Tool Usage
+
+If your agent uses engine-exclusive tools, declare the target engine in `aipm.toml` to prevent installation on incompatible engines:
+
+```toml
+[package]
+name = "my-github-agent"
+engines = ["copilot"]   # uses GitHub API tools
+```
+
+A future `agent/valid-tool-name` lint rule will warn when an unrestricted plugin (no `engines` declared) references engine-exclusive tools in agent frontmatter.
 
 ## Platform Compatibility
 
