@@ -53,7 +53,7 @@
       "Add features: [{kind, manifest_field?, layout_hint?, capabilities?}] arrays per engine, populated from crates/libaipm/src/make/engine_features.rs CLAUDE_FEATURES and COPILOT_FEATURES",
       "Confirm git status shows the data files moved and the JSON edited"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

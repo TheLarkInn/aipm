@@ -59,4 +59,33 @@ crate's data/ directory with the restructured fields ($schema URI,
 meta_schema_version, structured manifest_fields, renamed *_notes,
 hook_events arrays, features arrays).
 
+## 2026-05-04 — Feature #4: Migrate + restructure data file
+
+git mv'd both data files from research/ to
+crates/libaipm-engine-spec/data/ (the schema JSON + the changelog).
+Added top-level $schema URI and meta_schema_version "1.0.0" to the JSON.
+
+Restructured copilot-cli's manifest_fields from 21 prose strings into
+21 typed records with constraints (max_length, regex, default). Claude's
+manifest_fields stays as []. Renamed detection_heuristics → detection_notes,
+discovery_algorithm → discovery_notes, rules → rule_notes per Q3a.
+
+Added hook_events arrays per engine: 27 entries for claude (PascalCase)
+and 10 canonical camelCase entries for copilot-cli with PascalCase legacy
+aliases attached. Added features arrays: 5 for claude (skill, agent, mcp,
+hook, output_style), 6 for copilot-cli (skill, agent, mcp, hook, lsp,
+extension).
+
+Verified via Python: 8 top-level keys correct, 15/18 keys per engine api,
+27/10 hook events, 5/6 features, 21 copilot manifest fields. Workflow
+files in .github/workflows/reverse-binary-analysis.md still reference the
+old paths — that's feature #33's scope.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 89.97%.
+
+Next: feature #5 — re-run export-schema and verify the committed schema
+contains all canonical $defs (effectively a smoke test now that the bin
+already wrote the file in feature #3).
+
+
 
