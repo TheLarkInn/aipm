@@ -16,7 +16,8 @@ pub use error::Error;
 
 use std::path::PathBuf;
 
-use crate::discovery::{DiscoverOptions, DiscoveredFeature, Engine, FeatureKind, ScanCounts};
+use crate::discovery::types::DiscoverySource;
+use crate::discovery::{DiscoverOptions, DiscoveredFeature, FeatureKind, ScanCounts};
 use crate::fs::Fs;
 
 pub use diagnostic::{Diagnostic, Severity};
@@ -85,19 +86,19 @@ fn run_rules_for_feature(
     tracing::trace!(
         feature = %feature.path.display(),
         kind = ?feature.kind,
-        engine = ?feature.engine,
+        source = ?feature.source,
         layout = ?feature.layout,
         "dispatching rules for feature"
     );
 
     // "Inside .ai/" semantics preserved from the legacy classifier: any
-    // `.ai` ancestor anywhere in the path counts. The new shape's `engine`
+    // `.ai` ancestor anywhere in the path counts. The new shape's `source`
     // field reports the INNERMOST engine root, so a nested layout like
-    // `.ai/<plugin>/.claude/skills/x/SKILL.md` would have `engine=Claude`
-    // even though it's logically inside the marketplace. Walking the path
-    // components catches both cases.
-    let is_inside_ai =
-        feature.engine == Engine::Ai || feature.path.components().any(|c| c.as_os_str() == ".ai");
+    // `.ai/<plugin>/.claude/skills/x/SKILL.md` would have
+    // `source=DiscoverySource::CLAUDE` even though it's logically inside
+    // the marketplace. Walking the path components catches both cases.
+    let is_inside_ai = feature.source == DiscoverySource::AI
+        || feature.path.components().any(|c| c.as_os_str() == ".ai");
 
     // 1. Quality rules — run on ALL features regardless of location.
     let quality_rules = rules::quality_rules_for_kind(&feature.kind, config);

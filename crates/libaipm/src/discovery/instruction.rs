@@ -22,7 +22,7 @@
 
 use std::path::Path;
 
-use super::types::{DiscoveredFeature, Engine, FeatureKind, Layout};
+use super::types::{DiscoveredFeature, DiscoverySource, FeatureKind, Layout};
 
 /// Lowercase filenames that are unconditionally classified as instruction files.
 ///
@@ -44,14 +44,14 @@ pub const INSTRUCTION_FILENAMES: &[&str] = &[
 /// `layout = Layout::Canonical`, and `feature_dir = None` (instruction files
 /// have no enclosing per-feature directory).
 ///
-/// The match is case-insensitive across both shapes. The `engine` and
+/// The match is case-insensitive across both shapes. The `source` and
 /// `source_root` are taken from the caller verbatim — typically the dispatcher
-/// calls this with the engine inferred via [`crate::discovery::infer_engine_root`].
+/// calls this with the source inferred via [`crate::discovery::infer_engine_root`].
 #[must_use]
 pub fn classify(
     file_name: &str,
     path: &Path,
-    engine: Engine,
+    source: DiscoverySource,
     source_root: &Path,
 ) -> Option<DiscoveredFeature> {
     let lower = file_name.to_ascii_lowercase();
@@ -60,7 +60,7 @@ pub fn classify(
     }
     Some(DiscoveredFeature {
         kind: FeatureKind::Instructions,
-        engine,
+        source,
         layout: Layout::Canonical,
         source_root: source_root.to_path_buf(),
         feature_dir: None,
@@ -82,7 +82,7 @@ mod tests {
     fn classify_with(name: &str) -> Option<DiscoveredFeature> {
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from(format!("/repo/.github/{name}"));
-        classify(name, &path, Engine::Copilot, &root)
+        classify(name, &path, DiscoverySource::COPILOT_CLI, &root)
     }
 
     // --- Case A: exact filenames in INSTRUCTION_FILENAMES ---
@@ -163,20 +163,21 @@ mod tests {
     fn classify_returns_path_unchanged() {
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/instructions.md");
-        let feat =
-            classify("instructions.md", &path, Engine::Copilot, &root).expect("should match");
+        let feat = classify("instructions.md", &path, DiscoverySource::COPILOT_CLI, &root)
+            .expect("should match");
         assert_eq!(feat.path, path);
         assert_eq!(feat.source_root, root);
-        assert_eq!(feat.engine, Engine::Copilot);
+        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
         assert!(feat.feature_dir.is_none());
     }
 
     #[test]
-    fn classify_passes_engine_from_caller() {
+    fn classify_passes_source_from_caller() {
         let root = PathBuf::from("/repo/.claude");
         let path = PathBuf::from("/repo/.claude/CLAUDE.md");
-        let feat = classify("CLAUDE.md", &path, Engine::Claude, &root).expect("should match");
-        assert_eq!(feat.engine, Engine::Claude);
+        let feat =
+            classify("CLAUDE.md", &path, DiscoverySource::CLAUDE, &root).expect("should match");
+        assert_eq!(feat.source, DiscoverySource::CLAUDE);
     }
 
     // --- regression guard ---

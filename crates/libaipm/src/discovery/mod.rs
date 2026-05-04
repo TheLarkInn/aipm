@@ -30,7 +30,7 @@ pub use layout::{
 };
 pub use scan_report::{DiscoveredSet, ScanCounts, SkipReason};
 pub use source::infer_engine_root;
-pub use types::{Engine, Layout};
+pub use types::{Engine, Layout, MarketplaceHost};
 pub use walker::{walk, WalkResult};
 
 /// Options controlling a single discovery walk.
@@ -84,7 +84,7 @@ pub fn discover(
             tracing::trace!(
                 path = %path.display(),
                 kind = ?feat.kind,
-                engine = ?feat.engine,
+                source = ?feat.source,
                 layout = ?feat.layout,
                 "classified"
             );
@@ -108,6 +108,7 @@ fn apply_source_filter(features: &mut Vec<types::DiscoveredFeature>, filter: Opt
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::discovery::types::DiscoverySource;
     use crate::fs::Real;
     use std::fs;
 
@@ -176,7 +177,7 @@ mod tests {
         let set = discover(root, &opts, &Real).expect("discover should succeed");
         let counts = set.counts();
         assert_eq!(counts.skills, 1, "expected only the .github skill: {counts:?}");
-        assert!(set.features.iter().all(|f| f.engine == Engine::Copilot));
+        assert!(set.features.iter().all(|f| f.source == DiscoverySource::COPILOT_CLI));
     }
 
     #[test]
@@ -206,7 +207,7 @@ mod tests {
         let mut features = vec![
             types::DiscoveredFeature {
                 kind: FeatureKind::Skill,
-                engine: Engine::Claude,
+                source: DiscoverySource::CLAUDE,
                 layout: Layout::Canonical,
                 source_root: ".claude".into(),
                 feature_dir: None,
@@ -214,7 +215,7 @@ mod tests {
             },
             types::DiscoveredFeature {
                 kind: FeatureKind::Skill,
-                engine: Engine::Copilot,
+                source: DiscoverySource::COPILOT_CLI,
                 layout: Layout::Canonical,
                 source_root: ".github".into(),
                 feature_dir: None,

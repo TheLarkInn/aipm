@@ -226,7 +226,7 @@
       "Update DiscoveredFeature struct to carry both engine: Option<Engine> and host: Option<MarketplaceHost> (or a tagged enum if they're mutually exclusive)",
       "Verify cargo build -p libaipm succeeds"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

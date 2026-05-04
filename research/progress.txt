@@ -568,6 +568,51 @@ Next: feature #19 — replace crates/libaipm/src/discovery/types.rs
 Engine { Claude, Copilot, Ai } enum with libaipm_engine_spec::Engine
 + a hand-written MarketplaceHost enum for the .ai/ marketplace concept.
 
+## 2026-05-04 — Feature #19: discovery/types Engine → DiscoverySource
+
+Sub-agent (general-purpose) executed across 12 files.
+
+Key design: introduced a tagged enum DiscoverySource that wraps either
+a libaipm_engine_spec::Engine or a libaipm_engine_spec::MarketplaceHost.
+Three convenience constants (CLAUDE, COPILOT_CLI, AI) keep call sites
+terse for the common equality-comparison case.
+
+Field rename on DiscoveredFeature: `engine: Engine` → `source: DiscoverySource`.
+
+Files modified:
+  - discovery/types.rs: defined DiscoverySource, deleted local Engine,
+    re-exported Engine + MarketplaceHost from spec
+  - discovery/source.rs: infer_engine_root → Option<(DiscoverySource, ...)>
+  - discovery/layout.rs: 6 matchers take DiscoverySource
+  - discovery/classify.rs: dispatcher updated; uses DiscoverySource::AI
+    for synthetic root-instruction context
+  - discovery/instruction.rs: classify takes DiscoverySource
+  - discovery/scan_report.rs: test helper switched
+  - discovery/mod.rs: re-exports Engine, MarketplaceHost, Layout (NOT
+    DiscoverySource — would trip clippy::module_name_repetitions deny;
+    callers import via crate::discovery::types::DiscoverySource)
+  - lint/mod.rs:100: feature.engine == Engine::Ai →
+    feature.source == DiscoverySource::AI; tracing field renamed
+  - migrate/adapters/{agent,hook,skill,mod}.rs: forced mechanical
+    update (field/value renames) to keep workspace compiling — feature
+    #28 still owns the deeper refactor of these adapters
+
+Total libaipm tests: 2123 passing.
+
+Lint observations:
+  - DiscoverySource was kept private to discovery::types per
+    module_name_repetitions; the constants form remains terse
+  - All existing call sites used == comparisons; no destructuring
+    matches needed, so the explicit DiscoverySource::Engine(_) form
+    only shows up in a verification test in types.rs
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.10%.
+
+Next: feature #20 — update discovery/source.rs and lint/rules/scan.rs
+path-walker dispatch to use libaipm_engine_spec::helpers::engine_for_root_dir
+and helpers::marketplace_host_for_root_dir, with paths::CLAUDE_DOT etc.
+
+
 
 
 

@@ -98,14 +98,14 @@ impl DiscoveredSet {
 
 #[cfg(test)]
 mod tests {
-    use super::super::types::{DiscoveredFeature, Engine, Layout};
+    use super::super::types::{DiscoveredFeature, DiscoverySource, Layout};
     use super::*;
     use std::path::PathBuf;
 
     fn make_feature(kind: FeatureKind) -> DiscoveredFeature {
         DiscoveredFeature {
             kind,
-            engine: Engine::Copilot,
+            source: DiscoverySource::COPILOT_CLI,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".github"),
             feature_dir: Some(PathBuf::from(".github/skills/test")),

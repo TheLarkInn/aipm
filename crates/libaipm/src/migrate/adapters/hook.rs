@@ -7,7 +7,8 @@
 //! (`normalize_hook_events`, `extract_hook_script_references`) verbatim by
 //! making them `pub(crate)`.
 
-use crate::discovery::{DiscoveredFeature, Engine, FeatureKind};
+use crate::discovery::types::DiscoverySource;
+use crate::discovery::{DiscoveredFeature, FeatureKind};
 use crate::fs::Fs;
 use crate::migrate::copilot_hook_detector::{
     extract_hook_script_references, normalize_hook_events,
@@ -26,7 +27,7 @@ impl Adapter for CopilotHookAdapter {
     }
 
     fn applies_to(&self, feat: &DiscoveredFeature) -> bool {
-        feat.engine == Engine::Copilot && feat.kind == FeatureKind::Hook
+        feat.source == DiscoverySource::COPILOT_CLI && feat.kind == FeatureKind::Hook
     }
 
     fn to_artifact(&self, feat: &DiscoveredFeature, fs: &dyn Fs) -> Result<Artifact, Error> {
@@ -75,7 +76,7 @@ mod tests {
         let adapter = CopilotHookAdapter;
         let hook = DiscoveredFeature {
             kind: FeatureKind::Hook,
-            engine: Engine::Copilot,
+            source: DiscoverySource::COPILOT_CLI,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".github"),
             feature_dir: Some(PathBuf::from(".github")),
@@ -89,7 +90,7 @@ mod tests {
         let adapter = CopilotHookAdapter;
         let hook = DiscoveredFeature {
             kind: FeatureKind::Hook,
-            engine: Engine::Claude,
+            source: DiscoverySource::CLAUDE,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".claude"),
             feature_dir: Some(PathBuf::from(".claude/hooks")),
@@ -103,7 +104,7 @@ mod tests {
         let adapter = CopilotHookAdapter;
         let skill = DiscoveredFeature {
             kind: FeatureKind::Skill,
-            engine: Engine::Copilot,
+            source: DiscoverySource::COPILOT_CLI,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".github"),
             feature_dir: Some(PathBuf::from(".github/skills/x")),
@@ -127,7 +128,7 @@ mod tests {
 
         let feat = DiscoveredFeature {
             kind: FeatureKind::Hook,
-            engine: Engine::Copilot,
+            source: DiscoverySource::COPILOT_CLI,
             layout: Layout::Canonical,
             source_root: tmp.path().to_path_buf(),
             feature_dir: Some(tmp.path().to_path_buf()),
@@ -149,7 +150,7 @@ mod tests {
 
         let feat = DiscoveredFeature {
             kind: FeatureKind::Hook,
-            engine: Engine::Copilot,
+            source: DiscoverySource::COPILOT_CLI,
             layout: Layout::Canonical,
             source_root: tmp.path().to_path_buf(),
             feature_dir: Some(tmp.path().to_path_buf()),

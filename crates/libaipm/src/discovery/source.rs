@@ -2,7 +2,7 @@
 //!
 //! Given a feature file path and the project root, walks the path's ancestors
 //! upward and identifies the innermost engine source root (`.claude`,
-//! `.github`, or `.ai`) along with the engine it represents.
+//! `.github`, or `.ai`) along with the `DiscoverySource` it represents.
 //!
 //! Replaces `discovery_legacy::classify_source_context` and
 //! `lint::rules::scan::source_type_from_path` — both of which encode the same
@@ -10,31 +10,32 @@
 
 use std::path::{Path, PathBuf};
 
-use super::types::Engine;
+use super::types::DiscoverySource;
 
 /// Walk `path`'s ancestors up to (but not including) `project_root` and return
-/// the innermost engine source root encountered, along with the engine it
-/// represents.
+/// the innermost engine source root encountered, along with the
+/// [`DiscoverySource`] it represents.
 ///
 /// Recognized source-root directory names:
-/// - `.claude` → [`Engine::Claude`]
-/// - `.github` → [`Engine::Copilot`]
-/// - `.ai`     → [`Engine::Ai`]
+/// - `.claude` → [`DiscoverySource::CLAUDE`]
+/// - `.github` → [`DiscoverySource::COPILOT_CLI`]
+/// - `.ai`     → [`DiscoverySource::AI`]
 ///
 /// Returns `None` if no engine ancestor exists between `path` and
 /// `project_root` (or if `path == project_root`).
 ///
 /// For nested layouts like `.ai/<plugin>/.claude/skills/<x>/SKILL.md`, the
 /// innermost ancestor wins — this returns
-/// `(Engine::Claude, ".ai/<plugin>/.claude")`, not `(Engine::Ai, ".ai")`. This
-/// mirrors the unified module's intent: each feature is associated with the
-/// engine that authored it, not the marketplace host that contains it.
+/// `(DiscoverySource::CLAUDE, ".ai/<plugin>/.claude")`, not
+/// `(DiscoverySource::AI, ".ai")`. This mirrors the unified module's intent:
+/// each feature is associated with the engine that authored it, not the
+/// marketplace host that contains it.
 ///
 /// Non-UTF-8 path components are handled via [`std::path::Path::file_name`]
 /// returning [`Option`] and [`std::ffi::OsStr::to_string_lossy`] — invalid
 /// UTF-8 simply does not match any known engine root.
 #[must_use]
-pub fn infer_engine_root(path: &Path, project_root: &Path) -> Option<(Engine, PathBuf)> {
+pub fn infer_engine_root(path: &Path, project_root: &Path) -> Option<(DiscoverySource, PathBuf)> {
     for ancestor in path.ancestors() {
         if ancestor == project_root {
             break;
@@ -44,9 +45,9 @@ pub fn infer_engine_root(path: &Path, project_root: &Path) -> Option<(Engine, Pa
         };
         let lossy = name.to_string_lossy();
         match lossy.as_ref() {
-            ".claude" => return Some((Engine::Claude, ancestor.to_path_buf())),
-            ".github" => return Some((Engine::Copilot, ancestor.to_path_buf())),
-            ".ai" => return Some((Engine::Ai, ancestor.to_path_buf())),
+            ".claude" => return Some((DiscoverySource::CLAUDE, ancestor.to_path_buf())),
+            ".github" => return Some((DiscoverySource::COPILOT_CLI, ancestor.to_path_buf())),
+            ".ai" => return Some((DiscoverySource::AI, ancestor.to_path_buf())),
             _ => {},
         }
     }
@@ -61,8 +62,8 @@ mod tests {
     fn claude_skills_canonical_layout() {
         let project = Path::new("/repo");
         let path = Path::new("/repo/.claude/skills/my-skill/SKILL.md");
-        let (engine, root) = infer_engine_root(path, project).expect("should match");
-        assert_eq!(engine, Engine::Claude);
+        let (source, root) = infer_engine_root(path, project).expect("should match");
+        assert_eq!(source, DiscoverySource::CLAUDE);
         assert_eq!(root, PathBuf::from("/repo/.claude"));
     }
 
@@ -71,8 +72,8 @@ mod tests {
         // The customer's #725 layout.
         let project = Path::new("/repo");
         let path = Path::new("/repo/.github/copilot/skills/skill-alpha/SKILL.md");
-        let (engine, root) = infer_engine_root(path, project).expect("should match");
-        assert_eq!(engine, Engine::Copilot);
+        let (source, root) = infer_engine_root(path, project).expect("should match");
+        assert_eq!(source, DiscoverySource::COPILOT_CLI);
         assert_eq!(root, PathBuf::from("/repo/.github"));
     }
 
@@ -80,8 +81,8 @@ mod tests {
     fn copilot_canonical_skills_layout() {
         let project = Path::new("/repo");
         let path = Path::new("/repo/.github/skills/my-skill/SKILL.md");
-        let (engine, root) = infer_engine_root(path, project).expect("should match");
-        assert_eq!(engine, Engine::Copilot);
+        let (source, root) = infer_engine_root(path, project).expect("should match");
+        assert_eq!(source, DiscoverySource::COPILOT_CLI);
         assert_eq!(root, PathBuf::from("/repo/.github"));
     }
 
@@ -89,8 +90,8 @@ mod tests {
     fn ai_plugin_layout() {
         let project = Path::new("/repo");
         let path = Path::new("/repo/.ai/my-plugin/skills/my-skill/SKILL.md");
-        let (engine, root) = infer_engine_root(path, project).expect("should match");
-        assert_eq!(engine, Engine::Ai);
+        let (source, root) = infer_engine_root(path, project).expect("should match");
+        assert_eq!(source, DiscoverySource::AI);
         assert_eq!(root, PathBuf::from("/repo/.ai"));
     }
 
@@ -100,8 +101,8 @@ mod tests {
         // ancestors are walked from leaf upward.
         let project = Path::new("/repo");
         let path = Path::new("/repo/.ai/my-plugin/.claude/skills/my-skill/SKILL.md");
-        let (engine, root) = infer_engine_root(path, project).expect("should match");
-        assert_eq!(engine, Engine::Claude);
+        let (source, root) = infer_engine_root(path, project).expect("should match");
+        assert_eq!(source, DiscoverySource::CLAUDE);
         assert_eq!(root, PathBuf::from("/repo/.ai/my-plugin/.claude"));
     }
 
@@ -132,8 +133,8 @@ mod tests {
     fn relative_paths_work_too() {
         let project = Path::new(".");
         let path = Path::new("./.github/skills/my-skill/SKILL.md");
-        let (engine, root) = infer_engine_root(path, project).expect("should match");
-        assert_eq!(engine, Engine::Copilot);
+        let (source, root) = infer_engine_root(path, project).expect("should match");
+        assert_eq!(source, DiscoverySource::COPILOT_CLI);
         assert_eq!(root, PathBuf::from("./.github"));
     }
 
@@ -141,8 +142,8 @@ mod tests {
     fn relative_paths_without_dot_prefix() {
         let project = Path::new("");
         let path = Path::new(".claude/skills/my-skill/SKILL.md");
-        let (engine, root) = infer_engine_root(path, project).expect("should match");
-        assert_eq!(engine, Engine::Claude);
+        let (source, root) = infer_engine_root(path, project).expect("should match");
+        assert_eq!(source, DiscoverySource::CLAUDE);
         assert_eq!(root, PathBuf::from(".claude"));
     }
 
@@ -151,8 +152,8 @@ mod tests {
         // Layered .ai > .github > .claude — the innermost (.claude) still wins.
         let project = Path::new("/repo");
         let path = Path::new("/repo/.ai/p/.github/.claude/skills/x/SKILL.md");
-        let (engine, root) = infer_engine_root(path, project).expect("should match");
-        assert_eq!(engine, Engine::Claude);
+        let (source, root) = infer_engine_root(path, project).expect("should match");
+        assert_eq!(source, DiscoverySource::CLAUDE);
         assert_eq!(root, PathBuf::from("/repo/.ai/p/.github/.claude"));
     }
 
@@ -162,8 +163,8 @@ mod tests {
         // until it finds one that is.
         let project = Path::new("/repo");
         let path = Path::new("/repo/.foo/.github/skills/x/SKILL.md");
-        let (engine, root) = infer_engine_root(path, project).expect("should match");
-        assert_eq!(engine, Engine::Copilot);
+        let (source, root) = infer_engine_root(path, project).expect("should match");
+        assert_eq!(source, DiscoverySource::COPILOT_CLI);
         assert_eq!(root, PathBuf::from("/repo/.foo/.github"));
     }
 
@@ -181,8 +182,8 @@ mod tests {
     fn project_root_at_filesystem_root_works() {
         let project = Path::new("/");
         let path = Path::new("/.github/skills/x/SKILL.md");
-        let (engine, root) = infer_engine_root(path, project).expect("should match");
-        assert_eq!(engine, Engine::Copilot);
+        let (source, root) = infer_engine_root(path, project).expect("should match");
+        assert_eq!(source, DiscoverySource::COPILOT_CLI);
         assert_eq!(root, PathBuf::from("/.github"));
     }
 }
