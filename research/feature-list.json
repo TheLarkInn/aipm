@@ -63,7 +63,7 @@
       "Run the coverage gate from CLAUDE.md: `cargo +nightly llvm-cov clean --workspace`, `cargo +nightly llvm-cov --no-report --workspace --branch`, `cargo +nightly llvm-cov --no-report --doc`, then `cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs|lsp\\.rs)'`. TOTAL branch column must be ≥ 89%.",
       "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 4 complete — engine-prefix branch removed from instruction.rs; regression guard added; coverage <pct>% / target 89%.`"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "docs",
