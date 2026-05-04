@@ -135,7 +135,7 @@
       "Verify Engine::Claude maps to ~27 hook events and Engine::CopilotCli to ~10",
       "Confirm that the legacy aliases (PreToolUse → preToolUse) appear in the aliases array of the canonical event"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

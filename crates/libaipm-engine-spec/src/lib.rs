@@ -12,12 +12,17 @@ pub mod generated;
 pub mod helpers;
 pub mod types;
 
-pub use generated::{Engine, EngineSet, ENGINES, TOOL_COMPATIBILITY, VALID_TOOLS};
-pub use types::{EngineApiSchemaFile, EngineSpec, META_SCHEMA_VERSION};
+pub use generated::{
+    Engine, EngineSet, ENGINES, HOOK_EVENTS_BY_ENGINE, TOOL_COMPATIBILITY, VALID_TOOLS,
+};
+pub use types::{EngineApiSchemaFile, EngineSpec, HookEventStatic, META_SCHEMA_VERSION};
 
 #[cfg(test)]
 mod smoke_tests {
-    use super::{Engine, EngineSet, ENGINES, META_SCHEMA_VERSION, TOOL_COMPATIBILITY, VALID_TOOLS};
+    use super::{
+        Engine, EngineSet, HookEventStatic, ENGINES, HOOK_EVENTS_BY_ENGINE, META_SCHEMA_VERSION,
+        TOOL_COMPATIBILITY, VALID_TOOLS,
+    };
 
     #[test]
     fn engine_all_lists_known_variants() {
@@ -108,6 +113,41 @@ mod smoke_tests {
         let nav = tool_compat_lookup("browser_navigate").expect("browser_navigate missing");
         assert!(nav.contains(EngineSet::COPILOT_CLI));
         assert!(!nav.contains(EngineSet::CLAUDE));
+    }
+
+    fn hook_events_for(engine: Engine) -> &'static [HookEventStatic] {
+        HOOK_EVENTS_BY_ENGINE.iter().find(|(e, _)| *e == engine).map_or(&[], |(_, evs)| *evs)
+    }
+
+    #[test]
+    fn hook_events_by_engine_has_one_entry_per_variant() {
+        for &engine in Engine::ALL {
+            let events = hook_events_for(engine);
+            assert!(!events.is_empty(), "{engine:?} has no hook events");
+        }
+    }
+
+    #[test]
+    fn hook_events_claude_count_matches_known_baseline() {
+        assert_eq!(hook_events_for(Engine::Claude).len(), 27);
+    }
+
+    #[test]
+    fn hook_events_copilot_count_matches_known_baseline() {
+        assert_eq!(hook_events_for(Engine::CopilotCli).len(), 10);
+    }
+
+    #[test]
+    fn hook_events_copilot_pre_tool_use_carries_pascal_case_alias() {
+        let pre = hook_events_for(Engine::CopilotCli)
+            .iter()
+            .find(|e| e.name == "preToolUse")
+            .expect("preToolUse missing from copilot hook events");
+        assert!(
+            pre.aliases.contains(&"PreToolUse"),
+            "expected legacy alias PreToolUse, got {:?}",
+            pre.aliases
+        );
     }
 
     #[test]

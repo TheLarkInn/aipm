@@ -278,6 +278,36 @@ Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.01%.
 Next: feature #11 — codegen HOOK_EVENTS_BY_ENGINE const table from
 parsed.apis.<engine>.hook_events.
 
+## 2026-05-04 — Feature #11: codegen HOOK_EVENTS_BY_ENGINE
+
+Added pub struct HookEventStatic to types.rs ({name, aliases, deprecated,
+notes}, all &'static for const-context use, mirrors the wire-form
+HookEvent). Build script's dead-code touch widened to a tuple covering
+EngineSpec + HookEventStatic.
+
+build.rs gained generate_hook_events_by_engine() and a hook_event_token
+helper that emits one HookEventStatic struct literal per event. Output:
+  pub const HOOK_EVENTS_BY_ENGINE: &[(Engine, &[HookEventStatic])] = &[
+      (Engine::Claude, &[ /* 27 events */ ]),
+      (Engine::CopilotCli, &[ /* 10 events with PascalCase aliases */ ]),
+  ];
+
+Re-exported HOOK_EVENTS_BY_ENGINE and HookEventStatic at the crate root.
+
+Four new smoke tests (15 total now):
+  - every Engine::ALL variant has at least one event
+  - claude has exactly 27 events (matches CLAUDE_EVENTS in libaipm)
+  - copilot has exactly 10 events (matches COPILOT_EVENTS in libaipm)
+  - copilot's preToolUse carries PascalCase legacy alias PreToolUse
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.02%.
+Coverage briefly hit 94.62% after the new tests landed (more covered
+generated code), then settled at 90.02% post-fmt.
+
+Next: feature #12 — codegen FEATURES_BY_ENGINE table + EngineFeatureSet
+bitflags struct over FeatureKind variants.
+
+
 
 
 

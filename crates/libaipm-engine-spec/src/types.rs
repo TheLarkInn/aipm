@@ -213,6 +213,17 @@ pub struct EngineSuggestions {
     pub behaviour_variants: Vec<String>,
 }
 
+/// Static const-table form of a hook event, emitted by `build.rs` into
+/// the generated `HOOK_EVENTS_BY_ENGINE` const. The wire-format
+/// counterpart is [`HookEvent`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct HookEventStatic {
+    pub name: &'static str,
+    pub aliases: &'static [&'static str],
+    pub deprecated: bool,
+    pub notes: Option<&'static str>,
+}
+
 /// Static specification for a single engine, emitted by `build.rs` into
 /// the generated `ENGINES` const table. All fields are `&'static` so the
 /// table is usable in const contexts and never allocates.
