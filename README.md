@@ -36,7 +36,7 @@ For Azure DevOps pipelines that prefer NuGet over `curl | sh`, restore `aipm` fr
 
 ```yaml
 variables:
-  AIPM_VERSION: '0.22.5'
+  AIPM_VERSION: '0.23.1'
   NUGET_PACKAGES: $(Pipeline.Workspace)/.nuget/packages
 
 steps:
@@ -141,6 +141,7 @@ aipm migrate [OPTIONS] [DIR]
 | `--source <SRC>` | Source folder to scan (e.g., `.claude`). Omit to discover recursively |
 | `--max-depth <N>` | Maximum depth for recursive discovery |
 | `--manifest` | Generate `aipm.toml` manifests for migrated plugins |
+| `--no-summary` | Suppress the one-line scan summary printed to stderr |
 
 **Claude Code (`.claude/`) artifact types:** skills (`SKILL.md`), agents (`agents/*.md`), MCP servers (`.mcp.json`), hooks (`hooks.json`), commands (`commands/*.md`), output styles.
 
@@ -279,6 +280,7 @@ aipm lint [OPTIONS] [DIR]
 | `--reporter <FMT>` | Output format: `human` (default), `json`, `ci-github`, `ci-azure` |
 | `--color <MODE>` | Color output: `auto` (default), `always`, `never` |
 | `--max-depth <N>` | Maximum directory traversal depth |
+| `--no-summary` | Suppress the one-line scan summary printed to stderr |
 
 Exits with a non-zero status code when violations are found, making it safe to use in CI pipelines. Use `--reporter ci-github` for GitHub Actions annotations or `--reporter ci-azure` for Azure Pipelines.
 
