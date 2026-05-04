@@ -184,6 +184,23 @@ pub enum FeatureKind {
     Command,
 }
 
+bitflags::bitflags! {
+    /// Bitflag set over [`FeatureKind`] variants, used by the generated
+    /// `FEATURES_BY_ENGINE` const to describe the kinds each engine
+    /// supports without allocating a `Vec<FeatureKind>`.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub struct EngineFeatureSet: u8 {
+        const SKILL        = 0b0000_0001;
+        const AGENT        = 0b0000_0010;
+        const MCP          = 0b0000_0100;
+        const HOOK         = 0b0000_1000;
+        const OUTPUT_STYLE = 0b0001_0000;
+        const LSP          = 0b0010_0000;
+        const EXTENSION    = 0b0100_0000;
+        const COMMAND      = 0b1000_0000;
+    }
+}
+
 /// Cross-engine tool compatibility classification.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]

@@ -145,7 +145,7 @@
       "Generate pub const FEATURES_BY_ENGINE: &[(Engine, EngineFeatureSet)] = &[ ... ] where EngineFeatureSet is a bitflags struct over FeatureKind variants",
       "Confirm Engine::Claude carries Skill|Agent|Mcp|Hook|OutputStyle and Engine::CopilotCli carries Skill|Agent|Mcp|Hook|OutputStyle|Lsp|Extension"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

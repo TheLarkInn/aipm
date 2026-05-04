@@ -307,6 +307,42 @@ generated code), then settled at 90.02% post-fmt.
 Next: feature #12 — codegen FEATURES_BY_ENGINE table + EngineFeatureSet
 bitflags struct over FeatureKind variants.
 
+## 2026-05-04 — Feature #12: codegen FEATURES_BY_ENGINE + EngineFeatureSet
+
+Added EngineFeatureSet bitflags::bitflags! struct in types.rs (u8 backing,
+8 bits matching FeatureKind variants: SKILL, AGENT, MCP, HOOK,
+OUTPUT_STYLE, LSP, EXTENSION, COMMAND).
+
+build.rs gained generate_features_by_engine() + feature_set_expression()
++ feature_kind_bit_name(). Output:
+  pub const FEATURES_BY_ENGINE: &[(Engine, EngineFeatureSet)] = &[
+    (Engine::Claude, EngineFeatureSet::SKILL.union(...).union(...)),
+    (Engine::CopilotCli, EngineFeatureSet::SKILL.union(...).union(...)),
+  ];
+
+Cargo.toml: added bitflags to [build-dependencies] (now used by types.rs
+which build.rs includes).
+
+Lint hygiene during implementation:
+  - dropped speculative EngineFeatureSet::from_kind impl method (unused
+    in non-test code; YAGNI per CLAUDE.md)
+  - dropped its smoke test + the now-unused FeatureKind import in test
+    module
+  - feature_kind_bit_name() marked const fn (clippy::missing_const_for_fn)
+  - rustfmt rewrap on the const _ touch line
+
+Re-exported FEATURES_BY_ENGINE, EngineFeatureSet, FeatureKind at the
+crate root. Two new smoke tests verify the per-engine bit sets match
+the data file (claude: skill+agent+mcp+hook+output_style; copilot:
+skill+agent+mcp+hook+lsp+extension; neither has the other engine's
+exclusive kinds). Total tests: 18 passing.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 94.62%.
+
+Next: feature #13 — codegen the centralised paths module of static
+&str path constants used across the workspace.
+
+
 
 
 

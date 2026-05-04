@@ -13,15 +13,19 @@ pub mod helpers;
 pub mod types;
 
 pub use generated::{
-    Engine, EngineSet, ENGINES, HOOK_EVENTS_BY_ENGINE, TOOL_COMPATIBILITY, VALID_TOOLS,
+    Engine, EngineSet, ENGINES, FEATURES_BY_ENGINE, HOOK_EVENTS_BY_ENGINE, TOOL_COMPATIBILITY,
+    VALID_TOOLS,
 };
-pub use types::{EngineApiSchemaFile, EngineSpec, HookEventStatic, META_SCHEMA_VERSION};
+pub use types::{
+    EngineApiSchemaFile, EngineFeatureSet, EngineSpec, FeatureKind, HookEventStatic,
+    META_SCHEMA_VERSION,
+};
 
 #[cfg(test)]
 mod smoke_tests {
     use super::{
-        Engine, EngineSet, HookEventStatic, ENGINES, HOOK_EVENTS_BY_ENGINE, META_SCHEMA_VERSION,
-        TOOL_COMPATIBILITY, VALID_TOOLS,
+        Engine, EngineFeatureSet, EngineSet, HookEventStatic, ENGINES, FEATURES_BY_ENGINE,
+        HOOK_EVENTS_BY_ENGINE, META_SCHEMA_VERSION, TOOL_COMPATIBILITY, VALID_TOOLS,
     };
 
     #[test]
@@ -148,6 +152,45 @@ mod smoke_tests {
             "expected legacy alias PreToolUse, got {:?}",
             pre.aliases
         );
+    }
+
+    fn features_for(engine: Engine) -> EngineFeatureSet {
+        FEATURES_BY_ENGINE
+            .iter()
+            .find(|(e, _)| *e == engine)
+            .map_or(EngineFeatureSet::empty(), |(_, s)| *s)
+    }
+
+    #[test]
+    fn features_claude_carries_skill_agent_mcp_hook_output_style() {
+        let f = features_for(Engine::Claude);
+        for bit in [
+            EngineFeatureSet::SKILL,
+            EngineFeatureSet::AGENT,
+            EngineFeatureSet::MCP,
+            EngineFeatureSet::HOOK,
+            EngineFeatureSet::OUTPUT_STYLE,
+        ] {
+            assert!(f.contains(bit), "claude missing {bit:?}");
+        }
+        assert!(!f.contains(EngineFeatureSet::LSP));
+        assert!(!f.contains(EngineFeatureSet::EXTENSION));
+    }
+
+    #[test]
+    fn features_copilot_carries_skill_agent_mcp_hook_lsp_extension() {
+        let f = features_for(Engine::CopilotCli);
+        for bit in [
+            EngineFeatureSet::SKILL,
+            EngineFeatureSet::AGENT,
+            EngineFeatureSet::MCP,
+            EngineFeatureSet::HOOK,
+            EngineFeatureSet::LSP,
+            EngineFeatureSet::EXTENSION,
+        ] {
+            assert!(f.contains(bit), "copilot missing {bit:?}");
+        }
+        assert!(!f.contains(EngineFeatureSet::OUTPUT_STYLE));
     }
 
     #[test]
