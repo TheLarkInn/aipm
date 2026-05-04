@@ -369,7 +369,7 @@
       "Run cargo grep for any remaining stray literals (.claude-plugin|.github/plugin|marketplace.json|marketplace.toml|plugin.json|aipm.toml|CLAUDE.md|AGENTS.md|copilot-instructions.md|GEMINI.md) outside libaipm-engine-spec and confirm intentional remains only",
       "Verify cargo build/test -p libaipm clean"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

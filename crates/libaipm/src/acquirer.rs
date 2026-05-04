@@ -12,6 +12,7 @@ use std::path::{Path, PathBuf};
 
 use crate::engine::Engine;
 use crate::path_security::ValidatedPath;
+use crate::paths;
 use crate::spec::GitSource;
 
 /// Maximum number of files allowed in a single plugin.
@@ -217,7 +218,7 @@ struct RedirectSource {
 /// If `[package.source]` is present, returns the redirect spec.
 /// Otherwise returns `None`.
 pub fn check_source_redirect(plugin_dir: &Path) -> Option<GitSource> {
-    let manifest_path = plugin_dir.join("aipm.toml");
+    let manifest_path = plugin_dir.join(paths::AIPM_TOML);
     let content = std::fs::read_to_string(manifest_path).ok()?;
 
     let manifest: RedirectManifest = toml::from_str(&content).ok()?;

@@ -988,6 +988,39 @@ Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 94.33%.
 Next: feature #31 — centralise scattered path literals across
 installer, init, acquirer, cache, manifest, linker, migrate/reconciler.
 
+## 2026-05-04 — Feature #31: scattered libaipm path literals
+
+Sub-agent (general-purpose) audited the 8 files listed in the feature:
+
+  installer/manifest_editor.rs  — 0 production hits (test/doc only)
+  init.rs                       — 1 hit replaced (line 61, dir.join(AIPM_TOML))
+  acquirer.rs                   — 1 hit replaced (line 220, plugin_dir.join(AIPM_TOML))
+  cache.rs                      — 0 production hits
+  manifest/mod.rs               — 0 production hits
+  linker/pipeline.rs            — 0 production hits
+  linker/hard_link.rs           — 0 production hits
+  migrate/reconciler.rs         — 0 production hits
+
+The line numbers in the spec were apparently stale — the bulk of those
+sites contained either test fixtures (left as literals for grep-ability
+and as documentation of the simulated layout) or doc comments. Only 2
+production-code hits remained.
+
+Sub-agent additionally inventoried ~57 stray production-code literals
+across other libaipm files (aipm/main.rs, lsp.rs, discovery/*,
+make/*, migrate/{cleanup,emitter,registrar,unified}.rs,
+workspace/*, workspace_init/*, lint/rules/*). These are out-of-scope
+for feature #31 but represent legitimate follow-up work for a future
+sweep — not blocking.
+
+Test count unchanged: libaipm 2136 lib pass.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.18%.
+
+Next: feature #32 — update aipm CLI (wizard, main, wizard_tty) to use
+generated Engine and paths constants.
+
+
 
 
 
