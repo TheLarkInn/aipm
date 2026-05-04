@@ -201,7 +201,7 @@
       "Add a lib.rs re-export: pub use libaipm_engine_spec::{Engine, EngineSet, MarketplaceHost, paths, constraints} (paths/constraints/MarketplaceHost added in later features)",
       "Verify cargo build -p libaipm succeeds"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

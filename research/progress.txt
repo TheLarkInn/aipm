@@ -500,6 +500,29 @@ Next: feature #17 — wire libaipm to depend on libaipm-engine-spec
 (add path dep, re-export Engine, EngineSet, MarketplaceHost, paths,
 constraints from libaipm).
 
+## 2026-05-04 — Feature #17: wire libaipm to depend on libaipm-engine-spec
+
+Added libaipm-engine-spec = { workspace = true } to libaipm's
+[dependencies] (the workspace.dependencies entry already existed from
+feature #1).
+
+Added a re-export at libaipm/src/lib.rs root:
+  pub use libaipm_engine_spec::{constraints, paths, Engine, EngineSet,
+                                MarketplaceHost};
+
+`libaipm::Engine` now resolves to the schema-driven enum; the legacy
+hand-written enum is still at libaipm::engine::Engine (no shadowing
+since libaipm::Engine didn't previously exist as a root path). Feature
+#18 replaces engine.rs's local Engine with a thin re-export of the
+generated one.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 94.53%.
+
+Next: feature #18 — replace crates/libaipm/src/engine.rs Engine enum
+with a re-export of the generated Engine, with backwards-compat alias
+for `Engine::Copilot` → `CopilotCli`.
+
+
 
 
 

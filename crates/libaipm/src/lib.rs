@@ -37,6 +37,12 @@ pub mod wizard;
 pub mod workspace;
 pub mod workspace_init;
 
+// Re-export engine-spec types and modules for convenient libaipm-side use.
+// `libaipm::Engine` resolves to the schema-driven enum from
+// libaipm-engine-spec; the legacy hand-written enum still lives at
+// `libaipm::engine::Engine` until feature #18 replaces it.
+pub use libaipm_engine_spec::{constraints, paths, Engine, EngineSet, MarketplaceHost};
+
 /// Returns the library version.
 #[must_use]
 pub const fn version() -> &'static str {
