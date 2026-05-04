@@ -83,7 +83,7 @@
       "Run `git diff specs/2026-05-01-unified-discovery-and-copilot-skill-detection.md | grep -c '<engine>-instructions.md\\|copilot-instructions.md\\|claude-instructions.md\\|agents-instructions.md\\|gemini-instructions.md'` to verify no engine-prefix references remain in the file (zero hits expected).",
       "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 5 complete — source spec G7/§5.4 withdrawn; preamble added; line edits applied.`"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "docs",
