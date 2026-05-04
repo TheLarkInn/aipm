@@ -7,7 +7,10 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - **`aipm migrate` and `aipm lint` now detect skills under `.github/copilot/skills/<name>/SKILL.md`** — closes issue [#725](https://github.com/TheLarkInn/aipm/issues/725). The customer's nested layout (where `.github/copilot/` contains a `skills/` subdirectory) was previously invisible to the migrate detector. The unified discovery pipeline now finds skills at all three Copilot layouts: `.github/skills/<name>/`, `.github/copilot/<name>/`, and `.github/copilot/skills/<name>/`.
-- **`aipm lint` now recognises `<engine>-instructions.md` files** — `copilot-instructions.md`, `claude-instructions.md`, `agents-instructions.md`, and `gemini-instructions.md` are all classified as instruction files. Closes the second silent-drop case from issue #725.
+
+### Removed
+
+- **`aipm lint` no longer classifies `<engine>-instructions.md` files (`copilot-instructions.md`, `claude-instructions.md`, `agents-instructions.md`, `gemini-instructions.md`) as instruction files** — engine-documentation verification (Anthropic Claude Code, GitHub Copilot, Google Gemini CLI, AGENTS.md spec) confirmed three of the four prefixes correspond to filenames no engine reads, and the fourth (`copilot-instructions.md`) is recognized by GitHub Copilot only at `.github/copilot-instructions.md` (bare) and `$HOME/.copilot/copilot-instructions.md`. See [`specs/2026-05-02-engine-instructions-md-pattern-removal.md`](specs/2026-05-02-engine-instructions-md-pattern-removal.md). Files matched by the `INSTRUCTION_FILENAMES` table (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `COPILOT.md`, `INSTRUCTIONS.md`) and the `*.instructions.md` suffix continue to classify normally.
 
 ### Added
 

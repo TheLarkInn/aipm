@@ -97,7 +97,7 @@
       "Run `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` — all four green (CHANGELOG edits do not affect build, but verify nothing else regressed).",
       "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 6 complete — CHANGELOG updated; Removed entry added under [Unreleased].`"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "docs",
