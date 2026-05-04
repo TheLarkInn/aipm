@@ -4,6 +4,8 @@
 
 use std::path::Path;
 
+use libaipm_engine_spec::paths;
+
 use crate::fs::Fs;
 
 use super::detector::Detector;
@@ -22,7 +24,8 @@ impl Detector for CopilotLspDetector {
         let direct_path = source_dir.join("lsp.json");
 
         // Then check project root .github/lsp.json as fallback
-        let fallback_path = source_dir.parent().map(|root| root.join(".github").join("lsp.json"));
+        let fallback_path =
+            source_dir.parent().map(|root| root.join(paths::GITHUB_DOT).join("lsp.json"));
 
         let lsp_path = if fs.exists(&direct_path) {
             direct_path

@@ -2,6 +2,8 @@
 
 use std::path::Path;
 
+use libaipm_engine_spec::paths;
+
 use crate::fs::Fs;
 
 use super::{Artifact, Error};
@@ -46,8 +48,8 @@ pub fn copilot_detectors() -> Vec<Box<dyn Detector>> {
 /// Returns all registered detectors for a given source type.
 pub fn detectors_for_source(source_type: &str) -> Vec<Box<dyn Detector>> {
     match source_type {
-        ".claude" => claude_detectors(),
-        ".github" => copilot_detectors(),
+        s if s == paths::CLAUDE_DOT => claude_detectors(),
+        s if s == paths::GITHUB_DOT => copilot_detectors(),
         _ => Vec::new(),
     }
 }

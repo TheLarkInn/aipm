@@ -961,6 +961,34 @@ literals (.claude-plugin, .github/plugin, marketplace.json,
 marketplace.toml, plugin.json, .claude, .github, settings.json,
 settings.local.json) through libaipm_engine_spec::paths.
 
+## 2026-05-04 — Feature #30: centralise migrate detector path literals
+
+Sub-agent (general-purpose) audited all 13 detector files. Of the
+tracked literals (.claude-plugin, .github/plugin, marketplace.json,
+marketplace.toml, plugin.json, plugin.toml, aipm.toml, .claude,
+.github, settings.json, settings.local.json), only 4 production-code
+occurrences were in-scope across 3 files:
+
+  - hook_detector.rs:19 — "settings.json" → paths::SETTINGS_JSON
+  - copilot_lsp_detector.rs:25 — ".github" → paths::GITHUB_DOT
+  - detector.rs:49-50 — match arms for ".claude" / ".github"
+    rewritten as guard form `s if s == paths::CLAUDE_DOT => ...`
+    because Rust match patterns can't reference non-pattern const &str
+    values
+
+The remaining 10 detector files use untracked literals like "agents",
+"commands", "skills", "hooks.json", "SKILL.md", ".mcp.json",
+"copilot", "mcp-config.json" etc. which don't have paths constants
+today and weren't part of this feature's scope.
+
+No behavioural change; 2136 libaipm lib tests pass.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 94.33%.
+
+Next: feature #31 — centralise scattered path literals across
+installer, init, acquirer, cache, manifest, linker, migrate/reconciler.
+
+
 
 
 

@@ -353,7 +353,7 @@
       "Replace each with a reference to libaipm_engine_spec::paths::*",
       "Run cargo build -p libaipm and cargo test -p libaipm and ensure no behavior change"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

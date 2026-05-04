@@ -2,6 +2,8 @@
 
 use std::path::{Path, PathBuf};
 
+use libaipm_engine_spec::paths;
+
 use crate::fs::Fs;
 
 use super::detector::Detector;
@@ -16,7 +18,7 @@ impl Detector for HookDetector {
     }
 
     fn detect(&self, source_dir: &Path, fs: &dyn Fs) -> Result<Vec<Artifact>, Error> {
-        let settings_path = source_dir.join("settings.json");
+        let settings_path = source_dir.join(paths::SETTINGS_JSON);
         if !fs.exists(&settings_path) {
             return Ok(Vec::new());
         }
