@@ -11,3 +11,5 @@
 pub mod generated;
 pub mod helpers;
 pub mod types;
+
+pub use types::META_SCHEMA_VERSION;

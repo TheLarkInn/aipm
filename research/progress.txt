@@ -13,3 +13,24 @@ cargo build --workspace and the cargo-verifier subagent:
 
 Next: feature #2 — populate types.rs with the canonical schemars-derived
 types per spec section 5.2.
+
+## 2026-05-04 — Feature #2: Canonical Rust types in types.rs
+
+Implemented all 13 canonical types per spec §5.2:
+EngineApiSchemaFile, EngineBootstrap, EngineApi, ManifestFieldSpec,
+Constraints, ConventionFile, SizeLimits, ToolCall, HookEvent, FeatureSpec,
+FeatureKind, ToolCompatibility, ToolSupport, EngineSuggestions. All carry
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
+and #[serde(deny_unknown_fields)] (omitted only on SizeLimits where
+#[serde(flatten)] collects unknown numeric keys into the BTreeMap). Used
+BTreeMap throughout for deterministic key order. META_SCHEMA_VERSION = "1.0.0"
+re-exported at crate root from lib.rs.
+
+Side-fix: schemars added to [dependencies] (it was scaffolded only into
+[build-dependencies] in feature #1, but the runtime derive macro needs it
+at compile time of the lib).
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 89.97%.
+
+Next: feature #3 — bin/export-schema.rs implementation.
+

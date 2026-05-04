@@ -12,6 +12,7 @@ categories.workspace = true
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+schemars = { workspace = true }
 phf = { workspace = true }
 bitflags = { workspace = true }
 
