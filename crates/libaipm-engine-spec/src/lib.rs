@@ -12,6 +12,7 @@ pub mod generated;
 pub mod helpers;
 pub mod types;
 
+pub use generated::paths;
 pub use generated::{
     Engine, EngineSet, ENGINES, FEATURES_BY_ENGINE, HOOK_EVENTS_BY_ENGINE, TOOL_COMPATIBILITY,
     VALID_TOOLS,
@@ -191,6 +192,23 @@ mod smoke_tests {
             assert!(f.contains(bit), "copilot missing {bit:?}");
         }
         assert!(!f.contains(EngineFeatureSet::OUTPUT_STYLE));
+    }
+
+    #[test]
+    fn paths_module_constants_have_expected_values() {
+        use super::paths;
+        assert_eq!(paths::CLAUDE_PLUGIN_DIR, ".claude-plugin");
+        assert_eq!(paths::GITHUB_PLUGIN_DIR, ".github/plugin");
+        assert_eq!(paths::MARKETPLACE_JSON, "marketplace.json");
+        assert_eq!(paths::MARKETPLACE_TOML, "marketplace.toml");
+        assert_eq!(paths::PLUGIN_JSON, "plugin.json");
+        assert_eq!(paths::PLUGIN_TOML, "plugin.toml");
+        assert_eq!(paths::AIPM_TOML, "aipm.toml");
+        assert_eq!(paths::SETTINGS_JSON, "settings.json");
+        assert_eq!(paths::SETTINGS_LOCAL_JSON, "settings.local.json");
+        assert_eq!(paths::CLAUDE_DOT, ".claude");
+        assert_eq!(paths::GITHUB_DOT, ".github");
+        assert_eq!(paths::AI_DOT, ".ai");
     }
 
     #[test]

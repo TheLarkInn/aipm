@@ -156,7 +156,7 @@
       "Note: aipm.toml is a project file, not engine-specific; include it in paths anyway since it appears alongside the others in scattered literal sites",
       "Verify all spec section 5.3 path constants are present"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

@@ -342,6 +342,41 @@ Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 94.62%.
 Next: feature #13 — codegen the centralised paths module of static
 &str path constants used across the workspace.
 
+## 2026-05-04 — Feature #13: codegen paths module
+
+Added generate_paths_module() to build.rs. Emits:
+  pub mod paths {
+    pub const CLAUDE_PLUGIN_DIR:    &str = ".claude-plugin";
+    pub const GITHUB_PLUGIN_DIR:    &str = ".github/plugin";
+    pub const MARKETPLACE_JSON:     &str = "marketplace.json";
+    pub const MARKETPLACE_TOML:     &str = "marketplace.toml";
+    pub const PLUGIN_JSON:          &str = "plugin.json";
+    pub const PLUGIN_TOML:          &str = "plugin.toml";
+    pub const AIPM_TOML:            &str = "aipm.toml";
+    pub const SETTINGS_JSON:        &str = "settings.json";
+    pub const SETTINGS_LOCAL_JSON:  &str = "settings.local.json";
+    pub const CLAUDE_DOT:           &str = ".claude";
+    pub const GITHUB_DOT:           &str = ".github";
+    pub const AI_DOT:               &str = ".ai";
+  }
+
+These are conventional path strings used throughout the workspace (some
+appear in the schema's path lists; others like .ai, aipm.toml, and
+marketplace.toml are aipm- or claude-specific conventions, not part of
+any engine's discovered API surface). Hardcoded into build.rs to give
+consumers one canonical reference point for the upcoming migration map
+(spec §5.8).
+
+paths is re-exported at the crate root via pub use generated::paths.
+One smoke test asserts each constant has the expected value.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.03%.
+
+Next: feature #14 — codegen the constraints module from
+manifest_fields[].constraints (PLUGIN_NAME_MAX_LEN, DESCRIPTION_MAX_LEN,
+POST_INSTALL_MSG_MAX_LEN, PLUGIN_NAME_REGEX).
+
+
 
 
 
