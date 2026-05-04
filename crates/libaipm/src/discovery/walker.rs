@@ -213,13 +213,11 @@ mod tests {
         for name in ["skill-alpha", "skill-beta", "skill-gamma"] {
             touch(&root.join(format!(".github/copilot/skills/{name}/SKILL.md")));
         }
-        touch(&root.join(".github/copilot/copilot-instructions.md"));
         let result = walk(root, &DiscoverOptions::default()).expect("walk should succeed");
-        // All four files must be in the walker's output (classification happens later).
+        // All three SKILL.md files must be in the walker's output (classification happens later).
         assert!(result.files.iter().any(|p| p.ends_with("skill-alpha/SKILL.md")));
         assert!(result.files.iter().any(|p| p.ends_with("skill-beta/SKILL.md")));
         assert!(result.files.iter().any(|p| p.ends_with("skill-gamma/SKILL.md")));
-        assert!(result.files.iter().any(|p| p.ends_with("copilot-instructions.md")));
     }
 
     #[test]

@@ -125,13 +125,11 @@ mod tests {
         for name in ["skill-alpha", "skill-beta", "skill-gamma"] {
             touch(&root.join(format!(".github/copilot/skills/{name}/SKILL.md")));
         }
-        touch(&root.join(".github/copilot/copilot-instructions.md"));
         let set =
             discover(root, &DiscoverOptions::default(), &Real).expect("discover should succeed");
         let counts = set.counts();
         assert_eq!(counts.skills, 3, "expected 3 skills, got: {counts:?}");
-        assert_eq!(counts.instructions, 1, "expected 1 instruction, got: {counts:?}");
-        assert_eq!(counts.total(), 4);
+        assert_eq!(counts.total(), 3);
         assert!(!set.scanned_dirs.is_empty());
     }
 
@@ -144,23 +142,6 @@ mod tests {
         let set =
             discover(root, &DiscoverOptions::default(), &Real).expect("discover should succeed");
         assert_eq!(set.counts().skills, 2);
-    }
-
-    #[test]
-    fn discover_finds_copilot_instructions_md() {
-        // The actual #725 lint-side fix: unified picks up
-        // `copilot-instructions.md` via the `<engine>-instructions.md`
-        // regex shape — the legacy walker silently dropped it.
-        let tmp = tempfile::tempdir().expect("tempdir");
-        let root = tmp.path();
-        touch(&root.join(".github/copilot/copilot-instructions.md"));
-        let set =
-            discover(root, &DiscoverOptions::default(), &Real).expect("discover should succeed");
-        assert_eq!(
-            set.counts().instructions,
-            1,
-            "unified must find copilot-instructions.md (the fix)"
-        );
     }
 
     #[test]

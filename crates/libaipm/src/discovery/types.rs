@@ -166,7 +166,7 @@ mod tests {
             layout: Layout::Canonical,
             source_root: PathBuf::from(".github"),
             feature_dir: None,
-            path: PathBuf::from(".github/copilot/copilot-instructions.md"),
+            path: PathBuf::from(".github/copilot.md"),
         };
         let cloned = feat.clone();
         assert_eq!(feat, cloned);

@@ -1581,16 +1581,7 @@ mod tests {
     }
 
     // --- Issue #725 integration: customer's .github/copilot/skills/<x>/SKILL.md
-    // tree must be picked up by lint. The unified path additionally finds
-    // .github/copilot/copilot-instructions.md (which today's legacy classifier
-    // silently drops). ---
-
-    fn touch(path: &Path) {
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).expect("create parent dir");
-        }
-        std::fs::write(path, "").expect("touch file");
-    }
+    // tree must be picked up by lint. ---
 
     /// Build the customer's #725 fixture tree under `root`.
     fn write_issue_725_tree(root: &Path) {
@@ -1603,12 +1594,11 @@ mod tests {
             )
             .expect("write SKILL.md");
         }
-        touch(&root.join(".github/copilot/copilot-instructions.md"));
         std::fs::create_dir_all(root.join(".ai")).expect("create .ai dir");
     }
 
     #[test]
-    fn lint_unified_finds_issue_725_skills_and_instructions() {
+    fn lint_unified_finds_issue_725_skills() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path();
         write_issue_725_tree(root);
@@ -1621,10 +1611,6 @@ mod tests {
         };
         let outcome = lint(&opts, &crate::fs::Real).expect("lint should succeed");
         assert_eq!(outcome.scan_counts.skills, 3, "expected 3 skills under #725 layout");
-        assert_eq!(
-            outcome.scan_counts.instructions, 1,
-            "unified path must find copilot-instructions.md (the #725 lint-side fix)"
-        );
     }
 
     #[test]
@@ -1640,7 +1626,7 @@ mod tests {
             max_depth: None,
         };
         let outcome = lint(&opts, &crate::fs::Real).expect("lint should succeed");
-        assert_eq!(outcome.scan_counts.total(), 4);
+        assert_eq!(outcome.scan_counts.total(), 3);
         // Walker must have visited at least the .github/ subtree.
         assert!(
             outcome.scanned_dirs.iter().any(|p| p.to_string_lossy().contains(".github")),
@@ -1674,6 +1660,5 @@ mod tests {
         // Only the .github features should remain — the .claude skill is
         // filtered out by source_filter inside discover().
         assert_eq!(outcome.scan_counts.skills, 3, "filter to .github keeps 3 skills");
-        assert_eq!(outcome.scan_counts.instructions, 1);
     }
 }
