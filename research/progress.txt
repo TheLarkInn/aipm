@@ -800,6 +800,50 @@ Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 94.35%.
 Next: feature #26 — update manifest/types.rs engines field from
 Option<Vec<String>> to Option<EngineSet> with custom serde.
 
+## 2026-05-04 — Feature #26: manifest engines → Option<EngineSet>
+
+Sub-agent (general-purpose) executed across 3 files.
+
+build.rs: Added Engine::as_set(self) -> EngineSet const fn to the
+generated impl Engine block. Match arms map each variant to the
+corresponding EngineSet::FOO constant via the existing
+to_screaming_snake naming convention.
+
+manifest/types.rs: Package.engines field changed from
+Option<Vec<String>> to Option<EngineSet> with
+#[serde(default, deserialize_with = "engine_set_serde::deserialize")].
+Inline private mod engine_set_serde provides only the deserializer
+(Manifest doesn't derive Serialize so a serializer would trip dead_code
++ ref_option lints). Unknown engine names are silently filtered via
+Engine::from_name; recognised names fold into the bitset via
+set |= engine.as_set().
+
+manifest/mod.rs: manifest_with_engines_field test fixture updated from
+engines = ["claude", "copilot"] to engines = ["claude", "copilot-cli"]
+(the legacy "copilot" name doesn't map to any current Engine variant
+since canonical is "copilot-cli"). Assertion changed to
+assert_eq!(engines, Some(&(EngineSet::CLAUDE | EngineSet::COPILOT_CLI)))
+preserving the original "round-trip with multiple engines" intent.
+
+manifest/builder.rs: no change — the builder's input shape
+(Option<&[&str]>) already round-trips correctly through the new
+deserializer.
+
+Behavioural change: aipm.toml entries with names that don't map to a
+current Engine variant (e.g. legacy "copilot" or future engines aipm
+doesn't know yet) are silently dropped at deserialize time, rather
+than preserved as Vec<String>. This is intentional — the EngineSet
+type can only represent known variants.
+
+Test counts unchanged: libaipm 2131 lib tests pass; libaipm-engine-spec
+36 unit + 8 integration pass.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 94.31%.
+
+Next: feature #27 — manifest/validate.rs uses constraints constants
+(name regex / length caps) for plugin manifest validation.
+
+
 
 
 

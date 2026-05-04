@@ -131,6 +131,11 @@ fn generate_engine_enum(parsed: &types::EngineApiSchemaFile) -> TokenStream {
         .map(|e| Ident::new(&to_pascal_case(&e.name), Span::call_site()))
         .collect();
     let names: Vec<&str> = parsed.engines.iter().map(|e| e.name.as_str()).collect();
+    let flag_names: Vec<Ident> = parsed
+        .engines
+        .iter()
+        .map(|e| Ident::new(&to_screaming_snake(&e.name), Span::call_site()))
+        .collect();
 
     quote! {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -153,6 +158,17 @@ fn generate_engine_enum(parsed: &types::EngineApiSchemaFile) -> TokenStream {
                 match name {
                     #( #names => Some(Self::#variants), )*
                     _ => None,
+                }
+            }
+
+            /// Return the `EngineSet` bit corresponding to this variant.
+            ///
+            /// Useful when converting an enum value to a flag for set-based
+            /// membership checks (`set.contains(engine.as_set())`).
+            #[must_use]
+            pub const fn as_set(self) -> EngineSet {
+                match self {
+                    #( Self::#variants => EngineSet::#flag_names, )*
                 }
             }
         }

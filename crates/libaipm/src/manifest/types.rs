@@ -3,6 +3,7 @@
 //! These structs model the full manifest format used by both workspace root
 //! manifests and plugin member manifests. Deserialization is handled via serde.
 
+use libaipm_engine_spec::EngineSet;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 
@@ -61,9 +62,18 @@ pub struct Package {
     /// File allowlist for transfer format.
     pub files: Option<Vec<String>>,
 
-    /// Engine compatibility list (e.g., `["claude", "copilot"]`).
+    /// Engine compatibility list (e.g., `["claude", "copilot-cli"]`).
     /// `None` or empty means all engines.
-    pub engines: Option<Vec<String>>,
+    ///
+    /// On disk this is stored as a TOML string array; in memory it is
+    /// represented as an [`EngineSet`] bitflag set so callers can perform
+    /// set-membership checks against `libaipm_engine_spec::EngineSet`
+    /// directly. The TOML round-trip is handled by [`engine_set_serde`].
+    /// Engine names that are not recognised by the bundled engine schema
+    /// are silently dropped on deserialize so manifests targeting future
+    /// engines aipm doesn't yet know about still parse.
+    #[serde(default, deserialize_with = "engine_set_serde::deserialize")]
+    pub engines: Option<EngineSet>,
 
     /// Source redirect for marketplace stubs.
     pub source: Option<SourceRedirect>,
@@ -278,5 +288,37 @@ impl std::str::FromStr for PluginType {
                 "invalid plugin type: {other} — expected one of: skill, agent, mcp, hook, lsp, composite"
             )),
         }
+    }
+}
+
+/// Serde adapter that deserializes a TOML string array into
+/// `Option<EngineSet>`.
+///
+/// On deserialize, names that don't match any variant of
+/// [`libaipm_engine_spec::Engine`] are silently dropped — this keeps
+/// manifests targeting engines aipm doesn't know about yet parseable.
+///
+/// A symmetric serializer can be added when [`Manifest`] gains a
+/// `Serialize` derive; right now the type is deserialize-only and
+/// emitting an unused `serialize` function would trip the workspace's
+/// `dead_code` (and `ref_option`) lints.
+mod engine_set_serde {
+    use libaipm_engine_spec::{Engine, EngineSet};
+    use serde::{Deserialize, Deserializer};
+
+    pub(super) fn deserialize<'de, D>(deserializer: D) -> Result<Option<EngineSet>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw: Option<Vec<String>> = Option::deserialize(deserializer)?;
+        Ok(raw.map(|names| {
+            let mut set = EngineSet::empty();
+            for name in &names {
+                if let Some(engine) = Engine::from_name(name) {
+                    set |= engine.as_set();
+                }
+            }
+            set
+        }))
     }
 }

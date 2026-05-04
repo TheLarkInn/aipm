@@ -307,7 +307,7 @@
       "Update all readers of manifest.package.engines to call .iter() / .contains() on the new EngineSet",
       "Verify manifest unit tests pass; if any test relied on the Vec<String> shape, port it to the new type"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
