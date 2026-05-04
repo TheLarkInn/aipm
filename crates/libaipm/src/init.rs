@@ -171,6 +171,7 @@ fn generate_manifest(name: &str, plugin_type: PluginType) -> String {
             version: "0.1.0",
             plugin_type: Some(type_str),
             description: None,
+            engines: None,
         },
         None,
     )

@@ -726,6 +726,61 @@ Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.08%.
 Next: feature #24 — implement the valid-tool-name lint rule (issue #697)
 and wire it into the lint registry.
 
+## 2026-05-04 — Feature #24: valid-tool-name lint rule (issue #697)
+
+Sub-agent (general-purpose) implemented the new lint rule across:
+
+  crates/libaipm/src/lint/rules/valid_tool_name.rs (new) — Rule trait
+    impl that walks up to the nearest aipm.toml, reads its
+    [package].engines into an EngineSet, parses each tool from the
+    feature's `tools:` frontmatter field, and calls
+    libaipm_engine_spec::valid_tool_name_check to decide between
+    Severity::Warning (no engines declared) and Severity::Error
+    (declared but disjoint with the tool's supported engines).
+  crates/libaipm/src/lint/rules/mod.rs — registered ValidToolName for
+    FeatureKind::{Skill, Agent, Hook} via quality_rules_for_kind, plus
+    catalog().
+  crates/libaipm/src/manifest/builder.rs — added `engines: Option<&[&str]>`
+    to PluginManifestOpts plus the corresponding TOML emission, and
+    Default derive. Required to keep an integration test green: the
+    starter plugin's tools genuinely are Claude-only, so the starter
+    aipm.toml now declares engines = ["claude"].
+  crates/libaipm/src/init.rs — passes engines: None to
+    PluginManifestOpts.
+  crates/libaipm/src/migrate/emitter.rs — same.
+  crates/libaipm/src/workspace_init/mod.rs — starter plugin manifest
+    now declares engines = ["claude"].
+
+Plus my own follow-up:
+  crates/aipm/src/lsp/helpers.rs:493 — bumped expected rule index size
+    18 → 19 (and added the explicit valid-tool-name contains_key
+    assertion) since the LSP rule index gained the new rule.
+
+15 unit tests in valid_tool_name::tests cover:
+  - shared tool always clean (any declared set)
+  - undeclared + claude-only / copilot-only → Warning
+  - declared ["claude"] + claude-only → clean
+  - declared ["claude"] + copilot-only → Error
+  - mixed list (1 error among 3 tools)
+  - empty tools field, no tools field, no frontmatter → no diagnostic
+
+Sub-agent design notes:
+  - find_nearest_manifest walks Path::parent() until it hits an
+    aipm.toml or the filesystem root (first hit wins; falls back to
+    EngineSet::empty())
+  - Hook wiring is effectively a no-op since hooks.json files have no
+    YAML frontmatter; rule still registered for completeness
+  - Diagnostic position attaches the line of the `tools:` frontmatter
+    field with col=1 (refining to per-token positions left for later)
+
+Total libaipm tests: 2131 passing (was 2115; net +16 from this rule).
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.15%.
+
+Next: feature #25 — update lint/mod.rs RECOGNIZED_SOURCE_NAMES to use
+paths::CLAUDE_DOT, GITHUB_DOT, AI_DOT.
+
+
 
 
 

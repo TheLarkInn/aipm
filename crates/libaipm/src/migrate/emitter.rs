@@ -917,6 +917,7 @@ fn generate_package_manifest(
             version: "0.1.0",
             plugin_type: Some(type_str),
             description: Some(description),
+            engines: None,
         },
         Some(&PluginComponentsOpts {
             skills: skills_opt.as_deref(),
@@ -1138,6 +1139,7 @@ fn generate_plugin_manifest(artifact: &Artifact, plugin_name: &str) -> String {
             version: "0.1.0",
             plugin_type: Some(type_str),
             description: Some(description),
+            engines: None,
         },
         Some(&PluginComponentsOpts {
             skills: skills.as_deref(),
