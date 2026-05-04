@@ -3,20 +3,22 @@
 //! Recognizes two filename shapes (case-insensitively):
 //!
 //! 1. **Exact name in [`INSTRUCTION_FILENAMES`]** — `claude.md`, `agents.md`,
-//!    `copilot.md`, `instructions.md`, `gemini.md` (today's behavior preserved
-//!    from `discovery_legacy::INSTRUCTION_FILENAMES`).
+//!    `copilot.md`, `instructions.md`, `gemini.md`, plus the real GitHub
+//!    Copilot repository-instructions filename `copilot-instructions.md`.
 //! 2. **`.instructions.md` suffix** — anything matching `*.instructions.md`
 //!    (today's behavior preserved from
 //!    `discovery_legacy::classify_feature_kind`).
 //!
-//! A previous third shape `<engine>-instructions.md` (e.g.
-//! `copilot-instructions.md`, `claude-instructions.md`) was withdrawn after
+//! A previous third shape `<engine>-instructions.md` covering all of
+//! `claude-/agents-/gemini-/copilot-instructions.md` was withdrawn after
 //! engine-documentation verification — see
 //! `specs/2026-05-02-engine-instructions-md-pattern-removal.md`. No engine
 //! reads files literally named `claude-instructions.md` /
-//! `agents-instructions.md` / `gemini-instructions.md`, and GitHub Copilot
-//! reads `copilot-instructions.md` only at the bare `.github/` path or
-//! `$HOME/.copilot/`, not from arbitrary nested locations.
+//! `agents-instructions.md` / `gemini-instructions.md`. The lone real name
+//! `copilot-instructions.md` (GitHub Copilot's repository-level instructions
+//! file at `.github/copilot-instructions.md`) is preserved here in
+//! [`INSTRUCTION_FILENAMES`] because Copilot does read it; the engine-prefix
+//! family was the wrong abstraction, but the bare filename is correct.
 
 use std::path::Path;
 
@@ -24,9 +26,17 @@ use super::types::{DiscoveredFeature, Engine, FeatureKind, Layout};
 
 /// Lowercase filenames that are unconditionally classified as instruction files.
 ///
-/// Preserved verbatim from `discovery_legacy.rs:185-186`.
-pub const INSTRUCTION_FILENAMES: &[&str] =
-    &["claude.md", "agents.md", "copilot.md", "instructions.md", "gemini.md"];
+/// Includes the five legacy `<engine>.md` names plus `copilot-instructions.md`
+/// (GitHub Copilot's documented repository-instructions file —
+/// <https://docs.github.com/en/copilot/customizing-copilot/adding-repository-custom-instructions-for-github-copilot>).
+pub const INSTRUCTION_FILENAMES: &[&str] = &[
+    "claude.md",
+    "agents.md",
+    "copilot.md",
+    "instructions.md",
+    "gemini.md",
+    "copilot-instructions.md",
+];
 
 /// Try to classify `path` as an instruction file based on its filename.
 ///
@@ -106,6 +116,15 @@ mod tests {
     }
 
     #[test]
+    fn copilot_instructions_md_matches_via_table() {
+        // GitHub Copilot's documented repository-instructions file. Recognized
+        // via INSTRUCTION_FILENAMES (Case A), not via the withdrawn engine-
+        // prefix branch.
+        let feat = classify_with("copilot-instructions.md").expect("should match");
+        assert_eq!(feat.kind, FeatureKind::Instructions);
+    }
+
+    #[test]
     fn case_insensitive_for_table_match() {
         // CLAUDE.md (uppercase) — common spelling.
         assert!(classify_with("CLAUDE.md").is_some());
@@ -163,15 +182,15 @@ mod tests {
     // --- regression guard ---
 
     #[test]
-    fn nested_engine_instructions_md_not_classified() {
+    fn engine_instructions_md_family_not_classified() {
         // Regression guard: see specs/2026-05-02-engine-instructions-md-pattern-removal.md.
         // Engine-documentation verification confirmed no engine reads files
-        // literally named claude-/agents-/gemini-instructions.md, and Copilot
-        // reads copilot-instructions.md only at .github/copilot-instructions.md
-        // (bare) or $HOME/.copilot/copilot-instructions.md — not from nested
-        // paths the unified walker descends into. The classifier MUST NOT
-        // re-introduce an `<engine>-instructions.md` family.
-        assert!(classify_with("copilot-instructions.md").is_none());
+        // literally named claude-/agents-/gemini-instructions.md. The
+        // classifier MUST NOT re-introduce a generic `<engine>-instructions.md`
+        // family. (Note: `copilot-instructions.md` IS classified — but via
+        // INSTRUCTION_FILENAMES, the legitimate Case A path, because Copilot
+        // does read it at `.github/copilot-instructions.md`. See
+        // `copilot_instructions_md_matches_via_table` above.)
         assert!(classify_with("claude-instructions.md").is_none());
         assert!(classify_with("agents-instructions.md").is_none());
         assert!(classify_with("gemini-instructions.md").is_none());

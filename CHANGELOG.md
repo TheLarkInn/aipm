@@ -10,7 +10,7 @@ All notable changes to this project will be documented in this file.
 
 ### Removed
 
-- **`aipm lint` no longer classifies `<engine>-instructions.md` files (`copilot-instructions.md`, `claude-instructions.md`, `agents-instructions.md`, `gemini-instructions.md`) as instruction files** — engine-documentation verification (Anthropic Claude Code, GitHub Copilot, Google Gemini CLI, AGENTS.md spec) confirmed three of the four prefixes correspond to filenames no engine reads, and the fourth (`copilot-instructions.md`) is recognized by GitHub Copilot only at `.github/copilot-instructions.md` (bare) and `$HOME/.copilot/copilot-instructions.md`. See [`specs/2026-05-02-engine-instructions-md-pattern-removal.md`](specs/2026-05-02-engine-instructions-md-pattern-removal.md). Files matched by the `INSTRUCTION_FILENAMES` table (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `COPILOT.md`, `INSTRUCTIONS.md`) and the `*.instructions.md` suffix continue to classify normally.
+- **`aipm lint` no longer classifies `claude-instructions.md`, `agents-instructions.md`, or `gemini-instructions.md` as instruction files** — engine-documentation verification (Anthropic Claude Code, Google Gemini CLI, AGENTS.md spec) confirmed no engine reads files with these names. See [`specs/2026-05-02-engine-instructions-md-pattern-removal.md`](specs/2026-05-02-engine-instructions-md-pattern-removal.md). The `copilot-instructions.md` filename **is preserved** in `INSTRUCTION_FILENAMES` because GitHub Copilot does read it at `.github/copilot-instructions.md`. Files matched by the `INSTRUCTION_FILENAMES` table (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `COPILOT.md`, `INSTRUCTIONS.md`, `copilot-instructions.md`) and the `*.instructions.md` suffix continue to classify normally.
 
 ### Added
 

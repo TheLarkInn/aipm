@@ -575,20 +575,16 @@ These are inherited from
 [research §"Open Questions"](../research/docs/2026-05-02-engine-instructions-md-pattern-removal.md#open-questions)
 and require resolution before this spec leaves Draft.
 
-- [ ] **9.1 Should `.github/copilot-instructions.md` (the bare path) be
-      honored after the cut?** The path is a real Copilot convention. After
-      this spec lands, files at that exact path are no longer classified as
-      `Instructions`. Three resolutions:
-      - (a) **Yes — follow-up spec adds it to `INSTRUCTION_FILENAMES` with
-        engine-gating.** Recommended path; defers the policy question without
-        blocking this cut.
-      - (b) **Yes — extend this spec to add it.** Inflates scope; conflicts
-        with N3.
-      - (c) **No — the bare path stays unclassified.** Acceptable if no user
-        relies on `instructions/oversized` flagging the bare-path file; needs
-        a one-line acknowledgment in the CHANGELOG `### Removed` entry.
-      → **Default: (a) post-merge.** Confirm with @TheLarkInn before draft
-      promotion.
+- [x] **9.1 Should `.github/copilot-instructions.md` (the bare path) be
+      honored after the cut?** **RESOLVED 2026-05-04 (option b)** —
+      `copilot-instructions.md` was added to `INSTRUCTION_FILENAMES` in
+      response to Copilot reviewer feedback on PR
+      [#762](https://github.com/TheLarkInn/aipm/pull/762). The classifier is
+      filename-only (no engine-gating), so the file is recognized as an
+      instruction file from any path the walker visits — but in practice the
+      filename only appears under `.github/` (Copilot's documented path), so
+      false positives are negligible. Non-goal **N3** is therefore relaxed
+      for this PR; no follow-up spec is needed.
 - [ ] **9.2 Spec retraction style.** Should
       `2026-05-01-unified-discovery-and-copilot-skill-detection.md` be edited
       in place (delete G7 / section 5.4) or marked with a "Withdrawn"
