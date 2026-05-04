@@ -167,7 +167,7 @@
       "If a regex constraint exists, emit pub const PLUGIN_NAME_REGEX: &str = \"...\" so consumers can compile it (or hand-validate against the same pattern)",
       "Verify that PLUGIN_NAME_MAX_LEN matches the value currently in crates/libaipm/src/lint/rules/skill_name_too_long.rs (= 64)"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

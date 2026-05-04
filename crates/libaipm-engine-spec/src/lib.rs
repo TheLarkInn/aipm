@@ -12,7 +12,7 @@ pub mod generated;
 pub mod helpers;
 pub mod types;
 
-pub use generated::paths;
+pub use generated::{constraints, paths};
 pub use generated::{
     Engine, EngineSet, ENGINES, FEATURES_BY_ENGINE, HOOK_EVENTS_BY_ENGINE, TOOL_COMPATIBILITY,
     VALID_TOOLS,
@@ -209,6 +209,15 @@ mod smoke_tests {
         assert_eq!(paths::CLAUDE_DOT, ".claude");
         assert_eq!(paths::GITHUB_DOT, ".github");
         assert_eq!(paths::AI_DOT, ".ai");
+    }
+
+    #[test]
+    fn constraints_constants_match_schema_values() {
+        use super::constraints;
+        assert_eq!(constraints::PLUGIN_NAME_MAX_LEN, 64);
+        assert_eq!(constraints::DESCRIPTION_MAX_LEN, 1024);
+        assert_eq!(constraints::POST_INSTALL_MSG_MAX_LEN, 2048);
+        assert_eq!(constraints::PLUGIN_NAME_REGEX, "^[a-zA-Z0-9-]+$");
     }
 
     #[test]

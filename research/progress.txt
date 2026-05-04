@@ -376,6 +376,46 @@ Next: feature #14 — codegen the constraints module from
 manifest_fields[].constraints (PLUGIN_NAME_MAX_LEN, DESCRIPTION_MAX_LEN,
 POST_INSTALL_MSG_MAX_LEN, PLUGIN_NAME_REGEX).
 
+## 2026-05-04 — Feature #14: codegen constraints module
+
+build.rs gained generate_constraints_module() + emit_usize_const() +
+constraint_const_name(). Iterates parsed.apis.<engine>.manifest_fields,
+filters fields with the camelCase→SCREAMING_SNAKE prefix mapping
+(name → PLUGIN_NAME, description → DESCRIPTION,
+postInstallMessage → POST_INSTALL_MSG), and emits typed const items
+for max_length / min_length / regex constraints.
+
+Emitted constants (matching the data file):
+  pub mod constraints {
+    pub const DESCRIPTION_MAX_LEN: usize = 1024;
+    pub const PLUGIN_NAME_MAX_LEN: usize = 64;
+    pub const PLUGIN_NAME_REGEX:   &str = "^[a-zA-Z0-9-]+$";
+    pub const POST_INSTALL_MSG_MAX_LEN: usize = 2048;
+  }
+
+The PLUGIN_NAME_MAX_LEN value 64 matches the existing
+crates/libaipm/src/lint/rules/skill_name_too_long.rs MAX_SKILL_NAME_LENGTH;
+DESCRIPTION_MAX_LEN matches MAX_DESCRIPTION_LENGTH in
+skill_desc_too_long.rs.
+
+Implementation notes:
+  - First-occurrence-wins via BTreeMap so output is deterministic
+  - usize values are emitted as Literal::usize_unsuffixed to avoid
+    `64usize` suffix in the generated source
+  - constraint_const_name is NOT const fn (matching on str isn't const-
+    eval'able yet); doc comment uses backticks around SCREAMING_SNAKE
+    to satisfy clippy::doc_markdown
+
+constraints re-exported at crate root. One smoke test asserts each
+constant's value (and the regex pattern). Total tests: 19 passing.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 94.62%.
+
+Next: feature #15 — implement the helpers module (is_valid_event,
+suggest_canonical, engine_for_root_dir, valid_tool_name_check) plus
+unit tests covering legacy alias suggestions and root-dir mapping.
+
+
 
 
 
