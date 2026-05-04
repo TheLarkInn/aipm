@@ -4,12 +4,14 @@
 
 use std::path::Path;
 
+use libaipm_engine_spec::{suggest_canonical, Engine};
+
 use crate::fs::Fs;
 use crate::lint::diagnostic::{Diagnostic, Severity};
 use crate::lint::rule::Rule;
 use crate::lint::Error;
 
-use super::{known_events, locate_json_key};
+use super::locate_json_key;
 
 /// Warns about legacy `PascalCase` hook event names.
 pub struct LegacyEventName;
@@ -52,7 +54,9 @@ impl Rule for LegacyEventName {
             return Ok(vec![]);
         };
         for key in hooks.keys() {
-            if let Some(canonical) = known_events::suggest_canonical(key) {
+            // The legacy event mapping is Copilot-specific (PascalCase ->
+            // camelCase) — Claude doesn't normalise event names.
+            if let Some(canonical) = suggest_canonical(key, Engine::CopilotCli) {
                 let (line, col, end_col) = locate_json_key(&content, key)
                     .map_or((None, None, None), |(l, c, e)| (Some(l), Some(c), Some(e)));
                 diagnostics.push(Diagnostic {

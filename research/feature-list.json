@@ -260,7 +260,7 @@
       "Migrate the test cases from the deleted file into crates/libaipm-engine-spec/src/helpers.rs unit tests if they aren't already covered there",
       "Verify cargo test -p libaipm passes"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

@@ -174,6 +174,13 @@ mod tests {
             suggest_canonical("UserPromptSubmit", Engine::CopilotCli),
             Some("userPromptSubmitted")
         );
+        // PostToolUseFailure is mapped to errorOccurred — preserves the legacy
+        // known_events::COPILOT_LEGACY_MAP behaviour after that module's
+        // deletion in the engine-api-schema source-of-truth refactor.
+        assert_eq!(
+            suggest_canonical("PostToolUseFailure", Engine::CopilotCli),
+            Some("errorOccurred")
+        );
     }
 
     #[test]

@@ -10,7 +10,6 @@ pub mod hook_legacy_event;
 pub mod hook_unknown_event;
 pub mod import_resolver;
 pub mod instructions_oversized;
-pub mod known_events;
 pub mod marketplace_field_mismatch;
 pub mod marketplace_source_resolve;
 pub mod misplaced_features;

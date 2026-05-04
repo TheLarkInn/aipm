@@ -665,6 +665,43 @@ Next: feature #22 — delete known_events.rs and reroute
 hook_unknown_event.rs to libaipm-engine-spec helpers
 (is_valid_event / suggest_canonical).
 
+## 2026-05-04 — Feature #22: delete known_events.rs, reroute lints
+
+Deleted crates/libaipm/src/lint/rules/known_events.rs (was the
+hand-rolled CLAUDE_EVENTS / COPILOT_EVENTS / COPILOT_LEGACY_MAP source).
+Removed the `pub mod known_events;` line from
+crates/libaipm/src/lint/rules/mod.rs.
+
+Two consumers rerouted to libaipm-engine-spec helpers:
+
+  hook_unknown_event.rs:73 — `known_events::is_valid_for_any_tool(key)`
+  → `Engine::ALL.iter().any(|&e| is_valid_event(key, e))` (the
+  union-of-engines rule, inlined since the helper crate exposes the
+  per-engine variant).
+
+  hook_legacy_event.rs:55 — `known_events::suggest_canonical(key)` →
+  `suggest_canonical(key, Engine::CopilotCli)` (the legacy event mapping
+  is Copilot-specific — Claude doesn't normalise event names).
+
+Test migration: helpers.rs already covered most known_events.rs cases
+(claude PascalCase canonical, copilot camelCase + legacy alias, unknown
+events, suggest_canonical for canonical input). Added one new
+assertion for `suggest_canonical("PostToolUseFailure", CopilotCli) ==
+Some("errorOccurred")` to preserve the legacy COPILOT_LEGACY_MAP
+mapping coverage. Test count delta: -8 from libaipm (those 8 lived in
+known_events.rs and are subsumed by helpers.rs's tests +
+generated_tables.rs counts).
+
+Total: libaipm 2115 lib tests pass; libaipm-engine-spec 36 unit + 8
+integration pass.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.08%.
+
+Next: feature #23 — replace skill name/desc/regex/oversized lint
+constants with the generated constraints (PLUGIN_NAME_MAX_LEN,
+DESCRIPTION_MAX_LEN, PLUGIN_NAME_REGEX).
+
+
 
 
 
