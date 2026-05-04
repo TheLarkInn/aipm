@@ -28,7 +28,15 @@ pub use rule::Rule;
 /// have a `source_root` pointing at the project directory itself; reporting
 /// that name in the summary would leak the user's repo / tempdir name, so we
 /// filter it out.
-const RECOGNIZED_SOURCE_NAMES: &[&str] = &[".claude", ".github", ".ai"];
+///
+/// Sourced from the schema-driven `libaipm_engine_spec::paths` module so the
+/// list stays in sync with the canonical root-dir constants used by
+/// `helpers::engine_for_root_dir` and `marketplace_host_for_root_dir`.
+const RECOGNIZED_SOURCE_NAMES: &[&str] = &[
+    libaipm_engine_spec::paths::CLAUDE_DOT,
+    libaipm_engine_spec::paths::GITHUB_DOT,
+    libaipm_engine_spec::paths::AI_DOT,
+];
 
 /// Check if a file path matches any of the given glob ignore patterns.
 fn is_ignored(path: &str, patterns: &[String]) -> bool {

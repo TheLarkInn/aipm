@@ -296,7 +296,7 @@
       "Update all readers of RECOGNIZED_SOURCE_NAMES if its type changes",
       "Verify lint tests pass"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

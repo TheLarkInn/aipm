@@ -780,6 +780,27 @@ Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.15%.
 Next: feature #25 — update lint/mod.rs RECOGNIZED_SOURCE_NAMES to use
 paths::CLAUDE_DOT, GITHUB_DOT, AI_DOT.
 
+## 2026-05-04 — Feature #25: route RECOGNIZED_SOURCE_NAMES through paths
+
+crates/libaipm/src/lint/mod.rs:31 — RECOGNIZED_SOURCE_NAMES now sources
+its values from libaipm_engine_spec::paths::{CLAUDE_DOT, GITHUB_DOT,
+AI_DOT}:
+  const RECOGNIZED_SOURCE_NAMES: &[&str] = &[
+      libaipm_engine_spec::paths::CLAUDE_DOT,
+      libaipm_engine_spec::paths::GITHUB_DOT,
+      libaipm_engine_spec::paths::AI_DOT,
+  ];
+
+Type stays `&'static [&'static str]`; the single .contains(&name.as_str())
+caller at line 160 needed no changes. No behavioural change; 2131
+libaipm lib tests pass.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 94.35%.
+
+Next: feature #26 — update manifest/types.rs engines field from
+Option<Vec<String>> to Option<EngineSet> with custom serde.
+
+
 
 
 
