@@ -110,6 +110,33 @@ Next: feature #6 — implement build.rs validation step (parse data file,
 validate against meta-schema via jsonschema crate, deserialize into
 EngineApiSchemaFile, check meta_schema_version match).
 
+## 2026-05-04 — Feature #6: build.rs validation step
+
+Implemented build-time validation in
+crates/libaipm-engine-spec/build.rs. Steps performed on every build:
+  1. cargo:rerun-if-changed for data/engine-api-schema.json, the
+     meta-schema, src/types.rs, build.rs
+  2. read meta-schema + data file from disk
+  3. parse both as serde_json::Value and build a jsonschema validator
+     for the meta-schema (auto-detects draft 2020-12 from $schema)
+  4. validator.validate(&data) — error path includes a remediation hint
+     pointing to bin/export-schema
+  5. deserialize the validated data into types::EngineApiSchemaFile
+  6. assert parsed.meta_schema_version == types::META_SCHEMA_VERSION
+
+Types are shared with the build script via #[path = "src/types.rs"]
+mod types; that compiles against the same serde/schemars in
+[build-dependencies]. cargo:rerun-if-changed is emitted via writeln!
+to a locked stdout to sidestep the workspace print_stdout = "deny"
+clippy lint.
+
+The validation passes on the current data file: cargo build, test,
+clippy, fmt all clean; coverage 89.97%.
+
+Next: feature #7 — build.rs codegen for the generated Engine enum and
+EngineSet bitflags into OUT_DIR/engine_data.rs.
+
+
 
 
 

@@ -77,7 +77,7 @@
       "Verify parsed.meta_schema_version equals types::META_SCHEMA_VERSION; on mismatch return Err",
       "Verify cargo build -p libaipm-engine-spec succeeds"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
