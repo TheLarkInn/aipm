@@ -1128,6 +1128,40 @@ Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.18%.
 Next: feature #35 — update CLAUDE.md to document libaipm-engine-spec
 and the export-schema workflow.
 
+## 2026-05-04 — Feature #35: document libaipm-engine-spec in CLAUDE.md
+
+Edits:
+
+  Coverage --ignore-filename-regex (line 51): added
+    libaipm-engine-spec/build\.rs and libaipm-engine-spec/src/bin so
+    the build script and the export-schema binary don't dilute branch
+    coverage.
+
+  Workflow table (line 83): reverse-binary-analysis row now points at
+    crates/libaipm-engine-spec/data/engine-api-schema.json instead of
+    the legacy research/ path.
+
+  Project Structure: added two entries documenting the new crate and
+    the derived meta-schema artefact:
+      crates/libaipm-engine-spec/  → canonical Rust types, data file,
+        build.rs codegen of typed const tables
+      schemas/engine-api.schema.json → derived JSON Schema 2020-12
+
+  New "Schema export (libaipm-engine-spec)" section after Project
+    Structure: explains the schemars-canonical-types model, the
+    `cargo run -p libaipm-engine-spec --bin export-schema` workflow,
+    the schema_export_drift integration test, META_SCHEMA_VERSION
+    bumping for breaking changes, and notes that build.rs +
+    src/bin/export-schema.rs are excluded from coverage.
+
+Test count unchanged (docs-only edit): libaipm 2136 lib pass.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.18%.
+
+Next: feature #36 — add stray-literals grep script + BDD scenarios for
+valid-tool-name lint.
+
+
 
 
 

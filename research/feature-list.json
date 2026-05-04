@@ -422,7 +422,7 @@
       "Update the workflow file table to reflect that reverse-binary-analysis writes to crates/libaipm-engine-spec/data/ instead of research/",
       "Verify CLAUDE.md renders without broken links"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
