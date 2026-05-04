@@ -10,6 +10,8 @@
 
 use std::path::{Path, PathBuf};
 
+use libaipm_engine_spec::{engine_for_root_dir, marketplace_host_for_root_dir};
+
 use super::types::DiscoverySource;
 
 /// Walk `path`'s ancestors up to (but not including) `project_root` and return
@@ -44,11 +46,12 @@ pub fn infer_engine_root(path: &Path, project_root: &Path) -> Option<(DiscoveryS
             continue;
         };
         let lossy = name.to_string_lossy();
-        match lossy.as_ref() {
-            ".claude" => return Some((DiscoverySource::CLAUDE, ancestor.to_path_buf())),
-            ".github" => return Some((DiscoverySource::COPILOT_CLI, ancestor.to_path_buf())),
-            ".ai" => return Some((DiscoverySource::AI, ancestor.to_path_buf())),
-            _ => {},
+        let dir = lossy.as_ref();
+        if let Some(engine) = engine_for_root_dir(dir) {
+            return Some((DiscoverySource::Engine(engine), ancestor.to_path_buf()));
+        }
+        if let Some(host) = marketplace_host_for_root_dir(dir) {
+            return Some((DiscoverySource::MarketplaceHost(host), ancestor.to_path_buf()));
         }
     }
     None

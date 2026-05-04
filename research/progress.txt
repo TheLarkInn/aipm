@@ -612,6 +612,28 @@ Next: feature #20 — update discovery/source.rs and lint/rules/scan.rs
 path-walker dispatch to use libaipm_engine_spec::helpers::engine_for_root_dir
 and helpers::marketplace_host_for_root_dir, with paths::CLAUDE_DOT etc.
 
+## 2026-05-04 — Feature #20: route path-walker dispatch through helpers + paths
+
+discovery/source.rs:infer_engine_root replaced its inline ".claude"/
+".github"/".ai" match arms with calls to
+libaipm_engine_spec::engine_for_root_dir and marketplace_host_for_root_dir.
+The helper return values feed directly into DiscoverySource::Engine /
+DiscoverySource::MarketplaceHost.
+
+lint/rules/scan.rs:source_type_from_path replaced the literal string
+match arms with comparisons against libaipm_engine_spec::paths::*
+(AI_DOT, CLAUDE_DOT, GITHUB_DOT). Function still returns "other" for
+unmatched paths (not a path constant — that's intentional UI text).
+
+No behaviour change; all 2123 libaipm lib tests pass.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.10%.
+
+Next: feature #21 — update discovery/instruction.rs INSTRUCTION_FILENAMES,
+discovery/layout.rs literals, discovery_legacy.rs literal directory list
+to use the centralised paths constants.
+
+
 
 
 

@@ -237,7 +237,7 @@
       "Replace literal '.claude'/'.github'/'.ai' strings with libaipm_engine_spec::paths::CLAUDE_DOT, GITHUB_DOT, AI_DOT",
       "Verify discovery and lint tests pass"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

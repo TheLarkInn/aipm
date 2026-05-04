@@ -5,6 +5,8 @@
 
 use std::path::{Path, PathBuf};
 
+use libaipm_engine_spec::paths;
+
 use crate::frontmatter::Frontmatter;
 use crate::fs::Fs;
 
@@ -28,16 +30,21 @@ pub struct FoundAgent {
 
 /// Derive the source type string from a file path by scanning its components.
 ///
-/// Returns `".ai"`, `".claude"`, `".github"`, or `"other"` depending on which
-/// recognized source directory ancestor the file lives under.
+/// Returns one of [`paths::AI_DOT`], [`paths::CLAUDE_DOT`],
+/// [`paths::GITHUB_DOT`], or `"other"` depending on which recognized
+/// source-root directory ancestor the file lives under.
 pub fn source_type_from_path(file_path: &Path) -> &'static str {
     for component in file_path.components() {
         let name = component.as_os_str().to_string_lossy();
-        match name.as_ref() {
-            ".ai" => return ".ai",
-            ".claude" => return ".claude",
-            ".github" => return ".github",
-            _ => {},
+        let n = name.as_ref();
+        if n == paths::AI_DOT {
+            return paths::AI_DOT;
+        }
+        if n == paths::CLAUDE_DOT {
+            return paths::CLAUDE_DOT;
+        }
+        if n == paths::GITHUB_DOT {
+            return paths::GITHUB_DOT;
         }
     }
     "other"
