@@ -433,7 +433,7 @@
       "Add at least 3 BDD scenarios in tests/features/lint/ for valid-tool-name: undeclared engines + engine-exclusive tool emits warning, declared engines covering tool support emits no diagnostic, declared engines NOT covering emits error",
       "Verify the BDD scenarios pass via cargo test --test bdd in libaipm"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

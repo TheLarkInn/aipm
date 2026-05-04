@@ -1161,6 +1161,42 @@ Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.18%.
 Next: feature #36 — add stray-literals grep script + BDD scenarios for
 valid-tool-name lint.
 
+## 2026-05-04 — Feature #36: stray-literals script + valid-tool-name BDD
+
+Two artefacts:
+
+  scripts/check-no-stray-literals.sh — bash script that scans crates/
+    for hand-typed path literals (".claude-plugin", ".github/plugin",
+    "marketplace.json", "marketplace.toml", "plugin.json", "plugin.toml",
+    "aipm.toml") outside the allowlist (libaipm-engine-spec, tests/,
+    *test_helpers*, .lock.yml, .md). Lists hits with file:line:content,
+    exits 0 by default (informational), STRICT=1 makes it exit non-zero
+    if any hit is found. Initial run reports 204 hits — most inside
+    `#[cfg(test)] mod tests` blocks of production .rs files; they're
+    candidates for incremental cleanup.
+
+  tests/features/lint/valid-tool-name.feature — Gherkin feature file
+    with 5 scenarios (spec required ≥3) covering: undeclared engines +
+    claude-only tool → Warning; undeclared + copilot-only → Warning;
+    declared ["claude"] + claude-only → no diagnostic; declared
+    ["claude"] + copilot-only → Error; shared tool always clean.
+
+The BDD harness in crates/libaipm/tests/bdd.rs currently filters to a
+fixed list of feature files in tests/features/manifest/ only — the new
+lint/valid-tool-name.feature is documentation-only until step
+implementations land and the harness filter widens. Behavioural
+coverage today comes from the 15 unit tests in valid_tool_name.rs
+(feature #24).
+
+cargo test -p libaipm --test bdd: 76/76 scenarios pass (filter
+unchanged; new feature file not currently invoked).
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.18%.
+
+Next: feature #37 — final workspace verification (build/test/clippy/fmt
++ 89% coverage).
+
+
 
 
 
