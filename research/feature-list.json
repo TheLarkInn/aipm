@@ -63,7 +63,7 @@
       "Verify schemas/engine-api.schema.json is committed at workspace root",
       "Open the file and confirm it includes definitions for EngineApiSchemaFile, EngineBootstrap, EngineApi, ManifestFieldSpec, Constraints, ConventionFile, SizeLimits, ToolCall, HookEvent, FeatureSpec, FeatureKind, ToolCompatibility, ToolSupport, EngineSuggestions"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

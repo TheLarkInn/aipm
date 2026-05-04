@@ -87,5 +87,29 @@ Next: feature #5 — re-run export-schema and verify the committed schema
 contains all canonical $defs (effectively a smoke test now that the bin
 already wrote the file in feature #3).
 
+## 2026-05-04 — Feature #5: Initial committed schema verification
+
+Re-ran cargo run -p libaipm-engine-spec --bin export-schema. Result:
+zero diff against the file committed in feature #3 (idempotent — same
+inputs produce same output, as expected for a pure schemars derive).
+
+Verified the committed schemas/engine-api.schema.json:
+  $schema: https://json-schema.org/draft/2020-12/schema
+  title: EngineApiSchemaFile
+  $defs: 13/13 present (EngineBootstrap, EngineApi, ManifestFieldSpec,
+    Constraints, ConventionFile, SizeLimits, ToolCall, HookEvent,
+    FeatureSpec, FeatureKind, ToolCompatibility, ToolSupport,
+    EngineSuggestions)
+
+This feature was effectively a smoke test since the schema file was
+already committed when bin/export-schema.rs landed in feature #3.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 89.97%.
+
+Next: feature #6 — implement build.rs validation step (parse data file,
+validate against meta-schema via jsonschema crate, deserialize into
+EngineApiSchemaFile, check meta_schema_version match).
+
+
 
 
