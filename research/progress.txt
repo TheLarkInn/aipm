@@ -633,6 +633,39 @@ Next: feature #21 — update discovery/instruction.rs INSTRUCTION_FILENAMES,
 discovery/layout.rs literals, discovery_legacy.rs literal directory list
 to use the centralised paths constants.
 
+## 2026-05-04 — Feature #21: route discovery instruction/layout/legacy through paths
+
+discovery/instruction.rs: replaced `pub const INSTRUCTION_FILENAMES` with
+a private `instruction_filenames() -> &'static [&'static str]` function
+that lazily aggregates convention filenames from
+libaipm_engine_spec::ENGINES.flat_map(|(_, spec)| spec.convention_files)
+plus two legacy heuristic names ("copilot.md", "instructions.md") that
+historical installers wrote but the schema doesn't track. Backed by
+`OnceLock<Vec<&'static str>>` so the aggregation runs once per process.
+
+`is_instruction_filename` now matches case-insensitively via
+`f.eq_ignore_ascii_case(file_name_lower)` so we can keep the schema's
+original-case strings (CLAUDE.md, AGENTS.md, GEMINI.md) as &'static
+without allocating lowercase copies.
+
+discovery/layout.rs: `match_marketplace` and `match_plugin_json` now
+compare against `paths::MARKETPLACE_JSON`, `paths::CLAUDE_PLUGIN_DIR`,
+`paths::AI_DOT`, `paths::PLUGIN_JSON` instead of the inline string
+literals. Line 52's "copilot" literal stays inline (it's a Copilot CLI
+subdirectory name, not a top-level path constant).
+
+discovery_legacy.rs: discover_claude_dirs uses
+&[libaipm_engine_spec::paths::CLAUDE_DOT] instead of &[".claude"].
+
+No behavioural change. 2123 libaipm lib tests pass.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.11%.
+
+Next: feature #22 — delete known_events.rs and reroute
+hook_unknown_event.rs to libaipm-engine-spec helpers
+(is_valid_event / suggest_canonical).
+
+
 
 
 

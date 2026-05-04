@@ -248,7 +248,7 @@
       "Update crates/libaipm/src/discovery_legacy.rs:48-71 literal directory list to use libaipm_engine_spec::paths::CLAUDE_DOT, GITHUB_DOT",
       "Verify discovery tests pass"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

@@ -25,6 +25,8 @@
 use std::ffi::OsString;
 use std::path::Path;
 
+use libaipm_engine_spec::paths;
+
 use super::types::{DiscoveredFeature, DiscoverySource, FeatureKind, Layout};
 
 /// Try to match `path` as a skill (`SKILL.md`) under the given `source` and
@@ -204,15 +206,15 @@ pub fn match_marketplace(
     source_root: &Path,
 ) -> Option<DiscoveredFeature> {
     let file_name = path.file_name()?.to_string_lossy();
-    if file_name != "marketplace.json" {
+    if file_name != paths::MARKETPLACE_JSON {
         return None;
     }
     let parent_name = parent_name_lossy(path)?;
-    if parent_name != ".claude-plugin" {
+    if parent_name != paths::CLAUDE_PLUGIN_DIR {
         return None;
     }
     let grandparent = ancestor_name_lossy(path, 2)?;
-    if grandparent != ".ai" {
+    if grandparent != paths::AI_DOT {
         return None;
     }
     Some(DiscoveredFeature {
@@ -237,15 +239,15 @@ pub fn match_plugin_json(
     source_root: &Path,
 ) -> Option<DiscoveredFeature> {
     let file_name = path.file_name()?.to_string_lossy();
-    if file_name != "plugin.json" {
+    if file_name != paths::PLUGIN_JSON {
         return None;
     }
     let parent_name = parent_name_lossy(path)?;
-    if parent_name != ".claude-plugin" {
+    if parent_name != paths::CLAUDE_PLUGIN_DIR {
         return None;
     }
     let great_grandparent = ancestor_name_lossy(path, 3)?;
-    if great_grandparent != ".ai" {
+    if great_grandparent != paths::AI_DOT {
         return None;
     }
     Some(DiscoveredFeature {

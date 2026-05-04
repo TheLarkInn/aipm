@@ -22,21 +22,39 @@
 
 use std::path::Path;
 
+use std::sync::OnceLock;
+
+use libaipm_engine_spec::ENGINES;
+
 use super::types::{DiscoveredFeature, DiscoverySource, FeatureKind, Layout};
 
-/// Lowercase filenames that are unconditionally classified as instruction files.
+/// Filenames that are unconditionally classified as instruction files.
 ///
-/// Includes the five legacy `<engine>.md` names plus `copilot-instructions.md`
-/// (GitHub Copilot's documented repository-instructions file —
-/// <https://docs.github.com/en/copilot/customizing-copilot/adding-repository-custom-instructions-for-github-copilot>).
-pub const INSTRUCTION_FILENAMES: &[&str] = &[
-    "claude.md",
-    "agents.md",
-    "copilot.md",
-    "instructions.md",
-    "gemini.md",
-    "copilot-instructions.md",
-];
+/// Aggregated lazily from `libaipm_engine_spec::ENGINES`'s `convention_files`
+/// (so adding a new engine's convention names in the schema picks up here
+/// automatically) plus two legacy names (`copilot.md`, `instructions.md`)
+/// that historical installers wrote but the schema doesn't track.
+///
+/// The schema entries retain their original case (e.g. `CLAUDE.md`,
+/// `AGENTS.md`); matching is case-insensitive via [`str::eq_ignore_ascii_case`].
+fn instruction_filenames() -> &'static [&'static str] {
+    static FILENAMES: OnceLock<Vec<&'static str>> = OnceLock::new();
+    FILENAMES
+        .get_or_init(|| {
+            let mut names: Vec<&'static str> = ENGINES
+                .iter()
+                .flat_map(|(_, spec)| spec.convention_files.iter().map(|(f, _)| *f))
+                .collect();
+            // Legacy heuristic names not tracked in the schema's
+            // convention_files but still recognised by historical
+            // installers.
+            names.extend_from_slice(&["copilot.md", "instructions.md"]);
+            names.sort_unstable();
+            names.dedup();
+            names
+        })
+        .as_slice()
+}
 
 /// Try to classify `path` as an instruction file based on its filename.
 ///
@@ -70,7 +88,7 @@ pub fn classify(
 
 /// Check whether a lowercase filename matches any of the two instruction shapes.
 fn is_instruction_filename(file_name_lower: &str) -> bool {
-    INSTRUCTION_FILENAMES.contains(&file_name_lower)
+    instruction_filenames().iter().copied().any(|f| f.eq_ignore_ascii_case(file_name_lower))
         || file_name_lower.ends_with(".instructions.md")
 }
 
