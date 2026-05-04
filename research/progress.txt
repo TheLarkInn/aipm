@@ -877,6 +877,56 @@ generated FeatureKind + FEATURES_BY_ENGINE; replace string match arms
 ("claude"/"copilot"/"both") with typed Engine + EngineSet logic in
 aipm/main.rs.
 
+## 2026-05-04 — Feature #28: make/engine_features → FeatureKind + FEATURES_BY_ENGINE
+
+Sub-agent (general-purpose) executed across 4 files.
+
+engine_features.rs: full rewrite. Local pub enum Feature deleted;
+replaced with `pub type Feature = FeatureKind;` (alias for backwards
+compat with existing call sites). CLI/wizard presentation methods
+(cli_name, label, from_cli_name, all) moved into a new `FeatureExt`
+extension trait implemented on FeatureKind.
+
+CLAUDE_FEATURES / COPILOT_FEATURES const arrays deleted —
+features_for_engine now consults libaipm_engine_spec::FEATURES_BY_ENGINE
+and returns an EngineFeatureSet. New `features_for_engines(&[Engine])`
+helper unions multiple engines for the legacy "both" CLI input.
+
+Added `parse_engine_arg(&str) -> Option<EngineSet>`:
+  - "claude" → EngineSet::CLAUDE
+  - "copilot" → EngineSet::COPILOT_CLI (preserves legacy alias for the
+    canonical "copilot-cli")
+  - "both" → EngineSet::ALL
+  - "copilot-cli" / kebab-case → via Engine::from_name
+This preserves CLI behaviour while routing internally through typed
+EngineSet/Engine.
+
+make/mod.rs: scaffold_single_feature gained Feature::Command arm
+(stub mirroring scaffold_extension). FeatureExt re-exported.
+
+aipm/main.rs::cmd_make_plugin: replaced string-match engine handling
+with parse_engine_arg → EngineSet → Vec<Engine>. Validation flows
+through the new validate_features_for_engines.
+
+aipm/wizard_tty.rs::resolve_make_plugin: same pattern — match
+engine.as_str() replaced with parse_engine_arg + features_for_engine_set.
+
+11 existing engine_features::tests rewritten to use Engine variants +
+bitflag membership (e.g. feats.contains(EngineFeatureSet::SKILL)).
+Added 5 new tests: parse_engine_arg_accepts_legacy_strings /
+canonical_kebab_name / rejects_unknown, engine_to_set_bit_matches_*,
+features_for_engine_set_matches_features_for_engines.
+
+Test counts: libaipm 2141 lib (was 2131; +10 from this rewrite),
+aipm 135 lib (unchanged).
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 94.32%.
+
+Next: feature #29 — update migrate/adapters/{agent,hook,skill}.rs to
+use generated Engine type (Engine::CopilotCli, paths::* prefix
+substitution).
+
+
 
 
 

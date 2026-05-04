@@ -331,7 +331,7 @@
       "Update crates/aipm/src/main.rs:1074-1077 string match arms ('claude'|'copilot'|'both') to typed Engine + EngineSet logic",
       "Verify make tests pass and the make CLI still accepts the same engine inputs"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

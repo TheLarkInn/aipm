@@ -141,19 +141,26 @@ pub fn resolve_make_plugin(
         str::to_string,
     );
 
-    // Validate the resolved engine before using it to filter features
-    match engine.as_str() {
-        "claude" | "copilot" | "both" => {},
-        _ => return Err(Box::new(libaipm::make::Error::InvalidEngine(engine.clone()))),
-    }
+    // Validate the resolved engine before using it to filter features.
+    // Accepts the legacy "claude"/"copilot"/"both" CLI strings as well
+    // as canonical kebab-case names (e.g. "copilot-cli").
+    let engine_set = libaipm::make::engine_features::parse_engine_arg(&engine)
+        .ok_or_else(|| Box::new(libaipm::make::Error::InvalidEngine(engine.clone())))?;
 
     // Phase 2: Features (filtered by resolved engine)
     if flag_features.is_empty() {
-        let available = libaipm::make::engine_features::features_for_engine(&engine);
-        let labels: Vec<&'static str> =
-            available.iter().map(libaipm::make::Feature::label).collect();
+        use libaipm::make::FeatureExt;
+        let available_set = libaipm::make::engine_features::features_for_engine_set(engine_set);
+        let available: Vec<libaipm::make::Feature> = libaipm::make::Feature::all()
+            .iter()
+            .copied()
+            .filter(|f| {
+                available_set.contains(libaipm::make::engine_features::feature_kind_bit(*f))
+            })
+            .collect();
+        let labels: Vec<&'static str> = available.iter().copied().map(FeatureExt::label).collect();
         let defaults: Vec<bool> = labels.iter().map(|_| false).collect();
-        let cli_names: Vec<&str> = available.iter().map(libaipm::make::Feature::cli_name).collect();
+        let cli_names: Vec<&str> = available.iter().copied().map(FeatureExt::cli_name).collect();
 
         let feature_step = PromptStep {
             label: "AI features to include",
