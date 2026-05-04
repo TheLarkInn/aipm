@@ -1,6 +1,13 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.23.1] - 2026-05-04
+
+### Testing
+- Cover enumerate_sources early-return for nonexistent source dir (366c10d)
+- Cover dedup_agent_artifacts and is_dot_agent_md branches (7fd5e29)
+- Cover counts() empty-set branch and fix guard branch (72cab6f)
+
 ## [0.23.0] - 2026-05-01
 
 ### Documentation
