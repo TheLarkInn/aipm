@@ -113,7 +113,7 @@
       "Either include the file in src/generated.rs alongside engine_data.rs, or merge into engine_data.rs in build.rs",
       "Verify VALID_TOOLS is non-empty and contains known tools like 'Bash', 'Edit', 'Read', 'browser_navigate'"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

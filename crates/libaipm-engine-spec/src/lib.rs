@@ -12,12 +12,12 @@ pub mod generated;
 pub mod helpers;
 pub mod types;
 
-pub use generated::{Engine, EngineSet, ENGINES};
+pub use generated::{Engine, EngineSet, ENGINES, VALID_TOOLS};
 pub use types::{EngineApiSchemaFile, EngineSpec, META_SCHEMA_VERSION};
 
 #[cfg(test)]
 mod smoke_tests {
-    use super::{Engine, EngineSet, ENGINES, META_SCHEMA_VERSION};
+    use super::{Engine, EngineSet, ENGINES, META_SCHEMA_VERSION, VALID_TOOLS};
 
     #[test]
     fn engine_all_lists_known_variants() {
@@ -64,6 +64,20 @@ mod smoke_tests {
             copilot.map(|s| s.marketplace_manifest_path),
             Some(".github/plugin/marketplace.json")
         );
+    }
+
+    #[test]
+    fn valid_tools_contains_known_names_and_aliases() {
+        assert!(!VALID_TOOLS.is_empty());
+        for expected in &["bash", "Bash", "Edit", "Read", "Write", "browser_navigate"] {
+            assert!(VALID_TOOLS.contains(expected), "VALID_TOOLS missing {expected}");
+        }
+    }
+
+    #[test]
+    fn valid_tools_rejects_unknown_names() {
+        assert!(!VALID_TOOLS.contains("definitely-not-a-real-tool"));
+        assert!(!VALID_TOOLS.contains(""));
     }
 
     #[test]

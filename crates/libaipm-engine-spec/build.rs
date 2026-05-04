@@ -41,8 +41,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let formatted = prettyplease::unparse(&syn::parse2(tokens)?);
 
     let out_dir = std::env::var("OUT_DIR")?;
-    let dest = std::path::Path::new(&out_dir).join("engine_data.rs");
-    std::fs::write(dest, formatted)?;
+    let out_dir_path = std::path::Path::new(&out_dir);
+
+    std::fs::write(out_dir_path.join("engine_data.rs"), formatted)?;
+    write_valid_tools_phf(&parsed, out_dir_path)?;
 
     Ok(())
 }
@@ -253,6 +255,39 @@ fn marketplace_manifest_path_for(engine_name: &str) -> &'static str {
         "copilot-cli" => ".github/plugin/marketplace.json",
         _ => "",
     }
+}
+
+/// Emit `OUT_DIR/valid_tools.rs` containing a perfect-hash set of every
+/// tool name + alias declared anywhere in the schema's `tool_calls`.
+///
+/// The set is keyed on `&'static str` so consumers can call
+/// `VALID_TOOLS.contains(tool_name)` without allocation. Inputs are
+/// sorted-deduped before being handed to `phf_codegen` so the generated
+/// output is reproducible across builds.
+fn write_valid_tools_phf(
+    parsed: &types::EngineApiSchemaFile,
+    out_dir: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut tool_names: Vec<&str> = parsed
+        .apis
+        .values()
+        .flat_map(|api| api.tool_calls.iter())
+        .flat_map(|tc| {
+            std::iter::once(tc.name.as_str()).chain(tc.aliases.iter().map(String::as_str))
+        })
+        .collect();
+    tool_names.sort_unstable();
+    tool_names.dedup();
+
+    let mut set = phf_codegen::Set::new();
+    for name in &tool_names {
+        set.entry(*name);
+    }
+
+    let path = out_dir.join("valid_tools.rs");
+    let mut writer = std::fs::File::create(&path)?;
+    writeln!(writer, "pub static VALID_TOOLS: phf::Set<&'static str> = {};", set.build())?;
+    Ok(())
 }
 
 fn to_pascal_case(s: &str) -> String {
