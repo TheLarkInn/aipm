@@ -28,7 +28,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Install system libraries (libgit2, OpenSSL)
-        run: sudo apt-get update && sudo apt-get install -y libgit2-dev libssl-dev pkg-config
+        run: |
+          for i in 1 2 3; do
+            sudo apt-get update && sudo apt-get install -y libgit2-dev libssl-dev pkg-config && break || sleep 15
+          done
 
       - name: Build
         run: cargo build --workspace
@@ -67,7 +70,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Install system libraries (libgit2, OpenSSL)
-        run: sudo apt-get update && sudo apt-get install -y libgit2-dev libssl-dev pkg-config
+        run: |
+          for i in 1 2 3; do
+            sudo apt-get update && sudo apt-get install -y libgit2-dev libssl-dev pkg-config && break || sleep 15
+          done
 
       - name: Clean coverage artifacts
         run: cargo llvm-cov clean --workspace
