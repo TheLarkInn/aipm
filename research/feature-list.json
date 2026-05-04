@@ -447,6 +447,6 @@
       "Confirm TOTAL branch column ≥ 89%",
       "If any of the above fails, fix root cause (do NOT add #[allow] or modify ignore patterns to mask failures)"
     ],
-    "passes": false
+    "passes": true
   }
 ]

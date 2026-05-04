@@ -1196,6 +1196,81 @@ Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.18%.
 Next: feature #37 — final workspace verification (build/test/clippy/fmt
 + 89% coverage).
 
+## 2026-05-04 — Feature #37: final workspace verification — ALL GREEN
+
+cargo-verifier final report:
+  build:    PASS
+  test:     PASS
+  clippy:   PASS
+  fmt:      PASS
+  coverage: PASS (90.18% / required 89%)
+  overall:  PASS
+
+================================================================
+ENGINE-API-SCHEMA SOURCE-OF-TRUTH RFC — IMPLEMENTATION COMPLETE
+================================================================
+
+All 37 features in research/feature-list.json have passes: true.
+
+What landed (37 commits):
+  #1   crates/libaipm-engine-spec scaffolded; workspace deps registered
+  #2   13 canonical Rust types in src/types.rs with schemars derives
+  #3   bin/export-schema.rs emits schemas/engine-api.schema.json
+  #4   data file moved from research/ to crates/libaipm-engine-spec/data/
+       and restructured ($schema URI, structured manifest_fields,
+       renamed *_notes, hook_events arrays, features arrays)
+  #5   committed initial schemas/engine-api.schema.json verified
+  #6   build.rs validates data file vs meta-schema, deserializes
+  #7   build.rs codegen Engine enum + EngineSet bitflags
+  #8   build.rs codegen ENGINES const table with EngineSpec struct
+  #9   build.rs codegen VALID_TOOLS phf::Set
+  #10  build.rs codegen TOOL_COMPATIBILITY const table
+  #11  build.rs codegen HOOK_EVENTS_BY_ENGINE + HookEventStatic
+  #12  build.rs codegen FEATURES_BY_ENGINE + EngineFeatureSet bitflags
+  #13  build.rs codegen paths module of static path constants
+  #14  build.rs codegen constraints module from manifest_fields
+  #15  helpers module + 17 unit tests
+  #16  3 integration tests (schema_validation, schema_export_drift,
+       generated_tables)
+  #17  libaipm depends on libaipm-engine-spec; root re-exports
+  #18  engine.rs Engine enum replaced with re-export
+  #19  discovery::types::Engine → DiscoverySource tagged enum
+  #20  discovery/source.rs + lint/rules/scan.rs use helpers + paths
+  #21  discovery/instruction.rs/layout.rs/legacy.rs route through paths
+  #22  known_events.rs deleted, hook lints reroute to helpers
+  #23  skill name/desc lint constants source from constraints
+  #24  valid-tool-name lint rule (issue #697) + 15 unit tests
+  #25  lint/mod.rs RECOGNIZED_SOURCE_NAMES uses paths
+  #26  manifest engines field is Option<EngineSet>
+  #27  manifest validate.rs cross-checked against PLUGIN_NAME_REGEX
+  #28  make/engine_features.rs uses FeatureKind + FEATURES_BY_ENGINE;
+       parse_engine_arg in main.rs/wizard_tty.rs
+  #29  ${X_AGENT_DIR} placeholders centralised in migrate/mod.rs
+  #30  migrate detector path literals routed through paths
+  #31  scattered libaipm path literals routed through paths::AIPM_TOML
+  #32  aipm CLI path literals routed through libaipm::paths
+  #33  reverse-binary-analysis.md prompt updated for new schema/data
+  #34  reverse-binary-analysis.lock.yml recompiled (allowed-files
+       allowlist limits agent writes to crates/libaipm-engine-spec/data/)
+  #35  CLAUDE.md documents libaipm-engine-spec + export-schema workflow
+  #36  scripts/check-no-stray-literals.sh + valid-tool-name BDD feature
+  #37  final workspace verification — all green
+
+Test counts at completion:
+  libaipm:              2136 lib tests
+  libaipm-engine-spec:  36 unit + 8 integration
+  aipm:                 233 across all binary targets
+  BDD harness:          76 scenarios
+
+Workspace branch coverage: 90.18% (required 89%).
+
+Pull request can be opened from the local branch; the agentic
+reverse-binary-analysis workflow will keep the data file fresh on
+schedule with the new typed safety net.
+
+<promise>ALL FEATURES COMPLETE</promise>
+
+
 
 
 
