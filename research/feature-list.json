@@ -109,7 +109,7 @@
       "Run `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` — all four green.",
       "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 7 complete — misplaced-features.md tree-diagram example corrected.`"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "verification",
