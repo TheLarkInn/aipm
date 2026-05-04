@@ -36,7 +36,7 @@ For Azure DevOps pipelines that prefer NuGet over `curl | sh`, restore `aipm` fr
 
 ```yaml
 variables:
-  AIPM_VERSION: '0.22.5'
+  AIPM_VERSION: '0.23.1'
   NUGET_PACKAGES: $(Pipeline.Workspace)/.nuget/packages
 
 steps:
