@@ -28,14 +28,12 @@ safe-outputs:
     draft: false
     auto-merge: false
     labels: [automation, analysis]
-    protected-paths:
-      - ".github/**"
-      - "docs/**"
-      - "tests/**"
-      - "crates/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "schemas/**"
+    # Only allow the agent to modify the engine API data file and its
+    # changelog. Everything else (workflow sources, code crates, Cargo
+    # workspace files, exported meta-schema, docs, tests) is implicitly
+    # protected.
+    allowed-files:
+      - "crates/libaipm-engine-spec/data/**"
   push-to-pull-request-branch:
     target: "*"
     title-prefix: "[reverse-binary-analysis]"

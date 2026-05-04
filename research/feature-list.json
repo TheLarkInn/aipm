@@ -409,7 +409,7 @@
       "Confirm the data file path appears correctly in safe-outputs JSON config",
       "Commit both .md and .lock.yml together"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "documentation",
