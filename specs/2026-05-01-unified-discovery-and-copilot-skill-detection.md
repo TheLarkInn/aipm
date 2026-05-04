@@ -3,17 +3,34 @@
 | Document Metadata      | Details                                                                        |
 | ---------------------- | ------------------------------------------------------------------------------ |
 | Author(s)              | Sean Larkin                                                                    |
-| Status                 | Draft (WIP)                                                                    |
+| Status                 | Draft (WIP) — **Goal G7 and Section 5.4 withdrawn 2026-05-02**                 |
 | Team / Owner           | aipm core                                                                      |
-| Created / Last Updated | 2026-05-01 / 2026-05-01                                                        |
+| Created / Last Updated | 2026-05-01 / 2026-05-02                                                        |
 | Tracking issue         | [#725](https://github.com/TheLarkInn/aipm/issues/725)                          |
 | Related research       | [`research/docs/2026-05-01-github-copilot-skills-migrate-lint-silent-failure.md`](../research/docs/2026-05-01-github-copilot-skills-migrate-lint-silent-failure.md) |
+
+> **Partial withdrawal (2026-05-02).** Goal **G7** ("`INSTRUCTION_FILENAMES`
+> recognition is extended to match `<engine>-instructions.md`") and Section
+> **5.4** were withdrawn after engine-documentation verification confirmed that
+> no engine reads files literally named `claude-instructions.md`,
+> `agents-instructions.md`, or `gemini-instructions.md`, and that GitHub
+> Copilot reads `copilot-instructions.md` only at `.github/copilot-instructions.md`
+> (bare) or `$HOME/.copilot/copilot-instructions.md` — never from the nested
+> paths the original spec proposed accepting. See
+> [`specs/2026-05-02-engine-instructions-md-pattern-removal.md`](2026-05-02-engine-instructions-md-pattern-removal.md)
+> and
+> [`research/docs/2026-05-02-engine-instructions-md-pattern-removal.md`](../research/docs/2026-05-02-engine-instructions-md-pattern-removal.md).
+> All other goals (G1-G6, G8, G9), section 5.1-5.3, 5.5+, and the SKILL.md
+> work driven by this spec remain in force and shipped correctly. The
+> withdrawal affects only the lint-side claim about `<engine>-instructions.md`
+> classification — the migrate-side fix for issue #725 (skill detection at
+> `.github/copilot/skills/<name>/SKILL.md`) is real and unaffected.
 
 ## 1. Executive Summary
 
 `aipm migrate` and `aipm lint` use two completely different and asymmetric file-discovery pipelines. Migrate uses a fixed engine-root list (`[".claude", ".github"]`) plus per-engine detectors that look exactly one directory level deep. Lint uses a recursive walker plus a hard-coded parent/grandparent classifier. Neither shares code with the other. Both silently produce zero output on layouts they don't recognize.
 
-The result: customer issue [#725](https://github.com/TheLarkInn/aipm/issues/725) reports that a `.github/copilot/skills/<skill>/SKILL.md` tree (the natural layout when a user mirrors the `.claude/skills/<name>/SKILL.md` shape under a `copilot/` subdir) is invisible to **migrate** (the detector looks at `.github/copilot/SKILL.md`, not `.github/copilot/skills/<x>/SKILL.md`), and the accompanying `.github/copilot/copilot-instructions.md` is invisible to **lint** (the instruction-filename table lists `copilot.md` and the suffix check is `.instructions.md`; `copilot-instructions.md` matches neither).
+The result: customer issue [#725](https://github.com/TheLarkInn/aipm/issues/725) reports that a `.github/copilot/skills/<skill>/SKILL.md` tree (the natural layout when a user mirrors the `.claude/skills/<name>/SKILL.md` shape under a `copilot/` subdir) is invisible to **migrate** (the detector looks at `.github/copilot/SKILL.md`, not `.github/copilot/skills/<x>/SKILL.md`). (The lint-side claim previously made here regarding `copilot-instructions.md` was withdrawn — see [`specs/2026-05-02-engine-instructions-md-pattern-removal.md`](2026-05-02-engine-instructions-md-pattern-removal.md).)
 
 This spec consolidates both pipelines onto a single shared discovery module under `crates/libaipm/src/discovery/`. One walker, one classifier, one `DiscoveredFeature` type. Migrate detectors become thin adapters that translate `DiscoveredFeature → Artifact`; lint rules consume `DiscoveredFeature` directly. Both commands print a scan summary by default. Skill detection switches from "exact parent/grandparent must be `skills`" to "any ancestor named `skills` (up to a known engine root) **or** parent is a known engine root", which makes all three documented Copilot skill layouts work consistently. Rollout is gated behind `AIPM_UNIFIED_DISCOVERY=1` for one release.
 
@@ -75,11 +92,10 @@ A prior spec partially addressed this asymmetry on the lint side ([`specs/2026-0
 
 ```text
 .github/copilot/
-├── skills/
-│   ├── skill-alpha/SKILL.md
-│   ├── skill-beta/SKILL.md
-│   └── skill-gamma/SKILL.md
-└── copilot-instructions.md
+└── skills/
+    ├── skill-alpha/SKILL.md
+    ├── skill-beta/SKILL.md
+    └── skill-gamma/SKILL.md
 ```
 
 is silently ignored by both `aipm migrate` and `aipm lint`. No diagnostic, no warning, exit code 0.
@@ -87,7 +103,7 @@ is silently ignored by both `aipm migrate` and `aipm lint`. No diagnostic, no wa
 **Why it fails today** (per [`research/docs/2026-05-01-github-copilot-skills-migrate-lint-silent-failure.md`](../research/docs/2026-05-01-github-copilot-skills-migrate-lint-silent-failure.md)):
 
 1. **Migrate misses the skills**: `CopilotSkillDetector` iterates `["skills", "copilot"]` as subdirs of `.github`. With `.github/copilot/` containing a `skills/` directory, the detector reads `skills_dir = .github/copilot`, finds an entry named `skills`, then checks `.github/copilot/skills/SKILL.md` (one level too shallow). The actual `SKILL.md` files are at `.github/copilot/skills/<name>/SKILL.md`, which the detector never visits.
-2. **Lint misses the instructions file**: `INSTRUCTION_FILENAMES` at `crates/libaipm/src/discovery.rs:186` is `&["claude.md", "agents.md", "copilot.md", "instructions.md", "gemini.md"]`. The fallback suffix check is `.ends_with(".instructions.md")`. `copilot-instructions.md` (hyphen, no dot) matches neither.
+2. ~~**Lint misses the instructions file**: `INSTRUCTION_FILENAMES` ... `copilot-instructions.md` (hyphen, no dot) matches neither.~~ **Withdrawn 2026-05-02** — engine-doc verification confirmed Copilot reads `copilot-instructions.md` only at the bare `.github/copilot-instructions.md` path (not nested under `.github/copilot/`), and no engine reads `claude-/agents-/gemini-instructions.md`. See [`specs/2026-05-02-engine-instructions-md-pattern-removal.md`](2026-05-02-engine-instructions-md-pattern-removal.md) §1.
 3. **Both commands' "found nothing" path is silent by design**: `cmd_migrate` early-returns `Ok(())` with zero stdout when `actions` is empty (`crates/aipm/src/main.rs:957`); the `ci-github` and `ci-azure` lint reporters print literal nothing (`crates/libaipm/src/lint/reporter.rs:309-380`).
 
 **Business and technical impact**:
@@ -106,7 +122,7 @@ is silently ignored by both `aipm migrate` and `aipm lint`. No diagnostic, no wa
 - [ ] **G4**: Lint's `discover_features` is replaced by the shared `discover()`. Lint rules continue to dispatch by `FeatureKind` (no per-engine rule registry), but `DiscoveredFeature` carries an `Engine` field for rules that need it.
 - [ ] **G5**: Both commands print a default scan summary: `"Scanned N directories in [.claude, .github]; matched M skills, K agents, …"`. Suppressible with `--quiet`.
 - [ ] **G6**: Skill matching grammar changes from "parent or grandparent literally equals `skills`" to "any ancestor up to the engine root is named `skills`, OR the parent is a known engine root".
-- [ ] **G7**: `INSTRUCTION_FILENAMES` recognition is extended to match `<engine>-instructions.md` (e.g. `copilot-instructions.md`, `claude-instructions.md`) in addition to today's `<engine>.md` and `*.instructions.md`.
+- [ ] ~~**G7**: `INSTRUCTION_FILENAMES` recognition is extended to match `<engine>-instructions.md`...~~ **Withdrawn 2026-05-02** per [`specs/2026-05-02-engine-instructions-md-pattern-removal.md`](2026-05-02-engine-instructions-md-pattern-removal.md).
 - [ ] **G8**: Behavior is gated behind `AIPM_UNIFIED_DISCOVERY=1` for one release; default-on in the following release.
 - [ ] **G9**: Branch coverage stays ≥ 89% (CLAUDE.md mandate). New tests cover layouts A, B, C from the research doc plus the customer's exact tree from #725.
 
@@ -210,7 +226,7 @@ crates/libaipm/src/discovery/
 ├── walker.rs           // ignore::WalkBuilder wrapper, SKIP_DIRS, max_depth
 ├── classify.rs         // path → Option<DiscoveredFeature> (calls into layout::)
 ├── layout.rs           // declarative per-(engine,kind) layout table; ancestor-walk matcher
-├── instruction.rs      // INSTRUCTION_FILENAMES + the new `<engine>-instructions.md` regex
+├── instruction.rs      // INSTRUCTION_FILENAMES + `*.instructions.md` suffix
 ├── source.rs           // engine-root inference (walks ancestors to find first .claude/.github/.ai/.copilot)
 ├── scan_report.rs      // DiscoveredSet, ScanCounts, SkipReason
 ├── feature.rs          // DiscoveredFeature, Engine, Layout
@@ -412,42 +428,15 @@ The four supported layouts (per Q2 = "Accept all three"; "all three" plus the ca
 
 Layouts for `agents`, `hooks`, `plugin.json`, `marketplace.json`, and `aipm.toml` follow the same structure; see [`research/docs/2026-05-01-github-copilot-skills-migrate-lint-silent-failure.md`](../research/docs/2026-05-01-github-copilot-skills-migrate-lint-silent-failure.md#aipm-lint-discovery--silent-drop-in-classify_feature_kind) for today's table.
 
-### 5.4 Instruction-file recognition (the `copilot-instructions.md` fix)
+### 5.4 Instruction-file recognition — withdrawn
 
-```rust
-// crates/libaipm/src/discovery/instruction.rs
-
-const INSTRUCTION_FILENAMES: &[&str] =
-    &["claude.md", "agents.md", "copilot.md", "instructions.md", "gemini.md"];
-
-// Matches: <prefix>.instructions.md  OR  <engine>-instructions.md
-//   where <engine> ∈ { copilot, claude, agents, gemini }
-//   case-insensitive
-static ENGINE_INSTRUCTIONS_RE: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"^(?i)(copilot|claude|agents|gemini)-instructions\.md$").unwrap()
-});
-
-pub fn classify(file_name: &str, ...) -> Option<DiscoveredFeature> {
-    let lower = file_name.to_ascii_lowercase();
-    if INSTRUCTION_FILENAMES.contains(&lower.as_ref())
-        || lower.ends_with(".instructions.md")
-        || ENGINE_INSTRUCTIONS_RE.is_match(&lower)
-    {
-        return Some(DiscoveredFeature {
-            kind: FeatureKind::Instructions,
-            engine, // inferred from path
-            layout: Layout::Canonical, // instructions don't have layout variants
-            ...
-        });
-    }
-    None
-}
-```
-
-This recognizes the three filename shapes:
-1. **Exact name** in the table: `claude.md`, `agents.md`, `copilot.md`, `instructions.md`, `gemini.md` (today's behavior).
-2. **Suffix `.instructions.md`**: `my-thing.instructions.md` (today's behavior).
-3. **`<engine>-instructions.md`** (new): `copilot-instructions.md`, `claude-instructions.md`. Closes the #725 gap.
+This section originally proposed a third filename shape `<engine>-instructions.md`
+recognized via a `Lazy<Regex>` matcher. It was withdrawn on 2026-05-02 after
+engine-documentation verification — see
+[`specs/2026-05-02-engine-instructions-md-pattern-removal.md`](2026-05-02-engine-instructions-md-pattern-removal.md).
+The shipped `instruction.rs` recognizes only the two real shapes: exact-name
+matches in `INSTRUCTION_FILENAMES` (`claude.md`, `agents.md`, `copilot.md`,
+`instructions.md`, `gemini.md`) and the `*.instructions.md` suffix.
 
 ### 5.5 Engine-root inference
 
@@ -629,7 +618,7 @@ In the next release after rollout, the flag and `legacy_compat` are removed.
 
 | Option | Pros | Cons | Reason for Rejection |
 |---|---|---|---|
-| **A: Patch the migrate detector only** (fix `copilot_skill_detector.rs:27` to add `"skills/skills"` and recurse one more level) | Smallest diff. | Doesn't address lint's `copilot-instructions.md` gap. Doesn't fix the asymmetry. Continues two-pipeline drift. Doesn't help #187/#208. | Treats symptom, not cause. Customer issues will keep coming for every new layout. |
+| **A: Patch the migrate detector only** (fix `copilot_skill_detector.rs:27` to add `"skills/skills"` and recurse one more level) | Smallest diff. | Doesn't fix the asymmetry. Continues two-pipeline drift. Doesn't help #187/#208. | Treats symptom, not cause. Customer issues will keep coming for every new layout. |
 | **B: Keep two pipelines, share a single layout-pattern table** (Q4 option C) | Smaller blast radius than full unification. | Two walkers means two places to add a new engine root. The classifier and the detector walks would still drift. | The user explicitly asked for "literally the SAME logic in a shared module." Sharing only the table is a compromise that doesn't deliver on the directive. |
 | **C: Per-(engine, FeatureKind) rule registry** (Q7 option B) | Explicit Copilot-only / Claude-only rule sets; no runtime branching. | Bigger registry rework; today's rules cleanly dispatch by `FeatureKind` only and engine concerns are minor (regex, char budget). | Not justified by current rule needs; risks YAGNI. `DiscoveredFeature.engine` covers the few rule sites that care. |
 | **D: New top-level crate `aipm-discovery/`** (Q5 option B) | Reusable from external tools (e.g. third-party plugins). | Adds a Cargo crate boundary, an extra publish target, and forces the public API to stabilize sooner. No external consumer exists today. | YAGNI. `crates/libaipm/src/discovery/` keeps the same logical separation without the publish overhead. |
@@ -682,7 +671,7 @@ User-side: customers with the #725 layout (`.github/copilot/skills/<x>/SKILL.md`
 #### Unit Tests
 
 - **`discovery::layout::match_skill`** — table-driven tests covering all five `Layout` variants and the customer's #725 fixture exactly. One test per layout × engine combination.
-- **`discovery::instruction::classify`** — covers `copilot-instructions.md`, `claude-instructions.md`, `my-thing.instructions.md`, `claude.md`, and rejection of `instructions-copilot.md` (wrong order), `random.md`.
+- **`discovery::instruction::classify`** — covers `my-thing.instructions.md`, `claude.md`, and rejection of `random.md`. (Engine-prefix cases withdrawn 2026-05-02 — see [`specs/2026-05-02-engine-instructions-md-pattern-removal.md`](2026-05-02-engine-instructions-md-pattern-removal.md).)
 - **`discovery::source::infer_engine_root`** — covers `.claude`, `.github`, `.ai`, nested `.ai/<plugin>/.claude/`, and the case where no engine root is found.
 - **`discovery::walker`** — covers `SKIP_DIRS`, `max_depth`, `source_filter`, gitignore behavior, symlink non-follow.
 - **`scan_report`** — counts aggregation, `is_empty`, `SkipReason` cases.
@@ -693,21 +682,19 @@ User-side: customers with the #725 layout (`.github/copilot/skills/<x>/SKILL.md`
 - **`crates/libaipm/src/lint/mod.rs::tests`** — add tests for issue #725's exact tree:
   ```text
   .github/copilot/
-  ├── skills/
-  │   ├── skill-alpha/SKILL.md
-  │   ├── skill-beta/SKILL.md
-  │   └── skill-gamma/SKILL.md
-  └── copilot-instructions.md
+  └── skills/
+      ├── skill-alpha/SKILL.md
+      ├── skill-beta/SKILL.md
+      └── skill-gamma/SKILL.md
   ```
-  Assert: 3 `Skill` features + 1 `Instructions` feature discovered, all engine = `Copilot`. Skill quality rules fire on each.
+  Assert: 3 `Skill` features discovered, all engine = `Copilot`. Skill quality rules fire on each.
 - **`crates/libaipm/src/migrate/mod.rs::tests`** — same fixture; assert 3 `Artifact { kind: Skill, … }` are emitted, plugin plans are produced, and `reconciler` + `emitter` write `.ai/<plugin>/skills/<name>/SKILL.md` correctly.
-- **`crates/aipm/tests/lint_e2e.rs` and `crates/aipm/tests/migrate_e2e.rs`** — end-to-end CLI invocation against the #725 fixture. Assert exit code 0, stderr contains `"matched 3 skills, 1 instructions"`, stdout contains the per-skill action lines.
+- **`crates/aipm/tests/lint_e2e.rs` and `crates/aipm/tests/migrate_e2e.rs`** — end-to-end CLI invocation against the #725 fixture. Assert exit code 0, stderr contains `"matched 3 skills"`, stdout contains the per-skill action lines.
 
 #### BDD (`tests/features/`)
 
 - **`tests/features/manifest/migrate.feature`** — add a new `Rule: Copilot CLI nested skills layout (.github/copilot/skills/) is discovered` with two scenarios (single source, recursive) mirroring the existing `.github/copilot/` rule at line 187.
-- **`tests/features/guardrails/quality.feature`** — add a scenario for `copilot-instructions.md` triggering the `instructions_oversized` rule when the file exceeds the configured budget.
-- **`crates/libaipm/tests/bdd.rs`** — add a step `given_copilot_nested_skill_exists` that writes the #725 layout and a step `given_copilot_instructions_file_exists` that writes `.github/copilot/copilot-instructions.md`.
+- **`crates/libaipm/tests/bdd.rs`** — add a step `given_copilot_nested_skill_exists` that writes the #725 layout.
 
 #### End-to-End Tests
 

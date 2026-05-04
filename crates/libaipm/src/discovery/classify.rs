@@ -120,16 +120,6 @@ mod tests {
     }
 
     #[test]
-    fn copilot_instructions_md_classified_as_instructions() {
-        // The issue #725 second silent-drop case.
-        let root = PathBuf::from("/repo");
-        let path = PathBuf::from("/repo/.github/copilot/copilot-instructions.md");
-        let feat = classify_at(&path, &root).expect("should match");
-        assert_eq!(feat.kind, FeatureKind::Instructions);
-        assert_eq!(feat.engine, Engine::Copilot);
-    }
-
-    #[test]
     fn instructions_md_suffix_classified_as_instructions() {
         let root = PathBuf::from("/repo");
         let path = PathBuf::from("/repo/.claude/my-thing.instructions.md");
@@ -168,10 +158,6 @@ mod tests {
             assert_eq!(feat.kind, FeatureKind::Skill);
             assert_eq!(feat.layout, Layout::CopilotSubrootWithSkills);
         }
-        let inst =
-            classify_at(&PathBuf::from("/repo/.github/copilot/copilot-instructions.md"), &root)
-                .expect("instructions should match");
-        assert_eq!(inst.kind, FeatureKind::Instructions);
     }
 
     #[test]

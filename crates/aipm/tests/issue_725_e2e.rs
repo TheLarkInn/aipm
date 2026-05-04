@@ -1,10 +1,9 @@
 //! End-to-end integration tests for issue #725.
 //!
 //! These tests drive the compiled `aipm` binary against the customer's
-//! exact directory layout (`.github/copilot/skills/<x>/SKILL.md` plus
-//! `.github/copilot/copilot-instructions.md`) and assert that the unified
-//! discovery + adapters pipeline (now the default — no opt-in env var)
-//! discovers everything the legacy detectors used to miss.
+//! exact directory layout (`.github/copilot/skills/<x>/SKILL.md`) and assert
+//! that the unified discovery + adapters pipeline (now the default — no
+//! opt-in env var) discovers everything the legacy detectors used to miss.
 
 // Integration test crates inherit workspace lints. Relax restrictions
 // that are appropriate for test code (unwrap/expect/panic are normal in
@@ -29,12 +28,11 @@ fn aipm() -> Command {
 /// ```text
 /// <root>/
 /// |-- .ai/.claude-plugin/marketplace.json
-/// |-- .github/copilot/
-/// |   |-- skills/
-/// |   |   |-- skill-alpha/SKILL.md
-/// |   |   |-- skill-beta/SKILL.md
-/// |   |   `-- skill-gamma/SKILL.md
-/// |   `-- copilot-instructions.md
+/// `-- .github/copilot/
+///     `-- skills/
+///         |-- skill-alpha/SKILL.md
+///         |-- skill-beta/SKILL.md
+///         `-- skill-gamma/SKILL.md
 /// ```
 fn build_issue_725_fixture(root: &Path) {
     // Marketplace stub so `aipm migrate` doesn't bail with MarketplaceNotFound.
@@ -51,14 +49,10 @@ fn build_issue_725_fixture(root: &Path) {
         let body = format!("---\nname: {name}\ndescription: {name} skill\n---\n# {name} body\n");
         std::fs::write(skill_dir.join("SKILL.md"), body).unwrap();
     }
-
-    // copilot-instructions.md sibling to skills/.
-    let instructions_path = root.join(".github").join("copilot").join("copilot-instructions.md");
-    std::fs::write(instructions_path, "Use copilot effectively in this repo.\n").unwrap();
 }
 
 // =========================================================================
-// Test 1: migrate (unified by default) finds all 3 skills + instruction
+// Test 1: migrate (unified by default) finds all 3 skills
 // =========================================================================
 
 #[test]
@@ -74,9 +68,8 @@ fn migrate_finds_issue_725_skills() {
 
     assert!(output.status.success(), "exit code should be 0\nstdout: {stdout}\nstderr: {stderr}");
 
-    // "1 instruction" is singular per format_counts (count == 1).
     assert!(
-        stderr.contains("matched 3 skills, 1 instruction"),
+        stderr.contains("matched 3 skills"),
         "stderr should contain the unified scan summary; got: {stderr}"
     );
 
@@ -114,7 +107,7 @@ fn lint_summary_visible() {
     assert!(output.status.success(), "exit code should be 0\nstdout: {stdout}\nstderr: {stderr}");
 
     assert!(
-        stderr.contains("matched 3 skills, 1 instruction"),
+        stderr.contains("matched 3 skills"),
         "stderr should contain the unified scan summary; got: {stderr}"
     );
 

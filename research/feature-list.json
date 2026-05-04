@@ -1,314 +1,126 @@
 [
   {
     "category": "refactor",
-    "description": "Foundation types for unified discovery module (Engine, FeatureKind, Layout, DiscoveredFeature, DiscoveredSet, ScanCounts, SkipReason)",
+    "description": "Update sibling source-file unit-test fixtures so they no longer depend on the engine-prefix classification branch (spec G4)",
     "steps": [
-      "Create directory crates/libaipm/src/discovery/ as a module folder (mod.rs sibling to today's discovery.rs which is left untouched in this step)",
-      "Add crates/libaipm/src/discovery/types.rs defining pub enum Engine { Claude, Copilot, Ai }, pub enum Layout { Canonical, CopilotSubroot, CopilotSubrootWithSkills, AiNested, AiPlugin }, pub struct DiscoveredFeature { kind, engine, layout, source_root, feature_dir, path } with derives Debug, Clone, PartialEq, Eq (renamed from feature.rs to types.rs to follow existing manifest/types.rs convention and avoid clippy::module_name_repetitions)",
-      "Move pub enum FeatureKind from today's discovery.rs into discovery/types.rs (re-export from the old location for now to avoid breaking lint callers)",
-      "Add crates/libaipm/src/discovery/scan_report.rs defining pub struct DiscoveredSet { features, scanned_dirs, skipped }, pub struct ScanCounts { skills, agents, hooks, instructions, plugins, marketplaces, plugin_jsons }, pub enum SkipReason { SkipDirByName, UnknownLayout, InvalidUtf8 } with Default impls",
-      "Implement DiscoveredSet::counts() that aggregates ScanCounts from features, and DiscoveredSet::is_empty()",
-      "Add crates/libaipm/src/discovery/mod.rs that pub uses Engine, FeatureKind, Layout, DiscoveredFeature, DiscoveredSet, ScanCounts, SkipReason",
-      "Wire the new module into crates/libaipm/src/lib.rs as `pub mod discovery;` (rename old discovery.rs to discovery_legacy.rs and declare as private mod discovery_legacy; existing imports still work via re-exports from discovery/mod.rs)",
-      "Add unit tests in types.rs and scan_report.rs covering Default impls, counts() aggregation across each FeatureKind, is_empty true/false, and SkipReason variant construction",
-      "Run cargo build --workspace, cargo test --workspace, cargo clippy --workspace -- -D warnings, cargo fmt --check — all four must be green with zero warnings",
-      "Confirm no .unwrap()/.expect()/panic!()/println! anywhere per CLAUDE.md lint policy"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Engine-root inference helper that walks ancestors to identify .claude/.github/.ai roots (replaces classify_source_context and source_type_from_path)",
-    "steps": [
-      "Add crates/libaipm/src/discovery/source.rs with pub fn infer_engine_root(path: &Path, project_root: &Path) -> Option<(Engine, PathBuf)>",
-      "Walk path.ancestors() until project_root is reached; return on first ancestor whose file_name matches .claude (Engine::Claude), .github (Engine::Copilot), or .ai (Engine::Ai)",
-      "Handle the boundary case where path == project_root (return None)",
-      "Handle non-UTF-8 path components gracefully without unwrap (use to_string_lossy or skip)",
-      "Add unit tests covering: .claude/skills/<name>/SKILL.md → (Claude, .claude); .github/copilot/skills/<x>/SKILL.md → (Copilot, .github); .ai/<plugin>/skills/<x>/SKILL.md → (Ai, .ai); nested .ai/<plugin>/.claude/skills/<x>/SKILL.md → (Claude, the inner .claude); path with no engine ancestor → None",
-      "Re-export pub use source::infer_engine_root from discovery/mod.rs",
-      "Run cargo build/test/clippy/fmt — all four green"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Skill layout grammar (THE customer fix for #725): any `skills` ancestor up to engine root, OR parent is a known engine sub-root (e.g. `copilot`)",
-    "steps": [
-      "Add crates/libaipm/src/discovery/layout.rs with pub fn match_skill(path: &Path, engine: Engine, source_root: &Path) -> Option<DiscoveredFeature>",
-      "Implement the ancestor walk: collect file_name() of each ancestor between path's parent and source_root (exclusive)",
-      "Case A — any ancestor name == \"skills\" → return Some with FeatureKind::Skill and Layout chosen by pick_layout_for_skill()",
-      "Case B — engine == Engine::Copilot AND grandparent name == \"copilot\" → return Some with Layout::CopilotSubroot (the existing aipm accommodation)",
-      "Implement helper fn pick_layout_for_skill(ancestors, engine) that pattern-matches on the ancestors slice to pick: CopilotSubrootWithSkills (skills+copilot ancestors — the #725 case), CopilotSubroot (copilot only), AiNested (skills + dot-prefixed plugin ancestor), AiPlugin (Ai engine + skills), or Canonical (default)",
-      "Add unit tests covering ALL FIVE layouts plus issue #725's exact tree (.github/copilot/skills/skill-alpha/SKILL.md, skill-beta, skill-gamma) — assert each returns Some with the correct Layout variant and engine",
-      "Add negative tests: .github/copilot/SKILL.md (no skills ancestor, no <name> dir) → None; .github/SKILL.md → None; .github/skills/SKILL.md (flat) → still matched as Canonical per today's grandparent==skills branch",
-      "Run cargo build/test/clippy/fmt — all four green; coverage on layout.rs ≥89%"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Layout matchers for non-skill features: agent, hook, plugin (aipm.toml), marketplace, plugin.json",
-    "steps": [
-      "In crates/libaipm/src/discovery/layout.rs add pub fn match_agent(path, engine, source_root) — accepts <root>/agents/*.md per today's classify_feature_kind line 273-274",
-      "Add pub fn match_hook — accepts <root>/hooks.json AND <root>/hooks/hooks.json per today's classify_feature_kind line 275-276 plus today's CopilotHookDetector at copilot_hook_detector.rs:20-26",
-      "Add pub fn match_plugin — accepts <root>/<plugin>/aipm.toml when grandparent is .ai per today's classify_feature_kind line 277-278",
-      "Add pub fn match_marketplace — accepts .ai/<plugin>/.claude-plugin/marketplace.json per today's line 279-283",
-      "Add pub fn match_plugin_json — accepts .ai/<plugin>/.claude-plugin/plugin.json with great-grandparent == .ai per today's line 284-295",
-      "Each matcher returns Option<DiscoveredFeature> with the appropriate FeatureKind, Engine (from arg), Layout::Canonical for non-skill kinds, and feature_dir set to path.parent()",
-      "Unit tests for each matcher: positive cases (each canonical layout) and negative cases (wrong parent name, missing engine root)",
-      "Run cargo build/test/clippy/fmt — all four green"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Instruction classifier with new `<engine>-instructions.md` regex (closes the `copilot-instructions.md` silent-drop gap)",
-    "steps": [
-      "Add crates/libaipm/src/discovery/instruction.rs with const INSTRUCTION_FILENAMES: &[&str] = &[\"claude.md\", \"agents.md\", \"copilot.md\", \"instructions.md\", \"gemini.md\"] (preserved from today's discovery.rs:186)",
-      "Implement <engine>-instructions.md detection via str::strip_suffix + matches! over the prefix set [copilot, claude, agents, gemini] — avoids adding the regex crate as a direct dep and dodges the .unwrap() concern on Lazy<Regex> static init",
-      "Add pub fn classify(file_name: &str, path: &Path, engine: Engine, source_root: &Path) -> Option<DiscoveredFeature>",
-      "Match logic: lowercase file_name, then return Some(Instructions) if (a) name in INSTRUCTION_FILENAMES OR (b) name ends with \".instructions.md\" OR (c) matches_engine_instructions returns true",
-      "Add unit tests: copilot.md → match (case A); my-thing.instructions.md → match (case B); copilot-instructions.md → match (case C, the #725 fix); claude-instructions.md → match (case C); gemini-instructions.md → match; agents-instructions.md → match; reject instructions-copilot.md (wrong order); reject random.md; COPILOT-INSTRUCTIONS.md handled via case-insensitive lowercase",
-      "Wire pub use instruction::classify as classify_instruction from discovery/mod.rs",
-      "No regex dep added (str-only matching); zero .unwrap() in production code path",
-      "Run cargo build/test/clippy/fmt — all four green"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Top-level classifier dispatch that routes a path to the right layout/instruction matcher",
-    "steps": [
-      "Add crates/libaipm/src/discovery/classify.rs with pub fn classify(path: &Path, root: &Path, fs: &dyn Fs) -> Option<DiscoveredFeature>",
-      "Extract file_name and call source::infer_engine_root(path, root) — return None if no engine root found",
-      "Try instruction::classify first (filename-only, ancestry-independent) — if Some, return it",
-      "Match on file_name: SKILL.md → layout::match_skill; hooks.json → layout::match_hook; aipm.toml → layout::match_plugin; marketplace.json → layout::match_marketplace; plugin.json → layout::match_plugin_json; *.md (via path.extension() with eq_ignore_ascii_case to satisfy clippy::case_sensitive_file_extension_comparisons) → layout::match_agent; otherwise → None",
-      "Add unit tests covering the dispatch matrix: each filename × each engine combination, plus the #725 tree exactly",
-      "Re-export pub use classify::classify as classify_path from discovery/mod.rs",
-      "Run cargo build/test/clippy/fmt — all four green"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Walker that wraps ignore::WalkBuilder with SKIP_DIRS, max_depth, source_filter, follow_symlinks=false",
-    "steps": [
-      "Add crates/libaipm/src/discovery/walker.rs with pub fn walk(project_root: &Path, opts: &DiscoverOptions) -> Result<WalkResult, Error> where WalkResult carries Vec<PathBuf> of file paths and Vec<PathBuf> of directories scanned plus Vec<SkipReason>",
-      "Build ignore::WalkBuilder with hidden(false), git_ignore(true), git_global(true), git_exclude(true), follow_links(opts.follow_symlinks)",
-      "Apply opts.max_depth if Some via builder.max_depth(Some(d))",
-      "Add filter_entry that skips directories whose name is in SKIP_DIRS — emit a SkipReason::SkipDirByName for each via Arc<Mutex<Vec<SkipReason>>> shared between the closure and the post-walk drain",
-      "Defer source_filter to discover() (post-classification); walker walks the full tree per spec ('fail closed' alternative)",
-      "Collect Vec<PathBuf> of file paths and dirs walked; convert ignore::Error to Error::WalkFailed with .to_string(); sort outputs for determinism",
-      "Add pub struct DiscoverOptions { max_depth, source_filter, follow_symlinks } with #[derive(Debug, Default, Clone)] in discovery/mod.rs (anticipating feature 8)",
-      "Unit tests (11): empty dir, files+dirs, SKIP_DIRS pruning + recording, max_depth honored, dot-dirs visible, issue #725 tree visible, gitignored files excluded (with .git/ marker so the ignore crate honors .gitignore), follow_symlinks=false (Unix), skip-reason path recording, deep tree without max_depth, sorted output",
-      "Run cargo build/test/clippy/fmt — all four green; no .unwrap()/.expect() in production paths"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Public discover() API with AIPM_UNIFIED_DISCOVERY feature flag and dispatch to walker + classifier",
-    "steps": [
-      "DiscoverOptions { max_depth, source_filter, follow_symlinks } added in feature 7",
-      "Add pub fn discover(project_root: &Path, opts: &DiscoverOptions, fs: &dyn Fs) -> Result<DiscoveredSet, Error>",
-      "Read env var AIPM_UNIFIED_DISCOVERY via std::env::var; if value == \"1\" call unified_discover(...), else call legacy_discover(...)",
-      "unified_discover: call walker::walk, call classify::classify on each file, accumulate into DiscoveredSet { features, scanned_dirs, skipped }",
-      "legacy_discover (inline; feature 9 will extract to legacy_compat module): delegate to discover_features and map each legacy DiscoveredFeature → new types::DiscoveredFeature, dropping features whose path has no recognized engine ancestor",
-      "Apply opts.source_filter post-classification: retain only features whose source_root file_name matches",
-      "tracing::trace! on each classified feature, tracing::debug! on each skipped path",
-      "Add UNIFIED_DISCOVERY_ENV constant for the env-var name",
-      "Unit tests (8): unified_enabled return values, unified finds #725 tree (3 skills + 1 instructions), legacy finds canonical skills, legacy finds #725 skill files (today's grandparent==skills branch already does), legacy drops copilot-instructions.md while unified finds it (the actual lint-side #725 fix), unified carries walker skipped dirs, source_filter retains only matching, source_filter no-match returns empty, empty root, apply_source_filter no-filter keeps all. Tests serialize via static Mutex around env-var manipulation",
-      "Run cargo build/test/clippy/fmt — all four green"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Legacy compat shim that wraps today's discover_features so the unified path is opt-in for one release",
-    "steps": [
-      "Add crates/libaipm/src/discovery/legacy_compat.rs with pub fn discover_features_compat(root: &Path, opts: &DiscoverOptions, fs: &dyn Fs) -> Result<DiscoveredSet, Error>",
-      "Internally call today's discover_features(root, opts.max_depth) and adapt the Vec<DiscoveredFeature> output (today's type, which lives in discovery_legacy.rs) into the new DiscoveredSet wrapper with empty scanned_dirs and skipped (legacy didn't track these)",
-      "Adapt today's DiscoveredFeature shape (kind, source_context, path) into the new shape (kind, engine, layout, source_root, feature_dir, path) by inferring engine via source::infer_engine_root and setting layout = Layout::Canonical (legacy doesn't know layouts)",
-      "Update discovery::discover() to delegate the legacy branch to legacy_compat::discover_features_compat (replaces the inline legacy_discover from feature 8)",
-      "Unit tests (8): empty root, canonical skills round-trip with engine and layout assertions, #725 skill files visible via the legacy grandparent==skills branch, copilot-instructions.md dropped (the actual #725 lint-side bug, fix lives in unified path), project-root CLAUDE.md dropped (no engine ancestor — documented divergence), source_filter retains only matching, max_depth propagated to the legacy walker, .ai/ marketplace + plugin.json + aipm.toml all classified with engine=Ai",
-      "Run cargo build/test/clippy/fmt — all four green; coverage of legacy_compat ≥89%"
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Lint integration: replace lint's call to discover_features with discovery::discover; surface scan_counts and scanned_dirs in Outcome",
-    "steps": [
-      "Switch crate::discovery::DiscoveredFeature re-export from legacy to new shape (types::DiscoveredFeature)",
-      "Edit crates/libaipm/src/lint/mod.rs lint() to call crate::discovery::discover with DiscoverOptions { max_depth, source_filter: opts.source.clone(), follow_symlinks: false }",
-      "Update run_rules_for_feature to use new fields (path, engine, layout); is_inside_ai now checks Engine::Ai OR any .ai path component (preserves the legacy 'any .ai ancestor counts' semantics for nested .ai/<plugin>/.claude/ layouts)",
-      "Add scan_counts: ScanCounts and scanned_dirs: Vec<PathBuf> to Outcome; #[derive(Default)] on Outcome",
-      "Populate Outcome.scan_counts = discovered.counts() and Outcome.scanned_dirs = discovered.scanned_dirs",
-      "Remove inline --source post-filter (now handled inside discover())",
-      "Add classify::classify fallback for root-level instruction files: when infer_engine_root returns None, synthesize (Engine::Ai, project_root) so files like /repo/CLAUDE.md still classify as Instructions (preserves today's lint behavior on project-root instruction files)",
-      "Apply same fallback in legacy_compat::discover_features_compat to keep both paths consistent",
-      "Update lint::tests::lint_outcome_default_counts and 33 reporter.rs Outcome literals to include new fields via ..Outcome::default() spread",
-      "Update legacy_compat test 'project_root_instructions_dropped' to assert kept-with-Ai-fallback behavior (renamed to project_root_instructions_kept_with_ai_fallback)",
-      "Add discovery::test_env::with_unified_discovery_env helper module with shared static Mutex; both discovery::tests and lint::tests use it for env-var serialization across modules",
-      "Add 4 lint integration tests for the issue #725 fixture: unified mode finds 3 skills + 1 instructions; legacy mode finds 3 skills + 0 instructions (the silent drop being fixed); Outcome carries scan_counts and scanned_dirs; source_filter propagated to discover()",
-      "Run cargo build/test/clippy/fmt — all four green; coverage on lint/mod.rs preserved"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Migrate Adapter trait + adapters::all() registry replacing the old Detector trait",
-    "steps": [
-      "Add crates/libaipm/src/migrate/adapters/mod.rs with pub trait Adapter: Send + Sync with name(), applies_to(&DiscoveredFeature), to_artifact(&DiscoveredFeature, &dyn Fs) -> Result<Artifact, Error>",
-      "Add pub fn all() -> Vec<Box<dyn Adapter>> returning empty vec (12 adapters land in features 12 and 13)",
-      "Module-level doc-comment specifies first-match-wins resolution policy when multiple adapters claim the same DiscoveredFeature; orchestrator (feature 14) iterates all() in order",
-      "Keep the existing Detector trait at migrate/detector.rs ALIVE during the transition — feature 14's orchestrator switch is what removes it",
-      "Wire pub mod adapters into crates/libaipm/src/migrate/mod.rs",
-      "Unit tests (4): registry returns the right type, registry iterates safely when empty, stub adapter doesn't apply / has stable name, trait is dyn-object-safe (Box<dyn Adapter> compiles and dispatches)",
-      "Run cargo build/test/clippy/fmt — all four green"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Migrate Copilot adapters (skill, agent, hook) — the FeatureKind-aligned subset",
-    "steps": [
-      "Add crates/libaipm/src/migrate/adapters/skill.rs with CopilotSkillAdapter — reuses skill_common::parse_frontmatter, collect_files_recursive, extract_script_references on feat.feature_dir",
-      "Add adapters/agent.rs (CopilotAgentAdapter) — reuses skill_common::parse_frontmatter; strips .agent.md suffix when computing name from filename",
-      "Add adapters/hook.rs (CopilotHookAdapter) — reuses normalize_hook_events and extract_hook_script_references from copilot_hook_detector.rs (made pub(crate))",
-      "Modules are named by kind (skill/agent/hook), not engine, to dodge clippy::module_name_repetitions on CopilotSkillAdapter etc. Feature 13's Claude adapters will live in the same files",
-      "MCP / Extension / LSP / OutputStyle / Command adapters deferred to a follow-up feature — those kinds have no FeatureKind variants in the unified discovery today (see new feature item below)",
-      "Wire 3 Copilot adapters into adapters::all() in stable order: copilot-skill, copilot-agent, copilot-hook",
-      "Update legacy hook detector helpers to pub(crate) so the adapter can reuse them without code duplication",
-      "Per-adapter tests (5-7 each, 21 total): applies_to engine+kind gating, reject other engines/kinds, name stability, to_artifact roundtrip with a real fixture, error handling on bad inputs",
-      "Run cargo build/test/clippy/fmt — all four green"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Migrate Claude adapters (skill, agent) — the FeatureKind-aligned subset",
-    "steps": [
-      "Add ClaudeSkillAdapter to crates/libaipm/src/migrate/adapters/skill.rs alongside CopilotSkillAdapter — extracts only ${CLAUDE_SKILL_DIR}/ references (no ${SKILL_DIR}/ — Copilot-specific)",
-      "Add ClaudeAgentAdapter to crates/libaipm/src/migrate/adapters/agent.rs — uses ${CLAUDE_AGENT_DIR}/ prefix and records agent filename in `files`",
-      "ClaudeHookAdapter deferred: today's HookDetector reads .claude/settings.json which the unified discovery doesn't classify (no FeatureKind variant). Needs settings.json discovery support before the adapter can fire",
-      "ClaudeCommandAdapter / ClaudeMcpAdapter / ClaudeOutputStyleAdapter deferred: no FeatureKind variants for Command / Mcp / OutputStyle (same as Copilot deferred adapters)",
-      "Wire 2 Claude adapters into adapters::all() in stable order: copilot-skill, copilot-agent, copilot-hook, claude-skill, claude-agent",
-      "Per-adapter unit tests (7 each, 14 total): applies_to engine+kind, rejects-other-engine, rejects-other-kind, name stability, to_artifact roundtrip with real fixture, script-reference extraction with engine-specific prefix, error/edge cases",
-      "Run cargo build/test/clippy/fmt — all four green"
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Migrate orchestrator switch: env-var dispatch to a unified path that uses discovery::discover + adapters",
-    "steps": [
-      "Add new module crates/libaipm/src/migrate/unified.rs with pub fn run(opts, ai_dir, fs) that drives the unified pipeline: discovery::discover → group artifacts by source_root via adapters::all() (first-match-wins) → reconciler::reconcile → emitter::emit_plugin per artifact → registrar::register_plugins → return Outcome with scan_counts + scanned_dirs",
-      "Add `impl From<&Options<'_>> for DiscoverOptions` mapping max_depth, source, follow_symlinks=false",
-      "In migrate::migrate(), check unified::unified_enabled() (mirrors discovery::unified_enabled). When true → unified::run; when false → today's legacy detector path (unchanged)",
-      "Add scan_counts: ScanCounts and scanned_dirs: Vec<PathBuf> to Outcome with #[derive(Default)]; populated by the unified path, defaulted by legacy",
-      "Update all 13 internal Outcome { ... } construction sites in migrate/mod.rs and 1 in cleanup.rs to include `..Outcome::default()` spread (delegated to general-purpose subagent)",
-      "Reconciler.rs and emitter.rs unchanged — unified path reuses the existing artifact contract",
-      "Limitations documented in unified.rs: adapters cover Skill/Agent (both engines) + Copilot Hook only. Claude Hook (settings.json), MCP, Extension, LSP, Command, OutputStyle still require the legacy path. The flag is default-OFF for the soak window so legacy is the user-facing default",
-      "5 unit tests in migrate::unified::tests: unified_enabled gating, customer #725 layout migrates 3 skills (the actual fix demonstration), dry_run writes report, empty tree returns empty outcome, From<&Options> mapping",
-      "Run cargo build/test/clippy/fmt — all four green"
-    ],
-    "passes": true
-  },
-  {
-    "category": "ui",
-    "description": "Default scan-summary CLI output written to stderr by both cmd_lint and cmd_migrate (Goal G5)",
-    "steps": [
-      "Add crates/aipm/src/scan_summary.rs with pub fn write_summary(out: &mut dyn Write, counts: ScanCounts, scanned_dirs: usize, sources: &[String]) -> std::io::Result<()> and pub fn format_counts(counts: ScanCounts) -> String",
-      "Format: 'Scanned {N} director{y|ies} in [{sources}]; matched {format_counts(counts)}\\n' with format_counts producing comma-separated 'M skills, K agents, …' (singular/plural aware), omitting zero categories or '0 features' if total == 0",
-      "Add a --no-summary flag (renamed from --quiet to avoid collision with clap-verbosity-flag's global --quiet) to both Migrate and Lint subcommands",
-      "Wire write_summary into cmd_lint and cmd_migrate writing to std::io::stderr() before per-action / per-diagnostic output, gated on !no_summary",
-      "Suppress summary additionally when --log-format=json (preserves existing JSON-stderr-only contract from verbosity_e2e tests)",
-      "Bump clippy.toml max-fn-params-bools from default 3 to 4 since cmd_migrate now legitimately takes 4 bools (dry_run, destructive, manifest, no_summary)",
-      "Update 7 existing test sites for cmd_lint to add the new bool param",
-      "Unit tests (8 in scan_summary): format_counts zero/one/multi kinds, plural omitted-zeros, all-kinds full output, write_summary singular/plural dirs, dyn Write contract verification",
-      "Run cargo build/test/clippy/fmt — all four green; verify use of write!()/writeln!() not println!()/eprintln!()"
+      "In crates/libaipm/src/discovery/mod.rs, edit `discover_unified_finds_issue_725_tree` (lines 122-136): remove the `touch(&root.join(\".github/copilot/copilot-instructions.md\"))` call at line 128 and any assertion that depends on the file appearing in `set.features`. Keep the SKILL.md fixtures and assertions intact — those cover the legitimate part of issue #725.",
+      "In crates/libaipm/src/discovery/mod.rs, delete the test `discover_finds_copilot_instructions_md` at lines 149-164 entirely — its sole purpose is to assert the deleted branch's behavior.",
+      "In crates/libaipm/src/discovery/walker.rs, edit `issue_725_tree_visible_to_walker` (lines 209-223): remove the `touch(...copilot-instructions.md)` write at line 216 and the `result.files.iter().any(|p| p.ends_with(\"copilot-instructions.md\"))` assertion at line 222. Walker-level visibility for SKILL.md paths still asserted.",
+      "In crates/libaipm/src/discovery/classify.rs, delete the test `copilot_instructions_md_classified_as_instructions` at lines 122-130 entirely — it mirrors the unit tests in instruction.rs::tests Case C.",
+      "In crates/libaipm/src/discovery/classify.rs, edit `issue_725_full_tree_dispatch` (lines 162-175): remove the `classify_at(&PathBuf::from(\"/repo/.github/copilot/copilot-instructions.md\"), &root)` call at line 172 and any related assertion. Keep SKILL.md dispatch assertions intact.",
+      "In crates/libaipm/src/discovery/types.rs, edit `discovered_feature_clone_and_eq` (line 169): replace the path string `.github/copilot/copilot-instructions.md` with any other neutral path (e.g. `.claude/skills/foo/SKILL.md`) — the value is incidental to the Clone/Eq round-trip.",
+      "In crates/libaipm/src/lint/mod.rs, edit `lint_unified_finds_issue_725_skills_and_instructions` (lines 1583-1628): rename to `lint_unified_finds_issue_725_skills` (drop `_and_instructions`); in the helper `write_issue_725_tree` at line 1606 remove the `touch(&root.join(\".github/copilot/copilot-instructions.md\"))` line; drop the assertion message `\"unified path must find copilot-instructions.md (the #725 lint-side fix)\"` at line 1626. Keep all SKILL.md assertions.",
+      "In crates/libaipm/src/lint/mod.rs, edit `lint_outcome_carries_scan_counts_and_dirs` (lines 1630-1644+): change the `instructions == 1` expectation to `instructions == 0` (or drop the field assertion entirely if it is no longer load-bearing for the test's intent).",
+      "Run `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` — all four green. The deleted branch in instruction.rs is still in place, so all lints and tests pass; this feature only removes downstream test dependencies on it.",
+      "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 1 complete — sibling source-file test fixtures decoupled from engine-prefix branch.`"
     ],
     "passes": true
   },
   {
     "category": "test",
-    "description": "BDD scenarios for issue #725 — Copilot CLI nested skills layout for both migrate and lint",
+    "description": "Delete the BDD step `given_copilot_instructions_file_exists` and the corresponding `quality.feature` scenario (spec G5)",
     "steps": [
-      "Add `Rule: Copilot CLI nested skills layout (.github/copilot/skills/) is discovered` to tests/features/manifest/migrate.feature with 2 scenarios (single-source --source .github and recursive)",
-      "Add 2 lint scenarios to tests/features/guardrails/quality.feature: skills under .github/copilot/skills/ with missing description; oversized .github/copilot/copilot-instructions.md",
-      "Add 3 new #[given] BDD steps to crates/libaipm/tests/bdd.rs: copilot nested skill, copilot nested skill with no description, copilot instructions file with N lines",
-      "Add `unified_discovery: bool` flag on AipmWorld that gates AIPM_UNIFIED_DISCOVERY=1 env-var on child-process invocations — set true by the new given steps so unified-mode is per-scenario opt-in (avoids breaking legacy-path scenarios)",
-      "Note: the quality.feature scenarios live in tests/features/guardrails/ but the cucumber harness main() only loads tests/features/manifest/*.feature today — they exist as Gherkin spec for the customer-fix behavior. The migrate.feature scenarios DO run under the harness and pass.",
-      "Run cargo test --workspace; all green including the migrate.feature scenarios that exercise the customer fix end-to-end via the cucumber harness",
-      "Run cargo clippy --workspace -- -D warnings, cargo fmt --check — both green"
+      "In crates/libaipm/tests/bdd.rs, delete lines 791-807 (the entire `#[given(expr = \"a copilot instructions file with {int} lines exists in {string}\")]` step `given_copilot_instructions_file_exists`).",
+      "Run `grep -n 'unified_discovery' crates/libaipm/tests/bdd.rs` — if the `unified_discovery: bool` field on `World` (line 62) is no longer referenced by any other step, delete the field declaration (line 62) and the initializer at line 118. If it IS referenced elsewhere, leave it.",
+      "In tests/features/guardrails/quality.feature, edit the comment block at lines 51-54 to remove the `copilot-instructions.md` clause; preserve the SKILL.md context for the issue-#725 layout rationale.",
+      "In tests/features/guardrails/quality.feature, delete the entire scenario `Scenario: Lint flags oversized .github/copilot/copilot-instructions.md` at lines 64-69 (six lines, including the blank separator line).",
+      "Run `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` — all four green. The deleted step is unreferenced; the deleted scenario was the only consumer; no regressions.",
+      "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 2 complete — BDD step + quality.feature scenario for engine-prefix branch deleted.`"
     ],
     "passes": true
   },
   {
     "category": "test",
-    "description": "End-to-end integration tests against issue #725's exact tree for both commands",
+    "description": "Update the issue-#725 e2e test fixture and the four count-based assertions (spec G6)",
     "steps": [
-      "Add crates/aipm/tests/issue_725_e2e.rs creating a tempdir with the customer's exact tree (.github/copilot/skills/{skill-alpha,beta,gamma}/SKILL.md + copilot-instructions.md + .ai/.claude-plugin/marketplace.json)",
-      "Test 1 (migrate_unified_finds_issue_725_skills): AIPM_UNIFIED_DISCOVERY=1 → exit 0, stderr 'matched 3 skills, 1 instruction', 3 stdout 'Migrated skill' lines, .ai/<plugin>/skills/<x>/SKILL.md exists",
-      "Test 2 (lint_unified_summary_visible): AIPM_UNIFIED_DISCOVERY=1 → exit 0, stderr summary present, stdout has no error[ severity tag (skills outside .ai/ legitimately warn via misplaced-features but do not fail)",
-      "Test 3 (lint_no_summary_suppresses_stderr_summary): aipm lint --no-summary → stderr does NOT contain 'Scanned' (--quiet was renamed to --no-summary in feature 15 to avoid clap-verbosity-flag collision)",
-      "Test 4 (migrate_legacy_path_misses_issue_725): env_remove(AIPM_UNIFIED_DISCOVERY) → exit 0, 0 'Migrated skill' lines (today's bug regression fence)",
-      "Test 5 (lint_ci_github_unified_summary_on_stderr_diagnostics_on_stdout): --reporter ci-github → stdout has no ::error:: lines, stderr contains 'matched 3 skills'",
-      "Used assert_cmd::Command + tempfile::tempdir per project convention (matches verbosity_e2e.rs)",
-      "Spec adjustment: assertions on stdout 'no issues found' literal relaxed to 'no error[ severity tag' since the customer's layout legitimately fires misplaced-features warnings — that's the rule that nudges users to run migrate. Test still verifies exit 0 + stderr summary present",
-      "All four cargo gates green; 5 new E2E tests pass"
+      "Open crates/libaipm/src/discovery/scan_report.rs and verify `format_counts` (or the equivalent function) emits a clean string when `counts.instructions == 0` — e.g. `\"matched 3 skills\"` rather than `\"matched 3 skills, 0 instructions\"` or a panic. If rendering is broken for the zero case, file a separate ticket; do NOT bundle the fix here. Document the verified format string in this feature's progress entry.",
+      "In crates/aipm/tests/issue_725_e2e.rs, edit the file-level doc comment at line 5 to drop the `.github/copilot/copilot-instructions.md` mention.",
+      "In crates/aipm/tests/issue_725_e2e.rs, delete the tree-diagram line `\\`-- copilot-instructions.md` at line 37.",
+      "In crates/aipm/tests/issue_725_e2e.rs, edit `build_issue_725_fixture` (lines 39-58): drop lines 55-57 (the `let instructions_path = root.join(...)` write of `.github/copilot/copilot-instructions.md`), and the `// copilot-instructions.md sibling to skills/.` comment at line 55. The fixture now writes only the marketplace stub and the three SKILL.md skills.",
+      "In crates/aipm/tests/issue_725_e2e.rs, in `migrate_finds_issue_725_skills` (lines 64-94) update the stderr assertion at lines 78-81 from `\"matched 3 skills, 1 instruction\"` to the verified zero-case format string from step 1 (typically `\"matched 3 skills\"`).",
+      "In crates/aipm/tests/issue_725_e2e.rs, in `lint_summary_visible` (lines 100-127) update the stderr assertion at lines 116-119 to the same verified zero-case format string.",
+      "In crates/aipm/tests/issue_725_e2e.rs, in `lint_ci_github_summary_on_stderr_diagnostics_on_stdout` (lines 153-179) update the stderr assertion at lines 175-178 to the same verified zero-case format string.",
+      "Leave `lint_no_summary_suppresses_stderr_summary` (lines 133-147) unchanged — it asserts on the absence of `\"Scanned\"`, which is independent of the instructions count.",
+      "Run `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` — all four green. The deleted-branch behavior is still active in instruction.rs; the e2e tests now assert on the post-cut count regardless.",
+      "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 3 complete — e2e fixture + count assertions updated; format_counts zero-case verified as <string>.`"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Cut the engine-prefix classification branch in `discovery/instruction.rs`, delete its Case-C unit tests, edit the structural test, and add the load-bearing regression guard (spec G1, G2, G3, G12)",
+    "steps": [
+      "In crates/libaipm/src/discovery/instruction.rs, delete module-doc lines 11-13 (the Case 3 enumeration listing `<engine>-instructions.md` and the four filenames).",
+      "In crates/libaipm/src/discovery/instruction.rs, delete line 32 (the doc comment `Engine prefixes accepted in the <engine>-instructions.md shape.`) and line 33 (the `const ENGINE_INSTRUCTION_PREFIXES: &[&str] = &[\"copilot\", \"claude\", \"agents\", \"gemini\"];` declaration).",
+      "In crates/libaipm/src/discovery/instruction.rs, edit `is_instruction_filename` at lines 66-70: remove the third disjunct `|| matches_engine_instructions(file_name_lower)` at line 69. The function body should reduce to: `INSTRUCTION_FILENAMES.contains(&file_name_lower) || file_name_lower.ends_with(\".instructions.md\")`.",
+      "In crates/libaipm/src/discovery/instruction.rs, delete lines 72-79 (the `matches_engine_instructions` function and its doc comment) entirely.",
+      "In crates/libaipm/src/discovery/instruction.rs, delete the test-section comment at line 143 (`// --- Case C: <engine>-instructions.md (the #725 fix) ---`) and all Case-C tests immediately following it: `copilot_instructions_md_matches_issue_725` (145-150), `claude_instructions_md_matches` (152-155), `agents_instructions_md_matches` (157-160), `gemini_instructions_md_matches` (162-165), `engine_instructions_md_case_insensitive` (167-171).",
+      "In crates/libaipm/src/discovery/instruction.rs, delete the negative tests that exist solely to guard the deleted branch: `instructions_copilot_md_wrong_order_no_match` (180-184), `unknown_engine_prefix_no_match` (186-191), `copilot_tools_md_does_not_match` (193-197), `copilot_instructions_md_with_extra_suffix_no_match` (199-203), `just_dash_instructions_md_no_match` (210-214). Leave `random_md_does_not_match` (175-178) and `empty_filename_no_match` (205-208) alone — they cover the surviving branches.",
+      "In crates/libaipm/src/discovery/instruction.rs, edit `classify_returns_path_unchanged` (lines 218-228): replace the path `/repo/.github/copilot/copilot-instructions.md` with `/repo/.claude/CLAUDE.md` (or any `INSTRUCTION_FILENAMES` filename), and replace the call `classify(\"copilot-instructions.md\", &path, Engine::Copilot, &root)` with `classify(\"CLAUDE.md\", &path, Engine::Claude, &root)`. The structural assertions (`feat.path == path`, `feat.source_root == root`, etc.) remain valid because the test's intent is `classify` echoes its inputs unchanged, not that any specific filename matches.",
+      "Append a new test at the end of `mod tests` in crates/libaipm/src/discovery/instruction.rs named `nested_engine_instructions_md_not_classified`. Body: a one-line comment `// Regression guard: see specs/2026-05-02-engine-instructions-md-pattern-removal.md` followed by four `assert!(classify_with(\"<name>\").is_none());` lines for `copilot-instructions.md`, `claude-instructions.md`, `agents-instructions.md`, and `gemini-instructions.md`. This is the load-bearing G12 guard against future agent-loop re-introduction.",
+      "Run `grep -rn \"ENGINE_INSTRUCTION_PREFIXES\\|matches_engine_instructions\" crates/libaipm/src/` — must return zero hits (no remaining references in production code).",
+      "Run `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` — all four must be green with zero warnings. Confirm no .unwrap()/.expect()/panic!()/println! anywhere per CLAUDE.md lint policy.",
+      "Run the coverage gate from CLAUDE.md: `cargo +nightly llvm-cov clean --workspace`, `cargo +nightly llvm-cov --no-report --workspace --branch`, `cargo +nightly llvm-cov --no-report --doc`, then `cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs|lsp\\.rs)'`. TOTAL branch column must be ≥ 89%.",
+      "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 4 complete — engine-prefix branch removed from instruction.rs; regression guard added; coverage <pct>% / target 89%.`"
     ],
     "passes": true
   },
   {
     "category": "docs",
-    "description": "Documentation updates for the new CopilotSubrootWithSkills layout and CHANGELOG entry",
+    "description": "Withdraw the misinterpreted goal G7 and section 5.4 from the source spec at `specs/2026-05-01-unified-discovery-and-copilot-skill-detection.md` (spec G7)",
     "steps": [
-      "Edit docs/guides/migrate.md to add `.github/copilot/skills/<name>/` to the Copilot skill layouts table and the explanatory note (with link to issue #725)",
-      "Edit docs/guides/migrating-existing-configs.md similarly",
-      "Add CHANGELOG.md [Unreleased] section: ### Fixed for #725 skill detection + <engine>-instructions.md recognition; ### Added for default scan summary (--no-summary, not --quiet, since --quiet was renamed in feature 15) and AIPM_UNIFIED_DISCOVERY env var; ### Internal note about the unified discovery module",
-      "No code changes; cargo build/test/clippy/fmt still pass (docs-only)"
+      "Add a withdrawal preamble at the top of specs/2026-05-01-unified-discovery-and-copilot-skill-detection.md (immediately after the metadata block) noting that goal G7 and section 5.4 have been superseded by specs/2026-05-02-engine-instructions-md-pattern-removal.md following engine-documentation verification. Keep the rest of the spec verbatim — the SKILL.md sections are correct.",
+      "Edit line 16 (executive-summary prose) to remove the misreading of Copilot's path requirement. Recommended replacement: keep the sentence about migrate's silent drop on `.github/copilot/skills/...`; replace the lint clause with `(The lint-side claim previously made here regarding copilot-instructions.md was withdrawn — see specs/2026-05-02-engine-instructions-md-pattern-removal.md.)`",
+      "Edit the customer-fixture diagram at lines 76-83: remove the line `└── copilot-instructions.md`. The diagram now shows only the SKILL.md tree.",
+      "Edit line 90 (why-it-fails item 2): replace with a one-line note that the originally-claimed lint-side gap was based on a misreading of GitHub Copilot's documentation; cross-link to specs/2026-05-02-engine-instructions-md-pattern-removal.md §1.",
+      "Delete goal G7 at line 109 entirely (the `[ ] **G7**: INSTRUCTION_FILENAMES recognition is extended...` line).",
+      "Edit the module-layout comment at line 213: change `instruction.rs    // INSTRUCTION_FILENAMES + the new <engine>-instructions.md regex` to `instruction.rs    // INSTRUCTION_FILENAMES + *.instructions.md suffix`.",
+      "Delete the entirety of section `5.4 Instruction-file recognition (the copilot-instructions.md fix)` at lines 415-450 — the section heading, the pseudocode block, and the three-case enumeration. Replace with a one-line stub: `### 5.4 Instruction-file recognition — withdrawn per specs/2026-05-02-engine-instructions-md-pattern-removal.md.`",
+      "Edit the decision-matrix table row at line 632: remove the `Doesn't address lint's copilot-instructions.md gap.` clause from Alternative A's `Cons` cell. (The other clauses in that cell remain valid.)",
+      "Edit the test-plan bullet at line 685: remove the `copilot-instructions.md, claude-instructions.md` enumeration and the `rejection of instructions-copilot.md` clause. Keep `my-thing.instructions.md`, `claude.md`, and `random.md` references.",
+      "Edit the integration tree at line 700: remove the `└── copilot-instructions.md` line.",
+      "Delete lines 709 and 710 (the planned `quality.feature` scenario and the planned `bdd.rs` step `given_copilot_instructions_file_exists`).",
+      "Run `git diff specs/2026-05-01-unified-discovery-and-copilot-skill-detection.md | grep -c '<engine>-instructions.md\\|copilot-instructions.md\\|claude-instructions.md\\|agents-instructions.md\\|gemini-instructions.md'` to verify no engine-prefix references remain in the file (zero hits expected).",
+      "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 5 complete — source spec G7/§5.4 withdrawn; preamble added; line edits applied.`"
     ],
     "passes": true
   },
   {
-    "category": "test",
-    "description": "Coverage gate verification: 89% branch coverage workspace-wide; discovery/ module coverage ≥89% per-module",
+    "category": "docs",
+    "description": "Update CHANGELOG.md to remove the misleading bullet and add a Removed entry citing this spec (spec G8)",
     "steps": [
-      "Run the coverage pipeline from CLAUDE.md: cargo +nightly llvm-cov clean / no-report --branch / no-report --doc / report --doctests --branch with the standard ignore regex",
-      "Workspace TOTAL branch coverage: 90.26% (>= 89% gate) — PASS",
-      "Per-file branch coverage for the 16 new files added in this spec — most pass with 100%; the following are under 89% and noted as follow-up work (the workspace TOTAL still passes):",
-      "  - discovery/mod.rs: 87.50% (1/8 branches uncovered — likely the source_filter retain branch when filter is None vs Some)",
-      "  - discovery/scan_report.rs: 50.00% (3/6 — likely SkipReason variant matches in tests)",
-      "  - discovery/walker.rs: 83.33% (2/12)",
-      "  - discovery/legacy_compat.rs: 75.00% (1/4)",
-      "  - migrate/unified.rs: 80.00% (2/10)",
-      "Targeted coverage improvements for these files are tracked as follow-up; the spec gate (workspace TOTAL ≥89%) is met"
+      "In CHANGELOG.md, locate the bullet at line 10: `- **\\`aipm lint\\` now recognises \\`<engine>-instructions.md\\` files** — \\`copilot-instructions.md\\`, \\`claude-instructions.md\\`, \\`agents-instructions.md\\`, and \\`gemini-instructions.md\\` are all classified as instruction files. Closes the second silent-drop case from issue #725.` Delete this bullet entirely.",
+      "Verify the sibling bullet at line 9 (the migrate-side skill-detection fix) remains unchanged — that bullet is the legitimate part of issue #725 and stays.",
+      "Under `## [Unreleased]`, locate or create a `### Removed` subsection and add a single bullet: `- **\\`aipm lint\\` no longer classifies \\`<engine>-instructions.md\\` files (\\`copilot-instructions.md\\`, \\`claude-instructions.md\\`, \\`agents-instructions.md\\`, \\`gemini-instructions.md\\`) as instruction files** — engine-documentation verification (Anthropic Claude Code, GitHub Copilot, Google Gemini CLI, AGENTS.md spec) confirmed three of the four prefixes correspond to filenames no engine reads, and the fourth (\\`copilot-instructions.md\\`) is recognized by GitHub Copilot only at \\`.github/copilot-instructions.md\\` (bare) and \\`$HOME/.copilot/copilot-instructions.md\\`. See specs/2026-05-02-engine-instructions-md-pattern-removal.md.`",
+      "If the `### Fixed` subsection becomes empty after the deletion, leave the subsection heading in place but add a one-line note `(no changes in this release yet)` if that is the project convention; otherwise delete the now-empty subheading. Verify against existing CHANGELOG conventions before choosing.",
+      "Run `git diff CHANGELOG.md` and confirm the diff shows exactly one bullet removed under `### Fixed` and exactly one bullet added under `### Removed`. No other changes.",
+      "Run `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` — all four green (CHANGELOG edits do not affect build, but verify nothing else regressed).",
+      "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 6 complete — CHANGELOG updated; Removed entry added under [Unreleased].`"
     ],
     "passes": true
   },
   {
-    "category": "deferred",
-    "description": "Phase 2 — flip AIPM_UNIFIED_DISCOVERY default to ON — DEFERRED to follow-up release per spec §8.1",
+    "category": "docs",
+    "description": "Correct the misleading example comment in `docs/rules/source/misplaced-features.md` (spec G9)",
     "steps": [
-      "Per spec §8.1: 'This is a SEPARATE PR/release per spec §8.1 Phase 2 — do NOT bundle with Phase 1'.",
-      "Attempted in this loop iteration; sub-agent flipped the default and pinned 28 tests with .env(\"0\") workarounds. Six BDD scenarios still failed because the unified pipeline has documented gaps:",
-      "  - Package-scoped plugin merging (packages/<name>/.claude/skills/... → .ai/<package>/)",
-      "  - Recursive migrate dry-run report 'Recursive discovery' / 'Other Files' sections",
-      "  - Claude Hook (.claude/settings.json), MCP, Extension, LSP, Command, OutputStyle (no FeatureKind variants yet — see feature 14's limitations comment)",
-      "Reverted to default-OFF state. Phase 1 (customer #725 fix) ships under AIPM_UNIFIED_DISCOVERY=1 opt-in.",
-      "Phase 2 work is tracked in CHANGELOG and the spec's rollout plan; it requires the follow-up adapter-extension feature first."
+      "Open docs/rules/source/misplaced-features.md and locate the tree-diagram line at line 62: `copilot-instructions.md   # ✅ exempt — *.instructions.md pattern`. This comment is incorrect — `copilot-instructions.md` does NOT match the `*.instructions.md` suffix (no dot before `instructions`); it was matched only via the now-deleted engine-prefix branch.",
+      "Replace the line with a real `*.instructions.md`-matching example: `frontend.instructions.md   # ✅ exempt — *.instructions.md pattern`. (Cross-reference: `frontend.instructions.md` is already used as a fixture in crates/libaipm/src/lint/rules/instructions_oversized.rs:255, so it has docs-fidelity precedent.)",
+      "Verify no other line in this file references the engine-prefix family by running `grep -n 'copilot-instructions\\|claude-instructions\\|agents-instructions\\|gemini-instructions' docs/rules/source/misplaced-features.md` — must return zero hits.",
+      "Run `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` — all four green.",
+      "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 7 complete — misplaced-features.md tree-diagram example corrected.`"
     ],
     "passes": true
   },
   {
-    "category": "deferred",
-    "description": "Phase 3 — delete legacy_compat, env-var check, and old detector FS-walking bodies — DEFERRED to follow-up release per spec §8.1",
+    "category": "verification",
+    "description": "Final verification — workspace-wide grep for engine-prefix references; cargo gates green; branch coverage ≥ 89%; spec G11 satisfied",
     "steps": [
-      "Per spec §8.1: 'This is a SEPARATE PR/release per spec §8.1 Phase 3 — do NOT bundle with Phase 1 or Phase 2'.",
-      "Phase 3 cleanup happens AFTER Phase 2 lands and soaks. Until then, the legacy detector path (and the env-var dispatch) remains alive as the default fallback.",
-      "Tracked in the spec's rollout plan and CHANGELOG; out of scope for the customer #725 release."
+      "Run a workspace-wide search for any remaining reference to the engine-prefix family: `grep -rn 'ENGINE_INSTRUCTION_PREFIXES\\|matches_engine_instructions\\|claude-instructions.md\\|agents-instructions.md\\|gemini-instructions.md' --include='*.rs' --include='*.md' --include='*.feature' --include='*.toml' --include='*.json' --include='*.yml' --include='*.yaml' .` — all surviving hits MUST be in (a) specs/2026-05-02-engine-instructions-md-pattern-removal.md (this spec itself), (b) research/docs/2026-05-02-engine-instructions-md-pattern-removal.md (the research doc), (c) the regression test added in Feature 4, (d) the CHANGELOG `### Removed` entry from Feature 6, or (e) the withdrawal preamble in 2026-05-01-unified-discovery-... from Feature 5. Any other hit indicates a missed edit.",
+      "Run a separate search for the bare `copilot-instructions.md` token (which IS a real Copilot path): `grep -rn 'copilot-instructions.md' --include='*.rs' --include='*.md' .`. Surviving hits should be limited to (a) the regression test, (b) the spec/research/CHANGELOG entries enumerated above, (c) `.github/workflows/reverse-binary-analysis.md:142` (illustrative reference to the real `.github/copilot-instructions.md` path — keep), (d) `specs/2026-04-11-lint-instructions-oversized.md:36` (factual prose about Copilot CLI conventions — keep), (e) `research/docs/2026-03-28-copilot-cli-source-code-analysis.md` and `research/tickets/2026-04-11-185-prevent-long-instructions-files.md` (historical research — keep).",
+      "Run all four cargo quality gates from CLAUDE.md: `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check`. All four MUST pass with zero warnings.",
+      "Run the branch-coverage gate from CLAUDE.md: `cargo +nightly llvm-cov clean --workspace && cargo +nightly llvm-cov --no-report --workspace --branch && cargo +nightly llvm-cov --no-report --doc && cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs|lsp\\.rs)'`. The TOTAL branch column MUST be ≥ 89%.",
+      "Confirm the regression test from Feature 4 is present and passing by running `cargo test --workspace -p libaipm nested_engine_instructions_md_not_classified` (or equivalent) — output must show 1 test passed.",
+      "Append a final summary entry to research/progress.txt: `<UTC timestamp> All features complete — engine-prefix branch removal verified workspace-green; branch coverage <pct>% (target ≥89%); regression guard active.`"
     ],
     "passes": true
   }

@@ -59,7 +59,8 @@ not plugin features — and are never flagged as misplaced:
 CLAUDE.md         # ✅ exempt — instruction file, not a plugin feature
 AGENTS.md         # ✅ exempt — instruction file, not a plugin feature
 .github/
-  copilot-instructions.md   # ✅ exempt — *.instructions.md pattern
+  instructions/
+    frontend.instructions.md   # ✅ exempt — *.instructions.md pattern
 ```
 
 ## How to fix
