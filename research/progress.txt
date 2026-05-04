@@ -174,6 +174,42 @@ records (name, package, version, marker_paths, marketplace_manifest_path,
 manifest_search_paths, settings_paths, folder_conventions,
 convention_files).
 
+## 2026-05-04 — Feature #8: codegen ENGINES const table
+
+Added pub struct EngineSpec to types.rs with the 9 &'static fields the
+spec calls for (name, package, version, marker_paths,
+marketplace_manifest_path, manifest_search_paths, settings_paths,
+folder_conventions, convention_files: &[(filename, &[paths])]).
+
+Extended build.rs with generate_engines_const() / generate_engine_entry()
+to emit `pub const ENGINES: &[(Engine, EngineSpec)] = &[ ... ];` from
+parsed.engines + parsed.apis. Schema-driven fields come straight from the
+data; marker_paths and marketplace_manifest_path remain hand-rolled
+engine-name-keyed helpers because the schema doesn't track plugin.json
+locations directly. The copilot-cli marketplace path is now
+".github/plugin/marketplace.json" (corrected from the prior `.toml` per
+Q2b "schema wins").
+
+Build-script bookkeeping:
+  - silence dead_code on EngineSpec inside the build script's mod types
+    via const _: Option<types::EngineSpec> = None; — avoids relying on
+    #[allow] (which would trip allow_attributes = "warn")
+  - lint fix: clippy::map_unwrap_or → map_or for the version lookup
+
+Two new smoke tests:
+  - engines_const_has_at_least_two_entries (>= 2 entries, claude +
+    copilot-cli present)
+  - engines_const_marketplace_paths_match_schema_wins_decision
+    (claude .toml; copilot .json)
+
+ENGINES is re-exported at the crate root. Total tests: 6 passing.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 89.99%.
+
+Next: feature #9 — codegen VALID_TOOLS as a phf::Set via phf_codegen
+populated from every engine's tool_calls names + aliases.
+
+
 
 
 

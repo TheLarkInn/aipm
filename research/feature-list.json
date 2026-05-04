@@ -102,7 +102,7 @@
       "marker_paths and marketplace_manifest_path: derive from manifest_search_paths (the schema reports them; this is where the .toml→.json fix vs current Rust takes effect — Q2b 'schema wins')",
       "Verify cargo build succeeds and ENGINES.len() >= 2 in a smoke test"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

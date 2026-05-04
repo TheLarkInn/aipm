@@ -212,3 +212,24 @@ pub struct EngineSuggestions {
     #[serde(default)]
     pub behaviour_variants: Vec<String>,
 }
+
+/// Static specification for a single engine, emitted by `build.rs` into
+/// the generated `ENGINES` const table. All fields are `&'static` so the
+/// table is usable in const contexts and never allocates.
+///
+/// `marker_paths` and `marketplace_manifest_path` are not tracked
+/// directly in the schema today; `build.rs` keeps engine-name-keyed
+/// helpers for them (with the copilot `.toml`→`.json` correction per
+/// the schema-wins decision in Q2b).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EngineSpec {
+    pub name: &'static str,
+    pub package: &'static str,
+    pub version: &'static str,
+    pub marker_paths: &'static [&'static str],
+    pub marketplace_manifest_path: &'static str,
+    pub manifest_search_paths: &'static [&'static str],
+    pub settings_paths: &'static [&'static str],
+    pub folder_conventions: &'static [&'static str],
+    pub convention_files: &'static [(&'static str, &'static [&'static str])],
+}
