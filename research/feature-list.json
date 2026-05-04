@@ -38,7 +38,7 @@
       "Verify cargo run -p libaipm-engine-spec --bin export-schema succeeds",
       "Confirm schemas/engine-api.schema.json is created and contains a valid JSON Schema draft 2020-12 document"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

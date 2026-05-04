@@ -12,4 +12,4 @@ pub mod generated;
 pub mod helpers;
 pub mod types;
 
-pub use types::META_SCHEMA_VERSION;
+pub use types::{EngineApiSchemaFile, META_SCHEMA_VERSION};

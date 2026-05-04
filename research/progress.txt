@@ -34,3 +34,29 @@ Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 89.97%.
 
 Next: feature #3 — bin/export-schema.rs implementation.
 
+## 2026-05-04 — Feature #3: bin/export-schema.rs
+
+Implemented the schema-export binary at
+crates/libaipm-engine-spec/src/bin/export-schema.rs. Uses
+schemars::schema_for! on EngineApiSchemaFile, serialises pretty JSON, and
+writes to schemas/engine-api.schema.json relative to CARGO_MANIFEST_DIR
+(robust to invocation cwd) with create_dir_all on the parent.
+
+EngineApiSchemaFile re-exported at the crate root so the bin can refer to
+libaipm_engine_spec::EngineApiSchemaFile directly per spec §5.5.
+
+Ran the binary and verified the generated 11.8KB JSON Schema 2020-12
+document at schemas/engine-api.schema.json contains all 13 expected
+$defs (EngineBootstrap, EngineApi, ManifestFieldSpec, Constraints,
+ConventionFile, SizeLimits, ToolCall, HookEvent, FeatureSpec, FeatureKind,
+ToolCompatibility, ToolSupport, EngineSuggestions). Committed alongside
+the bin source.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 89.97%.
+
+Next: feature #4 — migrate research/engine-api-schema.json into the new
+crate's data/ directory with the restructured fields ($schema URI,
+meta_schema_version, structured manifest_fields, renamed *_notes,
+hook_events arrays, features arrays).
+
+
