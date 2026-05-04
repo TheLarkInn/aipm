@@ -1050,6 +1050,46 @@ Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.18%.
 Next: feature #33 — update reverse-binary-analysis.md workflow prompt
 for new schema fields and paths.
 
+## 2026-05-04 — Feature #33: update reverse-binary-analysis.md prompt
+
+Sub-agent (general-purpose) updated
+.github/workflows/reverse-binary-analysis.md across many sections.
+
+Path references rewired to crates/libaipm-engine-spec/data/ (6 prose
+mentions + 1 git diff command). Frontmatter
+safe-outputs.create_pull_request.protected-paths added with the full
+allowlist: .github/**, docs/**, tests/**, crates/**, Cargo.toml,
+Cargo.lock, schemas/** so the agent is system-enforced to only modify
+crates/libaipm-engine-spec/data/.
+
+Schema-shape JSONC examples updated to:
+  - top-level $schema URI + meta_schema_version "1.0.0"
+  - manifest_fields as structured records {name, type, required,
+    constraints: {max_length?, min_length?, regex?, default?}, notes?}
+  - detection_heuristics → detection_notes, discovery_algorithm →
+    discovery_notes, rules → rule_notes (each with "Renamed from..."
+    inline comment)
+  - hook_events: [{name, aliases, deprecated, notes?}]
+  - features: [{kind, manifest_field?, layout_hint?, capabilities?}]
+    with snake_case kind enum constraint
+
+Section 4a's bullet list was rewritten so each bullet maps to the
+canonical apis.<engine>.<field> name including hook_events and
+features. Step 1 gained a paragraph instructing the agent NOT to
+modify schemas/engine-api.schema.json (the meta-schema is owned by
+the Rust types, not the agent).
+
+Preserved: PR title prefix [reverse-binary-analysis], labels
+[automation, analysis], weekly schedule, 120-minute timeout.
+
+Did NOT run gh aw compile — that's feature #34's scope.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.18%.
+
+Next: feature #34 — recompile reverse-binary-analysis.lock.yml via
+gh aw compile.
+
+
 
 
 

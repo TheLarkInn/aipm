@@ -397,7 +397,7 @@
       "Update schema-shape JSONC examples (md:74-82, :196-203, :212-254) to reflect $schema URI top-level field and meta_schema_version field",
       "Confirm changes preserve PR title prefix [reverse-binary-analysis] and labels automation, analysis"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
