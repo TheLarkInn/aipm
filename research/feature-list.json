@@ -91,7 +91,7 @@
       "Add include!(concat!(env!(\"OUT_DIR\"), \"/engine_data.rs\")) in src/generated.rs",
       "Verify cargo build -p libaipm-engine-spec succeeds and Engine + EngineSet are accessible from crate root"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

@@ -136,6 +136,45 @@ clippy, fmt all clean; coverage 89.97%.
 Next: feature #7 — build.rs codegen for the generated Engine enum and
 EngineSet bitflags into OUT_DIR/engine_data.rs.
 
+## 2026-05-04 — Feature #7: codegen Engine enum + EngineSet bitflags
+
+Extended build.rs to generate OUT_DIR/engine_data.rs via proc-macro2 +
+quote, formatted with prettyplease::unparse(syn::parse2(tokens)?).
+
+Generated artifacts:
+  - pub enum Engine { Claude, CopilotCli } with #[derive(Debug, Clone,
+    Copy, PartialEq, Eq, Hash)]
+  - impl Engine { pub const ALL: &'static [Self]; pub const fn
+    name(self) -> &'static str; pub fn from_name(&str) -> Option<Self> }
+  - bitflags::bitflags! { pub struct EngineSet: u32 { const CLAUDE = 1u32;
+    const COPILOT_CLI = 2u32; const ALL = Self::CLAUDE.bits() |
+    Self::COPILOT_CLI.bits(); } } with the same derives
+
+Variants are derived from parsed.engines via to_pascal_case (kebab → PascalCase)
+and to_screaming_snake (kebab → SCREAMING_SNAKE). Bit values 1 << i.
+
+Wired src/generated.rs as include!(concat!(env!("OUT_DIR"),
+"/engine_data.rs")) and re-exported Engine + EngineSet from the crate
+root in lib.rs.
+
+Lint fixes during implementation:
+  - clippy::option_if_let_else: replaced match chars.next() with
+    chars.next().map_or_else(String::new, ...)
+  - clippy::use_self: emit Self:: instead of Engine:: inside impl Engine
+  - clippy::doc_markdown: backtick all type names in generated.rs doc
+
+Added 4 inline smoke tests (engine_all_lists_known_variants,
+engine_name_round_trips, engine_set_all_is_union_of_individual_bits,
+meta_schema_version_is_semver_like). All pass.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 89.99%.
+
+Next: feature #8 — codegen the ENGINES const table with EngineSpec
+records (name, package, version, marker_paths, marketplace_manifest_path,
+manifest_search_paths, settings_paths, folder_conventions,
+convention_files).
+
+
 
 
 

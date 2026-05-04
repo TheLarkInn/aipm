@@ -1,4 +1,9 @@
 //! Build-script generated tables.
 //!
-//! Once `build.rs` is implemented (features #6–#14), this module will
-//! `include!` the generated `OUT_DIR/engine_data.rs` file.
+//! `build.rs` writes typed const tables to `OUT_DIR/engine_data.rs`
+//! (`Engine` + `EngineSet` today; `ENGINES`, `VALID_TOOLS`,
+//! `TOOL_COMPATIBILITY`, `HOOK_EVENTS_BY_ENGINE`, `paths`, `constraints`
+//! in later features). This module simply `include!`s that file so its
+//! items become part of `crate::generated`.
+
+include!(concat!(env!("OUT_DIR"), "/engine_data.rs"));
