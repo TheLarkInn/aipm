@@ -180,7 +180,7 @@
       "Add unit tests covering: known events for both engines, legacy alias suggestion (PreToolUse → preToolUse for copilot context), unknown events, root-dir → engine mapping, tool-name check with empty/full/partial declared sets",
       "Verify all helpers compile and pass tests"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

@@ -17,6 +17,10 @@ pub use generated::{
     Engine, EngineSet, ENGINES, FEATURES_BY_ENGINE, HOOK_EVENTS_BY_ENGINE, TOOL_COMPATIBILITY,
     VALID_TOOLS,
 };
+pub use helpers::{
+    engine_for_root_dir, is_valid_event, marketplace_host_for_root_dir, suggest_canonical,
+    valid_tool_name_check, MarketplaceHost, ToolNameViolation,
+};
 pub use types::{
     EngineApiSchemaFile, EngineFeatureSet, EngineSpec, FeatureKind, HookEventStatic,
     META_SCHEMA_VERSION,

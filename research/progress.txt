@@ -415,6 +415,50 @@ Next: feature #15 — implement the helpers module (is_valid_event,
 suggest_canonical, engine_for_root_dir, valid_tool_name_check) plus
 unit tests covering legacy alias suggestions and root-dir mapping.
 
+## 2026-05-04 — Feature #15: helpers module + unit tests
+
+Implemented crates/libaipm-engine-spec/src/helpers.rs with five public
+helpers and two new types:
+
+  - pub enum MarketplaceHost { Ai }
+  - pub struct ToolNameViolation { supported_by: EngineSet, declared:
+    EngineSet }
+  - engine_for_root_dir(name: &str) -> Option<Engine>
+    (.claude → Claude, .github → CopilotCli; .ai handled separately)
+  - marketplace_host_for_root_dir(name: &str) -> Option<MarketplaceHost>
+    (.ai → MarketplaceHost::Ai)
+  - is_valid_event(event, engine) -> bool — scans HOOK_EVENTS_BY_ENGINE
+    matching name + aliases
+  - suggest_canonical(event, engine) -> Option<&'static str> — reverse
+    alias lookup; returns None for canonical/unknown input
+  - valid_tool_name_check(tool, declared) -> Result<(), ToolNameViolation>
+    — unknown tool: Ok; shared tool: Ok; declared empty + engine-exclusive
+    tool: Err; declared/supported disjoint: Err; otherwise Ok
+
+17 unit tests cover: known events for both engines, claude rejects
+camelCase, copilot accepts both canonical camelCase and legacy
+PascalCase aliases, suggest_canonical maps PreToolUse → preToolUse and
+Stop → agentStop, root-dir → engine mapping (incl. .ai exclusion),
+tool-name check across empty/full/partial declared sets.
+
+Lint fixes during implementation:
+  - clippy::manual_contains: replaced he.aliases.iter().any(|a| *a == event)
+    with he.aliases.contains(&event) (twice)
+  - rustfmt: import order, struct field wrapping
+
+Public re-exports added at the crate root:
+  helpers::{engine_for_root_dir, is_valid_event, marketplace_host_for_root_dir,
+  suggest_canonical, valid_tool_name_check, MarketplaceHost,
+  ToolNameViolation}
+
+Total tests: 36 passing (19 smoke + 17 helpers).
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.09%.
+
+Next: feature #16 — add libaipm-engine-spec integration tests
+(schema_validation, schema_export_drift, generated_tables) under tests/.
+
+
 
 
 
