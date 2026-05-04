@@ -122,6 +122,6 @@
       "Confirm the regression test from Feature 4 is present and passing by running `cargo test --workspace -p libaipm nested_engine_instructions_md_not_classified` (or equivalent) — output must show 1 test passed.",
       "Append a final summary entry to research/progress.txt: `<UTC timestamp> All features complete — engine-prefix branch removal verified workspace-green; branch coverage <pct>% (target ≥89%); regression guard active.`"
     ],
-    "passes": false
+    "passes": true
   }
 ]
