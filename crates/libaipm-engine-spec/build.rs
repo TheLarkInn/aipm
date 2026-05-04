@@ -9,10 +9,21 @@
 //!      [`types::META_SCHEMA_VERSION`].
 //!   5. emit `OUT_DIR/engine_data.rs` containing typed const tables.
 //!
-//! Today the codegen step emits the generated `Engine` enum and
-//! `EngineSet` bitflags. Later features extend the generated module
-//! with `ENGINES`, `VALID_TOOLS`, `TOOL_COMPATIBILITY`,
-//! `HOOK_EVENTS_BY_ENGINE`, `paths`, and `constraints`.
+//! Codegen emits, into `OUT_DIR/engine_data.rs` (single `TokenStream`
+//! formatted via `prettyplease::unparse`):
+//!
+//!   * `pub enum Engine { ... }` + `impl Engine` (`ALL`, `name`,
+//!     `from_name`, `as_set`)
+//!   * `bitflags::bitflags! { pub struct EngineSet: u32 { ... } }`
+//!   * `pub const ENGINES: &[(Engine, EngineSpec)]`
+//!   * `pub const TOOL_COMPATIBILITY: &[(&str, EngineSet)]`
+//!   * `pub const HOOK_EVENTS_BY_ENGINE: &[(Engine, &[HookEventStatic])]`
+//!   * `pub const FEATURES_BY_ENGINE: &[(Engine, EngineFeatureSet)]`
+//!   * `pub mod paths { ... }` and `pub mod constraints { ... }`
+//!
+//! …plus a sibling `OUT_DIR/valid_tools.rs` containing the
+//! `pub static VALID_TOOLS: phf::Set<&'static str>` produced by
+//! `phf_codegen`.
 //!
 //! `println!` is denied workspace-wide so cargo directives are
 //! emitted via `writeln!(io::stdout(), …)` instead.

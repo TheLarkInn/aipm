@@ -113,7 +113,7 @@ fn make_diagnostic(
             ),
         )
     } else {
-        (Severity::Error, format!("Tool '{tool}' is not supported by all declared engines."))
+        (Severity::Error, format!("Tool '{tool}' is not supported by any of the declared engines."))
     };
     Diagnostic {
         rule_id: rule_id.to_string(),

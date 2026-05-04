@@ -34,7 +34,7 @@ hits=$(
         --exclude-dir=.git \
         2>/dev/null \
         | grep -vE "$ALLOWLIST_REGEX" \
-        | grep -vE '^\s*//' \
+        | grep -vE ':[0-9]+:\s*//' \
         || true
 )
 
