@@ -71,6 +71,7 @@ The language server attaches to these file patterns:
 | `**/COPILOT.md` | Copilot instruction file |
 | `**/GEMINI.md` | Gemini instruction file |
 | `**/INSTRUCTIONS.md` | Generic instruction file |
+| `**/.github/copilot-instructions.md` | GitHub Copilot repository-level instructions |
 | `**/*.instructions.md` | Scoped instruction files (e.g. `frontend.instructions.md`) |
 
 ### `aipm.toml` schema validation

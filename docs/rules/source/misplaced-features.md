@@ -9,8 +9,9 @@ locations such as `.claude/` or `.github/`. Files in legacy locations are not di
 installed, or linked by `aipm`.
 
 > **Instruction files are exempt.** Files recognized as AI instruction files —
-> `CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, and
-> `*.instructions.md` — are not plugin features and are never flagged by this rule.
+> `CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`,
+> `copilot-instructions.md`, and `*.instructions.md` — are not plugin features and are
+> never flagged by this rule.
 > They are checked separately by [`instructions/oversized`](../instructions/oversized.md).
 
 This rule fires regardless of whether a `.ai/` directory exists. The fix guidance adapts
@@ -29,6 +30,7 @@ not plugin features — and are never flagged as misplaced:
 | `COPILOT.md` | GitHub Copilot instructions |
 | `GEMINI.md` | Google Gemini instructions |
 | `INSTRUCTIONS.md` | Generic instructions file |
+| `copilot-instructions.md` | GitHub Copilot repository-level instructions (`.github/copilot-instructions.md`) |
 | `*.instructions.md` | VS Code Copilot scoped instructions (e.g. `python.instructions.md`) |
 
 ## Examples
@@ -59,6 +61,7 @@ not plugin features — and are never flagged as misplaced:
 CLAUDE.md         # ✅ exempt — instruction file, not a plugin feature
 AGENTS.md         # ✅ exempt — instruction file, not a plugin feature
 .github/
+  copilot-instructions.md   # ✅ exempt — GitHub Copilot repository instructions
   instructions/
     frontend.instructions.md   # ✅ exempt — *.instructions.md pattern
 ```
