@@ -387,4 +387,32 @@ some-dep = {}
         assert!(err.is_err());
         assert!(err.err().is_some_and(|e| e.contains("lowercase")));
     }
+
+    #[test]
+    fn validator_relationship_to_schema_plugin_name_regex() {
+        // Per OQ-S3 we keep the hand-rolled byte validator instead of
+        // compiling `PLUGIN_NAME_REGEX` at runtime. This test anchors
+        // the relationship between the two patterns:
+        //
+        //   schema      `^[a-zA-Z0-9-]+$`     (mixed case, no scope)
+        //   strict      `^(@[a-z0-9-]+/)?[a-z0-9][a-z0-9-]*$`  (lowercase, optional scope)
+        //
+        // Neither is a strict subset of the other, but their *lowercase
+        // un-scoped* intersection is — and that's the canonical AIPM
+        // package-name shape. Verify the schema constant is what we
+        // expect, and that lowercase-alnum-hyphen names round-trip both.
+        use libaipm_engine_spec::constraints::PLUGIN_NAME_REGEX;
+        assert_eq!(PLUGIN_NAME_REGEX, "^[a-zA-Z0-9-]+$");
+
+        let common = ["abc", "abc-def", "a", "0", "with-Multiple", "x9"];
+        for name in common {
+            // All-lowercase names also pass the strict validator
+            // (which forbids uppercase).
+            let lower = name.to_ascii_lowercase();
+            assert!(
+                is_valid_name_strict(&lower),
+                "strict validator rejects lowercase form of plugin-regex name: {lower}"
+            );
+        }
+    }
 }

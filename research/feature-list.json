@@ -318,7 +318,7 @@
       "Keep semver::VersionReq::parse and Version::parse usage (validate.rs:118, :179) — versions are not schema-driven",
       "Verify manifest tests pass"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

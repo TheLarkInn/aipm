@@ -843,6 +843,41 @@ Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 94.31%.
 Next: feature #27 — manifest/validate.rs uses constraints constants
 (name regex / length caps) for plugin manifest validation.
 
+## 2026-05-04 — Feature #27: anchor manifest validate.rs to schema PLUGIN_NAME_REGEX
+
+Per OQ-S3 the hand-rolled byte validator in
+crates/libaipm/src/manifest/validate.rs stays in place — it's
+intentionally narrower than the schema's PLUGIN_NAME_REGEX:
+
+  schema:   ^[a-zA-Z0-9-]+$            (mixed case, no scope)
+  strict:   ^(@[a-z0-9-]+/)?[a-z0-9][a-z0-9-]*$
+            (lowercase only, optional `@scope/name` prefix)
+
+Neither is a subset of the other, but their lowercase un-scoped
+intersection is — and that's the canonical AIPM package-name shape.
+Added validator_relationship_to_schema_plugin_name_regex test that
+asserts:
+  1. PLUGIN_NAME_REGEX still equals "^[a-zA-Z0-9-]+$" (sanity check).
+  2. For a list of common plugin-regex-compatible names, their
+     lowercase form passes the strict byte validator.
+
+No length caps to migrate — manifest validators don't enforce them
+directly today (skill_name_too_long.rs and skill_desc_too_long.rs
+already route through constraints, per feature #23).
+
+Semver parsing at validate.rs:118 / :179 stays untouched because
+versions are not schema-driven (per the feature step).
+
+17/17 manifest::validate tests pass.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 94.31%.
+
+Next: feature #28 — rewrite make/engine_features.rs as re-export of
+generated FeatureKind + FEATURES_BY_ENGINE; replace string match arms
+("claude"/"copilot"/"both") with typed Engine + EngineSet logic in
+aipm/main.rs.
+
+
 
 
 
