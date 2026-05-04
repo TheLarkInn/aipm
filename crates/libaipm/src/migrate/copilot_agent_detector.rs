@@ -76,7 +76,10 @@ impl Detector for CopilotAgentDetector {
                 name,
                 source_path: agent_path.clone(),
                 files: Vec::new(),
-                referenced_scripts: extract_script_references(&content, "${COPILOT_AGENT_DIR}/"),
+                referenced_scripts: extract_script_references(
+                    &content,
+                    super::COPILOT_AGENT_DIR_VAR,
+                ),
                 metadata: ArtifactMetadata {
                     name: metadata.name,
                     description: metadata.description,

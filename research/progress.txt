@@ -926,6 +926,42 @@ Next: feature #29 — update migrate/adapters/{agent,hook,skill}.rs to
 use generated Engine type (Engine::CopilotCli, paths::* prefix
 substitution).
 
+## 2026-05-04 — Feature #29: centralise ${X_AGENT_DIR} placeholders
+
+Note: the Engine refs in migrate/adapters/{agent,hook,skill}.rs were
+already migrated in feature #19 (the sub-agent's mechanical update of
+DiscoverySource::COPILOT_CLI / DiscoverySource::CLAUDE). All that
+remained was the `${X_AGENT_DIR}` placeholder strings.
+
+These aren't filesystem paths — they're env-var-style placeholders the
+runtime engines recognise when an agent script executes. The schema
+doesn't track them, so they don't belong in
+libaipm_engine_spec::paths. Centralised them as crate-private consts
+in crates/libaipm/src/migrate/mod.rs:
+
+  pub(crate) const CLAUDE_AGENT_DIR_VAR: &str = "${CLAUDE_AGENT_DIR}/";
+  pub(crate) const COPILOT_AGENT_DIR_VAR: &str = "${COPILOT_AGENT_DIR}/";
+
+Updated 4 call sites:
+  - migrate/adapters/agent.rs:59 (copilot agent extraction)
+  - migrate/adapters/agent.rs:108 (claude agent extraction)
+  - migrate/agent_detector.rs:52 (legacy claude detector)
+  - migrate/copilot_agent_detector.rs:79 (legacy copilot detector)
+
+Doc comments and test fixtures still mention the placeholder strings
+for human readability — those are intentional documentation of what
+the placeholders look like in agent script source.
+
+Test count unchanged: libaipm 2136 lib pass.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.18%.
+
+Next: feature #30 — centralise the 13-file migrate detector path
+literals (.claude-plugin, .github/plugin, marketplace.json,
+marketplace.toml, plugin.json, .claude, .github, settings.json,
+settings.local.json) through libaipm_engine_spec::paths.
+
+
 
 
 

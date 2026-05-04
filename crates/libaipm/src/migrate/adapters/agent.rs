@@ -55,8 +55,10 @@ impl Adapter for CopilotAgentAdapter {
         // Extract script references using the Copilot prefix so the emitter
         // can copy referenced scripts alongside the agent artifact (parity
         // with the legacy CopilotAgentDetector).
-        let referenced_scripts =
-            skill_common::extract_script_references(&content, "${COPILOT_AGENT_DIR}/");
+        let referenced_scripts = skill_common::extract_script_references(
+            &content,
+            crate::migrate::COPILOT_AGENT_DIR_VAR,
+        );
 
         Ok(Artifact {
             kind: ArtifactKind::Agent,
@@ -105,7 +107,7 @@ impl Adapter for ClaudeAgentAdapter {
         let name = metadata.name.clone().unwrap_or(stem_from_filename);
 
         let referenced_scripts =
-            skill_common::extract_script_references(&content, "${CLAUDE_AGENT_DIR}/");
+            skill_common::extract_script_references(&content, crate::migrate::CLAUDE_AGENT_DIR_VAR);
 
         Ok(Artifact {
             kind: ArtifactKind::Agent,

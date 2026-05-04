@@ -343,7 +343,7 @@
       "Replace any hardcoded \"${COPILOT_AGENT_DIR}/\" / \"${CLAUDE_AGENT_DIR}/\" prefix strings with refs to libaipm_engine_spec::paths or per-engine spec lookup",
       "Verify migrate tests pass"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",
