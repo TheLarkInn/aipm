@@ -4,13 +4,17 @@
 
 use std::path::Path;
 
+use libaipm_engine_spec::constraints::DESCRIPTION_MAX_LEN;
+
 use crate::fs::Fs;
 use crate::lint::diagnostic::{Diagnostic, Severity};
 use crate::lint::rule::Rule;
 use crate::lint::Error;
 
-/// Maximum length for a skill description (Copilot CLI limit).
-const MAX_DESCRIPTION_LENGTH: usize = 1024;
+/// Maximum length for a skill description. Sourced from the schema-driven
+/// `constraints::DESCRIPTION_MAX_LEN` (the Copilot CLI plugin description
+/// cap, also applied here to skill descriptions).
+const MAX_DESCRIPTION_LENGTH: usize = DESCRIPTION_MAX_LEN;
 
 /// Checks that skill descriptions don't exceed 1024 characters.
 pub struct DescriptionTooLong;

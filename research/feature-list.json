@@ -272,7 +272,7 @@
       "If a hand-validator is kept (per OQ-S3), add a test that asserts the validator's behavior matches what the regex pattern would accept",
       "Verify lint tests pass"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

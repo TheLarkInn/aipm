@@ -106,6 +106,29 @@ mod tests {
     }
 
     #[test]
+    fn skill_validator_accepts_plugin_name_compatible_inputs() {
+        // The skill name validator's regex
+        // (`/^[a-zA-Z0-9][a-zA-Z0-9._\- ]*$/`) is intentionally more
+        // permissive than the plugin manifest's
+        // `constraints::PLUGIN_NAME_REGEX` (`^[a-zA-Z0-9-]+$`). Verify
+        // the subset relationship: every name that satisfies the
+        // stricter plugin regex must also satisfy the skill validator.
+        // This anchors the skill validator to the schema constant
+        // without forcing the validator to literally compile the regex.
+        use libaipm_engine_spec::constraints::PLUGIN_NAME_REGEX;
+        assert_eq!(PLUGIN_NAME_REGEX, "^[a-zA-Z0-9-]+$");
+
+        let plugin_compat =
+            ["abc", "abc-def", "ABC123", "a", "0", "with-Multiple-Hyphens", "X-9-z"];
+        for name in plugin_compat {
+            assert!(
+                is_valid_copilot_name(name),
+                "skill validator rejects plugin-regex-compatible name: {name}"
+            );
+        }
+    }
+
+    #[test]
     fn check_file_no_file_returns_empty() {
         let fs = MockFs::new();
         let result = NameInvalidChars.check_file(Path::new(".ai/p/skills/s/SKILL.md"), &fs);

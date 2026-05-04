@@ -701,6 +701,32 @@ Next: feature #23 — replace skill name/desc/regex/oversized lint
 constants with the generated constraints (PLUGIN_NAME_MAX_LEN,
 DESCRIPTION_MAX_LEN, PLUGIN_NAME_REGEX).
 
+## 2026-05-04 — Feature #23: route skill lints through generated constraints
+
+skill_name_too_long.rs: MAX_SKILL_NAME_LENGTH = 64 →
+const MAX_SKILL_NAME_LENGTH: usize = libaipm_engine_spec::constraints::PLUGIN_NAME_MAX_LEN;
+The local const stays as an alias for backwards compat with the rest of
+the file's diagnostic message; its value is now schema-driven.
+
+skill_desc_too_long.rs: same pattern with DESCRIPTION_MAX_LEN.
+
+skill_name_invalid.rs: kept the hand-written byte-iteration validator
+(per OQ-S3 — option 2). The skill name regex
+(/^[a-zA-Z0-9][a-zA-Z0-9._\- ]*$/) is intentionally MORE permissive
+than the schema's PLUGIN_NAME_REGEX (^[a-zA-Z0-9-]+$) — the former
+allows dots, underscores, and spaces — so we don't replace the
+validator. Added a cross-check test
+(skill_validator_accepts_plugin_name_compatible_inputs) that asserts
+PLUGIN_NAME_REGEX equals the expected pattern AND that every name
+which would pass the plugin regex also passes the skill validator
+(subset relationship).
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.08%.
+
+Next: feature #24 — implement the valid-tool-name lint rule (issue #697)
+and wire it into the lint registry.
+
+
 
 
 
