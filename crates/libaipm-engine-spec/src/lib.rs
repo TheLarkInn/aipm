@@ -12,12 +12,12 @@ pub mod generated;
 pub mod helpers;
 pub mod types;
 
-pub use generated::{Engine, EngineSet, ENGINES, VALID_TOOLS};
+pub use generated::{Engine, EngineSet, ENGINES, TOOL_COMPATIBILITY, VALID_TOOLS};
 pub use types::{EngineApiSchemaFile, EngineSpec, META_SCHEMA_VERSION};
 
 #[cfg(test)]
 mod smoke_tests {
-    use super::{Engine, EngineSet, ENGINES, META_SCHEMA_VERSION, VALID_TOOLS};
+    use super::{Engine, EngineSet, ENGINES, META_SCHEMA_VERSION, TOOL_COMPATIBILITY, VALID_TOOLS};
 
     #[test]
     fn engine_all_lists_known_variants() {
@@ -78,6 +78,36 @@ mod smoke_tests {
     fn valid_tools_rejects_unknown_names() {
         assert!(!VALID_TOOLS.contains("definitely-not-a-real-tool"));
         assert!(!VALID_TOOLS.contains(""));
+    }
+
+    fn tool_compat_lookup(name: &str) -> Option<EngineSet> {
+        TOOL_COMPATIBILITY.iter().find(|(n, _)| *n == name).map(|(_, s)| *s)
+    }
+
+    #[test]
+    fn tool_compatibility_shared_tools_map_to_all() {
+        assert_eq!(tool_compat_lookup("bash"), Some(EngineSet::ALL));
+        assert_eq!(tool_compat_lookup("glob"), Some(EngineSet::ALL));
+        assert_eq!(tool_compat_lookup("grep"), Some(EngineSet::ALL));
+        assert_eq!(tool_compat_lookup("web_fetch"), Some(EngineSet::ALL));
+    }
+
+    #[test]
+    fn tool_compatibility_claude_exclusive_tools_map_to_claude_only() {
+        assert_eq!(tool_compat_lookup("Task"), Some(EngineSet::CLAUDE));
+        assert_eq!(tool_compat_lookup("Edit"), Some(EngineSet::CLAUDE));
+        let task = tool_compat_lookup("Task").expect("Task missing");
+        assert!(task.contains(EngineSet::CLAUDE));
+        assert!(!task.contains(EngineSet::COPILOT_CLI));
+    }
+
+    #[test]
+    fn tool_compatibility_copilot_exclusive_tools_map_to_copilot_only() {
+        assert_eq!(tool_compat_lookup("browser_navigate"), Some(EngineSet::COPILOT_CLI));
+        assert_eq!(tool_compat_lookup("get_pull_request"), Some(EngineSet::COPILOT_CLI));
+        let nav = tool_compat_lookup("browser_navigate").expect("browser_navigate missing");
+        assert!(nav.contains(EngineSet::COPILOT_CLI));
+        assert!(!nav.contains(EngineSet::CLAUDE));
     }
 
     #[test]

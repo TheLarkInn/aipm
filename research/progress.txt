@@ -238,6 +238,47 @@ Next: feature #10 — codegen TOOL_COMPATIBILITY const table mapping each
 tool name to the EngineSet that supports it (shared → ALL,
 engine_exclusive → that engine's bit).
 
+## 2026-05-04 — Feature #10: codegen TOOL_COMPATIBILITY
+
+Added generate_tool_compatibility() + engine_set_expression() to build.rs.
+Output:
+  pub const TOOL_COMPATIBILITY: &[(&str, EngineSet)] = &[
+    ("bash", EngineSet::ALL),
+    ("glob", EngineSet::ALL),
+    ...
+    ("Edit", EngineSet::CLAUDE),
+    ("Task", EngineSet::CLAUDE),
+    ...
+    ("browser_navigate", EngineSet::COPILOT_CLI),
+    ("get_pull_request", EngineSet::COPILOT_CLI),
+    ...
+  ];
+
+Shared tools map to EngineSet::ALL; engine-exclusive tools map to a
+union of the supported engines via bitflags 2's const fn .union().
+Single-engine support emits a single EngineSet::FOO; multi-engine
+support emits EngineSet::FOO.union(EngineSet::BAR)...
+
+Lint fix during implementation:
+  - clippy::redundant_static_lifetimes: dropped 'static from
+    `&[(&'static str, EngineSet)]` (constants default to 'static
+    so the explicit annotation was redundant).
+
+TOOL_COMPATIBILITY re-exported at the crate root. Three new smoke
+tests verify:
+  - shared tools (bash, glob, grep, web_fetch) map to EngineSet::ALL
+  - claude-exclusive tools (Task, Edit) map to EngineSet::CLAUDE only
+  - copilot-exclusive tools (browser_navigate, get_pull_request) map
+    to EngineSet::COPILOT_CLI only
+
+Total tests: 11 passing.
+
+Verified via cargo-verifier: build/test/clippy/fmt clean, coverage 90.01%.
+
+Next: feature #11 — codegen HOOK_EVENTS_BY_ENGINE const table from
+parsed.apis.<engine>.hook_events.
+
+
 
 
 

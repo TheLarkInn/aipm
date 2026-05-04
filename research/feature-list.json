@@ -124,7 +124,7 @@
       "Each engine_exclusive_tools[name].supported_by maps to a bitflag union of those engines",
       "Verify a shared tool ('bash') maps to EngineSet::ALL and a claude-exclusive tool ('Task') maps to EngineSet::CLAUDE only"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
