@@ -46,9 +46,9 @@ All four must pass with zero warnings before any commit.
 ```bash
 cargo +nightly llvm-cov clean --workspace
 cargo +nightly llvm-cov --no-report --workspace --branch
-cargo +nightly llvm-cov --no-report --doc
+cargo +nightly llvm-cov --no-report --doc --branch
 cargo +nightly llvm-cov report --doctests --branch \
-  --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs|lsp\.rs|libaipm-engine-spec/build\.rs|libaipm-engine-spec/src/bin)'
+  --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs|lsp\.rs)'
 ```
 
 Verify the TOTAL branch column shows ≥ 89%. For HTML or lcov output, append `--html --open` or `--lcov --output-path lcov.info` to the report command.
@@ -128,4 +128,4 @@ This regenerates `schemas/engine-api.schema.json`. Commit the regenerated schema
 
 If the change is **breaking** (renames, removed fields, type changes that existing data files won't deserialize through), bump `META_SCHEMA_VERSION` in `src/types.rs`. The `data/engine-api-schema.json` file's `meta_schema_version` field must equal the constant — `build.rs` enforces this. Bumping the version forces the next reverse-binary-analysis run to emit a data file with the new shape.
 
-`build.rs` and `src/bin/export-schema.rs` are excluded from the coverage `--ignore-filename-regex` pattern (they only run during `cargo build` / on demand, not under normal test execution).
+`build.rs` and `src/bin/export-schema.rs` are not instrumented during test runs (they only execute during `cargo build` / on demand), so they do not appear in coverage reports regardless of the ignore filter.
