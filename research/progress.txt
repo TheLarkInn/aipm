@@ -1,3 +1,38 @@
+## Feature 18 — `init_engine_e2e.rs` integration tests (PASS)
+
+Date: 2026-05-05
+Iteration: 17
+Status: passes=true, all four CLAUDE.md gates green, coverage 90.30% (>=89% required)
+
+Changes shipped:
+- NEW `crates/aipm/tests/init_engine_e2e.rs` — 9 integration tests covering the engine-aware init behavior end-to-end via the compiled binary (`assert_cmd::Command::cargo_bin("aipm")`):
+
+  Per spec G9 part 2 (the 6 spec-mandated tests):
+  - `init_with_engine_copilot_creates_only_github` — `aipm init --engine copilot` creates `.github/copilot-instructions.md`, NO `.claude/` (the issue #724 fix verified end-to-end via the binary).
+  - `init_with_engine_both_creates_both` — `aipm init --engine claude,copilot` creates both engine roots.
+  - `init_yes_default_scaffolds_copilot` — `aipm init --yes` defaults to Copilot-only per Spec G5.
+  - `init_engine_unknown_errors` — `--engine gemini` fails with stderr mentioning the unknown engine and listing known names.
+  - `init_engine_empty_string_errors` — `--engine ''` fails with "must not be empty" stderr.
+  - `init_yes_omits_engines_field_in_workspace_toml` — covers the spec's "narrow support" intent at the manifest-emission level. Headless `--yes` mode never narrows the engines field; the workspace TOML omits it. (The "narrow via library API" version of this test is already covered by Feature 9's `init_workspace_with_narrow_support_writes_engines_field` library unit test, so we don't re-implement it here.)
+
+  Plus 3 bonus tests for additional coverage:
+  - `init_with_repeated_engine_flag_merges` — clap's `--engine claude --engine copilot` form works alongside the comma-separated form.
+  - `init_engine_claude_alone_does_not_create_github_copilot_file` — symmetric regression coverage from the Claude side.
+  - `init_help_documents_engine_flag` — smoke test that `aipm init --help` includes the new flag (clap registration sanity check).
+
+Test results: aipm CLI binary now has 24 integration tests (15 existing + 9 new). All pass. libaipm-engine-spec at 47 unit/integration tests (no change). libaipm at 2186 unit tests (no change).
+
+CLAUDE.md lint compliance:
+- `#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]` at the top of the test file matches the existing pattern in `init_e2e.rs` (test crates inherit workspace lints; relaxing for tests is the documented convention).
+- No `unwrap()` / `expect()` / `panic!()` introduced in production code.
+
+Notes for future iterations:
+- Feature 20 (BDD scenarios) maps these e2e tests to the higher-level cucumber suite via the new "Engine-aware init scaffolds only chosen engines" rule.
+- Feature 21 (snapshot refresh) — no snapshots affected by this iteration.
+- Feature 22 (final coverage gate) — coverage stable at 90.30% well above the 89% requirement.
+
+---
+
 ## Feature 16 — JSON schema extension for `engines` (PASS)
 
 Date: 2026-05-05

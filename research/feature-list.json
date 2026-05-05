@@ -223,7 +223,7 @@
       "Run `cargo test --workspace` and confirm all six new tests pass.",
       "Run all four CLAUDE.md gates."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test",
