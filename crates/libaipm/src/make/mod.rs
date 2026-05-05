@@ -1159,6 +1159,55 @@ mod tests {
         assert_eq!(name, "local-repo-plugins");
     }
 
+    #[test]
+    fn make_plugin_command_feature() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "cmd-plugin",
+            engine: "copilot",
+            features: &[Feature::Command],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok(), "plugin() with Command feature failed");
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        // scaffold_command creates a commands/ directory and a .gitkeep inside it.
+        assert!(
+            result.actions.iter().any(|a| matches!(
+                a,
+                Action::DirectoryCreated { path } if path.to_string_lossy().contains("commands")
+            )),
+            "expected DirectoryCreated for commands/"
+        );
+        assert!(
+            result.actions.iter().any(|a| matches!(
+                a,
+                Action::FileWritten { description, .. } if description == "Command placeholder"
+            )),
+            "expected FileWritten for Command placeholder"
+        );
+
+        // .gitkeep should be present and empty
+        let gitkeep_path = marketplace_dir.join("cmd-plugin").join("commands").join(".gitkeep");
+        let content = fs.get_content(&gitkeep_path);
+        assert!(content.is_some(), "commands/.gitkeep should exist");
+        assert_eq!(content.unwrap_or_default(), "", ".gitkeep should be empty");
+
+        // PluginCreated summary should include "command" feature name.
+        assert!(
+            result.actions.iter().any(|a| matches!(
+                a,
+                Action::PluginCreated { features, .. } if features.contains(&"command".to_string())
+            )),
+            "PluginCreated should list command feature"
+        );
+    }
+
     /// Covers the `if was_registered` True branch in `register_in_marketplace`.
     ///
     /// When the plugin is already present in marketplace.json before `plugin()` is
