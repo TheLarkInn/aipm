@@ -114,7 +114,7 @@
       "Add new tests: (a) `engines_scaffold = COPILOT` only → `.claude/` is NOT created, `.github/copilot-instructions.md` IS; (b) `engines_scaffold = empty` → no adaptor runs; (c) `engines_support = Some(CLAUDE)` → workspace TOML contains `engines = [\"claude\"]`; (d) `engines_support = None` → workspace TOML omits the field.",
       "Run all four CLAUDE.md gates."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ui",

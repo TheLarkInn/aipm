@@ -418,6 +418,11 @@ fn cmd_init(
         no_starter: do_no_starter,
         manifest,
         marketplace_name: &marketplace_name,
+        // Feature 9 baseline: scaffold Claude only by default (matches
+        // pre-feature-9 behavior). Feature 14 will wire wizard answers
+        // through to populate these fields properly.
+        engines_scaffold: libaipm::EngineSet::CLAUDE,
+        engines_support: None,
     };
 
     let result = libaipm::workspace_init::init(&opts, &adaptors, &libaipm::fs::Real)?;

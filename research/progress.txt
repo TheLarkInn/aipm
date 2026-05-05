@@ -1,3 +1,44 @@
+## Feature 9 — `Options` engines_scaffold + engines_support fields, `init()` filter (PASS)
+
+Date: 2026-05-05
+Iteration: 9
+Status: passes=true, all four CLAUDE.md gates green, coverage 90.24% (>=89% required)
+
+This is the load-bearing change that finally fixes issue #724. With this feature merged, `aipm init --engine copilot` actually only creates `.github/copilot-instructions.md` and skips `.claude/` entirely (and vice versa). Previously the Copilot adaptor ran unconditionally for every init even though Feature 4 added it to `defaults()`.
+
+Changes shipped:
+- `crates/libaipm/src/workspace_init/mod.rs:60-90` — Options struct extended with two new fields:
+  - `engines_scaffold: libaipm_engine_spec::EngineSet` — drives the adaptor filter inside `init()`.
+  - `engines_support: Option<libaipm_engine_spec::EngineSet>` — drives the manifest engines field emission.
+- `crates/libaipm/src/workspace_init/mod.rs:117-138` — `init()` adaptor loop now skips adaptors whose `engine()` is not contained in `opts.engines_scaffold`. Empty bitset → no adaptors run.
+- `crates/libaipm/src/workspace_init/mod.rs:142-150` — `init_workspace()` signature now accepts `engines_support` and threads it through to `generate_workspace_manifest`.
+- `crates/libaipm/src/workspace_init/mod.rs:160-184` — `generate_workspace_manifest()` now accepts `engines_support: Option<EngineSet>` and converts it to a `Vec<String>` via the new helper.
+- `crates/libaipm/src/workspace_init/mod.rs:194-220` — NEW helper `engine_set_to_canonical_names(Option<EngineSet>) -> Option<Vec<String>>` translates the bitset into builder-ready string names. Returns `None` when the field should be omitted (input is None, empty, or ALL).
+- `crates/libaipm/src/workspace_init/mod.rs:222-228` — `scaffold_marketplace()` signature now accepts `engines_support` and threads it to `generate_starter_manifest`.
+- `crates/libaipm/src/workspace_init/mod.rs:317-329` — `generate_starter_manifest()` now accepts `engines_support` and replaces the hardcoded `&["claude"]` with the derived slice. When the support set is None/ALL/empty, the engines field is omitted from the starter plugin's aipm.toml.
+- ~30 caller sites updated to add the new fields:
+  - `crates/aipm/src/main.rs:414-431` — production `cmd_init` defaults to `engines_scaffold: EngineSet::CLAUDE` + `engines_support: None` (Feature 14 will wire wizard answers properly).
+  - `crates/libaipm/src/lint/mod.rs:1464-1476` — `lint_after_init_produces_zero_diagnostics` updated to pass `engines_support: Some(EngineSet::CLAUDE)` so the starter plugin's manifest gets `engines = ["claude"]` and the valid-tool-name lint sees the declared engines (otherwise it warned on Read/Glob/Grep).
+  - 28 test initializers in `workspace_init/mod.rs` got `engines_scaffold: EngineSet::CLAUDE, engines_support: None` via replace_all.
+  - 2 standalone callers of `generate_workspace_manifest()` and 1 of `generate_starter_manifest()` updated.
+- 8 NEW tests added at the bottom of `workspace_init/mod.rs::tests`:
+  - `init_with_claude_only_scaffold_skips_copilot_adaptor` — `.claude/` exists, `.github/` doesn't, exactly one ToolConfigured.
+  - `init_with_copilot_only_scaffold_skips_claude_adaptor` — issue #724's fix verified: `.github/copilot-instructions.md` exists, `.claude/` does NOT.
+  - `init_with_empty_scaffold_runs_no_adaptors` — `engines_scaffold = empty` produces no engine roots, but still scaffolds `.ai/`.
+  - `init_workspace_with_narrow_support_writes_engines_field` — `engines_support = Some(CLAUDE)` → workspace aipm.toml contains `engines = ["claude"]`.
+  - `init_workspace_with_default_support_omits_engines_field` — `engines_support = None` → no engines line.
+  - `init_workspace_with_engineset_all_support_omits_engines_field` — `Some(ALL)` also omits (default support state).
+  - `engine_set_to_canonical_names_truth_table` — exercises the helper across None / empty / ALL / single-bit inputs.
+
+Test results: libaipm at 2187 unit tests (+8 new), all green. The cmd_init production path uses CLAUDE-only as its baseline scaffold set so existing CLI behavior is preserved until Feature 14 wires the wizard.
+
+Notes for future iterations:
+- Feature 10 (`--engine` clap flag) extends `cmd_init` with the actual flag.
+- Feature 14 (`wizard_tty::resolve` + cmd_init wiring) replaces the temporary `EngineSet::CLAUDE` baseline at `main.rs:421` with the wizard's answer.
+- The 3 iter-4 idempotency tests still pre-seed `.github/copilot-instructions.md` even though the Copilot adaptor is now filtered out (engines_scaffold = CLAUDE for those tests). The pre-seed is no longer load-bearing but harmless — could be cleaned up in a future drive-by.
+
+---
+
 ## Feature 8 — Manifest builder accepts `[workspace].engines` (PASS)
 
 Date: 2026-05-05
