@@ -355,3 +355,24 @@ mod engine_set_serde {
         Ok(Some(set))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Directly invoke `engine_set_serde::deserialize` with a JSON `null` value so
+    /// that the `let Some(names) = raw else { return Ok(None) }` arm (line 333) is
+    /// covered.  This path cannot be reached through TOML (which has no null literal),
+    /// so it must be exercised at the deserializer boundary.
+    #[test]
+    fn engine_set_serde_null_returns_none() {
+        use serde::de::IntoDeserializer;
+        // serde_json::Value::Null implements IntoDeserializer and will make
+        // Option::<Vec<String>>::deserialize return None, hitting the else arm.
+        let de: serde_json::Value = serde_json::Value::Null;
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_ok(), "deserializing null should succeed: {result:?}");
+        let result: Result<Option<EngineSet>, _> = result;
+        assert!(result.unwrap().is_none(), "null engines should produce None");
+    }
+}
