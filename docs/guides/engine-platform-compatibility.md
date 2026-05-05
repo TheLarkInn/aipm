@@ -12,7 +12,7 @@ In your plugin's `aipm.toml`:
 [package]
 name = "my-plugin"
 version = "1.0.0"
-engines = ["claude", "copilot"]    # Optional; omit for all engines
+engines = ["claude", "copilot-cli"]    # Optional; omit for all engines
 ```
 
 | Value | Meaning |
@@ -20,8 +20,8 @@ engines = ["claude", "copilot"]    # Optional; omit for all engines
 | `engines` omitted | Universal — works with all engines |
 | `engines = []` | Universal — works with all engines |
 | `engines = ["claude"]` | Claude only |
-| `engines = ["copilot"]` | Copilot only |
-| `engines = ["claude", "copilot"]` | Both Claude and Copilot |
+| `engines = ["copilot-cli"]` | Copilot only |
+| `engines = ["claude", "copilot-cli"]` | Both Claude and Copilot |
 
 ### Validation Behavior
 
@@ -40,6 +40,36 @@ When a plugin is installed, aipm validates engine compatibility:
 ### Forward Compatibility
 
 Unknown engine names (e.g., from a newer schema) are preserved as-is. They won't match any current engine but will be stored and compared correctly.
+
+### Tool compatibility lint
+
+The `engines` declaration also drives the **`valid-tool-name`** lint rule. Each AI engine
+exposes a different set of tools, and some tools are engine-exclusive. When your feature files
+(agents, skills, hooks) reference tools in their frontmatter `tools` field, `aipm lint`
+cross-checks that declaration against the engine API schema:
+
+| Situation | Diagnostic |
+|-----------|------------|
+| Tool used, no `engines` declared | Warning — suggests declaring the engines that support the tool |
+| Tool used, declared `engines` has no match | Error — the tool will not be available at runtime |
+| Tool used, declared `engines` includes a supporting engine | Clean |
+
+**Shared tools** (`bash`, `glob`, `grep`, `web_fetch`) are available on all engines and
+never trigger this rule.
+
+**Example — claude-exclusive tool:**
+
+```markdown
+---
+name: worktree-agent
+tools: Task, bash
+---
+```
+
+`Task` is only available in `claude`. Without `engines = ["claude"]` in `aipm.toml` this
+emits a warning; with `engines = ["copilot-cli"]` it is an error.
+
+See [`docs/rules/valid-tool-name.md`](../rules/valid-tool-name.md) for the full reference.
 
 ## Platform Compatibility
 

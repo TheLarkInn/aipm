@@ -123,6 +123,7 @@ All built-in rule IDs follow the `category/rule-name` hierarchy. See the individ
 | `marketplace/` | `plugin-field-mismatch`, `source-resolve` |
 | `instructions/` | `oversized` |
 | `source/` | `misplaced-features` |
+| *(cross-cutting)* | `valid-tool-name` |
 
 ## CI usage
 
