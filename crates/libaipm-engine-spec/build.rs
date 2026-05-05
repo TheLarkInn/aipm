@@ -111,6 +111,13 @@ fn load_meta_schema() -> Result<serde_json::Value, Box<dyn std::error::Error>> {
     match std::fs::read_to_string("../../schemas/engine-api.schema.json") {
         Ok(meta_schema_text) => Ok(serde_json::from_str(&meta_schema_text)?),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let stdout = std::io::stdout();
+            let mut handle = stdout.lock();
+            writeln!(
+                handle,
+                "cargo:warning=../../schemas/engine-api.schema.json not found; \
+                 using schema derived from src/types.rs for validation"
+            )?;
             Ok(serde_json::to_value(schemars::schema_for!(types::EngineApiSchemaFile))?)
         },
         Err(error) => Err(error.into()),
