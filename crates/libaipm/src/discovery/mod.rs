@@ -113,9 +113,7 @@ mod tests {
     use std::fs;
 
     fn touch(path: &Path) {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).expect("create parent dir");
-        }
+        fs::create_dir_all(path.parent().unwrap_or(path)).expect("create parent dir");
         fs::write(path, "").expect("touch file");
     }
 
