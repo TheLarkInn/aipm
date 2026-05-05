@@ -5,8 +5,8 @@ Research: research/tickets/2026-05-05-0793-security-review-findings.md
 Tracking: https://github.com/TheLarkInn/aipm/issues/793
 
 Total features: 8 (originally 9; Features 1 and 2 merged in iteration 1)
-Completed:      2
-Passing:        2
+Completed:      3
+Passing:        3
 Status:         In progress
 
 ---
@@ -40,7 +40,7 @@ work precedes its appliers; Finding 3 workflow change is independent and lands l
 
 - [x] 1. strip_ansi helper + apply at reporter.rs:351                  (security; F1 fix — HIGH severity; merged Features 1+2)
 - [x] 2. ci-github regression test for newline in file_path           (test; F1 verification)
-- [ ] 3. Move is_path_safe to new lint::path_guard module             (refactor; F2 prep)
+- [x] 3. Move is_path_safe to new lint::path_guard module             (refactor; F2 prep)
 - [ ] 4. Apply path_guard to marketplace_source_resolve rule          (security; F2)
 - [ ] 5. Apply path_guard to marketplace_field_mismatch rule          (security; F2)
 - [ ] 6. Cap valid_tool_name parent-walk at lint::Options::dir        (security; F2)
@@ -90,5 +90,37 @@ future refactor cannot silently regress the ci-github sink the way the
 ci-azure ##[group] line did.
 
 Tests: all 8 ci_github_* tests pass.
+
+### Iteration 3 — 2026-05-05 — Feature 3 (path_guard module)
+Status: passes=true (pending cargo-verifier confirmation)
+
+Changes:
+- crates/libaipm/src/lint/path_guard.rs (NEW):
+  * pub(crate) fn is_safe_path(path: &str) -> bool — rejects ParentDir,
+    RootDir, and Prefix(_) components via Path::components().
+  * 9 unit tests including:
+    - is_safe_path_rejects_parent_dir_traversal
+    - is_safe_path_rejects_absolute_unix_path
+    - is_safe_path_accepts_relative_path / curdir_prefix / simple_filename
+    - is_safe_path_rejects_parent_dir_segment_anywhere
+    - is_safe_path_rejects_windows_prefix (#[cfg(windows)] gated)
+    - is_safe_path_accepts_dotted_filename ("foo..bar" is Normal)
+    - is_safe_path_rejects_empty_after_traversal_normalization
+- crates/libaipm/src/lint/mod.rs: added `pub(crate) mod path_guard;`.
+- crates/libaipm/src/lint/rules/import_resolver.rs:
+  * Removed the local `fn is_path_safe` definition.
+  * Updated call sites at the @-import and markdown-link gates to
+    `crate::lint::path_guard::is_safe_path(...)`.
+  * Removed the three relocated tests; kept the resolve_imports
+    integration tests (path_traversal_in_at_import_rejected,
+    absolute_path_in_at_import_rejected, path_traversal_in_markdown_link_rejected).
+
+Naming: helper renamed `is_path_safe` -> `is_safe_path` so the public-facing
+name matches the new module's role. The rename has zero call sites in older
+production code paths (only the two in import_resolver.rs, both updated).
+
+Tests: 396 lint::* unit tests pass (was 384 before; +9 new path_guard tests
++ 4 ci-github regression tests from iter 2 - 3 relocated import_resolver
+tests = +10 net).
 
 

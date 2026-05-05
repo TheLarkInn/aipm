@@ -26,7 +26,7 @@
   },
   {
     "category": "refactor",
-    "description": "Create new module `crates/libaipm/src/lint/path_guard.rs` with `is_safe_path`. Move the existing `is_path_safe` helper out of `lint::rules::import_resolver` so multiple lint rules can share it. Spec §5.1.1, G3.",
+    "description": "Create new module `crates/libaipm/src/lint/path_guard.rs` with `is_safe_path`. Move the existing `is_path_safe` helper out of `lint::rules::import_resolver` so multiple lint rules can share it. Spec §5.1.1, G3. (Iteration-3 note: helper renamed `is_path_safe` -> `is_safe_path` to match the new module's exported name; the old name is preserved nowhere in the workspace.)",
     "steps": [
       "Create new file `crates/libaipm/src/lint/path_guard.rs`. Add `pub(crate) fn is_safe_path(path: &str) -> bool` with body identical to the existing function at `lint/rules/import_resolver.rs:66-71` (rejects `Component::ParentDir | RootDir | Prefix(_)`).",
       "In `crates/libaipm/src/lint/mod.rs` add `pub(crate) mod path_guard;` near the other module declarations (around line 11 next to the existing `pub mod reporter;`).",
@@ -36,7 +36,7 @@
       "Verify the `Oversized` rule integration tests in `lint/rules/instructions_oversized.rs` (specifically `path_traversal_in_at_import_rejected` at `:285-293`, `absolute_path_in_at_import_rejected` at `:295-302`, `path_traversal_in_markdown_link_rejected` at `:367-383`) still pass without modification.",
       "Verify all four CLAUDE.md gates pass and branch coverage >= 89%."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "security",

@@ -8,6 +8,7 @@
 pub mod config;
 pub mod diagnostic;
 pub mod error;
+pub(crate) mod path_guard;
 pub mod reporter;
 pub mod rule;
 pub mod rules;
