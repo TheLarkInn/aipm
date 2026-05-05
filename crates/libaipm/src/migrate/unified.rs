@@ -893,4 +893,60 @@ mod tests {
             "the first (existing) .agent.md must survive"
         );
     }
+
+    /// Covers the `!handled_roots.contains(root)` false branch in
+    /// `build_plugin_plans` (line 303): adapter artifacts whose source_root
+    /// did NOT come from `discover_source_dirs` (e.g. skills nested inside
+    /// `.ai/<plugin>/.claude/`) are still emitted via the fallback loop.
+    ///
+    /// `discover_source_dirs` explicitly skips the `.ai/` directory tree, so
+    /// `.ai/existing-plugin/.claude/` is never returned as a `DiscoveredSource`.
+    /// The unified `discover()` walker DOES descend into `.ai/`, so the skill
+    /// inside `.ai/existing-plugin/.claude/skills/nested/SKILL.md` is
+    /// classified with `source_root = .ai/existing-plugin/.claude/`. That root
+    /// is absent from `handled_roots`, which triggers the fallback branch.
+    #[test]
+    fn unified_migrate_adapter_artifact_in_ai_nested_claude_uses_fallback_path() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        init_marketplace(root);
+
+        // A skill buried inside .ai/<plugin>/.claude/ — discover_source_dirs
+        // skips .ai/ entirely, so this root never enters handled_roots.
+        let skill_dir = root.join(".ai/existing-plugin/.claude/skills/nested");
+        std::fs::create_dir_all(&skill_dir).expect("create nested skill dir");
+        std::fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: nested\ndescription: Nested skill\n---\n# Nested\n",
+        )
+        .expect("write SKILL.md");
+
+        let opts = Options {
+            dir: root,
+            source: None,
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let ai_dir = root.join(".ai");
+        let outcome = run(&opts, &ai_dir, &Real).expect("migrate succeeds");
+
+        // The fallback loop must still produce a plugin for the nested skill.
+        let created_names: Vec<&str> = outcome
+            .actions
+            .iter()
+            .filter_map(|a| {
+                if let Action::PluginCreated { name, .. } = a {
+                    Some(name.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert!(
+            created_names.contains(&"nested"),
+            "fallback path must emit a plugin for the nested skill; got: {created_names:?}"
+        );
+    }
 }
