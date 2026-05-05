@@ -336,6 +336,14 @@ All available rules, grouped by category:
 |------|----------|-------------|
 | [`source/misplaced-features`](../rules/source/misplaced-features.md) | warning | AI plugin feature files are outside the `.ai/` marketplace directory |
 
+### Cross-cutting
+
+These rules apply to agent, skill, and hook files alike.
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| [`valid-tool-name`](../rules/valid-tool-name.md) | warning / error | Tool in `tools` frontmatter field is exclusive to an engine not declared in `aipm.toml` |
+
 ## VS Code Extension
 
 The `vscode-aipm` extension surfaces `aipm lint` diagnostics inline as you edit, and

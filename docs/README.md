@@ -86,6 +86,12 @@ Quality rules enforced by `aipm lint`:
 |------|---------|-------------|
 | [misplaced-features](rules/source/misplaced-features.md) | warn | Feature file is outside the `.ai/` marketplace directory |
 
+### Cross-cutting
+
+| Rule | Default | Description |
+|------|---------|-------------|
+| [valid-tool-name](rules/valid-tool-name.md) | warn / error | Tool in `tools` frontmatter field is exclusive to an engine not declared in `aipm.toml` |
+
 ## See also
 
 - [README](../README.md) — full command reference for `aipm`
