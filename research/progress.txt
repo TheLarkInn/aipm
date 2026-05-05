@@ -1,0 +1,27 @@
+## Feature 1 — Engine rename `copilot-cli` -> `copilot` (PASS)
+
+Date: 2026-05-05
+Iteration: 1
+Status: passes=true, all four CLAUDE.md gates green, coverage 90.23% (>=89% required)
+
+Changes shipped:
+- `crates/libaipm-engine-spec/data/engine-api-schema.json` — bulk replace `"copilot-cli"` -> `"copilot"` (96 occurrences); bumped `meta_schema_version` 1.0.0 -> 2.0.0.
+- `crates/libaipm-engine-spec/src/types.rs` — `META_SCHEMA_VERSION` -> "2.0.0".
+- `crates/libaipm-engine-spec/build.rs` — hardcoded engine-name match arms updated (`copilot-cli` -> `copilot` in `marker_paths_for` and `marketplace_manifest_path_for`). Generated `Engine::Copilot` / `EngineSet::COPILOT` automatically.
+- `crates/libaipm-engine-spec/src/helpers.rs` — `Engine::CopilotCli` / `EngineSet::COPILOT_CLI` -> `Engine::Copilot` / `EngineSet::COPILOT` (production + 16 tests).
+- `crates/libaipm-engine-spec/src/lib.rs` — symbol updates + doc-comment string `"copilot-cli"` -> `"copilot"`.
+- `crates/libaipm/src/engine.rs`, `installed.rs`, `manifest/mod.rs`, `manifest/types.rs`, `lint/rules/hook_legacy_event.rs`, `lint/rules/valid_tool_name.rs`, `make/engine_features.rs`, `discovery/types.rs` — symbol replacements + string-literal updates.
+- `crates/libaipm/src/discovery/{source,layout,classify,instruction,scan_report,mod}.rs` and `crates/libaipm/src/migrate/adapters/{agent,skill,hook}.rs` — `DiscoverySource::COPILOT_CLI` -> `DiscoverySource::COPILOT` (workspace-internal const, renamed for symmetry with engine-spec).
+- `crates/aipm/src/main.rs` and `crates/aipm/src/wizard_tty.rs` — doc-comment string updates.
+- `crates/libaipm/src/lint/rules/valid_tool_name.rs:413-416` — fixed escaped-quote test assertion that the bulk replace_all missed.
+- `crates/libaipm/src/make/engine_features.rs:330-334` — renamed test from `parse_engine_arg_accepts_canonical_kebab_name` to `parse_engine_arg_rejects_legacy_copilot_cli_form` and inverted the assertion (legacy `"copilot-cli"` now returns `None`).
+- `tests/features/lint/valid-tool-name.feature` and `tests/features/manifest/migrate.feature` — descriptive references updated to `copilot`.
+- `schemas/engine-api.schema.json` — regenerated via `cargo run -p libaipm-engine-spec --bin export-schema` (1-line `meta_schema_version` change picked up automatically).
+- `crates/libaipm-engine-spec/tests/canonical_name.rs` — NEW regression test (3 cases): `Engine::ALL` count + names; `from_name("copilot-cli") == None`; data file contains no `"copilot-cli"` substring.
+
+Test results: 2152 unit/integration tests + 76 BDD scenarios all PASS. Branch coverage 90.23%.
+
+Notes for future iterations:
+- The data file's `copilot_cli_skills_instructions` and 5 sibling `copilot_cli_*` feature flag identifiers are upstream binary names (extracted by reverse-binary-analysis) and intentionally unchanged.
+- The `npm` package field stays `@github/copilot` (unchanged).
+- `cargo fmt` reformatted 6 files (line collapses now that `COPILOT` is shorter than `COPILOT_CLI`).

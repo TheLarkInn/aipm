@@ -143,7 +143,7 @@ pub fn resolve_make_plugin(
 
     // Validate the resolved engine before using it to filter features.
     // Accepts the legacy "claude"/"copilot"/"both" CLI strings as well
-    // as canonical kebab-case names (e.g. "copilot-cli").
+    // as canonical kebab-case names (e.g. "copilot").
     let engine_set = libaipm::make::engine_features::parse_engine_arg(&engine)
         .ok_or_else(|| Box::new(libaipm::make::Error::InvalidEngine(engine.clone())))?;
 

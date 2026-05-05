@@ -137,7 +137,7 @@ pub fn features_for_engine_set(set: EngineSet) -> EngineFeatureSet {
 pub const fn engine_to_set_bit(engine: Engine) -> EngineSet {
     match engine {
         Engine::Claude => EngineSet::CLAUDE,
-        Engine::CopilotCli => EngineSet::COPILOT_CLI,
+        Engine::Copilot => EngineSet::COPILOT,
     }
 }
 
@@ -146,14 +146,14 @@ pub const fn engine_to_set_bit(engine: Engine) -> EngineSet {
 ///
 /// Also accepts the canonical kebab-case engine names returned by
 /// [`Engine::name`](libaipm_engine_spec::Engine::name) (e.g.
-/// `"copilot-cli"`).
+/// `"copilot"`).
 ///
 /// Returns `None` for unrecognised input.
 #[must_use]
 pub fn parse_engine_arg(s: &str) -> Option<EngineSet> {
     match s {
         "claude" => Some(EngineSet::CLAUDE),
-        "copilot" => Some(EngineSet::COPILOT_CLI),
+        "copilot" => Some(EngineSet::COPILOT),
         "both" => Some(EngineSet::ALL),
         other => Engine::from_name(other).map(engine_to_set_bit),
     }
@@ -227,7 +227,7 @@ mod tests {
 
     #[test]
     fn engine_features_copilot() {
-        let feats = features_for_engine(Engine::CopilotCli);
+        let feats = features_for_engine(Engine::Copilot);
         assert!(feats.contains(EngineFeatureSet::SKILL));
         assert!(feats.contains(EngineFeatureSet::AGENT));
         assert!(feats.contains(EngineFeatureSet::MCP));
@@ -267,7 +267,7 @@ mod tests {
 
     #[test]
     fn validate_features_rejects_output_style_for_copilot() {
-        let result = validate_features(Engine::CopilotCli, &[FeatureKind::OutputStyle]);
+        let result = validate_features(Engine::Copilot, &[FeatureKind::OutputStyle]);
         assert!(result.is_err());
         let unsupported = result.unwrap_err();
         assert_eq!(unsupported, vec![FeatureKind::OutputStyle]);
@@ -278,9 +278,7 @@ mod tests {
         assert!(
             validate_features(Engine::Claude, &[FeatureKind::Skill, FeatureKind::Agent]).is_ok()
         );
-        assert!(
-            validate_features(Engine::CopilotCli, &[FeatureKind::Skill, FeatureKind::Lsp]).is_ok()
-        );
+        assert!(validate_features(Engine::Copilot, &[FeatureKind::Skill, FeatureKind::Lsp]).is_ok());
         // For "both", every feature must be supported by every engine —
         // pick the intersection: skill, agent, mcp, hook.
         assert!(validate_features_for_engines(
@@ -325,13 +323,15 @@ mod tests {
     #[test]
     fn parse_engine_arg_accepts_legacy_strings() {
         assert_eq!(parse_engine_arg("claude"), Some(EngineSet::CLAUDE));
-        assert_eq!(parse_engine_arg("copilot"), Some(EngineSet::COPILOT_CLI));
+        assert_eq!(parse_engine_arg("copilot"), Some(EngineSet::COPILOT));
         assert_eq!(parse_engine_arg("both"), Some(EngineSet::ALL));
     }
 
     #[test]
-    fn parse_engine_arg_accepts_canonical_kebab_name() {
-        assert_eq!(parse_engine_arg("copilot-cli"), Some(EngineSet::COPILOT_CLI));
+    fn parse_engine_arg_rejects_legacy_copilot_cli_form() {
+        // Legacy "copilot-cli" identifier was renamed to "copilot" canonically.
+        // The deserializer no longer accepts the old form.
+        assert_eq!(parse_engine_arg("copilot-cli"), None);
     }
 
     #[test]
@@ -343,7 +343,7 @@ mod tests {
     #[test]
     fn engine_to_set_bit_matches_engine_set_constants() {
         assert_eq!(engine_to_set_bit(Engine::Claude), EngineSet::CLAUDE);
-        assert_eq!(engine_to_set_bit(Engine::CopilotCli), EngineSet::COPILOT_CLI);
+        assert_eq!(engine_to_set_bit(Engine::Copilot), EngineSet::COPILOT);
     }
 
     #[test]

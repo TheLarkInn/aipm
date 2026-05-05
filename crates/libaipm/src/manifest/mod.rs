@@ -560,19 +560,19 @@ edition = "2024"
     #[test]
     fn manifest_with_engines_field() {
         // Use canonical engine names (legacy "copilot" doesn't map to any
-        // current `Engine` variant — the canonical name is "copilot-cli").
+        // current `Engine` variant — the canonical name is "copilot").
         let toml = r#"
 [package]
 name = "my-plugin"
 version = "1.0.0"
-engines = ["claude", "copilot-cli"]
+engines = ["claude", "copilot"]
 "#;
         let manifest = parse(toml);
         assert!(manifest.is_ok());
         let manifest = manifest.unwrap_or_default();
         let engines = manifest.package.as_ref().and_then(|p| p.engines.as_ref());
         let expected =
-            libaipm_engine_spec::EngineSet::CLAUDE | libaipm_engine_spec::EngineSet::COPILOT_CLI;
+            libaipm_engine_spec::EngineSet::CLAUDE | libaipm_engine_spec::EngineSet::COPILOT;
         assert_eq!(engines.copied(), Some(expected));
     }
 

@@ -24,7 +24,7 @@ impl Adapter for CopilotSkillAdapter {
     }
 
     fn applies_to(&self, feat: &DiscoveredFeature) -> bool {
-        feat.source == DiscoverySource::COPILOT_CLI && feat.kind == FeatureKind::Skill
+        feat.source == DiscoverySource::COPILOT && feat.kind == FeatureKind::Skill
     }
 
     fn to_artifact(&self, feat: &DiscoveredFeature, fs: &dyn Fs) -> Result<Artifact, Error> {
@@ -116,7 +116,7 @@ mod tests {
         let adapter = CopilotSkillAdapter;
         let copilot_skill = DiscoveredFeature {
             kind: FeatureKind::Skill,
-            source: DiscoverySource::COPILOT_CLI,
+            source: DiscoverySource::COPILOT,
             layout: Layout::CopilotSubrootWithSkills,
             source_root: PathBuf::from(".github"),
             feature_dir: Some(PathBuf::from(".github/copilot/skills/x")),
@@ -144,7 +144,7 @@ mod tests {
         let adapter = CopilotSkillAdapter;
         let copilot_agent = DiscoveredFeature {
             kind: FeatureKind::Agent,
-            source: DiscoverySource::COPILOT_CLI,
+            source: DiscoverySource::COPILOT,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".github"),
             feature_dir: None,
@@ -172,7 +172,7 @@ mod tests {
 
         let feat = DiscoveredFeature {
             kind: FeatureKind::Skill,
-            source: DiscoverySource::COPILOT_CLI,
+            source: DiscoverySource::COPILOT,
             layout: Layout::CopilotSubrootWithSkills,
             source_root: tmp.path().to_path_buf(),
             feature_dir: Some(skill_dir.clone()),
@@ -188,7 +188,7 @@ mod tests {
     fn to_artifact_returns_err_when_feature_dir_is_none() {
         let feat = DiscoveredFeature {
             kind: FeatureKind::Skill,
-            source: DiscoverySource::COPILOT_CLI,
+            source: DiscoverySource::COPILOT,
             layout: Layout::Canonical,
             source_root: PathBuf::from("/tmp"),
             feature_dir: None,
@@ -219,7 +219,7 @@ mod tests {
         let adapter = ClaudeSkillAdapter;
         let copilot_skill = DiscoveredFeature {
             kind: FeatureKind::Skill,
-            source: DiscoverySource::COPILOT_CLI,
+            source: DiscoverySource::COPILOT,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".github"),
             feature_dir: Some(PathBuf::from(".github/skills/x")),

@@ -62,7 +62,7 @@ pub struct Package {
     /// File allowlist for transfer format.
     pub files: Option<Vec<String>>,
 
-    /// Engine compatibility list (e.g., `["claude", "copilot-cli"]`).
+    /// Engine compatibility list (e.g., `["claude", "copilot"]`).
     /// `None` (field omitted) or `Some(EngineSet::empty())` (explicit
     /// empty list `engines = []`) means all engines.
     ///

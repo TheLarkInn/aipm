@@ -7,7 +7,7 @@ Feature: valid-tool-name lint flags engine-incompatible tool references
 
   Background:
     Given the engine API schema is the canonical source for engine-tool compatibility
-    And the schema declares "bash" as a shared tool, "Task" as claude-only, and "browser_navigate" as copilot-cli-only
+    And the schema declares "bash" as a shared tool, "Task" as claude-only, and "browser_navigate" as copilot-only
 
   Rule: Plugins without `[engines]` get warnings on engine-exclusive tools
 
@@ -24,7 +24,7 @@ Feature: valid-tool-name lint flags engine-incompatible tool references
       And a skill that lists tool "browser_navigate" in its frontmatter
       When the user runs "aipm lint"
       Then a warning is reported with rule id "valid-tool-name"
-      And the message states the tool is exclusive to "copilot-cli"
+      And the message states the tool is exclusive to "copilot"
 
   Rule: Plugins with `[engines]` are validated against the declared set
 

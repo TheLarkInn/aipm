@@ -14,7 +14,7 @@
       "Add a regression test at `crates/libaipm-engine-spec/tests/canonical_name.rs` that asserts: (a) `Engine::ALL` contains exactly two variants whose `name()` returns `\"claude\"` and `\"copilot\"`; (b) `Engine::from_name(\"copilot-cli\")` returns `None`; (c) the data file contains no `\"copilot-cli\"` substring outside the npm field.",
       "Verify all four CLAUDE.md gates pass: `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check`."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

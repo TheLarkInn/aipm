@@ -56,7 +56,7 @@ pub fn match_skill(
     if !any_skills {
         // Case B: only Copilot's `.github/copilot/<name>/SKILL.md` accommodation
         // qualifies when there is no `skills` ancestor.
-        if !(source == DiscoverySource::COPILOT_CLI && grandparent_is_copilot) {
+        if !(source == DiscoverySource::COPILOT && grandparent_is_copilot) {
             return None;
         }
     }
@@ -298,8 +298,8 @@ mod tests {
     fn canonical_layout_copilot() {
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/skills/my-skill/SKILL.md");
-        let feat = match_skill(&path, DiscoverySource::COPILOT_CLI, &root).expect("should match");
-        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
+        let feat = match_skill(&path, DiscoverySource::COPILOT, &root).expect("should match");
+        assert_eq!(feat.source, DiscoverySource::COPILOT);
         assert_eq!(feat.layout, Layout::Canonical);
     }
 
@@ -308,8 +308,8 @@ mod tests {
         // .github/copilot/<name>/SKILL.md — the existing aipm accommodation.
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/copilot/my-skill/SKILL.md");
-        let feat = match_skill(&path, DiscoverySource::COPILOT_CLI, &root).expect("should match");
-        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
+        let feat = match_skill(&path, DiscoverySource::COPILOT, &root).expect("should match");
+        assert_eq!(feat.source, DiscoverySource::COPILOT);
         assert_eq!(feat.layout, Layout::CopilotSubroot);
     }
 
@@ -318,8 +318,8 @@ mod tests {
         // The exact #725 customer layout: .github/copilot/skills/<name>/SKILL.md
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/copilot/skills/skill-alpha/SKILL.md");
-        let feat = match_skill(&path, DiscoverySource::COPILOT_CLI, &root).expect("should match");
-        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
+        let feat = match_skill(&path, DiscoverySource::COPILOT, &root).expect("should match");
+        assert_eq!(feat.source, DiscoverySource::COPILOT);
         assert_eq!(feat.layout, Layout::CopilotSubrootWithSkills);
         assert_eq!(
             feat.feature_dir,
@@ -332,8 +332,8 @@ mod tests {
         let root = PathBuf::from("/repo/.github");
         for name in ["skill-alpha", "skill-beta", "skill-gamma"] {
             let path = PathBuf::from(format!("/repo/.github/copilot/skills/{name}/SKILL.md"));
-            let feat = match_skill(&path, DiscoverySource::COPILOT_CLI, &root)
-                .expect("skill should match");
+            let feat =
+                match_skill(&path, DiscoverySource::COPILOT, &root).expect("skill should match");
             assert_eq!(feat.layout, Layout::CopilotSubrootWithSkills);
         }
     }
@@ -374,7 +374,7 @@ mod tests {
         // a per-skill name dir). Single ancestor: "skills".
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/skills/SKILL.md");
-        let feat = match_skill(&path, DiscoverySource::COPILOT_CLI, &root).expect("should match");
+        let feat = match_skill(&path, DiscoverySource::COPILOT, &root).expect("should match");
         assert_eq!(feat.layout, Layout::Canonical);
     }
 
@@ -385,7 +385,7 @@ mod tests {
         // .github/SKILL.md — no skills ancestor, no copilot grandparent.
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/SKILL.md");
-        assert!(match_skill(&path, DiscoverySource::COPILOT_CLI, &root).is_none());
+        assert!(match_skill(&path, DiscoverySource::COPILOT, &root).is_none());
     }
 
     #[test]
@@ -394,13 +394,13 @@ mod tests {
         // ancestors = [copilot]. ancestors.get(1) == None so Case B fails.
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/copilot/SKILL.md");
-        assert!(match_skill(&path, DiscoverySource::COPILOT_CLI, &root).is_none());
+        assert!(match_skill(&path, DiscoverySource::COPILOT, &root).is_none());
     }
 
     #[test]
     fn copilot_subroot_only_works_for_copilot_engine() {
         // Even if path looks like .github/copilot/<name>/SKILL.md, Case B
-        // applies only when source == DiscoverySource::COPILOT_CLI.
+        // applies only when source == DiscoverySource::COPILOT.
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/copilot/my-skill/SKILL.md");
         // Same path with source=Claude — must not match (Case B is engine-gated).
@@ -432,9 +432,9 @@ mod tests {
         // the conservative default.
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/copilot/skills/group/my-skill/SKILL.md");
-        let feat = match_skill(&path, DiscoverySource::COPILOT_CLI, &root).expect("should match");
+        let feat = match_skill(&path, DiscoverySource::COPILOT, &root).expect("should match");
         assert_eq!(feat.kind, FeatureKind::Skill);
-        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
+        assert_eq!(feat.source, DiscoverySource::COPILOT);
     }
 
     #[test]
@@ -475,7 +475,7 @@ mod tests {
     fn returns_correct_path_unchanged() {
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/copilot/skills/skill-alpha/SKILL.md");
-        let feat = match_skill(&path, DiscoverySource::COPILOT_CLI, &root).expect("should match");
+        let feat = match_skill(&path, DiscoverySource::COPILOT, &root).expect("should match");
         assert_eq!(feat.path, path);
     }
 
@@ -498,8 +498,8 @@ mod tests {
     fn agent_under_github_agents() {
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/agents/my-agent.md");
-        let feat = match_agent(&path, DiscoverySource::COPILOT_CLI, &root).expect("should match");
-        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
+        let feat = match_agent(&path, DiscoverySource::COPILOT, &root).expect("should match");
+        assert_eq!(feat.source, DiscoverySource::COPILOT);
     }
 
     #[test]
@@ -540,8 +540,8 @@ mod tests {
         // The CopilotHookDetector pattern: .github/hooks.json directly under root.
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/hooks.json");
-        let feat = match_hook(&path, DiscoverySource::COPILOT_CLI, &root).expect("should match");
-        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
+        let feat = match_hook(&path, DiscoverySource::COPILOT, &root).expect("should match");
+        assert_eq!(feat.source, DiscoverySource::COPILOT);
     }
 
     #[test]

@@ -137,7 +137,7 @@ fn engine_names(set: EngineSet) -> Vec<&'static str> {
         .filter_map(|e| {
             let bit = match e {
                 Engine::Claude => EngineSet::CLAUDE,
-                Engine::CopilotCli => EngineSet::COPILOT_CLI,
+                Engine::Copilot => EngineSet::COPILOT,
             };
             if set.contains(bit) {
                 Some(e.name())
@@ -197,7 +197,7 @@ fn nearest_declared_engines(file_path: &Path, fs: &dyn Fs) -> EngineSet {
         if let Some(engine) = Engine::from_name(&name) {
             match engine {
                 Engine::Claude => set |= EngineSet::CLAUDE,
-                Engine::CopilotCli => set |= EngineSet::COPILOT_CLI,
+                Engine::Copilot => set |= EngineSet::COPILOT,
             }
         }
     }
@@ -300,7 +300,7 @@ mod tests {
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].severity, Severity::Warning);
         assert!(diags[0].message.contains("browser_navigate"));
-        assert!(diags[0].message.contains("copilot-cli"));
+        assert!(diags[0].message.contains("copilot"));
     }
 
     #[test]
@@ -404,16 +404,13 @@ mod tests {
     fn engine_names_for_all_returns_all_kebab_names() {
         let names = engine_names(EngineSet::ALL);
         assert!(names.contains(&"claude"));
-        assert!(names.contains(&"copilot-cli"));
+        assert!(names.contains(&"copilot"));
     }
 
     #[test]
     fn format_toml_string_array_round_trip() {
         assert_eq!(format_toml_string_array(&["claude"]), "[\"claude\"]");
-        assert_eq!(
-            format_toml_string_array(&["claude", "copilot-cli"]),
-            "[\"claude\", \"copilot-cli\"]"
-        );
+        assert_eq!(format_toml_string_array(&["claude", "copilot"]), "[\"claude\", \"copilot\"]");
     }
 
     #[test]

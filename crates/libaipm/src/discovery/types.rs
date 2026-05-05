@@ -54,7 +54,7 @@ impl DiscoverySource {
     /// associated constants are not structural patterns.
     pub const CLAUDE: Self = Self::Engine(Engine::Claude);
     /// Short-hand for the GitHub Copilot CLI engine root (`.github/`).
-    pub const COPILOT_CLI: Self = Self::Engine(Engine::CopilotCli);
+    pub const COPILOT: Self = Self::Engine(Engine::Copilot);
     /// Short-hand for the `.ai/` marketplace-host root.
     pub const AI: Self = Self::MarketplaceHost(MarketplaceHost::Ai);
 }
@@ -129,14 +129,14 @@ mod tests {
 
     #[test]
     fn discovery_source_variants_are_distinct() {
-        assert_ne!(DiscoverySource::CLAUDE, DiscoverySource::COPILOT_CLI);
-        assert_ne!(DiscoverySource::COPILOT_CLI, DiscoverySource::AI);
+        assert_ne!(DiscoverySource::CLAUDE, DiscoverySource::COPILOT);
+        assert_ne!(DiscoverySource::COPILOT, DiscoverySource::AI);
         assert_ne!(DiscoverySource::CLAUDE, DiscoverySource::AI);
     }
 
     #[test]
     fn discovery_source_is_copy() {
-        let s = DiscoverySource::COPILOT_CLI;
+        let s = DiscoverySource::COPILOT;
         let copied = s;
         assert_eq!(s, copied);
     }
@@ -144,7 +144,7 @@ mod tests {
     #[test]
     fn discovery_source_constants_match_tagged_form() {
         assert_eq!(DiscoverySource::CLAUDE, DiscoverySource::Engine(Engine::Claude));
-        assert_eq!(DiscoverySource::COPILOT_CLI, DiscoverySource::Engine(Engine::CopilotCli));
+        assert_eq!(DiscoverySource::COPILOT, DiscoverySource::Engine(Engine::Copilot));
         assert_eq!(DiscoverySource::AI, DiscoverySource::MarketplaceHost(MarketplaceHost::Ai));
     }
 
@@ -166,14 +166,14 @@ mod tests {
     fn discovered_feature_construction() {
         let feat = DiscoveredFeature {
             kind: FeatureKind::Skill,
-            source: DiscoverySource::COPILOT_CLI,
+            source: DiscoverySource::COPILOT,
             layout: Layout::CopilotSubrootWithSkills,
             source_root: PathBuf::from(".github"),
             feature_dir: Some(PathBuf::from(".github/copilot/skills/skill-alpha")),
             path: PathBuf::from(".github/copilot/skills/skill-alpha/SKILL.md"),
         };
         assert_eq!(feat.kind, FeatureKind::Skill);
-        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
+        assert_eq!(feat.source, DiscoverySource::COPILOT);
         assert_eq!(feat.layout, Layout::CopilotSubrootWithSkills);
         assert_eq!(feat.source_root, PathBuf::from(".github"));
         assert!(feat.feature_dir.is_some());
@@ -184,7 +184,7 @@ mod tests {
     fn discovered_feature_clone_and_eq() {
         let feat = DiscoveredFeature {
             kind: FeatureKind::Instructions,
-            source: DiscoverySource::COPILOT_CLI,
+            source: DiscoverySource::COPILOT,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".github"),
             feature_dir: None,

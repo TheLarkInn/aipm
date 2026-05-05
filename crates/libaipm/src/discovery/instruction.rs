@@ -100,7 +100,7 @@ mod tests {
     fn classify_with(name: &str) -> Option<DiscoveredFeature> {
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from(format!("/repo/.github/{name}"));
-        classify(name, &path, DiscoverySource::COPILOT_CLI, &root)
+        classify(name, &path, DiscoverySource::COPILOT, &root)
     }
 
     // --- Case A: exact filenames in INSTRUCTION_FILENAMES ---
@@ -181,11 +181,11 @@ mod tests {
     fn classify_returns_path_unchanged() {
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/instructions.md");
-        let feat = classify("instructions.md", &path, DiscoverySource::COPILOT_CLI, &root)
+        let feat = classify("instructions.md", &path, DiscoverySource::COPILOT, &root)
             .expect("should match");
         assert_eq!(feat.path, path);
         assert_eq!(feat.source_root, root);
-        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
+        assert_eq!(feat.source, DiscoverySource::COPILOT);
         assert!(feat.feature_dir.is_none());
     }
 

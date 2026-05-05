@@ -177,7 +177,7 @@ mod tests {
         let set = discover(root, &opts, &Real).expect("discover should succeed");
         let counts = set.counts();
         assert_eq!(counts.skills, 1, "expected only the .github skill: {counts:?}");
-        assert!(set.features.iter().all(|f| f.source == DiscoverySource::COPILOT_CLI));
+        assert!(set.features.iter().all(|f| f.source == DiscoverySource::COPILOT));
     }
 
     #[test]
@@ -215,7 +215,7 @@ mod tests {
             },
             types::DiscoveredFeature {
                 kind: FeatureKind::Skill,
-                source: DiscoverySource::COPILOT_CLI,
+                source: DiscoverySource::COPILOT,
                 layout: Layout::Canonical,
                 source_root: ".github".into(),
                 feature_dir: None,

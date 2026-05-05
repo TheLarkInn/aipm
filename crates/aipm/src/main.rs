@@ -1076,7 +1076,7 @@ fn cmd_make_plugin(
 
     // Validate engine — accept the legacy "claude" / "copilot" / "both"
     // CLI strings as well as the canonical kebab-case names (e.g.
-    // "copilot-cli") returned by `Engine::name`.
+    // "copilot") returned by `Engine::name`.
     let engine_set = libaipm::make::engine_features::parse_engine_arg(&resolved_engine)
         .ok_or_else(|| libaipm::make::Error::InvalidEngine(resolved_engine.clone()))?;
 

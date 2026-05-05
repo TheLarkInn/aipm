@@ -42,12 +42,12 @@ pub fn marketplace_manifest_path(engine: Engine) -> &'static str {
 pub const fn display_name(engine: Engine) -> &'static str {
     match engine {
         Engine::Claude => "Claude",
-        Engine::CopilotCli => "Copilot",
+        Engine::Copilot => "Copilot",
     }
 }
 
 /// All supported engine names (kebab-case identifiers, e.g. "claude",
-/// "copilot-cli").
+/// "copilot").
 #[must_use]
 pub fn all_names() -> Vec<&'static str> {
     Engine::ALL.iter().map(|e| e.name()).collect()
@@ -132,7 +132,7 @@ fn validate_via_manifest(
     }
 
     // Check if target engine is in the list (case-insensitive against the
-    // schema-driven kebab-case name, e.g. "claude" / "copilot-cli").
+    // schema-driven kebab-case name, e.g. "claude" / "copilot").
     let target_lower = engine.name().to_lowercase();
     let matches = engines.iter().any(|e| e.to_lowercase() == target_lower);
 
@@ -197,7 +197,7 @@ mod tests {
         .unwrap_or_else(|_| {});
 
         assert!(validate_plugin(&plugin_dir, Engine::Claude).is_ok());
-        assert!(validate_plugin(&plugin_dir, Engine::CopilotCli).is_ok());
+        assert!(validate_plugin(&plugin_dir, Engine::Copilot).is_ok());
     }
 
     #[test]
@@ -231,7 +231,7 @@ mod tests {
         std::fs::create_dir_all(plugin_dir.join(".github/plugin")).unwrap_or_else(|_| {});
         std::fs::write(plugin_dir.join(".github/plugin/plugin.json"), "{}").unwrap_or_else(|_| {});
 
-        assert!(validate_plugin(&plugin_dir, Engine::CopilotCli).is_ok());
+        assert!(validate_plugin(&plugin_dir, Engine::Copilot).is_ok());
     }
 
     #[test]
@@ -249,7 +249,7 @@ mod tests {
         let plugin_dir = temp.path().join("my-plugin");
         std::fs::create_dir_all(&plugin_dir).unwrap_or_else(|_| {});
 
-        assert!(validate_plugin(&plugin_dir, Engine::CopilotCli).is_err());
+        assert!(validate_plugin(&plugin_dir, Engine::Copilot).is_err());
     }
 
     #[test]
@@ -263,21 +263,21 @@ mod tests {
 
     #[test]
     fn human_readable_error_multi_marker() {
-        let req = format_marker_requirement(Engine::CopilotCli);
+        let req = format_marker_requirement(Engine::Copilot);
         assert!(req.contains("expected at least one of"));
     }
 
     #[test]
     fn engine_display() {
         assert_eq!(display_name(Engine::Claude), "Claude");
-        assert_eq!(display_name(Engine::CopilotCli), "Copilot");
+        assert_eq!(display_name(Engine::Copilot), "Copilot");
     }
 
     #[test]
     fn engine_all_names() {
         let names = all_names();
         assert!(names.contains(&"claude"));
-        assert!(names.contains(&"copilot-cli"));
+        assert!(names.contains(&"copilot"));
     }
 
     #[test]
@@ -311,9 +311,6 @@ mod tests {
     #[test]
     fn marketplace_manifest_path_returns_correct_path() {
         assert_eq!(marketplace_manifest_path(Engine::Claude), ".claude-plugin/marketplace.toml");
-        assert_eq!(
-            marketplace_manifest_path(Engine::CopilotCli),
-            ".github/plugin/marketplace.json"
-        );
+        assert_eq!(marketplace_manifest_path(Engine::Copilot), ".github/plugin/marketplace.json");
     }
 }

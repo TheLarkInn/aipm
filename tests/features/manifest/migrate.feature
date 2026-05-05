@@ -186,7 +186,7 @@ Feature: Migrate AI tool configurations into marketplace plugins
 
   Rule: Copilot CLI default path (.github/copilot/) is discovered
 
-    Scenario: Migrate a skill from .github/copilot/ (default copilot-cli path)
+    Scenario: Migrate a skill from .github/copilot/ (default copilot path)
       Given an empty directory "my-project"
       And a workspace initialized in "my-project"
       And a copilot skill "deploy" exists in "my-project"
@@ -195,7 +195,7 @@ Feature: Migrate AI tool configurations into marketplace plugins
       And a plugin directory exists at ".ai/deploy/" in "my-project"
       And a file ".ai/deploy/skills/deploy/SKILL.md" exists in "my-project"
 
-    Scenario: Dry run finds skills in .github/copilot/ (default copilot-cli path)
+    Scenario: Dry run finds skills in .github/copilot/ (default copilot path)
       Given an empty directory "my-project"
       And a workspace initialized in "my-project"
       And a copilot skill "deploy" exists in "my-project"
