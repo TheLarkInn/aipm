@@ -597,6 +597,14 @@ mod tests {
     // --- match_marketplace ---
 
     #[test]
+    fn marketplace_wrong_filename_no_match() {
+        // Exercises the `file_name != MARKETPLACE_JSON` early-return guard.
+        let root = PathBuf::from("/repo/.ai");
+        let path = PathBuf::from("/repo/.ai/.claude-plugin/other.json");
+        assert!(match_marketplace(&path, DiscoverySource::AI, &root).is_none());
+    }
+
+    #[test]
     fn marketplace_at_canonical_path() {
         let root = PathBuf::from("/repo/.ai");
         let path = PathBuf::from("/repo/.ai/.claude-plugin/marketplace.json");
@@ -620,6 +628,14 @@ mod tests {
     }
 
     // --- match_plugin_json ---
+
+    #[test]
+    fn plugin_json_wrong_filename_no_match() {
+        // Exercises the `file_name != PLUGIN_JSON` early-return guard.
+        let root = PathBuf::from("/repo/.ai");
+        let path = PathBuf::from("/repo/.ai/my-plugin/.claude-plugin/other.json");
+        assert!(match_plugin_json(&path, DiscoverySource::AI, &root).is_none());
+    }
 
     #[test]
     fn plugin_json_at_canonical_path() {
