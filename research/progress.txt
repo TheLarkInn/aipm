@@ -1,3 +1,26 @@
+## Feature 7 — `validate_via_manifest` cleanup (PASS)
+
+Date: 2026-05-05
+Iteration: 7
+Status: passes=true, all four CLAUDE.md gates green, coverage 90.16% (>=89% required)
+
+Changes shipped:
+- `crates/libaipm/src/engine.rs:99-148` — removed the private `MinimalPackage` and `MinimalManifest` shadow deserializer structs. Replaced the bespoke deserialization with a call to `crate::manifest::parse(...)` followed by `crate::manifest::effective_engines(pkg, workspace)`. Result is now an `Option<EngineSet>` (typed bitset) rather than `Vec<String>` (raw strings).
+- The "broken manifest = universal" tolerance is preserved: I/O errors and parse errors short-circuit to `Ok(())`. Note: post-rename, manifests with `engines = ["copilot-cli"]` (legacy form) trigger the deserializer's "all-unknown" rejection and now fall through to "universal" instead of producing an `IncompatibleEngine` error. This is a small user-facing regression for typo detection in unknown engine names but matches the canonical schema's strictness contract.
+- The error-message `declared` field now contains canonical engine names (e.g. `["claude"]`) reconstructed from the bitset rather than the raw user strings. Silently-dropped unknowns no longer appear in the error.
+- 1 existing test fixture updated (`validate_with_aipm_toml_engine_not_in_list`): the inline TOML had escaped-quote `\"copilot-cli\"` that wasn't caught by iteration 1's bulk replace_all (same edge case as the iteration-1 valid_tool_name.rs fix). Updated to `\"copilot\"`.
+- 2 NEW tests added:
+  - `validate_inherits_engines_from_workspace_when_package_omits` — package omits engines, workspace declares `["claude"]`. Validating Claude → Ok; validating Copilot → Err. Confirms workspace inheritance via effective_engines.
+  - `validate_package_engines_override_workspace_engines` — package declares `["copilot"]`, workspace declares `["claude"]`. Confirms package wins (no merging).
+
+Test results: engine.rs now has 16 tests (14 original + 2 new inheritance), all green. libaipm at 2176 unit tests total.
+
+Notes for future iterations:
+- Feature 17 (`valid-tool-name` lint cleanup) will perform a similar migration on `nearest_declared_engines`, which currently uses its own `MinimalManifest` shadow deserializer.
+- One subtle behavior change to flag: pre-migration, `engines = ["future-engine"]` (all-unknown list) would error with `IncompatibleEngine{declared: ["future-engine"]}`. Post-migration, the canonical deserializer rejects that as a parse error and `validate_via_manifest` falls through to "universal". Documented in the function doc comment.
+
+---
+
 ## Feature 6 — `manifest::effective_engines` helper (PASS)
 
 Date: 2026-05-05

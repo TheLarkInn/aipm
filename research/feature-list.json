@@ -87,7 +87,7 @@
       "Update or extend the existing tests in `engine.rs::tests` to confirm: (a) workspace-level engines are now respected when package omits them; (b) malformed manifests still fall back to 'all engines'.",
       "Run all four CLAUDE.md gates."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
