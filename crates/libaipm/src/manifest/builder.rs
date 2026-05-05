@@ -497,6 +497,24 @@ mod tests {
     }
 
     #[test]
+    fn plugin_manifest_empty_engines_slice_omits_field() {
+        // Exercises the False branch of `if !engines.is_empty()` (line 73):
+        // when engines is Some(&[]) the key must NOT appear in the manifest.
+        let opts = PluginManifestOpts {
+            name: "no-engine-restriction",
+            version: "0.1.0",
+            plugin_type: None,
+            description: None,
+            engines: Some(&[]),
+        };
+        let output = build_plugin_manifest(&opts, None);
+        assert!(
+            !output.contains("engines"),
+            "empty engines slice should not produce an engines key: {output}"
+        );
+    }
+
+    #[test]
     fn insert_string_array_ignores_some_empty_slice() {
         // Exercises the False branch of `if !items.is_empty()` inside
         // `insert_string_array`: when the value is `Some(&[])` (present but empty),
