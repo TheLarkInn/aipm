@@ -64,7 +64,7 @@
       "Existing tests must continue to pass unchanged: `matching_fields_no_diagnostic`, `name_mismatch_emits_diagnostic`, `description_mismatch_emits_diagnostic`, etc.",
       "Verify all four CLAUDE.md gates pass and branch coverage >= 89%."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "security",

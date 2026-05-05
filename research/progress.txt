@@ -5,8 +5,8 @@ Research: research/tickets/2026-05-05-0793-security-review-findings.md
 Tracking: https://github.com/TheLarkInn/aipm/issues/793
 
 Total features: 8 (originally 9; Features 1 and 2 merged in iteration 1)
-Completed:      4
-Passing:        4
+Completed:      5
+Passing:        5
 Status:         In progress
 
 ---
@@ -42,7 +42,7 @@ work precedes its appliers; Finding 3 workflow change is independent and lands l
 - [x] 2. ci-github regression test for newline in file_path           (test; F1 verification)
 - [x] 3. Move is_path_safe to new lint::path_guard module             (refactor; F2 prep)
 - [x] 4. Apply path_guard to marketplace_source_resolve rule          (security; F2)
-- [ ] 5. Apply path_guard to marketplace_field_mismatch rule          (security; F2)
+- [x] 5. Apply path_guard to marketplace_field_mismatch rule          (security; F2)
 - [ ] 6. Cap valid_tool_name parent-walk at lint::Options::dir        (security; F2)
 - [ ] 7. BDD feature path-containment.feature + step definitions       (test; F1 + F2)
 - [ ] 8. release-nuget.yml: env, attestation, remove fallback         (ci; F3)
@@ -146,5 +146,27 @@ Changes:
     - middle_segment_traversal_in_source_rejected
 
 Tests: 17 marketplace_source_resolve tests pass (was 13).
+
+### Iteration 5 — 2026-05-05 — Feature 5 (marketplace_field_mismatch guard)
+Status: passes=true (pending cargo-verifier confirmation)
+
+Changes:
+- crates/libaipm/src/lint/rules/marketplace_field_mismatch.rs:
+  * Inserted `crate::lint::path_guard::is_safe_path(trimmed)` guard before
+    `ai_dir.join(trimmed).join(".claude-plugin").join("plugin.json")`.
+  * On rejection: silently `continue` to the next plugin entry, so
+    `fs.read_to_string(&pj_path)` is never reached. No new diagnostic id
+    (the sibling `marketplace/source-resolve` rule surfaces the unsafe
+    source to the user).
+  * Added 3 deliberate-trap unit tests that seed MockFs with a
+    plugin.json at the unfixed code's pj_path containing a name AND
+    description that differ from the marketplace entry. Without the
+    guard, this would produce a name-mismatch + description-mismatch
+    diagnostic; with the guard, the entry is silently skipped:
+    - parent_dir_traversal_in_source_skipped_no_fs_read
+    - absolute_path_in_source_skipped_no_fs_read
+    - middle_segment_traversal_in_source_skipped
+
+Tests: 18 marketplace_field_mismatch tests pass (was 15).
 
 

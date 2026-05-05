@@ -86,8 +86,17 @@ fn check_mismatch(mp_path: &Path, ai_dir: &Path, fs: &dyn Fs) -> Vec<Diagnostic>
         let mp_name = entry.get("name").and_then(serde_json::Value::as_str).unwrap_or("");
         let mp_desc = entry.get("description").and_then(serde_json::Value::as_str);
 
-        let pj_path =
-            ai_dir.join(source.trim_start_matches("./")).join(".claude-plugin").join("plugin.json");
+        // Reject parent-dir traversal, absolute roots, and Windows drive
+        // prefixes before any filesystem read (issue #793 Finding 2). The
+        // sibling rule `marketplace/source-resolve` surfaces unsafe source
+        // paths to the user; this rule's job is reconciling marketplace
+        // fields with plugin.json content, which is impossible for a
+        // rejected path — silently skip the entry.
+        let trimmed = source.trim_start_matches("./");
+        if !crate::lint::path_guard::is_safe_path(trimmed) {
+            continue;
+        }
+        let pj_path = ai_dir.join(trimmed).join(".claude-plugin").join("plugin.json");
 
         let Ok(pj_content) = fs.read_to_string(&pj_path) else {
             continue; // other rules handle missing plugin.json
@@ -308,6 +317,68 @@ mod tests {
         let mut fs = MockFs::new();
         fs.add_marketplace_json(&make_marketplace("foo", "some desc", "./foo"));
         fs.add_plugin_json("foo", r#"{"description":"some desc","version":"0.1.0"}"#);
+        let result =
+            FieldMismatch.check_file(Path::new(".ai/.claude-plugin/marketplace.json"), &fs);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    // --- Path-containment guard (issue #793 Finding 2) ---
+    //
+    // Each negative test seeds MockFs so that the file the unfixed code
+    // would read via `ai_dir.join(source).join(".claude-plugin").join("plugin.json")`
+    // resolves to a plugin.json with fields that DIFFER from the marketplace
+    // entry. Without the guard this would generate a name- or description-
+    // mismatch diagnostic; with the guard the rule silently skips the entry
+    // (the sibling `marketplace/source-resolve` rule is what surfaces the
+    // unsafe source to the user).
+
+    #[test]
+    fn parent_dir_traversal_in_source_skipped_no_fs_read() {
+        use std::path::PathBuf;
+        let mut fs = MockFs::new();
+        fs.add_marketplace_json(&make_marketplace("evil", "real-desc", "../../etc/passwd"));
+        // Seed a deliberate-mismatch plugin.json at the path the unfixed
+        // code would build via Path::join.
+        fs.files.insert(
+            PathBuf::from(".ai/../../etc/passwd/.claude-plugin/plugin.json"),
+            make_plugin_json("DIFFERENT-NAME", "DIFFERENT-DESC"),
+        );
+        let result =
+            FieldMismatch.check_file(Path::new(".ai/.claude-plugin/marketplace.json"), &fs);
+        assert!(result.is_ok());
+        // With the guard in place the entry is skipped → no diagnostic.
+        // Without it, the seeded mismatch would produce a name-mismatch
+        // diagnostic (and likely a description-mismatch diagnostic too).
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[test]
+    fn absolute_path_in_source_skipped_no_fs_read() {
+        use std::path::PathBuf;
+        let mut fs = MockFs::new();
+        fs.add_marketplace_json(&make_marketplace("evil", "real-desc", "/etc/passwd"));
+        // ai_dir.join("/etc/passwd") = "/etc/passwd" (Path::join resets on
+        // absolute), so the unfixed pj_path is "/etc/passwd/.claude-plugin/plugin.json".
+        fs.files.insert(
+            PathBuf::from("/etc/passwd/.claude-plugin/plugin.json"),
+            make_plugin_json("DIFFERENT-NAME", "DIFFERENT-DESC"),
+        );
+        let result =
+            FieldMismatch.check_file(Path::new(".ai/.claude-plugin/marketplace.json"), &fs);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[test]
+    fn middle_segment_traversal_in_source_skipped() {
+        use std::path::PathBuf;
+        let mut fs = MockFs::new();
+        fs.add_marketplace_json(&make_marketplace("evil", "real-desc", "foo/../bar"));
+        fs.files.insert(
+            PathBuf::from(".ai/foo/../bar/.claude-plugin/plugin.json"),
+            make_plugin_json("DIFFERENT", "DIFFERENT"),
+        );
         let result =
             FieldMismatch.check_file(Path::new(".ai/.claude-plugin/marketplace.json"), &fs);
         assert!(result.is_ok());
