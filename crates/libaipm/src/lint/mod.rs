@@ -15,7 +15,7 @@ pub mod rules;
 
 pub use error::Error;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::discovery::types::DiscoverySource;
 use crate::discovery::{DiscoverOptions, DiscoveredFeature, FeatureKind, ScanCounts};
@@ -88,6 +88,7 @@ fn apply_rule_diagnostics(
 fn run_rules_for_feature(
     feature: &DiscoveredFeature,
     ai_exists: bool,
+    lint_dir: &Path,
     fs: &dyn Fs,
     config: &config::Config,
     diagnostics: &mut Vec<Diagnostic>,
@@ -115,7 +116,7 @@ fn run_rules_for_feature(
         if config.is_suppressed(rule.id()) {
             continue;
         }
-        let rule_diagnostics = rule.check_file(&feature.path, fs)?;
+        let rule_diagnostics = rule.check_file_in(&feature.path, lint_dir, fs)?;
         apply_rule_diagnostics(rule.as_ref(), rule_diagnostics, config, diagnostics);
     }
 
@@ -125,7 +126,7 @@ fn run_rules_for_feature(
     if !is_inside_ai && feature.kind != FeatureKind::Instructions {
         let rule = rules::misplaced_features_rule(feature, ai_exists);
         if !config.is_suppressed(rule.id()) {
-            let rule_diagnostics = rule.check_file(&feature.path, fs)?;
+            let rule_diagnostics = rule.check_file_in(&feature.path, lint_dir, fs)?;
             apply_rule_diagnostics(&rule, rule_diagnostics, config, diagnostics);
         }
     }
@@ -179,7 +180,14 @@ pub fn lint(opts: &Options, fs: &dyn Fs) -> Result<Outcome, Error> {
 
     // Run rules per discovered feature.
     for feature in &discovered.features {
-        run_rules_for_feature(feature, ai_exists, fs, &opts.config, &mut all_diagnostics)?;
+        run_rules_for_feature(
+            feature,
+            ai_exists,
+            &opts.dir,
+            fs,
+            &opts.config,
+            &mut all_diagnostics,
+        )?;
     }
 
     // Sort by file path, then line, then column for consistent output.

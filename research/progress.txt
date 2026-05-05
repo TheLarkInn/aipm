@@ -5,8 +5,8 @@ Research: research/tickets/2026-05-05-0793-security-review-findings.md
 Tracking: https://github.com/TheLarkInn/aipm/issues/793
 
 Total features: 8 (originally 9; Features 1 and 2 merged in iteration 1)
-Completed:      5
-Passing:        5
+Completed:      6
+Passing:        6
 Status:         In progress
 
 ---
@@ -43,7 +43,7 @@ work precedes its appliers; Finding 3 workflow change is independent and lands l
 - [x] 3. Move is_path_safe to new lint::path_guard module             (refactor; F2 prep)
 - [x] 4. Apply path_guard to marketplace_source_resolve rule          (security; F2)
 - [x] 5. Apply path_guard to marketplace_field_mismatch rule          (security; F2)
-- [ ] 6. Cap valid_tool_name parent-walk at lint::Options::dir        (security; F2)
+- [x] 6. Cap valid_tool_name parent-walk at lint::Options::dir        (security; F2)
 - [ ] 7. BDD feature path-containment.feature + step definitions       (test; F1 + F2)
 - [ ] 8. release-nuget.yml: env, attestation, remove fallback         (ci; F3)
 
@@ -168,5 +168,37 @@ Changes:
     - middle_segment_traversal_in_source_skipped
 
 Tests: 18 marketplace_field_mismatch tests pass (was 15).
+
+### Iteration 6 — 2026-05-05 — Feature 6 (valid_tool_name parent-walk cap)
+Status: passes=true (pending cargo-verifier confirmation)
+
+Changes:
+- crates/libaipm/src/lint/rule.rs:
+  * Extended `Rule` trait with `check_file_in(&self, file_path, lint_dir, fs)`
+    method, default impl delegates to `check_file`. Only rules that walk the
+    directory tree above `file_path` need to override it.
+- crates/libaipm/src/lint/mod.rs:
+  * Added `Path` to imports.
+  * `run_rules_for_feature` now takes `lint_dir: &Path` and forwards to
+    `rule.check_file_in(&feature.path, lint_dir, fs)?` for both quality
+    rules and the misplaced-features rule.
+  * `lint()` passes `&opts.dir` as the lint_dir.
+- crates/libaipm/src/lint/rules/valid_tool_name.rs:
+  * Overrode `check_file_in`; legacy `check_file` now delegates with an
+    empty `lint_dir` (cap disabled — preserves prior behaviour for direct
+    callers and the catalog query).
+  * `nearest_declared_engines` and `find_nearest_manifest` both gain a
+    `lint_dir: &Path` parameter.
+  * `find_nearest_manifest` checks `if cap_enabled && dir == lint_dir
+    { return None; }` AFTER the candidate-found check, so a manifest at
+    exactly `lint_dir/aipm.toml` is found (inclusive boundary).
+  * Empty `lint_dir` (legacy callers) sets `cap_enabled = false`.
+  * Added 4 new unit tests:
+    - parent_walk_stops_at_lint_dir_above_manifest_invisible
+    - parent_walk_succeeds_inside_lint_dir
+    - parent_walk_finds_manifest_at_lint_dir_boundary
+    - legacy_check_file_path_disables_cap
+
+Tests: 25 valid_tool_name tests pass (was 21); 407 total lint:: tests pass.
 
 

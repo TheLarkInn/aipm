@@ -79,7 +79,7 @@
       "Existing 21 tests in `valid_tool_name.rs:218-506` must continue to pass. Note: helper `manifest_path()` at lines 228-230 produces `.ai/p/aipm.toml`; tests now need to supply a `lint_dir` argument (most tests can use `Path::new(\".ai/p\")` or similar to match the existing fixture root).",
       "Verify all four CLAUDE.md gates pass and branch coverage >= 89%."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test",
