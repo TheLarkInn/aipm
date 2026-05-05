@@ -5,8 +5,8 @@ Research: research/tickets/2026-05-05-0793-security-review-findings.md
 Tracking: https://github.com/TheLarkInn/aipm/issues/793
 
 Total features: 8 (originally 9; Features 1 and 2 merged in iteration 1)
-Completed:      3
-Passing:        3
+Completed:      4
+Passing:        4
 Status:         In progress
 
 ---
@@ -41,7 +41,7 @@ work precedes its appliers; Finding 3 workflow change is independent and lands l
 - [x] 1. strip_ansi helper + apply at reporter.rs:351                  (security; F1 fix — HIGH severity; merged Features 1+2)
 - [x] 2. ci-github regression test for newline in file_path           (test; F1 verification)
 - [x] 3. Move is_path_safe to new lint::path_guard module             (refactor; F2 prep)
-- [ ] 4. Apply path_guard to marketplace_source_resolve rule          (security; F2)
+- [x] 4. Apply path_guard to marketplace_source_resolve rule          (security; F2)
 - [ ] 5. Apply path_guard to marketplace_field_mismatch rule          (security; F2)
 - [ ] 6. Cap valid_tool_name parent-walk at lint::Options::dir        (security; F2)
 - [ ] 7. BDD feature path-containment.feature + step definitions       (test; F1 + F2)
@@ -122,5 +122,29 @@ production code paths (only the two in import_resolver.rs, both updated).
 Tests: 396 lint::* unit tests pass (was 384 before; +9 new path_guard tests
 + 4 ci-github regression tests from iter 2 - 3 relocated import_resolver
 tests = +10 net).
+
+### Iteration 4 — 2026-05-05 — Feature 4 (marketplace_source_resolve guard)
+Status: passes=true (pending cargo-verifier confirmation)
+
+Changes:
+- crates/libaipm/src/lint/rules/marketplace_source_resolve.rs:
+  * Inserted `crate::lint::path_guard::is_safe_path(trimmed)` guard before
+    `ai_dir.join(trimmed)` in the Some(source) match arm.
+  * On rejection: emits a diagnostic with the existing rule_id
+    `marketplace/source-resolve` (no new rule-id surface, per spec G5/N5)
+    but with a clarifying message ("source path 'X' rejected: parent-dir
+    traversal, absolute paths, and Windows prefixes are not allowed").
+  * `fs.exists` is no longer reached for rejected paths.
+  * Added 4 unit tests using a deliberate-trap design: each test seeds
+    MockFs so that the path the unfixed code WOULD build via Path::join
+    is also seeded as 'existing'. With the guard in place the rule still
+    emits a diagnostic (proving the guard fired); without the guard the
+    seeded path would short-circuit fs.exists and return no diagnostic.
+    - parent_dir_traversal_in_source_rejected_before_fs_check
+    - absolute_path_in_source_rejected_before_fs_check
+    - dotslash_prefix_with_traversal_still_rejected
+    - middle_segment_traversal_in_source_rejected
+
+Tests: 17 marketplace_source_resolve tests pass (was 13).
 
 

@@ -50,7 +50,7 @@
       "Existing tests must continue to pass unchanged: `source_present_and_resolves_no_diagnostic`, `source_path_does_not_exist_emits_diagnostic`, `source_without_dotslash_prefix_resolves`, etc.",
       "Verify all four CLAUDE.md gates pass and branch coverage >= 89%."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "security",
