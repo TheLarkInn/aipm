@@ -39,6 +39,23 @@ aipm migrate --source .claude
 | `--manifest` | Generate `aipm.toml` plugin manifests for each migrated plugin |
 | `--no-summary` | Suppress the default scan summary line printed to stderr |
 
+### Scan summary
+
+After every run, `aipm migrate` prints a one-line summary to **stderr** describing
+what the discovery walker found before writing any files:
+
+```
+Scanned 5 directories in [.github, .claude]; matched 3 skills, 2 agents, 1 hook
+```
+
+Categories with zero matches are omitted. If nothing was discovered:
+
+```
+Scanned 2 directories in [.claude]; matched 0 features
+```
+
+Suppress the summary with `--no-summary`.
+
 ## Detected Artifact Types
 
 `aipm migrate` supports two source ecosystems, each with its own set of detectors.

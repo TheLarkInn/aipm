@@ -33,6 +33,19 @@ aipm lint --source .github
 > **Deprecated flag:** `--format` is a hidden alias for `--reporter` kept for backward
 > compatibility. Prefer `--reporter` in all new scripts and CI configurations.
 
+### Scan summary
+
+After every run, `aipm lint` prints a one-line summary to **stderr** describing what
+the discovery walker found:
+
+```
+Scanned 3 directories in [.github, .claude]; matched 3 skills, 1 instruction
+```
+
+The summary goes to stderr so it never contaminates machine-readable stdout reporters
+(`json`, `ci-github`, `ci-azure`). Suppress it with `--no-summary`, or it is
+auto-suppressed when `--log-format=json` is set.
+
 ### Color auto-detection
 
 When `--color auto` (the default) is in effect, `aipm lint` disables ANSI color if
@@ -328,7 +341,7 @@ All available rules, grouped by category:
 
 | Rule | Severity | Description |
 |------|----------|-------------|
-| [`instructions/oversized`](../rules/instructions/oversized.md) | warning | Instruction file (`CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, `*.instructions.md`) exceeds the configured line or character limit |
+| [`instructions/oversized`](../rules/instructions/oversized.md) | warning | Instruction file (`CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, `*.instructions.md`, `.github/copilot-instructions.md`) exceeds the configured line or character limit |
 
 ### `source/`
 
@@ -373,6 +386,7 @@ File types that receive diagnostics and completions:
 | `**/GEMINI.md` | Gemini instruction file |
 | `**/INSTRUCTIONS.md` | Generic instruction file |
 | `**/*.instructions.md` | Scoped instruction files (e.g. `frontend.instructions.md`) |
+| `.github/copilot-instructions.md` | GitHub Copilot repository-level instructions |
 
 ### Configuration
 
