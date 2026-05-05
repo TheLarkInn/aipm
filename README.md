@@ -436,7 +436,7 @@ version = "1.2.3"
 description = "CI automation skills"
 type = "composite"
 files = ["skills/", "hooks/", "README.md"]
-engines = ["claude", "copilot"]   # optional — omit to support all engines
+engines = ["claude", "copilot-cli"]   # optional — omit to support all engines
 
 [package.source]                  # optional — marketplace stub redirect
 type = "git"

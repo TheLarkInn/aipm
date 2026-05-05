@@ -11,7 +11,7 @@ aipm install --global github:org/repo:plugins/my-tool@main
 
 # Install for a specific engine only
 aipm install --global --engine claude github:org/repo:my-plugin@main
-aipm install --global --engine copilot local:./copilot-tool
+aipm install --global --engine copilot-cli local:./copilot-tool
 ```
 
 ## Uninstall Globally
@@ -47,9 +47,9 @@ aipm list --global
 aipm install --global --engine claude local:./my-plugin
 # installed.json: engines: ["claude"]
 
-# Add Copilot
-aipm install --global --engine copilot local:./my-plugin
-# installed.json: engines: ["claude", "copilot"]
+# Add Copilot CLI
+aipm install --global --engine copilot-cli local:./my-plugin
+# installed.json: engines: ["claude", "copilot-cli"]
 
 # Reset to all engines
 aipm install --global local:./my-plugin
@@ -57,7 +57,7 @@ aipm install --global local:./my-plugin
 
 # Remove just Claude
 aipm uninstall --global --engine claude local:./my-plugin
-# installed.json: engines: ["copilot"]
+# installed.json: engines: ["copilot-cli"]
 ```
 
 ## Name Conflict Rules
@@ -67,7 +67,7 @@ Two different plugin sources with the same folder name cannot be installed for o
 ```bash
 # This works (non-overlapping engines):
 aipm install --global --engine claude github:org/repo:my-plugin@main
-aipm install --global --engine copilot local:./my-plugin
+aipm install --global --engine copilot-cli local:./my-plugin
 
 # This fails (overlapping — both target all engines):
 aipm install --global github:org/repo:my-plugin@main

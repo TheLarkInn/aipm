@@ -114,7 +114,7 @@ Valid examples: `my-plugin`, `ci-tools`, `@acme/code-review`
     version = "0.1.0"
     type = "skill"
     description = "Runs project-specific lint checks"
-    engines = ["claude", "copilot"]
+    engines = ["claude", "copilot-cli"]
     files = ["skills/"]
     ```
 

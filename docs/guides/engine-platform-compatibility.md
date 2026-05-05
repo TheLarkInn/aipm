@@ -12,7 +12,7 @@ In your plugin's `aipm.toml`:
 [package]
 name = "my-plugin"
 version = "1.0.0"
-engines = ["claude", "copilot"]    # Optional; omit for all engines
+engines = ["claude", "copilot-cli"]    # Optional; omit for all engines
 ```
 
 | Value | Meaning |
@@ -20,8 +20,8 @@ engines = ["claude", "copilot"]    # Optional; omit for all engines
 | `engines` omitted | Universal — works with all engines |
 | `engines = []` | Universal — works with all engines |
 | `engines = ["claude"]` | Claude only |
-| `engines = ["copilot"]` | Copilot only |
-| `engines = ["claude", "copilot"]` | Both Claude and Copilot |
+| `engines = ["copilot-cli"]` | Copilot CLI only |
+| `engines = ["claude", "copilot-cli"]` | Both Claude and Copilot CLI |
 
 ### Validation Behavior
 
