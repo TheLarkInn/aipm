@@ -115,16 +115,18 @@ aipm init [OPTIONS] [DIR]
 | `--no-starter` | Skip the starter plugin (bare `.ai/` directory only) |
 | `--manifest` | Generate `aipm.toml` manifests for each plugin (opt-in) |
 | `--name <NAME>` | Custom marketplace name (default: `local-repo-plugins`) |
+| `--engine <LIST>` | Engines to scaffold for: `claude`, `copilot`, or `claude,copilot`. Defaults to `copilot` with `--yes`. |
 
-When run on a TTY without `--yes`, launches an interactive wizard.
+When run on a TTY without `--yes`, launches an interactive wizard that includes an engine-selection step.
 
-**What it creates:**
+**What it creates (varies by `--engine`):**
 - `.ai/` — local marketplace directory
 - `.ai/starter-aipm-plugin/` — starter plugin (unless `--no-starter`)
-- `.claude/settings.json` — Claude Code marketplace registration (created/merged at project root)
+- `.github/copilot-instructions.md` — Copilot marketplace pointer (`--engine copilot`, the `--yes` default)
+- `.claude/settings.json` — Claude Code marketplace registration (`--engine claude`)
 - `aipm.toml` — workspace manifest (with `--workspace`)
 
-See also: [`docs/guides/init.md`](docs/guides/init.md) for a full walkthrough of initialization modes, tool settings integration, and next steps.
+See also: [`docs/guides/init.md`](docs/guides/init.md) for a full walkthrough of initialization modes, engine-aware scaffolding, and next steps.
 
 ### `aipm migrate`
 
@@ -398,7 +400,7 @@ Shared library powering the CLI. All logic lives here; the binary is a thin wrap
 | `manifest::validate` | Name format, semver, dependency version, component path validation |
 | `init` | Plugin package scaffolding (`aipm pack init`) |
 | `workspace_init` | Workspace + `.ai/` marketplace scaffolding (`aipm init`) |
-| `workspace_init::adaptors` | Tool-specific config writers (Claude Code; Copilot/Cursor planned) |
+| `workspace_init::adaptors` | Tool-specific config writers (Claude Code, Copilot CLI; Cursor planned) |
 | `workspace` | Workspace root discovery and `[workspace].members` glob expansion |
 | `migrate` | Tool config migration with recursive discovery, dry-run, and all artifact types |
 | `lint` | Quality linting for AI plugin configurations, diagnostics, and reporting |
@@ -592,7 +594,7 @@ The following features are defined as BDD scenarios and tracked as open issues. 
 
 - 🔨 **Guardrails** — `aipm lint` with 18 rules and 4 reporters ships today (see [`docs/guides/lint.md`](docs/guides/lint.md)); auto-fix and quality scoring on publish are not yet implemented ([#13](https://github.com/TheLarkInn/aipm/issues/13))
 - 🔨 **Compositional Reuse** — spec, acquirer, and marketplace modules ship; full publish/consume workflow for standalone primitives pending ([#14](https://github.com/TheLarkInn/aipm/issues/14))
-- 🔨 **Cross-Stack** — Claude Code adaptor ships today; Copilot CLI, Cursor, and OpenCode adaptors planned ([#15](https://github.com/TheLarkInn/aipm/issues/15))
+- 🔨 **Cross-Stack** — Claude Code and Copilot CLI adaptors ship today; Cursor and OpenCode adaptors planned ([#15](https://github.com/TheLarkInn/aipm/issues/15))
 
 ---
 

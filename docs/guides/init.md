@@ -23,7 +23,8 @@ fails with `already initialized` to protect existing configuration.
 
 ## What gets created
 
-Running `aipm init` (the default, no-flag invocation) creates:
+Running `aipm init` (default, no-flag invocation) with the default **copilot**
+engine creates:
 
 ```
 .ai/
@@ -32,7 +33,7 @@ Running `aipm init` (the default, no-flag invocation) creates:
     marketplace.json                      # registers the local marketplace
   starter-aipm-plugin/
     .claude-plugin/
-      plugin.json                         # Claude Code plugin manifest
+      plugin.json                         # plugin manifest
     skills/
       scaffold-plugin/
         SKILL.md                          # example skill
@@ -43,9 +44,12 @@ Running `aipm init` (the default, no-flag invocation) creates:
     scripts/
       scaffold-plugin.sh                  # scaffold helper script
     .mcp.json                             # MCP server stub
-.claude/
-  settings.json                           # registers the marketplace + enables starter plugin
+.github/
+  copilot-instructions.md                 # Copilot marketplace pointer (copilot engine)
 ```
+
+Using `--engine claude` produces `.claude/settings.json` instead of
+`.github/copilot-instructions.md`. Using `--engine claude,copilot` produces both.
 
 Adding `--workspace` also creates:
 
@@ -63,6 +67,7 @@ aipm.toml                                 # workspace manifest with [workspace] 
 | `--no-starter` | Omit the starter plugin; create a bare `.ai/` directory only |
 | `--manifest` | Generate an `aipm.toml` plugin manifest for the starter plugin (opt-in) |
 | `--name <NAME>` | Custom marketplace name (default: `local-repo-plugins`) |
+| `--engine <LIST>` | Engines to scaffold for, comma-separated (e.g. `claude`, `copilot`, or `claude,copilot`). Repeated flags are merged. Omit to let the wizard prompt. |
 | `DIR` | Target directory (default: current directory) |
 
 ## Initialization modes
@@ -113,15 +118,102 @@ want the boilerplate starter.
 aipm init --workspace --marketplace --no-starter
 ```
 
+## Engine-aware scaffolding
+
+`aipm init` creates tool-specific configuration files only for the engines you
+are actually using. Use `--engine` to control which engine adaptors run:
+
+| Command | Files created |
+|---------|--------------|
+| `aipm init --engine claude` | `.claude/settings.json` only |
+| `aipm init --engine copilot` | `.github/copilot-instructions.md` only |
+| `aipm init --engine claude,copilot` | Both — `.claude/settings.json` **and** `.github/copilot-instructions.md` |
+
+Repeated `--engine` flags are merged, so `--engine claude --engine copilot` is
+equivalent to `--engine claude,copilot`.
+
+When run non-interactively (`--yes`) without `--engine`, the default is
+**copilot** (Copilot CLI). The interactive wizard always prompts for your
+preferred engine.
+
+### Copilot CLI scaffold
+
+`--engine copilot` creates `.github/copilot-instructions.md` instead of
+`.claude/settings.json`. This file registers the `.ai/` marketplace as a Copilot
+instruction source:
+
+```
+.github/
+  copilot-instructions.md    # Marketplace pointer + starter-plugin section
+```
+
+Example content (with the starter plugin):
+
+```markdown
+# Copilot Instructions
+
+This project uses [aipm](https://github.com/TheLarkInn/aipm) to manage AI plugins.
+The local marketplace lives at `.ai/` and is registered as `local-repo-plugins`.
+
+## Default plugin
+
+This project bundles the `starter-aipm-plugin@local-repo-plugins` plugin.
+
+<!-- aipm marketplace pointer; do not edit between markers -->
+<!-- AIPM_MARKETPLACE: local-repo-plugins -->
+```
+
+Existing `copilot-instructions.md` files are left untouched — `aipm` never
+overwrites user-managed content.
+
+### Claude Code scaffold
+
+`--engine claude` creates or merges `.claude/settings.json` (unchanged from
+earlier behavior):
+
+```json
+{
+  "extraKnownMarketplaces": [
+    { "type": "directory", "directory": "./.ai" }
+  ],
+  "enabledPlugins": ["starter-aipm-plugin@local-repo-plugins"]
+}
+```
+
+### Declaring engine support in `aipm.toml`
+
+The `--engine` flag controls *which adaptors scaffold*; it does not
+automatically write an `engines` field to `aipm.toml`. To declare which
+engines the workspace plugins are compatible with, add the optional
+`engines` field manually (or via `--workspace`):
+
+```toml
+[workspace]
+members = [".ai/*"]
+engines = ["claude", "copilot"]   # omit to support all engines
+```
+
+Accepted values are `"claude"` and `"copilot"`. Omitting the field (or
+setting it to `[]`) means "all engines". The same field is available on
+`[package]` for per-plugin declarations. See
+[Engine and Platform Compatibility](engine-platform-compatibility.md).
+
 ## Non-interactive usage
 
 When `--yes` is passed (or when stdin is not a TTY), all interactive prompts are
-skipped and defaults are used. Combine with explicit flags for fully automated
+skipped and defaults are used. The default engine when no `--engine` flag is
+provided is **copilot**. Combine with explicit flags for fully automated
 initialization in CI or scripts:
 
 ```bash
-# Automated full setup in a CI environment
+# Automated full setup — Copilot engine, CI environment
 aipm init --yes --workspace --marketplace --name my-org-plugins
+
+# Automated full setup — Claude Code engine
+aipm init --yes --engine claude --workspace --marketplace --name my-org-plugins
+
+# Both engines
+aipm init --yes --engine claude,copilot --workspace --marketplace
 ```
 
 ## Custom marketplace name
@@ -156,7 +248,8 @@ only adds missing keys; it never overwrites or removes existing configuration.
 
 ### Claude Code
 
-`aipm init` creates or merges `.claude/settings.json`:
+When `--engine claude` (or `--engine claude,copilot`) is used, `aipm init` creates or
+merges `.claude/settings.json`:
 
 ```json
 {
@@ -169,6 +262,13 @@ only adds missing keys; it never overwrites or removes existing configuration.
 
 After initialization, Claude Code picks up the marketplace on the next restart. Open any
 skill, agent, hook, or command file under `.ai/` to confirm the integration is active.
+
+### Copilot CLI
+
+When `--engine copilot` (or `--engine claude,copilot`) is used, `aipm init` creates
+`.github/copilot-instructions.md` with a managed marketplace-pointer block. GitHub
+Copilot CLI reads this file for project-level instructions, making the `.ai/` marketplace
+discoverable. An existing `copilot-instructions.md` is never modified.
 
 ## Error conditions
 

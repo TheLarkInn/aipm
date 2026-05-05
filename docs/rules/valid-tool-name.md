@@ -34,7 +34,7 @@ Output:
 warning[valid-tool-name]: Tool 'Task' is exclusive to claude; consider declaring engines = ["claude"] in aipm.toml.
 ```
 
-### Incorrect — using a Claude-exclusive tool while only `copilot-cli` is declared
+### Incorrect — using a Claude-exclusive tool while only `copilot` is declared
 
 ```markdown
 ---
@@ -50,7 +50,7 @@ Code reviewer.
 [package]
 name = "reviewer"
 version = "1.0.0"
-engines = ["copilot-cli"]
+engines = ["copilot"]
 ```
 
 Output:
@@ -128,7 +128,7 @@ Finds files in the project.
 
 ## How to fix
 
-1. **Declare the correct engine** — add `engines = ["claude"]` or `engines = ["copilot-cli"]` (or both) to your `[package]` table in `aipm.toml`:
+1. **Declare the correct engine** — add `engines = ["claude"]` or `engines = ["copilot"]` (or both) to your `[package]` table in `aipm.toml`:
 
    ```toml
    [package]
