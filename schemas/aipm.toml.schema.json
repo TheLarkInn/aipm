@@ -8,12 +8,36 @@
   "x-taplo": {
     "initKeys": ["workspace.lints"]
   },
+  "$defs": {
+    "engineList": {
+      "type": "array",
+      "description": "Engine compatibility list (issue #724). Omit (or empty array) means \"all engines\". Non-empty list narrows to the named engines. Recognized values are sourced from libaipm-engine-spec's Engine::ALL — keep this enum in sync (the schemas/aipm_toml_schema_drift integration test enforces it).",
+      "items": {
+        "type": "string",
+        "enum": ["claude", "copilot"]
+      },
+      "uniqueItems": true
+    }
+  },
   "properties": {
+    "package": {
+      "type": "object",
+      "description": "Plugin package metadata. Most fields are intentionally unconstrained; only the engines field is enumerated for IDE autocomplete.",
+      "additionalProperties": true,
+      "properties": {
+        "engines": {
+          "$ref": "#/$defs/engineList"
+        }
+      }
+    },
     "workspace": {
       "type": "object",
       "description": "Workspace configuration for multi-package aipm projects.",
       "additionalProperties": true,
       "properties": {
+        "engines": {
+          "$ref": "#/$defs/engineList"
+        },
         "lints": {
           "type": "object",
           "description": "Lint rule configuration. Keys are rule IDs; values are severity overrides or detailed config objects. Unknown rule IDs are rejected.",

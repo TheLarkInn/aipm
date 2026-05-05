@@ -1,3 +1,32 @@
+## Feature 16 — JSON schema extension for `engines` (PASS)
+
+Date: 2026-05-05
+Iteration: 16
+Status: passes=true, all four CLAUDE.md gates green, coverage 90.30% (>=89% required)
+
+Changes shipped:
+- `schemas/aipm.toml.schema.json` — added a `$defs.engineList` definition (closed enum `["claude", "copilot"]`, `uniqueItems: true`) and referenced it from BOTH `properties.package.properties.engines` and `properties.workspace.properties.engines` via `$ref`. The shared `$defs` entry guarantees the two surfaces can never diverge.
+- 3 NEW example fixtures under `schemas/tests/`:
+  - `valid-with-engines.toml` — `[package].engines = ["claude"]`
+  - `valid-workspace-with-engines.toml` — `[workspace].engines = ["claude", "copilot"]`
+  - `invalid-unknown-engine.toml` — `engines = ["gemini"]` (rejected by the closed enum)
+- `crates/libaipm-engine-spec/tests/aipm_toml_schema_drift.rs` — NEW integration test with 2 cases:
+  - `aipm_toml_schema_engine_enum_matches_engine_all` — fails the build if the schema's enum diverges from `Engine::ALL`. Includes a helpful error message pointing at `Engine::name()` as the canonical source.
+  - `aipm_toml_schema_exposes_engines_on_package_and_workspace` — sanity-checks both `[package].engines` and `[workspace].engines` reference the shared `$defs.engineList` (not duplicated definitions).
+
+Test results: libaipm-engine-spec now has 5 integration test files (canonical_name + aipm_toml_schema_drift + 3 existing). All gates green.
+
+CLAUDE.md lint compliance:
+- Used `.expect()` in tests where the runtime invariant is "the schema file exists and parses" — this is acceptable per CLAUDE.md (test code, controlled environment, deterministic file paths).
+- No `unwrap()` / `panic!()` introduced.
+- No `#[allow(...)]` attributes.
+
+Notes for future iterations:
+- The schema extension was scoped slightly differently than the spec assumed: the existing `aipm.toml.schema.json` doesn't have a `$defs.package` / `$defs.workspace` structure (it uses `properties.workspace` directly with `additionalProperties: true`). I added the `engines` property at `properties.package.properties.engines` and `properties.workspace.properties.engines` instead, with the shared `$defs.engineList` definition. Functionally equivalent.
+- IDE autocomplete (taplo, vscode-toml) will now offer `claude`/`copilot` completions and reject `gemini`.
+
+---
+
 ## Feature 15 — `valid-tool-name` lint uses `effective_engines` (PASS)
 
 Date: 2026-05-05

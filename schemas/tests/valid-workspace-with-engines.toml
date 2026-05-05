@@ -1,0 +1,7 @@
+# Valid aipm.toml with [workspace].engines field.
+# Used to validate the JSON Schema accepts engines at the workspace level
+# (Spec G7 — workspace-level engines are inherited by member packages).
+
+[workspace]
+members = [".ai/*"]
+engines = ["claude", "copilot"]

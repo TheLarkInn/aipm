@@ -196,7 +196,7 @@
       "Add a drift test `schemas/tests/engine_enum_in_sync.rs` that compile-fails when the JSON schema's enum diverges from `Engine::ALL.iter().map(Engine::name).collect()`.",
       "Run all four CLAUDE.md gates."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test",

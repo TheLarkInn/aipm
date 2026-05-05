@@ -1,0 +1,8 @@
+# Invalid aipm.toml with an unknown engine name.
+# The JSON Schema's `engines` enum closes the set to ["claude", "copilot"]
+# so "gemini" must be rejected by schema-aware editors.
+
+[package]
+name = "my-plugin"
+version = "0.1.0"
+engines = ["gemini"]
