@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use libaipm_engine_spec::Engine;
+use libaipm_engine_spec::{paths, Engine};
 
 use crate::fs::Fs;
 use crate::workspace_init::{Error, ToolAdaptor};
@@ -29,7 +29,7 @@ impl ToolAdaptor for Adaptor {
         marketplace_name: &str,
         fs: &dyn Fs,
     ) -> Result<bool, Error> {
-        let settings_dir = dir.join(".claude");
+        let settings_dir = dir.join(paths::CLAUDE_DOT);
         let settings_path = settings_dir.join("settings.json");
 
         fs.create_dir_all(&settings_dir)?;

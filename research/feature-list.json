@@ -36,7 +36,7 @@
       "Confirm existing tests in `claude.rs:90-310` still pass without modification (behavior identical — same string).",
       "Run all four CLAUDE.md gates."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

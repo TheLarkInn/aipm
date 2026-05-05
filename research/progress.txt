@@ -1,3 +1,21 @@
+## Feature 3 — Claude adaptor uses `paths::CLAUDE_DOT` (PASS)
+
+Date: 2026-05-05
+Iteration: 3
+Status: passes=true, all four CLAUDE.md gates green, coverage 90.20% (>=89% required)
+
+Changes shipped:
+- `crates/libaipm/src/workspace_init/adaptors/claude.rs:8` — extended import to `use libaipm_engine_spec::{paths, Engine};`.
+- `crates/libaipm/src/workspace_init/adaptors/claude.rs:32` — replaced `dir.join(".claude")` with `dir.join(paths::CLAUDE_DOT)`. Behavior identical (same string), but the literal is now sourced from the schema-driven const so a future schema rename would propagate automatically.
+
+Test results: all 16 Claude adaptor tests pass unchanged (no test modifications needed — behavior preserved).
+
+Notes for future iterations:
+- The new `copilot::Adaptor` (Feature 4) should use `paths::GITHUB_DOT` for the analogous `.github/` path constant.
+- This drive-by closes the gap noted in spec §8.2 between schema-truth and adaptor literals.
+
+---
+
 ## Feature 2 — `ToolAdaptor::engine()` trait method (PASS)
 
 Date: 2026-05-05
