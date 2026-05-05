@@ -1,3 +1,34 @@
+## Feature 20 — New BDD rule "Engine-aware init scaffolds only chosen engines" (PASS)
+
+Date: 2026-05-05
+Iteration: 18
+Status: passes=true, all four CLAUDE.md gates green, coverage 90.30% (>=89% required)
+
+Changes shipped:
+- `tests/features/manifest/workspace-init.feature` — new `Rule: Engine-aware init scaffolds only chosen engines` block appended at the end with 5 scenarios:
+  - "Copilot-only init does not create .claude/ (issue #724 fix)" — runs `aipm init --engine copilot`, asserts `.github/copilot-instructions.md` exists and `.claude` doesn't.
+  - "Multi-engine init creates both engine roots" — `aipm init --engine claude,copilot` → both roots exist.
+  - "--yes default scaffolds Copilot only (Spec G5)" — `aipm init --yes` → Copilot file exists, no `.claude`.
+  - "Default (all engines supported) omits the engines field on disk" — workspace `aipm.toml` produced by `aipm init --yes --workspace --engine claude` does NOT contain `engines =`.
+  - "Claude-only scaffold does not create the Copilot instructions file" — symmetric regression coverage from the Claude side.
+- The 5th spec scenario "Narrowed support set writes workspace engines field" is intentionally NOT added as BDD because it requires scripted wizard prompt input (the CLI doesn't expose a `--support` flag). The feature file documents this gap in a comment pointing readers at the existing library unit test `init_workspace_with_narrow_support_writes_engines_field` from Feature 9.
+
+No new step glue was needed: all assertions reuse existing helpers in `crates/libaipm/tests/bdd.rs`:
+- `a file {string} exists in {string}` (line 421)
+- `there is no directory {string} in {string}` (line 483)
+- `there is no file {string} in {string}` (line 489)
+- `the file {string} in {string} does not contain {string}` (line 913)
+
+Test results: 81 BDD scenarios pass (76 prior + 5 new), 411 steps total. Full quality gate green.
+
+CLAUDE.md lint compliance: feature-only addition; no source code touched.
+
+Notes for future iterations:
+- Feature 21 (snapshot refresh) — no snapshots affected by this iteration.
+- Feature 22 (final coverage gate) is the last remaining feature.
+
+---
+
 ## Feature 18 — `init_engine_e2e.rs` integration tests (PASS)
 
 Date: 2026-05-05

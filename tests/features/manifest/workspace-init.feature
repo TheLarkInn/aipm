@@ -190,3 +190,43 @@ Feature: Workspace initialization
       And a file ".claude/settings.json" with custom content exists in "my-project"
       When the user runs "aipm init --marketplace" in "my-project"
       Then the Claude settings file preserves the custom content
+
+  # Spec G9 part 3 / Feature 20: Engine-aware init scaffolds only chosen engines.
+  # See `crates/aipm/tests/init_engine_e2e.rs` for additional Rust-level coverage.
+  Rule: Engine-aware init scaffolds only chosen engines
+
+    Scenario: Copilot-only init does not create .claude/ (issue #724 fix)
+      Given an empty directory "my-project"
+      When the user runs "aipm init --engine copilot" in "my-project"
+      Then a file ".github/copilot-instructions.md" exists in "my-project"
+      And there is no directory ".claude" in "my-project"
+
+    Scenario: Multi-engine init creates both engine roots
+      Given an empty directory "my-project"
+      When the user runs "aipm init --engine claude,copilot" in "my-project"
+      Then a file ".claude/settings.json" exists in "my-project"
+      And a file ".github/copilot-instructions.md" exists in "my-project"
+
+    Scenario: --yes default scaffolds Copilot only (Spec G5)
+      Given an empty directory "my-project"
+      When the user runs "aipm init --yes" in "my-project"
+      Then a file ".github/copilot-instructions.md" exists in "my-project"
+      And there is no directory ".claude" in "my-project"
+
+    Scenario: Default (all engines supported) omits the engines field on disk
+      Given an empty directory "my-project"
+      When the user runs "aipm init --yes --workspace --engine claude" in "my-project"
+      Then a file "aipm.toml" is created in "my-project"
+      And the file "aipm.toml" in "my-project" does not contain "engines ="
+
+    Scenario: Claude-only scaffold does not create the Copilot instructions file
+      Given an empty directory "my-project"
+      When the user runs "aipm init --engine claude" in "my-project"
+      Then a file ".claude/settings.json" exists in "my-project"
+      And there is no file ".github/copilot-instructions.md" in "my-project"
+
+    # Note: scenario "Narrowed support set writes workspace engines field"
+    # from spec G9 part 3 requires scripted wizard prompt input, which the
+    # CLI doesn't expose. That assertion is covered by the library unit
+    # test `init_workspace_with_narrow_support_writes_engines_field` in
+    # `crates/libaipm/src/workspace_init/mod.rs::tests` (Feature 9).
