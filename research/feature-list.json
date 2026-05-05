@@ -115,6 +115,6 @@
       "POST-MERGE VERIFICATION (record in progress.txt after first run): the post-merge `release-nuget.yml` run pauses for environment approval; after approval the workflow completes; the build-provenance attestation appears at https://github.com/TheLarkInn/aipm/attestations; the run logs contain no reference to `secrets.NUGET_API_KEY`; the published `.nupkg` is verifiable with `gh attestation verify out/aipm.<version>.nupkg --owner TheLarkInn`.",
       "No Rust/cargo gates apply to this feature (workflow YAML only). Confirm the rest of the workspace's CLAUDE.md gates still pass: the YAML change alone should not affect Rust build/test/clippy/fmt or coverage."
     ],
-    "passes": false
+    "passes": true
   }
 ]

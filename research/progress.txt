@@ -5,9 +5,9 @@ Research: research/tickets/2026-05-05-0793-security-review-findings.md
 Tracking: https://github.com/TheLarkInn/aipm/issues/793
 
 Total features: 8 (originally 9; Features 1 and 2 merged in iteration 1)
-Completed:      7
-Passing:        7
-Status:         In progress
+Completed:      8
+Passing:        8
+Status:         COMPLETE
 
 ---
 
@@ -45,7 +45,7 @@ work precedes its appliers; Finding 3 workflow change is independent and lands l
 - [x] 5. Apply path_guard to marketplace_field_mismatch rule          (security; F2)
 - [x] 6. Cap valid_tool_name parent-walk at lint::Options::dir        (security; F2)
 - [x] 7. BDD feature path-containment.feature                          (test; F1 + F2)
-- [ ] 8. release-nuget.yml: env, attestation, remove fallback         (ci; F3)
+- [x] 8. release-nuget.yml: env, attestation, remove fallback         (ci; F3)
 
 ---
 
@@ -230,5 +230,121 @@ BDD harness would broaden scope beyond #793; that work belongs in a
 separate ticket if desired.
 
 Tests: no new Rust tests; existing test counts unchanged.
+
+### Iteration 8 — 2026-05-05 — Feature 8 (release-nuget.yml hardening)
+Status: passes=true (pending cargo-verifier confirmation)
+
+Changes to .github/workflows/release-nuget.yml:
+- Header comment block (:1-19): updated to describe the new posture
+  (OIDC-only, environment-gated, attested via sigstore SLSA v1).
+- Job-level `permissions:` (:50-53): added `attestations: write` (required
+  by actions/attest-build-provenance@v1) alongside existing `contents: read`
+  and `id-token: write`.
+- Job-level `environment: nuget-publish` (:48): NEW — binds the publish
+  job to a protected GitHub environment with required-reviewer approval
+  (configured out-of-band in repo Settings -> Environments per spec §5.2;
+  PRE-MERGE author task per progress.txt header).
+- New step `Generate build provenance attestation` (:175-181): inserted
+  AFTER `Inspect nupkg (sanity check)` and BEFORE `NuGet OIDC login`,
+  uses actions/attest-build-provenance@v1 with subject-path: out/*.nupkg.
+  Issued AFTER pack so the attestation subject is the exact byte-for-byte
+  .nupkg that gets published.
+- `NuGet OIDC login (Trusted Publishing)` step (:183-189): REMOVED
+  `continue-on-error: true`. A failed OIDC exchange now aborts the job.
+- `Push to nuget.org (OIDC)` step (:191-197): REMOVED the `if:` guard
+  (now unconditional, since the fallback path was deleted).
+- `Push to nuget.org (API-key fallback)` step: REMOVED entirely.
+- Step count: 12 -> 11 (one fallback step removed, one attestation step
+  added is +0; the removed `if:` re-counts cleanly).
+
+Verification:
+- YAML parses cleanly (python3 yaml.safe_load).
+- No `secrets.NUGET_API_KEY` reference remains anywhere in the file.
+  The two surviving `NUGET_API_KEY` mentions are: (1) header comment,
+  (2) explanatory comment in the OIDC login step, (3) the OIDC-derived
+  short-lived `steps.nuget_login.outputs.NUGET_API_KEY` (NOT the secret).
+- No Rust/cargo gates affected by the change; the workspace's
+  build/test/clippy/fmt/coverage gates continue to pass.
+
+PRE-MERGE AUTHOR TASKS (still pending; cannot be completed in code):
+- Configure GitHub `nuget-publish` environment with required reviewer.
+- Verify NuGet.org trusted-publisher subject-claim binding values and
+  record them in specs/2026-05-05-0793-security-review-findings.md §10.
+- Confirm `actions/attest-build-provenance@v1` is on the repo's allowed-
+  actions list.
+- Decide on disposition of `secrets.NUGET_API_KEY` after one release cycle.
+
+---
+
+## ALL FEATURES COMPLETE — Issue #793 ralph loop terminating
+
+Date: 2026-05-05
+Iterations: 8
+Branch: fix/0793-security-review-findings
+Status: 8/8 features passing; all five CLAUDE.md gates green; coverage 90.40% (>=89% required)
+
+### Final verifier report
+
+```
+CARGO_VERIFIER_REPORT
+build: PASS
+test: PASS
+clippy: PASS
+fmt: PASS
+coverage: PASS (90.40% / required 89%)
+overall: PASS
+```
+
+### Feature audit summary
+
+1. PASS — strip_ansi helper + ##[group] line sanitisation (Finding 1; HIGH severity; merged Features 1+2)
+2. PASS — ci-github regression test for newline in file_path (Finding 1 verification)
+3. PASS — Move is_path_safe to new lint::path_guard module (refactor; Finding 2 prep)
+4. PASS — Apply path_guard to marketplace_source_resolve rule (Finding 2)
+5. PASS — Apply path_guard to marketplace_field_mismatch rule (Finding 2)
+6. PASS — Cap valid_tool_name parent-walk at lint::Options::dir (Finding 2)
+7. PASS — Path-containment BDD spec (documentation-form per project convention)
+8. PASS — release-nuget.yml: env binding, attestation, fallback removal (Finding 3)
+
+### Commits on branch (all signed off as bug-fix work per spec Q3)
+
+- 20476c2 fix(reporter): sanitize ##[group] file path against ADO logging-command injection (#793 Finding 1)
+- 8e90d4f test(reporter): add ci-github regression tests for newline in file_path (#793 G2)
+- 6e08c12 refactor(lint): extract is_safe_path into shared lint::path_guard module (#793 G3 prep)
+- ce31201 fix(lint): guard marketplace/source-resolve against PR-controlled path traversal (#793 G3)
+- 733c102 fix(lint): guard marketplace/plugin-field-mismatch against PR-controlled path traversal (#793 G3)
+- 840857a fix(lint): cap valid_tool_name parent-walk at lint::Options::dir (#793 G4)
+- 4238f0a docs(test-spec): add path-containment.feature documenting #793 lint+reporter behaviours (G7)
+- (this commit) ci(release-nuget): remove API-key fallback, gate dispatch with environment, attest provenance (#793 G6)
+
+### Outstanding manual tasks (cannot be completed in code)
+
+These pre-merge author tasks are documented above and in the spec §10
+appendix. They MUST be completed before the PR is merged or the next
+post-merge `release-nuget.yml` run will block awaiting an environment
+that does not exist:
+
+- [ ] Configure GitHub repo environment `nuget-publish` (Settings > Environments)
+      with required reviewer (@TheLarkInn minimum), wait timer 0,
+      deployment branches: main only.
+- [ ] Verify NuGet.org trusted-publisher subject-claim binding for `aipm`:
+      repository_owner = TheLarkInn, repository = aipm, ref = refs/tags/aipm-v*.
+      Record actual values in spec §10 Appendix.
+- [ ] Confirm `actions/attest-build-provenance@v1` is on the repo's allowed-
+      actions list (Settings > Actions > General).
+- [ ] Decide whether to remove `secrets.NUGET_API_KEY` from repo-level
+      secrets after one release cycle (recommendation: leave for one
+      release in case rollback is needed).
+
+### Test-coverage summary
+
+- libaipm::lint::reporter — 74 unit tests (was 54; +20)
+- libaipm::lint::path_guard — 9 unit tests (NEW module)
+- libaipm::lint::rules::marketplace_source_resolve — 17 tests (was 13; +4)
+- libaipm::lint::rules::marketplace_field_mismatch — 18 tests (was 15; +3)
+- libaipm::lint::rules::valid_tool_name — 25 tests (was 21; +4)
+- BDD spec: tests/features/lint/path-containment.feature (5 scenarios, documentation-form)
+- Total libaipm::lint::* tests passing: 407+
+- Workspace coverage: 90.40% (above 89% threshold)
 
 
