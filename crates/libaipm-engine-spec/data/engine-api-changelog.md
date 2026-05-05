@@ -2,6 +2,18 @@
 
 <!-- Entries are prepended (newest first). -->
 
+## 2026-05-05 — claude v2.1.128
+
+| Field | Change |
+|-------|--------|
+| `tool_calls[Task].notes` | **Changed** — `AgentInput` gains four new optional fields: `name` (makes agent addressable via `SendMessage({to: name})`), `team_name` (team context for spawning), `mode` (permission mode: `acceptEdits \| auto \| bypassPermissions \| default \| dontAsk \| plan`), `model` (explicit model override: `sonnet \| opus \| haiku`). |
+
+No other API changes detected for this run.
+
+## 2026-05-05 — copilot-cli v1.0.40
+
+No API changes detected (version unchanged since 2026-05-01).
+
 ## 2026-05-01 — Initial Schema Established
 
 This is the first run of the reverse binary analysis workflow.
