@@ -348,7 +348,11 @@ impl Reporter for CiAzure {
                 if current_file.is_some() {
                     writeln!(writer, "##[endgroup]")?;
                 }
-                writeln!(writer, "##[group]aipm lint: {}", d.file_path.display())?;
+                writeln!(
+                    writer,
+                    "##[group]aipm lint: {}",
+                    sanitize_azure_group_label(&d.file_path.display().to_string())
+                )?;
                 current_file = Some(d.file_path.as_path());
             }
 
@@ -400,6 +404,16 @@ fn escape_azure_log_command(s: &str) -> String {
         .replace('\n', "%0A")
         .replace(';', "%3B")
         .replace(']', "%5D")
+}
+
+/// Sanitize a label for use in an Azure DevOps `##[group]` command.
+///
+/// The `##[group]` command is not a `##vso[...]` log command and does not support
+/// percent-encoded escape sequences. Strip carriage returns and line feeds so that
+/// a file path containing newlines (legal on Linux/macOS) cannot inject additional
+/// log commands into the Azure DevOps build log.
+fn sanitize_azure_group_label(s: &str) -> String {
+    s.replace('\r', "").replace('\n', "")
 }
 
 /// Build the body portion of an Azure DevOps `##vso[task.logissue]` line.
@@ -1756,5 +1770,41 @@ mod tests {
         let output = String::from_utf8(buf).unwrap_or_default();
         assert!(output.contains("##vso[task.logissue"));
         assert!(!output.contains("SucceededWithIssues"));
+    }
+
+    #[test]
+    fn ci_azure_group_label_strips_newlines_in_path() {
+        // A file path containing \n or \r must not produce a second line that
+        // Azure DevOps could interpret as an additional log command.
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Warning,
+                message: "msg".into(),
+                file_path: PathBuf::from(".ai/p\n##vso[task.setvariable variable=foo]bar/SKILL.md"),
+                line: Some(1),
+                col: Some(1),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+            ..Outcome::default()
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        // The injected command must not appear as a standalone line.
+        assert!(
+            !output.lines().any(|l| l.starts_with("##vso[task.setvariable")),
+            "newline in path must not produce an injected log command"
+        );
+        // But the group header must still be present.
+        assert!(output.contains("##[group]aipm lint:"));
     }
 }
