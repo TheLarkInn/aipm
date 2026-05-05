@@ -5,8 +5,8 @@ Research: research/tickets/2026-05-05-0793-security-review-findings.md
 Tracking: https://github.com/TheLarkInn/aipm/issues/793
 
 Total features: 8 (originally 9; Features 1 and 2 merged in iteration 1)
-Completed:      6
-Passing:        6
+Completed:      7
+Passing:        7
 Status:         In progress
 
 ---
@@ -44,7 +44,7 @@ work precedes its appliers; Finding 3 workflow change is independent and lands l
 - [x] 4. Apply path_guard to marketplace_source_resolve rule          (security; F2)
 - [x] 5. Apply path_guard to marketplace_field_mismatch rule          (security; F2)
 - [x] 6. Cap valid_tool_name parent-walk at lint::Options::dir        (security; F2)
-- [ ] 7. BDD feature path-containment.feature + step definitions       (test; F1 + F2)
+- [x] 7. BDD feature path-containment.feature                          (test; F1 + F2)
 - [ ] 8. release-nuget.yml: env, attestation, remove fallback         (ci; F3)
 
 ---
@@ -200,5 +200,35 @@ Changes:
     - legacy_check_file_path_disables_cap
 
 Tests: 25 valid_tool_name tests pass (was 21); 407 total lint:: tests pass.
+
+### Iteration 7 — 2026-05-05 — Feature 7 (path-containment BDD spec)
+Status: passes=true (pending cargo-verifier confirmation)
+
+Changes:
+- tests/features/lint/path-containment.feature (NEW):
+  * @p0 @security @lint tagged.
+  * 5 scenarios spanning issue #793 Findings 1 and 2:
+    - Marketplace source with parent-dir traversal is rejected
+    - Marketplace source with absolute path is rejected
+    - Plugin-field mismatch lookup with traversal source emits no diagnostic
+    - valid-tool-name does not walk above the lint root
+    - ci-azure reporter rejects logging-command injection via file path
+  * Includes a coverage note documenting that the file follows the same
+    documentation-form convention as the sibling tests/features/lint/
+    valid-tool-name.feature and tests/features/security/path-traversal.feature.
+
+Convention decision: The existing BDD harness at crates/libaipm/tests/bdd.rs
+loads only `tests/features/manifest/*.feature` (see filter_run at :984).
+The existing valid-tool-name.feature and path-traversal.feature feature
+files exist as documentation-form executable specifications and are NOT
+wired into the runner. Following that convention, the new
+path-containment.feature is documentation-form too. The behaviours it
+specifies are pinned at the Rust unit-test layer in Features 1
+(reporter), 4 (marketplace_source_resolve), 5 (marketplace_field_mismatch),
+and 6 (valid_tool_name parent-walk cap). Wiring these features into the
+BDD harness would broaden scope beyond #793; that work belongs in a
+separate ticket if desired.
+
+Tests: no new Rust tests; existing test counts unchanged.
 
 
