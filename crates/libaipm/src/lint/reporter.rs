@@ -348,7 +348,9 @@ impl Reporter for CiAzure {
                 if current_file.is_some() {
                     writeln!(writer, "##[endgroup]")?;
                 }
-                writeln!(writer, "##[group]aipm lint: {}", d.file_path.display())?;
+                let group_path =
+                    escape_azure_log_command(&strip_ansi(&d.file_path.display().to_string()));
+                writeln!(writer, "##[group]aipm lint: {group_path}")?;
                 current_file = Some(d.file_path.as_path());
             }
 
@@ -400,6 +402,38 @@ fn escape_azure_log_command(s: &str) -> String {
         .replace('\n', "%0A")
         .replace(';', "%3B")
         .replace(']', "%5D")
+}
+
+/// Strip ANSI CSI escape sequences from `s`.
+///
+/// Recognises sequences that start with `\x1b[` and consume bytes through the
+/// CSI final byte (any byte in `0x40..=0x7E`). Bare `\x1b` bytes that are not
+/// followed by `[` are also dropped. Unterminated sequences (e.g. `\x1b[31`
+/// with no final byte) are dropped in full.
+///
+/// Used by the `CiAzure` reporter to sanitise the `##[group]` header line so
+/// that PR-author-controlled file paths cannot smuggle terminal-control bytes
+/// into Azure DevOps build logs (issue #793 Finding 1).
+fn strip_ansi(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.char_indices().peekable();
+    while let Some((_, c)) = chars.next() {
+        if c == '\u{001b}' {
+            if matches!(chars.peek(), Some(&(_, '['))) {
+                let _ = chars.next();
+                while let Some(&(_, ch)) = chars.peek() {
+                    let _ = chars.next();
+                    let cb = ch as u32;
+                    if (0x40..=0x7e).contains(&cb) {
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
+        out.push(c);
+    }
+    out
 }
 
 /// Build the body portion of an Azure DevOps `##vso[task.logissue]` line.
@@ -1756,5 +1790,181 @@ mod tests {
         let output = String::from_utf8(buf).unwrap_or_default();
         assert!(output.contains("##vso[task.logissue"));
         assert!(!output.contains("SucceededWithIssues"));
+    }
+
+    #[test]
+    fn strip_ansi_passthrough_for_plain_text() {
+        assert_eq!(strip_ansi("hello world"), "hello world");
+        assert_eq!(strip_ansi(""), "");
+        assert_eq!(strip_ansi(".ai/p/skills/default/SKILL.md"), ".ai/p/skills/default/SKILL.md");
+    }
+
+    #[test]
+    fn strip_ansi_removes_simple_csi() {
+        assert_eq!(strip_ansi("\u{001b}[31mhello\u{001b}[0m"), "hello");
+    }
+
+    #[test]
+    fn strip_ansi_removes_multi_param_csi() {
+        assert_eq!(strip_ansi("\u{001b}[1;31;4mhello"), "hello");
+    }
+
+    #[test]
+    fn strip_ansi_handles_unterminated_escape() {
+        // Documented behaviour: an unterminated CSI sequence (no final byte in
+        // 0x40..=0x7E before end-of-string) is dropped in full.
+        assert_eq!(strip_ansi("\u{001b}[31"), "");
+        assert_eq!(strip_ansi("prefix\u{001b}[31"), "prefix");
+    }
+
+    #[test]
+    fn strip_ansi_handles_lone_esc() {
+        // Bare ESC byte not followed by '[' is dropped; surrounding chars survive.
+        assert_eq!(strip_ansi("\u{001b}"), "");
+        assert_eq!(strip_ansi("a\u{001b}b"), "ab");
+    }
+
+    #[test]
+    fn strip_ansi_preserves_non_ascii_text() {
+        // The header line in the ci-azure reporter is allowed to carry
+        // legitimate non-ASCII characters; only ANSI control sequences are
+        // stripped. The en-dash and emoji here must survive.
+        assert_eq!(strip_ansi("a\u{2014}b"), "a\u{2014}b");
+        assert_eq!(strip_ansi("\u{001b}[31m\u{2014}\u{001b}[0m"), "\u{2014}");
+    }
+
+    #[test]
+    fn strip_ansi_handles_multiple_sequences_back_to_back() {
+        assert_eq!(strip_ansi("\u{001b}[1m\u{001b}[31mhi"), "hi");
+    }
+
+    #[test]
+    fn strip_ansi_handles_csi_with_intermediate_bytes() {
+        // CSI sequences may include intermediate bytes (0x20..0x2F) before
+        // the final byte (0x40..0x7E). Final byte 'A' (0x41) is in range.
+        assert_eq!(strip_ansi("\u{001b}[?25hbody"), "body");
+        assert_eq!(strip_ansi("\u{001b}[2Jcleared"), "cleared");
+    }
+
+    fn ci_azure_diag_for_path(file_path: PathBuf) -> Outcome {
+        Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "skill/missing-description".to_string(),
+                severity: Severity::Warning,
+                message: "missing description".to_string(),
+                file_path,
+                line: Some(1),
+                col: Some(1),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".to_string(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+            ..Outcome::default()
+        }
+    }
+
+    fn render_ci_azure(outcome: &Outcome) -> String {
+        let mut buf = Vec::new();
+        CiAzure.report(outcome, &mut buf).ok();
+        String::from_utf8(buf).unwrap_or_default()
+    }
+
+    #[test]
+    fn ci_azure_group_line_escapes_newline_in_file_path() {
+        let outcome = ci_azure_diag_for_path(PathBuf::from(".ai/p\nbar/SKILL.md"));
+        let output = render_ci_azure(&outcome);
+        // Exactly one ##[group] line and one ##vso[task.logissue line.
+        assert_eq!(output.matches("##[group]").count(), 1);
+        assert_eq!(output.matches("##vso[task.logissue").count(), 1);
+        assert_eq!(output.matches("##[endgroup]").count(), 1);
+        // The newline must be percent-encoded inside the group line.
+        assert!(output.contains("##[group]aipm lint: .ai/p%0Abar/SKILL.md"));
+        // No raw newline appears between '##[group]aipm lint:' and the next CR/LF.
+        assert!(!output.contains(".ai/p\nbar/SKILL.md"));
+    }
+
+    #[test]
+    fn ci_azure_group_line_escapes_carriage_return_in_file_path() {
+        let outcome = ci_azure_diag_for_path(PathBuf::from(".ai/p\rbar/SKILL.md"));
+        let output = render_ci_azure(&outcome);
+        assert_eq!(output.matches("##[group]").count(), 1);
+        assert!(output.contains("##[group]aipm lint: .ai/p%0Dbar/SKILL.md"));
+        assert!(!output.contains(".ai/p\rbar/SKILL.md"));
+    }
+
+    #[test]
+    fn ci_azure_group_line_escapes_semicolon_in_file_path() {
+        let outcome = ci_azure_diag_for_path(PathBuf::from(".ai/p;bar/SKILL.md"));
+        let output = render_ci_azure(&outcome);
+        assert!(output.contains("##[group]aipm lint: .ai/p%3Bbar/SKILL.md"));
+    }
+
+    #[test]
+    fn ci_azure_group_line_escapes_bracket_in_file_path() {
+        let outcome = ci_azure_diag_for_path(PathBuf::from(".ai/p]bar/SKILL.md"));
+        let output = render_ci_azure(&outcome);
+        assert!(output.contains("##[group]aipm lint: .ai/p%5Dbar/SKILL.md"));
+    }
+
+    #[test]
+    fn ci_azure_group_line_escapes_percent_in_file_path() {
+        let outcome = ci_azure_diag_for_path(PathBuf::from(".ai/p%bar/SKILL.md"));
+        let output = render_ci_azure(&outcome);
+        assert!(output.contains("##[group]aipm lint: .ai/p%AZP25bar/SKILL.md"));
+    }
+
+    #[test]
+    fn ci_azure_group_line_strips_ansi_csi_in_file_path() {
+        let outcome =
+            ci_azure_diag_for_path(PathBuf::from(".ai/\u{001b}[31mfoo\u{001b}[0m/SKILL.md"));
+        let output = render_ci_azure(&outcome);
+        // ANSI bytes are stripped from the ##[group] line; the surviving
+        // filename appears verbatim in the group header.
+        let group_line = output.lines().find(|l| l.starts_with("##[group]")).unwrap_or_default();
+        assert_eq!(group_line, "##[group]aipm lint: .ai/foo/SKILL.md");
+        // The group line carries no ESC byte. (The ##vso[task.logissue]
+        // sourcepath is intentionally not ANSI-stripped per spec §5.1.2 —
+        // its existing escape_azure_log_command path is unchanged.)
+        assert!(!group_line.contains('\u{001b}'));
+    }
+
+    #[test]
+    fn ci_azure_group_line_handles_combined_ansi_and_newline() {
+        let outcome =
+            ci_azure_diag_for_path(PathBuf::from("\u{001b}[31m.ai/p\nbar\u{001b}[0m/SKILL.md"));
+        let output = render_ci_azure(&outcome);
+        // ANSI removed, then \n encoded.
+        assert!(output.contains("##[group]aipm lint: .ai/p%0Abar/SKILL.md"));
+        // Still exactly one logging command per type emitted by the reporter.
+        assert_eq!(output.matches("##[group]").count(), 1);
+        assert_eq!(output.matches("##vso[task.logissue").count(), 1);
+    }
+
+    #[test]
+    fn ci_azure_group_line_no_second_logging_command_via_injection() {
+        // PoC payload from issue #793: a filename containing
+        // `\n##vso[task.setvariable…]` must not start a second ADO logging
+        // command. The exploit hinges on a fresh line beginning with `##vso[`
+        // or `##[` — anything else is just escaped data inside another line.
+        let outcome = ci_azure_diag_for_path(PathBuf::from(
+            ".ai/p\n##vso[task.setvariable variable=foo]bar/SKILL.md",
+        ));
+        let output = render_ci_azure(&outcome);
+        // No line begins with the injected logging command.
+        let injected_line_count =
+            output.lines().filter(|l| l.starts_with("##vso[task.setvariable")).count();
+        assert_eq!(injected_line_count, 0);
+        // Exactly one legitimate `##vso[task.logissue` line exists.
+        let logissue_lines =
+            output.lines().filter(|l| l.starts_with("##vso[task.logissue")).count();
+        assert_eq!(logissue_lines, 1);
+        // The newline survives only as %0A inside the (single) group line.
+        let group_line = output.lines().find(|l| l.starts_with("##[group]")).unwrap_or_default();
+        assert!(group_line.contains("%0A##vso[task.setvariable"));
     }
 }

@@ -1,277 +1,120 @@
 [
   {
-    "category": "refactor",
-    "description": "Rename canonical engine identifier `copilot-cli` to `copilot` across `libaipm-engine-spec` and bump `META_SCHEMA_VERSION`. Spec G6.",
+    "category": "security",
+    "description": "Add `strip_ansi` helper in `crates/libaipm/src/lint/reporter.rs` AND apply `escape_azure_log_command(strip_ansi(...))` to the `##[group]` line at `reporter.rs:351`. This is the HIGH-severity fix for issue #793 Finding 1. Spec §5.1.2, §5.3.1, G1. (Original Feature-1 + Feature-2 combined: a helper without a caller trips the workspace `dead_code` warning, which `-D warnings` treats as an error.)",
     "steps": [
-      "Edit `crates/libaipm-engine-spec/data/engine-api-schema.json`: change the engine entry's `name` field from `\"copilot-cli\"` to `\"copilot\"`. Keep the `npm` field (`@github/copilot`) unchanged.",
-      "In the same file, increment the top-level `meta_schema_version` integer.",
-      "In `crates/libaipm-engine-spec/src/types.rs`, increment `META_SCHEMA_VERSION` to match the data file (build.rs enforces equality).",
-      "Run `cargo build -p libaipm-engine-spec` and confirm `build.rs` regenerates `Engine::Copilot` (instead of `Engine::CopilotCli`) and `EngineSet::COPILOT` (instead of `EngineSet::COPILOT_CLI`) in `OUT_DIR/engine_data.rs`.",
-      "Run `cargo build --workspace` and use compiler errors to drive symbol updates: replace every occurrence of `Engine::CopilotCli` with `Engine::Copilot` and every `EngineSet::COPILOT_CLI` with `EngineSet::COPILOT` (consumers in `crates/libaipm/src/engine.rs`, `discovery/`, `lint/rules/`, `make/engine_features.rs`, `migrate/`, `manifest/mod.rs:574-577`, etc.).",
-      "Replace every hand-written string literal `\"copilot-cli\"` in source with `\"copilot\"` (NOT in tests/fixtures yet — those are called out separately).",
-      "Update inline TOML test fixtures in `crates/libaipm/src/manifest/mod.rs:564-625`: change `engines = [\"copilot-cli\"]` lines to `engines = [\"copilot\"]`. (The `engine-validation.feature:13` BDD fixture already uses `\"copilot\"` — leave alone.)",
-      "Run `cargo run -p libaipm-engine-spec --bin export-schema` to regenerate `schemas/engine-api.schema.json`. Commit the regenerated schema.",
-      "Add a regression test at `crates/libaipm-engine-spec/tests/canonical_name.rs` that asserts: (a) `Engine::ALL` contains exactly two variants whose `name()` returns `\"claude\"` and `\"copilot\"`; (b) `Engine::from_name(\"copilot-cli\")` returns `None`; (c) the data file contains no `\"copilot-cli\"` substring outside the npm field.",
-      "Verify all four CLAUDE.md gates pass: `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check`."
+      "Add a private `fn strip_ansi(s: &str) -> String` after `escape_azure_log_command` in `reporter.rs`. Hand-rolled scanner: ESC (`\\x1b`) followed by `[` consumes characters through the CSI final byte (0x40..=0x7E); bare ESC without `[` is dropped; unterminated sequences are dropped in full.",
+      "At `reporter.rs:351`, replace the raw `writeln!(writer, \"##[group]aipm lint: {}\", d.file_path.display())?;` with a sanitised version: compute `let group_path = escape_azure_log_command(&strip_ansi(&d.file_path.display().to_string()));` and interpolate `group_path` into the writeln. Composition order strips ANSI first so any byte revealed by stripping is then percent-encoded.",
+      "Do NOT change `format_azure_logissue_body` (spec N3) and do NOT add a new diagnostic id (spec N5).",
+      "Add unit tests in the existing `#[cfg(test)] mod tests` block: (a) `strip_ansi_passthrough_for_plain_text`; (b) `strip_ansi_removes_simple_csi`; (c) `strip_ansi_removes_multi_param_csi`; (d) `strip_ansi_handles_unterminated_escape` (documented: removed in full); (e) `strip_ansi_handles_lone_esc`; (f) `strip_ansi_preserves_non_ascii_text`; (g) `strip_ansi_handles_multiple_sequences_back_to_back`; (h) `strip_ansi_handles_csi_with_intermediate_bytes`; (i) `ci_azure_group_line_escapes_newline_in_file_path`; (j) `ci_azure_group_line_escapes_carriage_return_in_file_path`; (k) `ci_azure_group_line_escapes_semicolon_in_file_path`; (l) `ci_azure_group_line_escapes_bracket_in_file_path`; (m) `ci_azure_group_line_escapes_percent_in_file_path`; (n) `ci_azure_group_line_strips_ansi_csi_in_file_path`; (o) `ci_azure_group_line_handles_combined_ansi_and_newline`; (p) `ci_azure_group_line_no_second_logging_command_via_injection` — uses the issue #793 PoC payload `.ai/p\\n##vso[task.setvariable variable=foo]bar/SKILL.md` and asserts no line of output begins with `##vso[task.setvariable`.",
+      "Verify the existing `ci_azure_sample_outcome_snapshot` test continues to pass without drift (fixture paths contain no special characters).",
+      "Verify all four CLAUDE.md gates: `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check`. No `#[allow(...)]` attributes; no `.unwrap()`/`.expect()`/`panic!()`.",
+      "Confirm `cargo +nightly llvm-cov` branch coverage stays >= 89% workspace-wide."
     ],
     "passes": true
   },
   {
-    "category": "functional",
-    "description": "Add `engine()` method to the `ToolAdaptor` trait so adaptors expose their `Engine` for scaffold-set filtering. Foundation for spec G3.",
+    "category": "test",
+    "description": "Add ci-github reporter regression unit test for newline in `Diagnostic.file_path`. Spec §5.3.4, G2. Verifies the existing `escape_github_prop` helper already protects this sink (no production change expected).",
     "steps": [
-      "Edit `crates/libaipm/src/workspace_init/adaptors/mod.rs`: add `fn engine(&self) -> libaipm_engine_spec::Engine;` to the `ToolAdaptor` trait definition.",
-      "Update `crates/libaipm/src/workspace_init/adaptors/claude.rs::Adaptor` to implement `fn engine(&self) -> Engine { Engine::Claude }`.",
-      "Add a unit test in `claude.rs` asserting `Adaptor.engine() == Engine::Claude`.",
-      "Run all four CLAUDE.md gates (build/test/clippy/fmt) and confirm zero warnings."
+      "In `crates/libaipm/src/lint/reporter.rs`'s `tests` module, add `ci_github_reporter_escapes_newline_in_file_path`. Build a `Diagnostic` whose `file_path` is `PathBuf::from(\".ai/p\\nbar/SKILL.md\")`. Build a one-element `Outcome` and call `CiGitHub.report(&outcome, &mut buf)`.",
+      "Assert: the output contains exactly one line beginning with `::warning ` or `::error `; the file= property contains `%0A` (the encoded form of `\\n`); the output does NOT contain a second line starting with `::warning` / `::error`.",
+      "Reference: existing `escape_github_prop` at `reporter.rs:383-389` which already replaces `\\r` -> `%0D` and `\\n` -> `%0A`. This test merely captures that protection as a regression gate.",
+      "Verify all four CLAUDE.md gates pass and branch coverage >= 89%."
     ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "refactor",
-    "description": "Replace literal `\".claude\"` in `claude::Adaptor` with `libaipm_engine_spec::paths::CLAUDE_DOT` for symmetry with the upcoming Copilot adaptor (drive-by per spec §8.2).",
+    "description": "Create new module `crates/libaipm/src/lint/path_guard.rs` with `is_safe_path`. Move the existing `is_path_safe` helper out of `lint::rules::import_resolver` so multiple lint rules can share it. Spec §5.1.1, G3.",
     "steps": [
-      "Edit `crates/libaipm/src/workspace_init/adaptors/claude.rs:26`: replace `let settings_dir = dir.join(\".claude\");` with `let settings_dir = dir.join(libaipm_engine_spec::paths::CLAUDE_DOT);`.",
-      "Add a `use libaipm_engine_spec::paths;` import at the top of the file (or inline the call).",
-      "Confirm existing tests in `claude.rs:90-310` still pass without modification (behavior identical — same string).",
-      "Run all four CLAUDE.md gates."
+      "Create new file `crates/libaipm/src/lint/path_guard.rs`. Add `pub(crate) fn is_safe_path(path: &str) -> bool` with body identical to the existing function at `lint/rules/import_resolver.rs:66-71` (rejects `Component::ParentDir | RootDir | Prefix(_)`).",
+      "In `crates/libaipm/src/lint/mod.rs` add `pub(crate) mod path_guard;` near the other module declarations (around line 11 next to the existing `pub mod reporter;`).",
+      "Move the three `is_path_safe` tests from `lint/rules/import_resolver.rs:215-230` (`path_traversal_rejected`, `absolute_path_rejected`, `relative_path_safe`) into a `#[cfg(test)] mod tests` block in `path_guard.rs`, renaming them to `is_safe_path_*` to match the helper's new name.",
+      "Add a `is_safe_path_rejects_windows_prefix` test using the literal `\\\\?\\C:\\foo` string (parses cross-platform on `&Path`).",
+      "In `lint/rules/import_resolver.rs`: delete the local `fn is_path_safe` definition; replace both call sites at `:120` and `:129` with `crate::lint::path_guard::is_safe_path(...)`. Also delete the now-redundant `is_path_safe` tests that were moved.",
+      "Verify the `Oversized` rule integration tests in `lint/rules/instructions_oversized.rs` (specifically `path_traversal_in_at_import_rejected` at `:285-293`, `absolute_path_in_at_import_rejected` at `:295-302`, `path_traversal_in_markdown_link_rejected` at `:367-383`) still pass without modification.",
+      "Verify all four CLAUDE.md gates pass and branch coverage >= 89%."
     ],
-    "passes": true
+    "passes": false
   },
   {
-    "category": "functional",
-    "description": "Implement `copilot::Adaptor` MVP that creates `.github/copilot-instructions.md` (templated, marketplace-aware). Spec G3 / NG3.",
+    "category": "security",
+    "description": "Apply `lint::path_guard::is_safe_path` to the `marketplace_source_resolve` rule before `Path::join`. Spec §5.3.2, G3, G5. Reuses existing `marketplace/source-resolve` diagnostic id.",
     "steps": [
-      "Create new file `crates/libaipm/src/workspace_init/adaptors/copilot.rs`.",
-      "Define `pub struct Adaptor;` and implement `ToolAdaptor`: `name() -> \"copilot\"`, `engine() -> Engine::Copilot`, `apply()` per spec §5.4.",
-      "In `apply()`: compute `github_dir = dir.join(libaipm_engine_spec::paths::GITHUB_DOT)` and `instructions_path = github_dir.join(\"copilot-instructions.md\")`. If the file already exists, return `Ok(false)` (preserve user content). Otherwise `fs.create_dir_all(&github_dir)?`, then write the templated body via `fs.write_file`.",
-      "Implement private helper `fn generate_copilot_instructions_template(no_starter: bool, marketplace_name: &str) -> String` matching the spec's template body (header, marketplace pointer line, optional starter-plugin block gated on `no_starter`, BEGIN/END markers).",
-      "Add `pub mod copilot;` to `crates/libaipm/src/workspace_init/adaptors/mod.rs`.",
-      "Update `defaults()` in the same file to return `vec![Box::new(claude::Adaptor), Box::new(copilot::Adaptor)]`.",
-      "Add unit tests in `copilot.rs` covering: (a) file absent → created with template body; (b) file already exists → `Ok(false)` and disk content untouched; (c) `no_starter=true` → template omits the starter block; (d) `no_starter=false` → template includes the starter block with the marketplace name interpolated.",
-      "Add a snapshot test for `generate_copilot_instructions_template` output (use `insta` like the existing `scaffold_script_snapshot.snap`). Snapshot path: `crates/libaipm/src/workspace_init/snapshots/libaipm__workspace_init__adaptors__copilot__tests__template_snapshot.snap`.",
-      "Run all four CLAUDE.md gates and confirm coverage on `copilot.rs` is ≥89% (the file is NOT in the coverage ignore list)."
+      "In `crates/libaipm/src/lint/rules/marketplace_source_resolve.rs` inside `check_marketplace` around line 101, before constructing `resolved`, capture the trimmed source: `let trimmed = source.trim_start_matches(\"./\");`.",
+      "Add a guard immediately after: `if !crate::lint::path_guard::is_safe_path(trimmed) { /* emit diagnostic */ continue; }`. The diagnostic emitted on rejection MUST reuse the existing rule id `marketplace/source-resolve` (spec G5, N5). Use the existing helper that builds the 'plugin source does not exist or path is unsafe' style message — extend the message to clarify rejection-reason without changing the rule id.",
+      "After the guard, keep the existing `let resolved = ai_dir.join(trimmed); if !fs.exists(&resolved) { ... }` flow unchanged.",
+      "Critically: the `fs.exists(&resolved)` call must NOT execute when the guard rejects the path. Test verifies via mock-fs call counter.",
+      "Add unit tests in the existing `#[cfg(test)] mod tests` block: (a) `traversal_in_source_rejected_no_fs_call` — `source: \"../../etc/passwd\"`; assert one diagnostic at rule `marketplace/source-resolve`; assert `MockFs::exists_calls` count is 0 for any path containing `../`; (b) `absolute_path_in_source_rejected` — `source: \"/etc/passwd\"`; same shape; (c) `windows_prefix_in_source_rejected` — `source: \"\\\\\\\\?\\\\C:\\\\Windows\"`; same shape.",
+      "Existing tests must continue to pass unchanged: `source_present_and_resolves_no_diagnostic`, `source_path_does_not_exist_emits_diagnostic`, `source_without_dotslash_prefix_resolves`, etc.",
+      "Verify all four CLAUDE.md gates pass and branch coverage >= 89%."
     ],
-    "passes": true
+    "passes": false
   },
   {
-    "category": "functional",
-    "description": "Add `engines: Option<EngineSet>` field to the `Workspace` struct in `manifest/types.rs`. Spec G7 part 1.",
+    "category": "security",
+    "description": "Apply `lint::path_guard::is_safe_path` to the `marketplace_field_mismatch` rule before `Path::join`. Spec §5.3.2, G3, G5. Reuses existing `marketplace/plugin-field-mismatch` diagnostic id.",
     "steps": [
-      "Edit `crates/libaipm/src/manifest/types.rs:107-117`: add `#[serde(default, deserialize_with = \"engine_set_serde::deserialize\")] pub engines: Option<EngineSet>,` to the `Workspace` struct.",
-      "Add a documentation comment matching the semantics already documented on `Package.engines`: omitted/None = all engines, `[]` = all engines, named list = bitset.",
-      "Add tests in `crates/libaipm/src/manifest/mod.rs` mirroring the four existing `manifest_engines_*` tests (lines 560-630) but for `[workspace].engines`: omitted, explicit empty, mixed known/unknown, all-unknown rejected.",
-      "Confirm `#[serde(deny_unknown_fields)]` still rejects typos (e.g. `engins = [\"claude\"]`).",
-      "Run all four CLAUDE.md gates."
+      "In `crates/libaipm/src/lint/rules/marketplace_field_mismatch.rs` inside `check_mismatch` around line 89, capture the trimmed source: `let trimmed = source.trim_start_matches(\"./\");`.",
+      "Add a guard before constructing `pj_path`: `if !crate::lint::path_guard::is_safe_path(trimmed) { continue; }`. This rule's primary purpose is reconciling marketplace name/description with plugin.json — when the path is rejected, no comparison is possible, so the rule emits no diagnostic and silently skips the entry. The earlier `marketplace_source_resolve` rule (Feature 5) is what surfaces the error to the user.",
+      "After the guard, the existing path construction `let pj_path = ai_dir.join(trimmed).join(\".claude-plugin\").join(\"plugin.json\");` and `fs.read_to_string(&pj_path)` flow remains unchanged.",
+      "Critically: the `fs.read_to_string(&pj_path)` call must NOT execute when the guard rejects the path. Test verifies via mock-fs call counter.",
+      "Add unit tests: (a) `traversal_in_source_no_diagnostic_no_fs_call` — `source: \"../../tmp\"`; assert zero diagnostics from this rule; assert `MockFs::read_calls` count is 0 for any path containing `../`; (b) `absolute_path_in_source_no_diagnostic` — `source: \"/tmp\"`; same shape; (c) `windows_prefix_in_source_no_diagnostic` — `source: \"\\\\\\\\?\\\\C:\\\\Windows\"`; same shape.",
+      "Existing tests must continue to pass unchanged: `matching_fields_no_diagnostic`, `name_mismatch_emits_diagnostic`, `description_mismatch_emits_diagnostic`, etc.",
+      "Verify all four CLAUDE.md gates pass and branch coverage >= 89%."
     ],
-    "passes": true
+    "passes": false
   },
   {
-    "category": "functional",
-    "description": "Add `manifest::effective_engines(pkg, ws)` helper that walks package → workspace inheritance. Spec G7 part 2.",
+    "category": "security",
+    "description": "Cap `valid_tool_name::find_nearest_manifest` parent-walk at `lint::Options::dir`. Spec §5.1.3 (sub-option A), §5.3.2, G4.",
     "steps": [
-      "Add a new public function in `crates/libaipm/src/manifest/mod.rs`: `pub fn effective_engines(package: Option<&Package>, workspace: Option<&Workspace>) -> Option<EngineSet>` returning `package.and_then(|p| p.engines).or_else(|| workspace.and_then(|w| w.engines))`.",
-      "Add a 4-case truth-table unit test in `manifest/mod.rs::tests`: (None, None) → None; (None, Some(CLAUDE)) → Some(CLAUDE); (Some(COPILOT), None) → Some(COPILOT); (Some(COPILOT), Some(CLAUDE)) → Some(COPILOT) (package wins).",
-      "Document the contract in the function's doc comment: returns `None` only when both layers omit; `Some(EngineSet::empty())` is preserved (semantic 'all engines'); package always wins, no merging.",
-      "Run all four CLAUDE.md gates."
+      "In `crates/libaipm/src/lint/rule.rs` (around line 16-41), extend the `Rule` trait with an optional method `fn check_file_in(&self, file_path: &Path, lint_dir: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, super::Error>` whose default impl simply delegates to `self.check_file(file_path, fs)`. Only `ValidToolName` will override it.",
+      "In `crates/libaipm/src/lint/mod.rs` around lines 112-117 (`run_rules_for_feature`), change the dispatch to call `rule.check_file_in(&feature.path, &opts.dir, fs)?` instead of `rule.check_file(&feature.path, fs)?`.",
+      "In `crates/libaipm/src/lint/rules/valid_tool_name.rs`: add an `impl Rule for ValidToolName` override of `check_file_in` that takes the `lint_dir`, then plumb it through `nearest_declared_engines(file_path, lint_dir, fs)` and `find_nearest_manifest(file_path, lint_dir, fs)`.",
+      "Modify `find_nearest_manifest` at `valid_tool_name.rs:206-216` to take a `stop_dir: &Path` parameter. Inside the loop, after finding no `aipm.toml` at `dir`, check `if dir == stop_dir { return None; }` BEFORE descending to `dir.parent()`.",
+      "Implementation note: the comparison `dir == stop_dir` should work for typical relative paths supplied by callers; if path normalisation is needed, prefer comparing canonicalised forms via the existing `Fs` trait — but the Fs trait does NOT expose `canonicalize` (spec N4). The simpler `==` check is sufficient because both paths originate from the same `Options::dir` -> walker -> rule pipeline.",
+      "Add unit tests in `valid_tool_name.rs`'s `tests` module: (a) `parent_walk_stops_at_options_dir` — `aipm.toml` placed in the parent of `lint_dir` is NOT found; rule treats workspace as having no declared engines (warning, not error); (b) `parent_walk_succeeds_inside_options_dir` — `aipm.toml` at `<lint_dir>/p/aipm.toml` IS found when linting `<lint_dir>/p/agents/x.md`; (c) `parent_walk_succeeds_at_options_dir_boundary` — `aipm.toml` at exactly `lint_dir/aipm.toml` IS found when linting `<lint_dir>/agents/x.md`.",
+      "Existing 21 tests in `valid_tool_name.rs:218-506` must continue to pass. Note: helper `manifest_path()` at lines 228-230 produces `.ai/p/aipm.toml`; tests now need to supply a `lint_dir` argument (most tests can use `Path::new(\".ai/p\")` or similar to match the existing fixture root).",
+      "Verify all four CLAUDE.md gates pass and branch coverage >= 89%."
     ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Migrate `engine.rs::validate_via_manifest` from `MinimalManifest` shadow deserializer to the canonical `Manifest` + `effective_engines` (drive-by per spec §5.5.2).",
-    "steps": [
-      "Edit `crates/libaipm/src/engine.rs:101-148`: delete the `MinimalManifest` and `MinimalPackage` private structs.",
-      "In `validate_via_manifest`, replace the shadow-deserialize call with `manifest::parse(toml_str)?` followed by `effective_engines(manifest.package.as_ref(), manifest.workspace.as_ref())`.",
-      "Preserve the existing 'broken manifest is treated as universal' tolerance: catch parse errors and return the same 'all engines' fallback (consult existing tests for the exact error-handling contract before changing).",
-      "Update or extend the existing tests in `engine.rs::tests` to confirm: (a) workspace-level engines are now respected when package omits them; (b) malformed manifests still fall back to 'all engines'.",
-      "Run all four CLAUDE.md gates."
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Update manifest builder so `[workspace].engines` can be emitted when narrower than `EngineSet::ALL`. Spec §5.5.3.",
-    "steps": [
-      "Edit `crates/libaipm/src/manifest/builder.rs`: add `pub engines: Option<&'a [&'a str]>,` to `WorkspaceManifestOpts` (mirror `PluginManifestOpts.engines`).",
-      "Update `build_workspace_manifest` (lines 105-145) to insert `engines = […]` into the `[workspace]` table when `Some(slice)` AND `!slice.is_empty()`, mirroring the existing `build_plugin_manifest` logic at lines 72-80. Field order: after `plugins_dir`, before `dependencies`.",
-      "Add unit tests in `builder.rs::tests`: (a) `engines: None` → no `engines =` line emitted; (b) `engines: Some(&[])` → no line emitted; (c) `engines: Some(&[\"claude\"])` → `engines = [\"claude\"]` emitted.",
-      "Round-trip-validate via `crate::manifest::parse_and_validate` in the tests.",
-      "Run all four CLAUDE.md gates."
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Extend `workspace_init::Options` with `engines_scaffold: EngineSet` and `engines_support: Option<EngineSet>`; have `init()` filter the adaptor list by the scaffold set. Spec §5.3.",
-    "steps": [
-      "Edit `crates/libaipm/src/workspace_init/mod.rs:51-65`: add `pub engines_scaffold: EngineSet,` and `pub engines_support: Option<EngineSet>,` to the `Options` struct, with doc comments matching spec §5.3.",
-      "Update `init()` (lines 96-120) to skip adaptors whose `engine()` is not contained in `opts.engines_scaffold`: `if !opts.engines_scaffold.contains(adaptor.engine().as_set()) { continue; }`.",
-      "Update `init_workspace()` and `scaffold_marketplace()` signatures to accept `engines_support: Option<EngineSet>` and thread it into `generate_workspace_manifest()` and `generate_starter_manifest()` respectively.",
-      "Update `generate_workspace_manifest()` (lines 144-168) to compute `engines_strs: Option<Vec<&str>>` from `engines_support`, omitting when `EngineSet::ALL` or empty (§5.5.3).",
-      "Update `generate_starter_manifest()` (lines 276-299) to drop the hardcoded `let starter_engines: &[&str] = &[\"claude\"];` and instead derive the engines slice from `engines_support` (omit when ALL/empty).",
-      "Update existing tests in `workspace_init/mod.rs` (e.g. `init_no_starter_still_configures_tools`) to pass the new `Options` fields. Default `engines_scaffold = EngineSet::CLAUDE` and `engines_support = None` to preserve existing assertions.",
-      "Add new tests: (a) `engines_scaffold = COPILOT` only → `.claude/` is NOT created, `.github/copilot-instructions.md` IS; (b) `engines_scaffold = empty` → no adaptor runs; (c) `engines_support = Some(CLAUDE)` → workspace TOML contains `engines = [\"claude\"]`; (d) `engines_support = None` → workspace TOML omits the field.",
-      "Run all four CLAUDE.md gates."
-    ],
-    "passes": true
-  },
-  {
-    "category": "ui",
-    "description": "Add `--engine <list>` flag to the `Init` clap struct, comma-separated. Spec G4 / §5.1.",
-    "steps": [
-      "Edit `crates/aipm/src/main.rs:35-64`: add `#[arg(long, value_name = \"LIST\", value_delimiter = ',')] pub engine: Vec<String>,` to `InitFlags`. Doc comment: 'Engines to scaffold for, comma-separated (e.g. --engine claude,copilot). Drives WHICH adaptors run; does NOT narrow [workspace].engines.'",
-      "Add a helper in the same file (or in `wizard.rs`) `fn parse_engine_list(values: &[String]) -> Result<EngineSet, ParseError>` that maps each string through `Engine::from_name`, errors on unknown names, and errors on a single empty-string entry.",
-      "Wire `flags.engine` into `cmd_init` by passing it down to `wizard_tty::resolve` and `resolve_defaults` (subsequent features).",
-      "Add unit tests via clap parsing (use `Cli::try_parse_from`) covering `--engine claude`, `--engine claude,copilot`, repeated `--engine claude --engine copilot`, `--engine ''` (rejected), `--engine gemini` (rejected with helpful message).",
-      "Run all four CLAUDE.md gates."
-    ],
-    "passes": true
-  },
-  {
-    "category": "ui",
-    "description": "Add Wizard Prompt 2 'Which engine(s) should we scaffold for this project?' — MultiSelect, must pick ≥1, pre-checks engines whose marker file already exists. Spec G1 / §5.2.1.",
-    "steps": [
-      "Add `pub const ENGINE_OPTIONS_INIT: &[(&str, Engine)] = &[(\"Claude Code\", Engine::Claude), (\"Copilot CLI\", Engine::Copilot)];` to `crates/aipm/src/wizard.rs`.",
-      "Add a new `PromptStep` to `workspace_prompt_steps` (in `wizard.rs:23-73`) with `PromptKind::MultiSelect`, label 'Which engine(s) should we scaffold for this project?', help text per spec, and pre-checked indices computed from filesystem detection (`.claude/` and `.github/copilot-instructions.md` existence under `dir`).",
-      "Skip this prompt when CLI provides `--engine` (one of the inputs to `workspace_prompt_steps`) or when the resolved scope is workspace-only (no marketplace, no adaptors).",
-      "Add a validator (extend `execute_prompts` in `crates/libaipm/src/wizard.rs:127-142` if needed) that rejects empty selection with message 'Select at least one engine.'",
-      "Add unit/snapshot tests in `wizard.rs::tests`: prompt visibility for every flag combination, snapshot of the new prompt list, validator-rejects-empty test.",
-      "Run all four CLAUDE.md gates."
-    ],
-    "passes": true
-  },
-  {
-    "category": "ui",
-    "description": "Add Wizard Prompt 3 'Which engines does your project support?' — MultiSelect, defaults to all, validator requires support ⊇ scaffold. Spec G2, G10 / §5.2.2.",
-    "steps": [
-      "Add a second `PromptStep` to `workspace_prompt_steps` immediately after the scaffold prompt: MultiSelect with label 'Which engines does your project support?', defaults to all of `Engine::ALL`.",
-      "Skip this prompt whenever Prompt 2 was skipped.",
-      "Add a validator that rejects when the support set is not a superset of the scaffold set, with message 'Cannot drop {engine} from support — it's in the scaffold set.' The scaffold set is taken from the previous prompt's answer (the validator may need access to prior `PromptAnswer`s; extend `execute_prompts` if needed).",
-      "Add unit/snapshot tests: defaults-to-all, narrowed-to-claude-only, narrowed-not-superset-rejected.",
-      "Run all four CLAUDE.md gates."
-    ],
-    "passes": true
-  },
-  {
-    "category": "ui",
-    "description": "Update `resolve_workspace_answers` and `resolve_defaults` to map MultiSelect outputs to `engines_scaffold: EngineSet` and `engines_support: Option<EngineSet>`; `--yes` default = Copilot only. Spec G5 / §5.2.3.",
-    "steps": [
-      "Define a new `WizardAnswers` struct (in `crates/aipm/src/wizard.rs`) with fields `workspace, marketplace, no_starter, marketplace_name, engines_scaffold, engines_support`. Replace the current 4-tuple return type with this struct everywhere.",
-      "Update `resolve_workspace_answers` (lines 78-131) to consume the new MultiSelect answers and compute `engines_scaffold` (always `Some` set) and `engines_support` (None when answer == ALL, else Some(set narrower than ALL)).",
-      "Update `resolve_defaults` (lines 140-150) per spec §5.2.3: if `engine_flag` non-empty, `engines_scaffold = parse_engine_list(engine_flag)`; else if marketplace in scope, default to `EngineSet::COPILOT`; else `EngineSet::empty()`. `engines_support = None` always (manifest omits field in headless mode).",
-      "Update existing snapshot tests for `resolve_workspace_answers` and `resolve_defaults` (lines 516-675) to cover all MultiSelect output cases.",
-      "Run all four CLAUDE.md gates."
-    ],
-    "passes": true
-  },
-  {
-    "category": "ui",
-    "description": "Update `wizard_tty::resolve` to return `WizardAnswers` and print the confirmation block before handoff. Spec §5.2.4.",
-    "steps": [
-      "Edit `crates/aipm/src/wizard_tty.rs:37-51`: change the return type from the 4-tuple to `WizardAnswers`, both in the interactive and `resolve_defaults` branches.",
-      "Print a confirmation block to stderr (via `std::io::Write` per CLAUDE.md — no `println!`/`eprintln!`) listing setup mode, scaffold engines, support engines (or 'all' when None), marketplace name, starter plugin yes/no.",
-      "Update `cmd_init` in `main.rs:398-445` to consume the new struct and pass `engines_scaffold` and `engines_support` into the new `Options` fields.",
-      "Run all four CLAUDE.md gates."
-    ],
-    "passes": true
-  },
-  {
-    "category": "refactor",
-    "description": "Update the `valid-tool-name` lint rule to use the new `effective_engines` helper instead of reading `Package.engines` directly (drive-by per spec §5.5.2).",
-    "steps": [
-      "Edit `crates/libaipm/src/lint/rules/valid_tool_name.rs`: in `nearest_declared_engines` (around line 63), replace direct `package.engines` access with a call to `manifest::effective_engines(manifest.package.as_ref(), manifest.workspace.as_ref())`.",
-      "Add a test fixture or extend existing tests so a workspace-level `engines = [\"claude\"]` with a member plugin omitting the field correctly drives the lint to apply Claude-only tool-name rules.",
-      "Run all four CLAUDE.md gates."
-    ],
-    "passes": true
-  },
-  {
-    "category": "functional",
-    "description": "Extend `schemas/aipm.toml.schema.json` to declare the `engines` property on both `[package]` and `[workspace]`, with a closed enum derived from `Engine::ALL`. Spec G8 / §5.7.",
-    "steps": [
-      "Edit `schemas/aipm.toml.schema.json`: add `engines` property under `$defs.package.properties` as `{type: 'array', items: {type: 'string', enum: ['claude', 'copilot']}, uniqueItems: true, description: ...}`.",
-      "Add the same property under `$defs.workspace.properties` via `$ref` to the package definition (or duplicate — follow the existing schema's style).",
-      "Add new schema test fixtures under `schemas/tests/`: `valid-with-engines.toml` (package with `engines = [\"claude\"]`), `valid-workspace-with-engines.toml` (workspace with `engines = [\"claude\", \"copilot\"]`), `invalid-unknown-engine.toml` (`engines = [\"gemini\"]`).",
-      "Add a drift test `schemas/tests/engine_enum_in_sync.rs` that compile-fails when the JSON schema's enum diverges from `Engine::ALL.iter().map(Engine::name).collect()`.",
-      "Run all four CLAUDE.md gates."
-    ],
-    "passes": true
+    "passes": false
   },
   {
     "category": "test",
-    "description": "Pin existing `.claude/`-asserting integration tests with explicit `--engine claude` so they continue to pass under engine-aware init. Spec G9 part 1 / §8.3.2.",
+    "description": "Add new BDD feature file `tests/features/lint/path-containment.feature` with 5 scenarios spanning Findings 1 and 2. Spec §8.3 BDD, G7.",
     "steps": [
-      "Edit `crates/aipm/tests/init_e2e.rs`: in `init_default_creates_marketplace_only` (line 22), add `--engine claude` to the `aipm init` command. Assertion at line 38 (`.claude/settings.json` exists) is unchanged.",
-      "Repeat for `init_claude_settings_generated` (line 135), `init_settings_json_marketplace_name_and_enabled_plugins` (line 205), `scaffold_script_enables_in_settings_json` (line 298), `scaffold_script_multiple_plugins_no_duplicates` (line 342).",
-      "Run `cargo test --workspace` and confirm all five tests still pass with the updated commands.",
-      "Run all four CLAUDE.md gates."
+      "Create `tests/features/lint/path-containment.feature` with `@p0 @security` tags and `Feature: Lint rules contain PR-author-controlled paths`. Add a `Background` step `Given a workspace at \"{tmp}\"` that resolves through the existing tempdir helpers in `crates/libaipm/tests/bdd.rs`.",
+      "Scenario 1 — 'Marketplace source with parent-dir traversal is rejected': writes a `marketplace.json` with `plugins[0].source = \"../../etc/passwd\"`; runs `aipm lint`; asserts a diagnostic with rule `marketplace/source-resolve` is emitted; asserts no FS read happened outside the workspace.",
+      "Scenario 2 — 'Marketplace source with absolute path is rejected': same shape with `source = \"/etc/passwd\"`.",
+      "Scenario 3 — 'Plugin-field mismatch lookup with traversal source is rejected': `source = \"../../tmp\"`; asserts the `marketplace/plugin-field-mismatch` rule emits no diagnostic and performs no read of `/tmp/.claude-plugin/plugin.json`.",
+      "Scenario 4 — 'valid-tool-name does not walk above the lint root': sets up `aipm.toml` in the parent of `lint_dir` declaring `engines = [\"claude\"]`; lints a frontmatter file inside `lint_dir` declaring `tools = NotebookEdit` (Claude-only tool); asserts a `valid-tool-name` warning (not error) is emitted because the rule treats the workspace as having no declared engines.",
+      "Scenario 5 — 'ci-azure reporter does not allow logging-command injection via file path': configures a diagnostic for a file path containing a literal `\\n`; renders with `--reporter ci-azure`; asserts the output contains exactly one `##[group]` line and one `##vso[task.logissue` line; asserts no second logging command appears on any subsequent byte until the corresponding `##[endgroup]`.",
+      "Add step definitions in `crates/libaipm/tests/bdd.rs` next to the existing path-traversal step at `:360-376`. Reuse the existing `the command fails with {string}` step where applicable.",
+      "Verify the BDD harness picks up the new feature file: `cargo test --workspace` should show 5 new scenarios passing.",
+      "Verify all four CLAUDE.md gates pass and branch coverage >= 89%."
     ],
-    "passes": true
+    "passes": false
   },
   {
-    "category": "test",
-    "description": "Add new integration tests at `crates/aipm/tests/init_engine_e2e.rs` covering Copilot-only, multi-engine, --yes default, error cases, and narrowed support. Spec G9 part 2 / §8.3.2.",
+    "category": "ci",
+    "description": "Modify `.github/workflows/release-nuget.yml` to harden the publish path: add protected environment, attestation step, attestations permission; remove API-key fallback step and OIDC `continue-on-error`. Spec §5.1.4, §5.3.3, G6.",
     "steps": [
-      "Create `crates/aipm/tests/init_engine_e2e.rs`.",
-      "Add `init_with_engine_copilot_creates_only_github`: runs `aipm init --engine copilot`, asserts `.github/copilot-instructions.md` exists and `.claude/` does not.",
-      "Add `init_with_engine_both_creates_both`: runs `aipm init --engine claude,copilot`, asserts both engine roots exist.",
-      "Add `init_yes_default_scaffolds_copilot`: runs `aipm init --yes` (no engine flag), asserts `.github/copilot-instructions.md` exists and `.claude/` does not.",
-      "Add `init_engine_unknown_errors`: runs `aipm init --yes --engine gemini`, asserts non-zero exit and stderr mentions valid engine names.",
-      "Add `init_engine_empty_string_errors`: runs `aipm init --yes --engine ''`, asserts non-zero exit.",
-      "Add `init_with_narrow_support_writes_engines_field`: invoke library API directly (or use a scripted wizard input) with `engines_support = Some(EngineSet::CLAUDE)`, assert workspace `aipm.toml` contains `engines = [\"claude\"]`.",
-      "Run `cargo test --workspace` and confirm all six new tests pass.",
-      "Run all four CLAUDE.md gates."
+      "PRE-MERGE AUTHOR TASK (must complete before this feature lands): in GitHub repo Settings → Environments, create a new environment named `nuget-publish` with required-reviewer rule (`@TheLarkInn` minimum), wait timer 0, deployment branches restricted to `main`. Without this configured, the first post-merge run would block awaiting an approver that doesn't exist. This is documented in spec §5.2 and §8.1.",
+      "PRE-MERGE AUTHOR TASK: verify the NuGet.org trusted-publisher subject-claim binding for `aipm` is constrained to `repository_owner: TheLarkInn`, `repository: aipm`, `ref: refs/tags/aipm-v*`. Record the verified values in the spec's §10 Appendix.",
+      "In `.github/workflows/release-nuget.yml` job-level `permissions:` block at `:36-38`, add `attestations: write` (the new permission required by `actions/attest-build-provenance`).",
+      "Add `environment: nuget-publish` to the `publish` job (between the existing `permissions:` block and `timeout-minutes: 20` at `:39`).",
+      "Remove `continue-on-error: true` from the `NuGet OIDC login (Trusted Publishing)` step at `:163-168`. The step is `:165` specifically — delete that single line.",
+      "Add a new step `Generate build provenance attestation` placed AFTER the `Inspect nupkg (sanity check)` step (`:148-161`) and BEFORE `NuGet OIDC login` (`:163`). Use `actions/attest-build-provenance@v1` with input `subject-path: out/*.nupkg`. Pin the action to a specific SHA per repo convention if other actions in this workflow are SHA-pinned (verify by inspecting `.github/workflows/release-nuget.yml` references).",
+      "Remove the `Push to nuget.org (API-key fallback)` step at `:178-185` entirely.",
+      "Update the OIDC push step's `if:` condition at `:171`. With the fallback removed and `continue-on-error: true` gone, a failed OIDC step aborts the job, so the `if: steps.nuget_login.outcome == 'success'` guard becomes redundant — it can be removed (the step runs unconditionally) OR kept as a defensive belt-and-braces check. Recommendation: REMOVE the `if:` line for clarity (the step's preconditions are now job-failure semantics, not step-success branching).",
+      "Update the workflow header comment block at `:1-11` to reflect the new posture: 'OIDC-only publishing; environment-gated; attested with sigstore SLSA v1 build provenance.'",
+      "Static-validate the YAML with `actionlint .github/workflows/release-nuget.yml` (or the GitHub `workflow-syntax-check` API).",
+      "Confirm `actions/attest-build-provenance@v1` is allowed by the repo's actions allowlist (Settings → Actions → General → Allow actions and reusable workflows). If a strict allowlist is enforced, add it; otherwise no action needed.",
+      "POST-MERGE VERIFICATION (record in progress.txt after first run): the post-merge `release-nuget.yml` run pauses for environment approval; after approval the workflow completes; the build-provenance attestation appears at https://github.com/TheLarkInn/aipm/attestations; the run logs contain no reference to `secrets.NUGET_API_KEY`; the published `.nupkg` is verifiable with `gh attestation verify out/aipm.<version>.nupkg --owner TheLarkInn`.",
+      "No Rust/cargo gates apply to this feature (workflow YAML only). Confirm the rest of the workspace's CLAUDE.md gates still pass: the YAML change alone should not affect Rust build/test/clippy/fmt or coverage."
     ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Update existing BDD scenarios in `tests/features/manifest/workspace-init.feature` to pass `--engine claude` so they continue locking current behavior. Spec G9 part 3 / §8.3.3.",
-    "steps": [
-      "Edit `tests/features/manifest/workspace-init.feature`: at lines 81-85 ('No-starter flag still configures tool settings'), change `aipm init --no-starter` to `aipm init --no-starter --engine claude`. Assertion unchanged.",
-      "At lines 173-186 ('Rule: Tool settings integration'), add `--engine claude` to every `aipm init` invocation that asserts `.claude/settings.json` exists.",
-      "Run `cargo test --workspace` (BDD scenarios run via `crates/libaipm/tests/bdd.rs`) and confirm green.",
-      "Run all four CLAUDE.md gates."
-    ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Add a new BDD rule 'Engine-aware init scaffolds only chosen engines' with five scenarios covering Copilot-only, multi-engine, --yes default, narrowed support, and default-supports-all. Spec G9 part 3 / §8.3.3.",
-    "steps": [
-      "Append a new `Rule: Engine-aware init scaffolds only chosen engines` to `tests/features/manifest/workspace-init.feature`.",
-      "Scenario: 'Copilot-only init does not create .claude/' — `aipm init --engine copilot` → `.github/copilot-instructions.md` exists, no `.claude` dir.",
-      "Scenario: 'Multi-engine init creates both engine roots' — `aipm init --engine claude,copilot` → both roots exist.",
-      "Scenario: '--yes defaults to Copilot only' — `aipm init --yes` → `.github/copilot-instructions.md` exists, no `.claude`.",
-      "Scenario: 'Narrowed support set writes workspace engines field' — must drive interactive support narrowing (or pass a hypothetical `--support` flag if the spec adds one; otherwise this scenario tests via the library API in a Rust integration test instead).",
-      "Scenario: 'Default (all engines supported) omits the engines field' — `aipm init --engine claude --yes` → workspace `aipm.toml` does NOT contain an `engines =` line.",
-      "Add new step glue helpers in `crates/libaipm/tests/bdd.rs` (extend lines 594-650): `then_workspace_toml_contains(text)`, `then_workspace_toml_does_not_contain(text)`, `then_no_directory_exists`.",
-      "Run `cargo test --workspace` and confirm all five new scenarios pass.",
-      "Run all four CLAUDE.md gates."
-    ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Refresh wizard prompt snapshot files to reflect the new 5-prompt sequence (3 existing + 2 engine prompts). Spec §8.3.4.",
-    "steps": [
-      "After the wizard prompt features land, run `cargo test --workspace` and let `insta` produce the new snapshot files.",
-      "Review every changed snapshot under `crates/aipm/src/snapshots/aipm__wizard__tests__*.snap` (8 workspace-prompt files: no_flags, workspace_flag, marketplace_flag, both_flags, no_starter_flag, all_flags, name_flag_omits_name_prompt, workspace_only_omits_name_prompt) to confirm the engine prompts appear/disappear per the spec's flag-skip rules.",
-      "Accept the new snapshots via `cargo insta accept` only if every diff is intentional.",
-      "Run all four CLAUDE.md gates."
-    ],
-    "passes": true
-  },
-  {
-    "category": "test",
-    "description": "Verify final coverage gate: ≥89% branch coverage on the workspace, no lint suppressions, all four CLAUDE.md commands green. Spec §8.3.6.",
-    "steps": [
-      "Run the full coverage suite per CLAUDE.md: `cargo +nightly llvm-cov clean --workspace`, `cargo +nightly llvm-cov --no-report --workspace --branch`, `cargo +nightly llvm-cov --no-report --doc`, `cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs|lsp\\.rs|libaipm-engine-spec/build\\.rs|libaipm-engine-spec/src/bin)'`.",
-      "Confirm TOTAL branch column shows ≥89%. Confirm `copilot.rs` is NOT in the ignore-filename-regex (its branches must be covered).",
-      "Run `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` and confirm zero warnings and zero failures.",
-      "Grep the diff for any `#[allow(...)]` / `#[expect(...)]` / `unwrap()` / `expect(` / `panic!(` / `todo!(` / `println!(` / `eprintln!(` / `dbg!(` introductions in production code; if found, fix the root cause (per CLAUDE.md lint policy)."
-    ],
-    "passes": true
+    "passes": false
   }
 ]
