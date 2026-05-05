@@ -8,7 +8,7 @@
   "x-taplo": {
     "initKeys": ["workspace.lints"]
   },
-  "$defs": {
+  "definitions": {
     "engineList": {
       "type": "array",
       "description": "Engine compatibility list (issue #724). Omit (or empty array) means \"all engines\". Non-empty list narrows to the named engines. Recognized values are sourced from libaipm-engine-spec's Engine::ALL — keep this enum in sync (the schemas/aipm_toml_schema_drift integration test enforces it).",
@@ -26,7 +26,7 @@
       "additionalProperties": true,
       "properties": {
         "engines": {
-          "$ref": "#/$defs/engineList"
+          "$ref": "#/definitions/engineList"
         }
       }
     },
@@ -36,7 +36,7 @@
       "additionalProperties": true,
       "properties": {
         "engines": {
-          "$ref": "#/$defs/engineList"
+          "$ref": "#/definitions/engineList"
         },
         "lints": {
           "type": "object",

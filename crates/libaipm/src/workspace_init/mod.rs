@@ -1024,7 +1024,11 @@ mod tests {
             no_starter: false,
             manifest: true,
             marketplace_name: "local-repo-plugins",
-            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            // Both adaptors must actually run so this test exercises both
+            // idempotency paths (per the pre-seed setup above). With
+            // `engines_scaffold: CLAUDE`, the Copilot adaptor would be
+            // filtered out and only Claude's idempotent path would be tested.
+            engines_scaffold: libaipm_engine_spec::EngineSet::ALL,
             engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
@@ -1461,7 +1465,12 @@ mod tests {
             no_starter: false,
             manifest: true,
             marketplace_name: "local-repo-plugins",
-            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            // Both adaptors must actually run so this test exercises both
+            // idempotency paths (per the pre-seed of `.claude/settings.json`
+            // AND `.github/copilot-instructions.md` above). With
+            // `engines_scaffold: CLAUDE`, the Copilot adaptor would be
+            // filtered out and only Claude's `Ok(false)` path would be tested.
+            engines_scaffold: libaipm_engine_spec::EngineSet::ALL,
             engines_support: None,
         };
         let adaptors = default_adaptors();
@@ -1529,7 +1538,10 @@ mod tests {
             no_starter: false,
             manifest: true,
             marketplace_name: "local-repo-plugins",
-            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            // Both adaptors must run so this test actually exercises the
+            // False branch of `if adaptor.apply(...)` for both engines
+            // (per the pre-seed setup above).
+            engines_scaffold: libaipm_engine_spec::EngineSet::ALL,
             engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);

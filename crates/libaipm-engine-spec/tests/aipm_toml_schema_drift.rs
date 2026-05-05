@@ -17,12 +17,12 @@ fn aipm_toml_schema_engine_enum_matches_engine_all() {
         serde_json::from_str(&schema_text).expect("parse aipm.toml schema");
 
     let enum_values = schema
-        .get("$defs")
+        .get("definitions")
         .and_then(|d| d.get("engineList"))
         .and_then(|el| el.get("items"))
         .and_then(|i| i.get("enum"))
         .and_then(|e| e.as_array())
-        .expect("schema must define $defs.engineList.items.enum");
+        .expect("schema must define definitions.engineList.items.enum");
 
     let schema_names: Vec<&str> = enum_values.iter().filter_map(|v| v.as_str()).collect();
     let expected_names: Vec<&str> = Engine::ALL.iter().map(|e| e.name()).collect();
@@ -49,11 +49,11 @@ fn aipm_toml_schema_exposes_engines_on_package_and_workspace() {
         .pointer("/properties/package/properties/engines/$ref")
         .and_then(|v| v.as_str())
         .expect("[package].engines must be defined and use a $ref");
-    assert_eq!(package_ref, "#/$defs/engineList");
+    assert_eq!(package_ref, "#/definitions/engineList");
 
     let workspace_ref = schema
         .pointer("/properties/workspace/properties/engines/$ref")
         .and_then(|v| v.as_str())
         .expect("[workspace].engines must be defined and use a $ref");
-    assert_eq!(workspace_ref, "#/$defs/engineList");
+    assert_eq!(workspace_ref, "#/definitions/engineList");
 }
