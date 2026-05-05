@@ -1,3 +1,39 @@
+## Feature 10 — `--engine <list>` flag on `aipm init` (PASS)
+
+Date: 2026-05-05
+Iteration: 10
+Status: passes=true, all four CLAUDE.md gates green, coverage 90.26% (>=89% required)
+
+Changes shipped:
+- `crates/aipm/src/main.rs:60-65` — added `engine: Vec<String>` field to the `Commands::Init` clap variant with `#[arg(long, value_name = "LIST", value_delimiter = ',')]`. Doc comment notes that the flag drives the scaffold set, not the support set, and supports comma-separated values plus repeated flags.
+- `crates/aipm/src/main.rs:391-397` — `InitWizardFlags` struct extended with `engine: Vec<String>` so `cmd_init` receives the user's engine list.
+- `crates/aipm/src/main.rs:421-428` — `cmd_init` now parses `flags.engine` via `wizard::parse_engine_list` and uses the result as the `engines_scaffold`. When the flag is absent (empty Vec), falls back to the Feature 9 baseline (`EngineSet::CLAUDE`). Feature 14 will replace the baseline with wizard-derived defaults.
+- `crates/aipm/src/main.rs:1206-1217` — top-level `Commands::Init` destructure adds `engine` to the field list and passes it through to `InitWizardFlags`.
+- `crates/aipm/src/wizard.rs:152-188` — NEW `pub fn parse_engine_list(values: &[String]) -> Result<EngineSet, String>` helper. Each value is trimmed and looked up via `libaipm::Engine::from_name`. Empty entries error with a helpful message; unknown engines error with the full known-engines list in the message. Empty input slice returns `Ok(EngineSet::empty())` so callers decide what to do when the flag is absent.
+- 10 NEW unit tests in `wizard::tests`:
+  - `parse_engine_list_empty_input_returns_empty_set` — empty Vec is OK (no flag).
+  - `parse_engine_list_single_claude` / `_single_copilot` — single-value parsing.
+  - `parse_engine_list_multi_value` — `["claude", "copilot"]` produces `CLAUDE | COPILOT`.
+  - `parse_engine_list_trims_whitespace` — leading/trailing whitespace stripped before lookup.
+  - `parse_engine_list_empty_string_errors` / `_whitespace_only_errors` — both forms of "empty" are rejected with a clear message.
+  - `parse_engine_list_unknown_engine_errors` — unknown name produces error mentioning the unknown name AND listing valid engines.
+  - `parse_engine_list_legacy_copilot_cli_form_rejected` — confirms post-rename `"copilot-cli"` is no longer accepted.
+  - `parse_engine_list_mixed_known_and_unknown_errors_on_first_unknown` — fail-fast on first invalid entry.
+
+Test results: aipm CLI binary at 145 unit tests (+10 new parse_engine_list tests). All other test suites unchanged.
+
+CLAUDE.md lint compliance:
+- One clippy `single_match_else` complaint fixed by switching to `if let ... else` (clippy preferred form).
+- No `unwrap()`/`expect()`/`panic!()` introduced.
+- No `#[allow(...)]` attributes.
+
+Notes for future iterations:
+- Feature 11 (Wizard Prompt 2 — "Which engine(s) should we scaffold?") consumes `flags.engine` to decide whether to skip the prompt entirely.
+- Feature 14 (`wizard_tty::resolve` rewrite) replaces the temporary `EngineSet::CLAUDE` baseline at `cmd_init` line 421 with the wizard's MultiSelect answer or `EngineSet::COPILOT` for `--yes` mode.
+- Feature 18 (new integration tests) will exercise `aipm init --engine claude`, `--engine copilot`, `--engine claude,copilot`, `--engine ''` (error), `--engine gemini` (error), `--engine` repeated end-to-end.
+
+---
+
 ## Feature 9 — `Options` engines_scaffold + engines_support fields, `init()` filter (PASS)
 
 Date: 2026-05-05

@@ -149,6 +149,43 @@ pub fn resolve_defaults(
     (w, m, no_starter, marketplace_name)
 }
 
+/// Parse the values from `aipm init --engine <list>` into an `EngineSet`.
+///
+/// Each value is trimmed and looked up via [`libaipm::Engine::from_name`].
+/// Empty input strings (e.g. from `--engine ''`) and unknown names produce
+/// human-readable error messages. An empty input slice (no `--engine`
+/// flag was passed) returns `Ok(EngineSet::empty())` — callers decide
+/// whether that means "use defaults" or "error required".
+///
+/// # Errors
+///
+/// Returns a stringly-typed error so the caller can wrap it in any CLI
+/// error variant. Errors on:
+/// - any entry that is empty after trimming
+/// - any entry that does not map to a known engine via `Engine::from_name`
+pub fn parse_engine_list(values: &[String]) -> Result<libaipm::EngineSet, String> {
+    let mut set = libaipm::EngineSet::empty();
+    for raw in values {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            return Err(
+                "--engine value must not be empty (e.g. `--engine claude` or `--engine claude,copilot`)"
+                    .to_string(),
+            );
+        }
+        if let Some(engine) = libaipm::Engine::from_name(trimmed) {
+            set |= engine.as_set();
+        } else {
+            let known: Vec<&str> = libaipm::Engine::ALL.iter().map(|e| e.name()).collect();
+            return Err(format!(
+                "unknown engine '{trimmed}' (known engines: {known})",
+                known = known.join(", ")
+            ));
+        }
+    }
+    Ok(set)
+}
+
 // =============================================================================
 // Migrate cleanup prompts
 // =============================================================================
@@ -973,6 +1010,86 @@ mod tests {
             resolve_defaults(false, true, false, None),
             (false, true, false, "local-repo-plugins".to_string())
         );
+    }
+
+    // ---------- parse_engine_list (Feature 10 / Spec G4) ----------
+
+    #[test]
+    fn parse_engine_list_empty_input_returns_empty_set() {
+        // Empty Vec means `--engine` was not passed; the helper does not
+        // error so callers can decide what to do (use defaults or require
+        // explicit selection).
+        let values: Vec<String> = Vec::new();
+        let result = parse_engine_list(&values);
+        assert_eq!(result, Ok(libaipm::EngineSet::empty()));
+    }
+
+    #[test]
+    fn parse_engine_list_single_claude() {
+        let values = vec!["claude".to_string()];
+        let result = parse_engine_list(&values);
+        assert_eq!(result, Ok(libaipm::EngineSet::CLAUDE));
+    }
+
+    #[test]
+    fn parse_engine_list_single_copilot() {
+        let values = vec!["copilot".to_string()];
+        let result = parse_engine_list(&values);
+        assert_eq!(result, Ok(libaipm::EngineSet::COPILOT));
+    }
+
+    #[test]
+    fn parse_engine_list_multi_value() {
+        let values = vec!["claude".to_string(), "copilot".to_string()];
+        let result = parse_engine_list(&values);
+        assert_eq!(result, Ok(libaipm::EngineSet::CLAUDE | libaipm::EngineSet::COPILOT));
+    }
+
+    #[test]
+    fn parse_engine_list_trims_whitespace() {
+        let values = vec!["  claude  ".to_string()];
+        let result = parse_engine_list(&values);
+        assert_eq!(result, Ok(libaipm::EngineSet::CLAUDE));
+    }
+
+    #[test]
+    fn parse_engine_list_empty_string_errors() {
+        let values = vec![String::new()];
+        let err = parse_engine_list(&values).expect_err("empty string should error");
+        assert!(err.contains("must not be empty"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn parse_engine_list_whitespace_only_errors() {
+        let values = vec!["   ".to_string()];
+        let err = parse_engine_list(&values).expect_err("whitespace-only should error");
+        assert!(err.contains("must not be empty"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn parse_engine_list_unknown_engine_errors() {
+        let values = vec!["gemini".to_string()];
+        let err = parse_engine_list(&values).expect_err("unknown engine should error");
+        assert!(err.contains("unknown engine 'gemini'"), "unexpected error: {err}");
+        assert!(err.contains("known engines:"), "error should list known engines: {err}");
+        assert!(err.contains("claude"), "error should mention claude: {err}");
+        assert!(err.contains("copilot"), "error should mention copilot: {err}");
+    }
+
+    #[test]
+    fn parse_engine_list_legacy_copilot_cli_form_rejected() {
+        // The legacy "copilot-cli" name was renamed to "copilot" in
+        // feature 1; the parser must not accept it.
+        let values = vec!["copilot-cli".to_string()];
+        let err = parse_engine_list(&values).expect_err("legacy form should error");
+        assert!(err.contains("unknown engine 'copilot-cli'"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn parse_engine_list_mixed_known_and_unknown_errors_on_first_unknown() {
+        let values = vec!["claude".to_string(), "gemini".to_string()];
+        let err = parse_engine_list(&values).expect_err("mixed list with unknown should error");
+        assert!(err.contains("unknown engine 'gemini'"), "unexpected error: {err}");
     }
 
     #[test]

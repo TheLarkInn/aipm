@@ -58,6 +58,12 @@ enum Commands {
         #[arg(long)]
         name: Option<String>,
 
+        /// Engines to scaffold for, comma-separated (e.g. `--engine claude,copilot`).
+        /// Drives WHICH adaptors run; does NOT narrow `[workspace].engines`.
+        /// Repeated `--engine` flags are merged.
+        #[arg(long, value_name = "LIST", value_delimiter = ',')]
+        engine: Vec<String>,
+
         /// Directory to initialize (defaults to current directory).
         #[arg(default_value = ".")]
         dir: PathBuf,
@@ -393,6 +399,7 @@ struct InitWizardFlags {
     workspace: bool,
     marketplace: bool,
     no_starter: bool,
+    engine: Vec<String>,
 }
 
 fn cmd_init(
@@ -410,6 +417,15 @@ fn cmd_init(
         name,
     )?;
 
+    // Parse `--engine` if provided; otherwise fall back to the Feature 9
+    // baseline (`EngineSet::CLAUDE`). Feature 14 will replace the baseline
+    // with wizard-derived answers.
+    let engines_scaffold = if flags.engine.is_empty() {
+        libaipm::EngineSet::CLAUDE
+    } else {
+        wizard::parse_engine_list(&flags.engine).map_err(error::CliError::Message)?
+    };
+
     let adaptors = libaipm::workspace_init::adaptors::defaults();
     let opts = libaipm::workspace_init::Options {
         dir: &dir,
@@ -418,10 +434,7 @@ fn cmd_init(
         no_starter: do_no_starter,
         manifest,
         marketplace_name: &marketplace_name,
-        // Feature 9 baseline: scaffold Claude only by default (matches
-        // pre-feature-9 behavior). Feature 14 will wire wizard answers
-        // through to populate these fields properly.
-        engines_scaffold: libaipm::EngineSet::CLAUDE,
+        engines_scaffold,
         engines_support: None,
     };
 
@@ -1203,8 +1216,17 @@ fn run() -> Result<(), error::CliError> {
     libaipm::logging::init(verbosity, log_fmt)?;
 
     match cli.command {
-        Some(Commands::Init { yes, workspace, marketplace, no_starter, manifest, name, dir }) => {
-            let flags = InitWizardFlags { yes, workspace, marketplace, no_starter };
+        Some(Commands::Init {
+            yes,
+            workspace,
+            marketplace,
+            no_starter,
+            manifest,
+            name,
+            engine,
+            dir,
+        }) => {
+            let flags = InitWizardFlags { yes, workspace, marketplace, no_starter, engine };
             cmd_init(&flags, manifest, name.as_deref(), dir)
         },
         Some(Commands::Install {

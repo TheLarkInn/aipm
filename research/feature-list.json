@@ -126,7 +126,7 @@
       "Add unit tests via clap parsing (use `Cli::try_parse_from`) covering `--engine claude`, `--engine claude,copilot`, repeated `--engine claude --engine copilot`, `--engine ''` (rejected), `--engine gemini` (rejected with helpful message).",
       "Run all four CLAUDE.md gates."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ui",
