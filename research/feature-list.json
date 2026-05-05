@@ -22,7 +22,7 @@
       "Reference: existing `escape_github_prop` at `reporter.rs:383-389` which already replaces `\\r` -> `%0D` and `\\n` -> `%0A`. This test merely captures that protection as a regression gate.",
       "Verify all four CLAUDE.md gates pass and branch coverage >= 89%."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

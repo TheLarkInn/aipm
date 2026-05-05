@@ -1945,6 +1945,93 @@ mod tests {
         assert_eq!(output.matches("##vso[task.logissue").count(), 1);
     }
 
+    fn ci_github_diag_for_path(file_path: PathBuf) -> Outcome {
+        Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "skill/missing-description".to_string(),
+                severity: Severity::Warning,
+                message: "missing description".to_string(),
+                file_path,
+                line: Some(1),
+                col: Some(1),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".to_string(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+            ..Outcome::default()
+        }
+    }
+
+    fn render_ci_github(outcome: &Outcome) -> String {
+        let mut buf = Vec::new();
+        CiGitHub.report(outcome, &mut buf).ok();
+        String::from_utf8(buf).unwrap_or_default()
+    }
+
+    #[test]
+    fn ci_github_reporter_escapes_newline_in_file_path() {
+        // Spec §5.3.4 / G2 regression check: the ci-github reporter must
+        // already protect against logging-command injection via file paths
+        // containing \n (the analogue of issue #793 Finding 1 for the
+        // GitHub Actions workflow-command sink). escape_github_prop encodes
+        // \n as %0A, so the entire diagnostic stays on a single workflow
+        // command line.
+        let outcome = ci_github_diag_for_path(PathBuf::from(".ai/p\nbar/SKILL.md"));
+        let output = render_ci_github(&outcome);
+
+        // Exactly one workflow-command line is emitted (one diagnostic).
+        let cmd_lines: Vec<&str> = output
+            .lines()
+            .filter(|l| l.starts_with("::warning ") || l.starts_with("::error "))
+            .collect();
+        assert_eq!(cmd_lines.len(), 1);
+
+        // The newline is percent-encoded inside the file= property.
+        assert!(cmd_lines[0].contains("file=.ai/p%0Abar/SKILL.md"));
+        // No raw newline appears between the command opener and the next
+        // workflow command (there is no next workflow command).
+        assert!(!cmd_lines[0].contains(".ai/p\nbar/SKILL.md"));
+    }
+
+    #[test]
+    fn ci_github_reporter_escapes_carriage_return_in_file_path() {
+        let outcome = ci_github_diag_for_path(PathBuf::from(".ai/p\rbar/SKILL.md"));
+        let output = render_ci_github(&outcome);
+        assert!(output.contains("file=.ai/p%0Dbar/SKILL.md"));
+        assert!(!output.contains(".ai/p\rbar/SKILL.md"));
+    }
+
+    #[test]
+    fn ci_github_reporter_escapes_property_separators_in_file_path() {
+        // ',' and ':' are property/key-value separators in the GitHub
+        // workflow-command grammar; escape_github_prop encodes both.
+        let outcome = ci_github_diag_for_path(PathBuf::from(".ai/p,b:c/SKILL.md"));
+        let output = render_ci_github(&outcome);
+        assert!(output.contains("file=.ai/p%2Cb%3Ac/SKILL.md"));
+    }
+
+    #[test]
+    fn ci_github_reporter_no_injected_command_via_newline() {
+        // Issue-#793-style PoC payload: a path containing a newline
+        // followed by a fake `::error` line. The encoded form keeps it as
+        // data inside the legitimate first command's file= property.
+        let outcome =
+            ci_github_diag_for_path(PathBuf::from(".ai/p\n::error file=evil::injected/SKILL.md"));
+        let output = render_ci_github(&outcome);
+        let cmd_lines: Vec<&str> = output
+            .lines()
+            .filter(|l| l.starts_with("::warning ") || l.starts_with("::error "))
+            .collect();
+        // Only the legitimate ::warning emitted by the reporter exists.
+        assert_eq!(cmd_lines.len(), 1);
+        assert!(cmd_lines[0].starts_with("::warning "));
+    }
+
     #[test]
     fn ci_azure_group_line_no_second_logging_command_via_injection() {
         // PoC payload from issue #793: a filename containing

@@ -5,8 +5,8 @@ Research: research/tickets/2026-05-05-0793-security-review-findings.md
 Tracking: https://github.com/TheLarkInn/aipm/issues/793
 
 Total features: 8 (originally 9; Features 1 and 2 merged in iteration 1)
-Completed:      1
-Passing:        1
+Completed:      2
+Passing:        2
 Status:         In progress
 
 ---
@@ -39,7 +39,7 @@ Order is implementation order. Findings 1 (HIGH) features land first; Finding 2 
 work precedes its appliers; Finding 3 workflow change is independent and lands last.
 
 - [x] 1. strip_ansi helper + apply at reporter.rs:351                  (security; F1 fix — HIGH severity; merged Features 1+2)
-- [ ] 2. ci-github regression test for newline in file_path           (test; F1 verification)
+- [x] 2. ci-github regression test for newline in file_path           (test; F1 verification)
 - [ ] 3. Move is_path_safe to new lint::path_guard module             (refactor; F2 prep)
 - [ ] 4. Apply path_guard to marketplace_source_resolve rule          (security; F2)
 - [ ] 5. Apply path_guard to marketplace_field_mismatch rule          (security; F2)
@@ -71,5 +71,24 @@ preserves the spec's intent without violating lint policy.
 
 Tests: 70 lint::reporter unit tests pass (54 existing + 16 new).
 Snapshot: ci_azure_sample_outcome_snapshot unchanged (fixture has no special chars).
+
+### Iteration 2 — 2026-05-05 — Feature 2 (ci-github regression)
+Status: passes=true (pending cargo-verifier confirmation)
+
+Changes:
+- crates/libaipm/src/lint/reporter.rs `tests` module:
+  * Added `ci_github_diag_for_path` and `render_ci_github` test helpers.
+  * Added 4 unit tests: `ci_github_reporter_escapes_newline_in_file_path`,
+    `ci_github_reporter_escapes_carriage_return_in_file_path`,
+    `ci_github_reporter_escapes_property_separators_in_file_path`,
+    `ci_github_reporter_no_injected_command_via_newline`.
+
+No production-code change — the existing `escape_github_prop` helper at
+reporter.rs:383-389 already encodes \r -> %0D and \n -> %0A, plus :/, for
+property safety. The new tests pin that behaviour as a regression gate so a
+future refactor cannot silently regress the ci-github sink the way the
+ci-azure ##[group] line did.
+
+Tests: all 8 ci_github_* tests pass.
 
 
