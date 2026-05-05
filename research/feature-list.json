@@ -272,6 +272,6 @@
       "Run `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` and confirm zero warnings and zero failures.",
       "Grep the diff for any `#[allow(...)]` / `#[expect(...)]` / `unwrap()` / `expect(` / `panic!(` / `todo!(` / `println!(` / `eprintln!(` / `dbg!(` introductions in production code; if found, fix the root cause (per CLAUDE.md lint policy)."
     ],
-    "passes": false
+    "passes": true
   }
 ]

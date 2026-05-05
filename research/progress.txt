@@ -1,3 +1,77 @@
+## ALL FEATURES COMPLETE — Issue #724 ralph loop terminating
+
+Date: 2026-05-05
+Iteration: 20 (final)
+Status: 22/22 features passing, all four CLAUDE.md gates green, coverage 94.33% (>=89% required)
+
+### Final verifier report (Feature 22)
+
+```
+CARGO_VERIFIER_REPORT
+build: PASS
+test: PASS
+clippy: PASS
+fmt: PASS
+coverage: PASS (94.33% / required 89%)
+overall: PASS
+```
+
+### Feature audit summary
+
+| # | Feature | Iter | Coverage | Notes |
+|---|---|---|---|---|
+| 1 | Engine rename `copilot-cli` → `copilot` | 1 | 90.23% | 96 occurrences across schema, types, code |
+| 2 | `ToolAdaptor::engine()` trait method | 2 | 94.73% | Foundation for scaffold-set filter |
+| 3 | Claude adaptor uses `paths::CLAUDE_DOT` | 3 | 90.20% | Drive-by symmetry with Copilot adaptor |
+| 4 | `copilot::Adaptor` MVP | 4 | 90.19% | Real ToolAdaptor scaffolds `.github/copilot-instructions.md` |
+| 5 | `Workspace.engines` field | 5 | 90.20% | 5 parity tests |
+| 6 | `manifest::effective_engines` helper | 6 | 90.22% | Package→workspace inheritance |
+| 7 | `validate_via_manifest` cleanup | 7 | 90.16% | Migrate from MinimalManifest shadow |
+| 8 | Manifest builder accepts `[workspace].engines` | 8 | 90.16% | 10 caller sites updated |
+| 9 | `Options engines_scaffold + engines_support`, `init()` filter | 9 | 90.24% | The load-bearing fix for #724 |
+| 10 | `--engine <list>` clap flag | 10 | 90.26% | + `parse_engine_list` helper |
+| 11 | Wizard Prompt 2 (scaffold MultiSelect) | 11 | 90.25% | + `min_selections` validator |
+| 12 | Wizard Prompt 3 (support MultiSelect) | 12 | 90.25% | Two-tier model complete |
+| 13 | `WizardAnswers` struct + engine resolvers | 13 | 94.33% | Bundled with Features 17 + 19 |
+| 14 | Wizard confirmation print | 14 | 90.30% | + `format_wizard_summary` helper |
+| 15 | `valid-tool-name` lint cleanup | 15 | 90.30% | Now honors workspace inheritance |
+| 16 | JSON schema `engines` property + drift test | 16 | 90.30% | IDE autocomplete, $defs.engineList |
+| 17 | Pin existing init_e2e.rs tests | 13 | — | Bundled into Feature 13 commit |
+| 18 | New init_engine_e2e.rs (9 tests) | 17 | 90.30% | E2E coverage of issue #724 fix |
+| 19 | Pin existing BDD scenarios | 13 | — | Bundled into Feature 13 commit |
+| 20 | New BDD rule (5 scenarios) | 18 | 90.30% | "Engine-aware init scaffolds only chosen engines" |
+| 21 | Wizard prompt snapshot refresh | 19 | 90.30% | Verification-only — work done in Features 11-13 |
+| 22 | Final coverage gate | 20 | 94.33% | All gates green; production code clean |
+
+### Issue #724 — verification
+
+The original issue: `aipm init` should ask for engine in wizard prompts and follow the correct init folder. Specifically: "It feels bad to have a `.claude` folder generated for `aipm init` for a team that never uses claude."
+
+End-to-end verification that the issue is fixed:
+- `aipm init --engine copilot` → only `.github/copilot-instructions.md` is created; NO `.claude/` (covered by `init_with_engine_copilot_creates_only_github` and BDD scenario "Copilot-only init does not create .claude/").
+- `aipm init --yes` (no flags) defaults to Copilot-only per Spec G5 (`init_yes_default_scaffolds_copilot`).
+- Interactive wizard offers a MultiSelect of engines with `min_selections: 1` and a confirmation summary before scaffolding.
+
+### Cumulative diff
+
+```
+$ git diff --stat main..HEAD | tail -1
+ 65 files changed, 6590 insertions(+), 1962 deletions(-)
+```
+
+20 commits over 20 iterations; ~6590 lines added (production code, tests, snapshots, research docs, spec, progress log); ~1962 lines deleted (the engine rename touched many tables/maps in the engine-spec data file).
+
+### Branch state
+
+```
+$ git log --oneline main..HEAD | wc -l
+20
+```
+
+Branch `feat/0724-init-engine-aware-wizard` is ready for review and merge to main.
+
+---
+
 ## Feature 21 — Wizard prompt snapshot refresh (PASS)
 
 Date: 2026-05-05
