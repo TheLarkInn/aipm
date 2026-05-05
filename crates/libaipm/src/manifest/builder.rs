@@ -575,11 +575,15 @@ mod tests {
         let parsed = crate::manifest::parse_and_validate(&output, None);
         assert!(parsed.is_ok(), "should parse + validate as a Manifest: {parsed:?}");
         let m = parsed.unwrap_or_default();
-        let ws = m.workspace.as_ref();
-        assert!(ws.is_some_and(|w| w
-            .engines
-            .is_some_and(|s| s.contains(libaipm_engine_spec::EngineSet::CLAUDE)
-                && s.contains(libaipm_engine_spec::EngineSet::COPILOT))));
+        let engines = m.workspace.as_ref().and_then(|w| w.engines);
+        assert!(
+            engines.is_some_and(|s| s.contains(libaipm_engine_spec::EngineSet::CLAUDE)),
+            "parsed engines should include CLAUDE"
+        );
+        assert!(
+            engines.is_some_and(|s| s.contains(libaipm_engine_spec::EngineSet::COPILOT)),
+            "parsed engines should include COPILOT"
+        );
     }
 
     #[test]
@@ -597,6 +601,25 @@ mod tests {
         assert!(
             !output.contains("engines"),
             "empty engines slice should not produce an engines key: {output}"
+        );
+    }
+
+    #[test]
+    fn plugin_manifest_with_engines() {
+        // Exercises the True branch of `if !engines.is_empty()` inside
+        // `build_plugin_manifest`: when engines is Some(&["claude"]) the key
+        // must appear in the manifest.
+        let opts = PluginManifestOpts {
+            name: "engine-restricted",
+            version: "0.1.0",
+            plugin_type: Some("skill"),
+            description: None,
+            engines: Some(&["claude"]),
+        };
+        let output = build_plugin_manifest(&opts, None);
+        assert!(
+            output.contains("engines = [\"claude\"]"),
+            "engines key should appear when non-empty slice is provided: {output}"
         );
     }
 
