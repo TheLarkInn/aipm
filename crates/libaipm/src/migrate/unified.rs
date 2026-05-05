@@ -858,4 +858,39 @@ mod tests {
             "the .agent.md variant must survive when it was already the existing entry"
         );
     }
+
+    /// Covers the else branch at line 149:40 (`!existing_is_dot_agent` = False):
+    /// when both the new and the existing Agent artifacts end with `.agent.md`,
+    /// the existing entry wins and the new duplicate `.agent.md` is dropped.
+    #[test]
+    fn dedup_agent_artifacts_existing_dot_agent_md_wins_over_new_dot_agent_md() {
+        use super::super::ArtifactKind;
+
+        let first = Artifact {
+            kind: ArtifactKind::Agent,
+            name: "qux".into(),
+            source_path: PathBuf::from("/repo/.claude/agents/qux.agent.md"),
+            files: Vec::new(),
+            referenced_scripts: Vec::new(),
+            metadata: Default::default(),
+        };
+        let second = Artifact {
+            kind: ArtifactKind::Agent,
+            name: "qux".into(),
+            source_path: PathBuf::from("/repo/.claude/agents/sub/qux.agent.md"),
+            files: Vec::new(),
+            referenced_scripts: Vec::new(),
+            metadata: Default::default(),
+        };
+        // first is inserted → becomes the existing entry (is .agent.md);
+        // second is the new entry (also .agent.md) → existing wins via else branch.
+        let mut artifacts = vec![first, second];
+        dedup_agent_artifacts(&mut artifacts);
+        assert_eq!(artifacts.len(), 1, "duplicate .agent.md must be deduplicated to one");
+        assert_eq!(
+            artifacts[0].source_path,
+            PathBuf::from("/repo/.claude/agents/qux.agent.md"),
+            "the first (existing) .agent.md must survive"
+        );
+    }
 }
