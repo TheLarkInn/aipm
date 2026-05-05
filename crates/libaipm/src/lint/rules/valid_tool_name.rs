@@ -415,4 +415,56 @@ mod tests {
             "[\"claude\", \"copilot-cli\"]"
         );
     }
+
+    #[test]
+    fn manifest_unreadable_treats_as_no_declared_engines() {
+        // Covers line 188: manifest path exists but read_to_string returns Err.
+        // `nearest_declared_engines` should return EngineSet::empty() and not panic.
+        let mut fs = MockFs::new();
+        add_agent_with_tools(&mut fs, "bash");
+        // Insert manifest into `exists` but not into `files` so read_to_string fails.
+        fs.exists.insert(manifest_path());
+        let diags = ValidToolName.check_file(&agent_path(), &fs).ok().unwrap_or_default();
+        // `bash` is a shared tool — always clean regardless of declared engines.
+        assert!(
+            diags.is_empty(),
+            "shared tool should be clean even when manifest is unreadable: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn manifest_invalid_toml_treats_as_no_declared_engines() {
+        // Covers line 191: manifest content fails TOML parse.
+        // `nearest_declared_engines` should return EngineSet::empty() and not panic.
+        let mut fs = MockFs::new();
+        add_agent_with_tools(&mut fs, "bash");
+        add_manifest(&mut fs, "not valid toml [[[");
+        let diags = ValidToolName.check_file(&agent_path(), &fs).ok().unwrap_or_default();
+        // `bash` is a shared tool — always clean regardless of declared engines.
+        assert!(
+            diags.is_empty(),
+            "shared tool should be clean even with invalid manifest TOML: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn manifest_unknown_engine_name_silently_ignored() {
+        // Covers line 197: Engine::from_name returns None for unrecognised names.
+        // Unknown names are dropped; result is as if no engines were declared.
+        let mut fs = MockFs::new();
+        add_agent_with_tools(&mut fs, "Task");
+        add_manifest(
+            &mut fs,
+            "[package]\nname = \"p\"\nversion = \"1.0.0\"\nengines = [\"future-engine\"]\n",
+        );
+        // Unknown engine → empty EngineSet → no restriction declared → Task warns (claude-only).
+        let diags = ValidToolName.check_file(&agent_path(), &fs).ok().unwrap_or_default();
+        assert_eq!(
+            diags.len(),
+            1,
+            "expected one warning for undeclared claude-only tool: {diags:?}"
+        );
+        assert_eq!(diags[0].severity, Severity::Warning);
+        assert!(diags[0].message.contains("Task"), "message should mention the tool name");
+    }
 }
