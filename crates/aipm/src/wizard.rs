@@ -17,14 +17,31 @@ pub use libaipm::wizard::{styled_render_config, PromptAnswer, PromptKind, Prompt
 const SETUP_OPTIONS: [&str; 3] =
     ["Marketplace only (recommended)", "Workspace manifest only", "Both workspace + marketplace"];
 
+/// Engine options for the `aipm init` scaffold-set `MultiSelect` prompt.
+///
+/// Each tuple is `(human_label, engine_variant)`. The wizard renders the
+/// labels; downstream code maps the selected indices back to
+/// `libaipm::Engine` via the second element of each pair.
+///
+/// Distinct from [`ENGINE_OPTIONS`] (used by `aipm make plugin`) because
+/// `init` uses `MultiSelect` (engine 1, 2, ..., N) rather than the
+/// Single-Select-with-"Both" pattern. Order mirrors `Engine::ALL`.
+pub const ENGINE_OPTIONS_INIT: &[(&str, libaipm::Engine)] =
+    &[("Claude Code", libaipm::Engine::Claude), ("Copilot CLI", libaipm::Engine::Copilot)];
+
 /// Build the list of prompts for workspace init, given pre-filled flags.
 ///
 /// Prompts whose corresponding flag is already set are omitted.
+///
+/// `flag_engine_provided` controls whether the new engine-scaffold
+/// `MultiSelect` prompt is emitted: pass `true` when the user supplied
+/// `--engine` (CLI wins) so the wizard skips it; pass `false` to ask.
 pub fn workspace_prompt_steps(
     flag_workspace: bool,
     flag_marketplace: bool,
     flag_no_starter: bool,
     flag_name: Option<&str>,
+    flag_engine_provided: bool,
 ) -> Vec<PromptStep> {
     let mut steps = Vec::new();
 
@@ -46,6 +63,23 @@ pub fn workspace_prompt_steps(
     // the confirm prompt if marketplace is possible (i.e., either the flag is set or
     // we're asking the user).
     let marketplace_possible = flag_marketplace || needs_setup_prompt;
+
+    // Engine scaffold prompt (Spec G1 / Feature 11). Skipped when:
+    //   * `--engine` was already provided on the CLI, OR
+    //   * scope is workspace-only (no marketplace, no adaptors run).
+    if marketplace_possible && !flag_engine_provided {
+        let labels: Vec<&'static str> = ENGINE_OPTIONS_INIT.iter().map(|(l, _)| *l).collect();
+        let defaults: Vec<bool> = ENGINE_OPTIONS_INIT.iter().map(|_| true).collect();
+        steps.push(PromptStep {
+            label: "Which engine(s) should we scaffold for this project?",
+            kind: PromptKind::MultiSelect { options: labels, defaults, min_selections: 1 },
+            help: Some(
+                "Files will be created under each selected engine's root \
+                 (.claude/, .github/copilot-instructions.md). Space to toggle, \
+                 Enter to confirm. At least one engine required.",
+            ),
+        });
+    }
 
     // Marketplace name prompt — skip if a non-empty --name was provided or marketplace not possible.
     let has_name = flag_name.is_some_and(|s| !s.is_empty());
@@ -75,12 +109,18 @@ pub fn workspace_prompt_steps(
 /// Map raw wizard answers to final `(workspace, marketplace, no_starter, marketplace_name)`.
 ///
 /// `answers` correspond 1:1 with the steps returned by [`workspace_prompt_steps`].
+///
+/// `flag_engine_provided` must match the value passed to
+/// [`workspace_prompt_steps`] so the answer cursor advances past the
+/// engine-scaffold `MultiSelect` when it was emitted. Feature 13
+/// extends the return type to carry the parsed engine selection.
 pub fn resolve_workspace_answers(
     answers: &[PromptAnswer],
     flag_workspace: bool,
     flag_marketplace: bool,
     flag_no_starter: bool,
     flag_name: Option<&str>,
+    flag_engine_provided: bool,
 ) -> (bool, bool, bool, String) {
     let needs_setup_prompt = !flag_workspace && !flag_marketplace;
     let mut idx = 0;
@@ -97,6 +137,14 @@ pub fn resolve_workspace_answers(
     } else {
         (flag_workspace, flag_marketplace)
     };
+
+    // Skip the engine-scaffold MultiSelect answer when the prompt was
+    // emitted. Feature 13 will consume it; for now the index is just
+    // advanced so downstream prompts align.
+    let marketplace_possible_for_engine = flag_marketplace || needs_setup_prompt;
+    if marketplace_possible_for_engine && !flag_engine_provided {
+        idx += 1;
+    }
 
     // Resolve marketplace name
     let marketplace_possible = flag_marketplace || needs_setup_prompt;
@@ -367,6 +415,7 @@ pub fn make_plugin_prompt_steps(
             kind: PromptKind::MultiSelect {
                 options: engine_feature_labels.to_vec(),
                 defaults: engine_feature_defaults.to_vec(),
+                min_selections: 0,
             },
             help: Some("Select the features for your plugin"),
         });
@@ -476,8 +525,11 @@ mod tests {
                         out.push_str("  Validate: marketplace-name\n");
                     }
                 },
-                PromptKind::MultiSelect { options, defaults } => {
+                PromptKind::MultiSelect { options, defaults, min_selections } => {
                     out.push_str("  Kind: MultiSelect\n");
+                    if *min_selections > 0 {
+                        out.push_str(&format!("  Min selections: {min_selections}\n"));
+                    }
                     for (j, opt) in options.iter().enumerate() {
                         let marker =
                             if defaults.get(j).copied().unwrap_or(false) { " *" } else { "  " };
@@ -499,51 +551,146 @@ mod tests {
 
     #[test]
     fn workspace_prompts_no_flags_snapshot() {
-        let steps = workspace_prompt_steps(false, false, false, None);
+        let steps = workspace_prompt_steps(false, false, false, None, true);
         insta::assert_snapshot!(format_steps(&steps));
     }
 
     #[test]
     fn workspace_prompts_workspace_flag_snapshot() {
-        let steps = workspace_prompt_steps(true, false, false, None);
+        let steps = workspace_prompt_steps(true, false, false, None, true);
         insta::assert_snapshot!(format_steps(&steps));
     }
 
     #[test]
     fn workspace_prompts_marketplace_flag_snapshot() {
-        let steps = workspace_prompt_steps(false, true, false, None);
+        let steps = workspace_prompt_steps(false, true, false, None, true);
         insta::assert_snapshot!(format_steps(&steps));
     }
 
     #[test]
     fn workspace_prompts_both_flags_snapshot() {
-        let steps = workspace_prompt_steps(true, true, false, None);
+        let steps = workspace_prompt_steps(true, true, false, None, true);
         insta::assert_snapshot!(format_steps(&steps));
     }
 
     #[test]
     fn workspace_prompts_no_starter_flag_snapshot() {
-        let steps = workspace_prompt_steps(false, true, true, None);
+        let steps = workspace_prompt_steps(false, true, true, None, true);
         insta::assert_snapshot!(format_steps(&steps));
     }
 
     #[test]
     fn workspace_prompts_all_flags_snapshot() {
-        let steps = workspace_prompt_steps(true, true, true, None);
+        let steps = workspace_prompt_steps(true, true, true, None, true);
         insta::assert_snapshot!(format_steps(&steps));
     }
 
     #[test]
     fn workspace_prompts_name_flag_omits_name_prompt() {
-        let steps = workspace_prompt_steps(false, false, false, Some("custom-mkt"));
+        let steps = workspace_prompt_steps(false, false, false, Some("custom-mkt"), true);
         insta::assert_snapshot!(format_steps(&steps));
     }
 
     #[test]
     fn workspace_prompts_workspace_only_omits_name_prompt() {
         // --workspace alone means no marketplace, so no name prompt
-        let steps = workspace_prompt_steps(true, false, false, None);
+        let steps = workspace_prompt_steps(true, false, false, None, true);
         insta::assert_snapshot!(format_steps(&steps));
+    }
+
+    // ---------- engine-scaffold MultiSelect (Feature 11 / Spec G1) ----------
+
+    #[test]
+    fn engine_prompt_emitted_when_engine_flag_absent_and_marketplace_in_scope() {
+        // No flags + no --engine → setup prompt + engine prompt + name + starter.
+        let steps = workspace_prompt_steps(false, false, false, None, false);
+        // Find the engine prompt by label.
+        let engine_step = steps
+            .iter()
+            .find(|s| s.label == "Which engine(s) should we scaffold for this project?");
+        assert!(engine_step.is_some(), "engine prompt should be emitted");
+    }
+
+    #[test]
+    fn engine_prompt_skipped_when_engine_flag_provided() {
+        // CLI provided --engine → skip the prompt.
+        let steps = workspace_prompt_steps(false, false, false, None, true);
+        let engine_step = steps
+            .iter()
+            .find(|s| s.label == "Which engine(s) should we scaffold for this project?");
+        assert!(engine_step.is_none(), "engine prompt should be skipped when --engine provided");
+    }
+
+    #[test]
+    fn engine_prompt_skipped_for_workspace_only_scope() {
+        // --workspace alone (no marketplace) → no adaptors run, no engine prompt.
+        let steps = workspace_prompt_steps(true, false, false, None, false);
+        let engine_step = steps
+            .iter()
+            .find(|s| s.label == "Which engine(s) should we scaffold for this project?");
+        assert!(engine_step.is_none(), "engine prompt should be skipped in workspace-only scope");
+    }
+
+    #[test]
+    fn engine_prompt_emitted_for_marketplace_only_scope() {
+        // --marketplace alone (no workspace) → engine prompt should appear.
+        let steps = workspace_prompt_steps(false, true, false, None, false);
+        let engine_step = steps
+            .iter()
+            .find(|s| s.label == "Which engine(s) should we scaffold for this project?");
+        assert!(engine_step.is_some(), "engine prompt should appear in marketplace-only scope");
+    }
+
+    #[test]
+    fn engine_prompt_kind_and_defaults() {
+        let steps = workspace_prompt_steps(false, true, false, None, false);
+        let engine_step = steps
+            .iter()
+            .find(|s| s.label == "Which engine(s) should we scaffold for this project?")
+            .expect("engine prompt should be present");
+
+        match &engine_step.kind {
+            PromptKind::MultiSelect { options, defaults, min_selections } => {
+                assert_eq!(options.len(), ENGINE_OPTIONS_INIT.len(), "options count");
+                assert_eq!(options[0], "Claude Code");
+                assert_eq!(options[1], "Copilot CLI");
+                assert!(defaults.iter().all(|d| *d), "all engines pre-checked by default");
+                assert_eq!(*min_selections, 1, "min_selections must be 1 (required)");
+            },
+            other => panic!("engine prompt kind should be MultiSelect, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn engine_prompt_help_text_mentions_engine_root_paths() {
+        let steps = workspace_prompt_steps(false, true, false, None, false);
+        let engine_step = steps
+            .iter()
+            .find(|s| s.label == "Which engine(s) should we scaffold for this project?")
+            .expect("engine prompt should be present");
+
+        let help = engine_step.help.unwrap_or("");
+        assert!(help.contains(".claude/"), "help should mention .claude/: {help}");
+        assert!(
+            help.contains("copilot-instructions.md"),
+            "help should mention copilot file: {help}"
+        );
+        assert!(
+            help.contains("at least one") || help.contains("required"),
+            "help should mention min-1 requirement: {help}"
+        );
+    }
+
+    #[test]
+    fn engine_options_init_constant_pairs_labels_with_engine_variants() {
+        // ENGINE_OPTIONS_INIT must contain exactly the engines the spec
+        // supports today (Claude + Copilot) and pair human-readable
+        // labels with the underlying Engine variant.
+        assert_eq!(ENGINE_OPTIONS_INIT.len(), 2, "expected 2 engines today");
+        assert_eq!(ENGINE_OPTIONS_INIT[0].0, "Claude Code");
+        assert_eq!(ENGINE_OPTIONS_INIT[0].1, libaipm::Engine::Claude);
+        assert_eq!(ENGINE_OPTIONS_INIT[1].0, "Copilot CLI");
+        assert_eq!(ENGINE_OPTIONS_INIT[1].1, libaipm::Engine::Copilot);
     }
 
     // =========================================================================
@@ -557,7 +704,7 @@ mod tests {
             PromptAnswer::Text(String::new()),
             PromptAnswer::Bool(true),
         ];
-        let result = resolve_workspace_answers(&answers, false, false, false, None);
+        let result = resolve_workspace_answers(&answers, false, false, false, None, true);
         insta::assert_snapshot!(format!("{:?}", result));
     }
 
@@ -570,7 +717,7 @@ mod tests {
             PromptAnswer::Text(String::new()),
             PromptAnswer::Bool(true),
         ];
-        let result = resolve_workspace_answers(&answers, false, false, false, None);
+        let result = resolve_workspace_answers(&answers, false, false, false, None, true);
         insta::assert_snapshot!(format!("{:?}", result));
     }
 
@@ -581,7 +728,7 @@ mod tests {
             PromptAnswer::Text(String::new()),
             PromptAnswer::Bool(true),
         ];
-        let result = resolve_workspace_answers(&answers, false, false, false, None);
+        let result = resolve_workspace_answers(&answers, false, false, false, None, true);
         insta::assert_snapshot!(format!("{:?}", result));
     }
 
@@ -592,7 +739,7 @@ mod tests {
             PromptAnswer::Text(String::new()),
             PromptAnswer::Bool(false),
         ];
-        let result = resolve_workspace_answers(&answers, false, false, false, None);
+        let result = resolve_workspace_answers(&answers, false, false, false, None, true);
         insta::assert_snapshot!(format!("{:?}", result));
     }
 
@@ -600,14 +747,14 @@ mod tests {
     fn resolve_workspace_flags_bypass_snapshot() {
         // Both flags set — name + confirm prompts shown (setup skipped)
         let answers = vec![PromptAnswer::Text(String::new()), PromptAnswer::Bool(true)];
-        let result = resolve_workspace_answers(&answers, true, true, false, None);
+        let result = resolve_workspace_answers(&answers, true, true, false, None, true);
         insta::assert_snapshot!(format!("{:?}", result));
     }
 
     #[test]
     fn resolve_workspace_all_flags_no_prompts_snapshot() {
         let answers: Vec<PromptAnswer> = vec![];
-        let result = resolve_workspace_answers(&answers, true, true, true, Some("my-mkt"));
+        let result = resolve_workspace_answers(&answers, true, true, true, Some("my-mkt"), true);
         insta::assert_snapshot!(format!("{:?}", result));
     }
 
@@ -618,7 +765,7 @@ mod tests {
         //   - "if marketplace_possible" (name resolution skipped, uses default)
         //   - "if marketplace_possible && !flag_no_starter" (starter prompt skipped)
         let answers: Vec<PromptAnswer> = vec![];
-        let result = resolve_workspace_answers(&answers, true, false, false, None);
+        let result = resolve_workspace_answers(&answers, true, false, false, None, true);
         assert_eq!(result, (true, false, false, "local-repo-plugins".to_string()));
     }
 
@@ -629,7 +776,7 @@ mod tests {
             PromptAnswer::Text("my-custom-plugins".to_string()),
             PromptAnswer::Bool(true),
         ];
-        let result = resolve_workspace_answers(&answers, false, false, false, None);
+        let result = resolve_workspace_answers(&answers, false, false, false, None, true);
         insta::assert_snapshot!(format!("{:?}", result));
     }
 
@@ -640,7 +787,7 @@ mod tests {
             PromptAnswer::Text(String::new()),
             PromptAnswer::Bool(true),
         ];
-        let result = resolve_workspace_answers(&answers, false, false, false, None);
+        let result = resolve_workspace_answers(&answers, false, false, false, None, true);
         insta::assert_snapshot!(format!("{:?}", result));
     }
 
@@ -648,7 +795,8 @@ mod tests {
     fn resolve_workspace_name_flag_snapshot() {
         // --name flag provided — name prompt skipped, only setup + confirm
         let answers = vec![PromptAnswer::Selected(0), PromptAnswer::Bool(true)];
-        let result = resolve_workspace_answers(&answers, false, false, false, Some("preset-mkt"));
+        let result =
+            resolve_workspace_answers(&answers, false, false, false, Some("preset-mkt"), true);
         insta::assert_snapshot!(format!("{:?}", result));
     }
 
@@ -1101,6 +1249,7 @@ mod tests {
             kind: PromptKind::MultiSelect {
                 options: vec!["Skills", "Agents", "MCP"],
                 defaults: vec![true, false, true],
+                min_selections: 0,
             },
             help: None,
         }];

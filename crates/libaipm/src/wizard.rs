@@ -42,6 +42,9 @@ pub enum PromptKind {
         options: Vec<&'static str>,
         /// Per-option default selection state (`true` = pre-selected).
         defaults: Vec<bool>,
+        /// Minimum required selections. `0` means no constraint;
+        /// `1` rejects empty submissions with a validator message.
+        min_selections: usize,
     },
 }
 
@@ -124,7 +127,7 @@ pub fn execute_prompts(
                 let result = prompt.prompt()?;
                 PromptAnswer::Text(result)
             },
-            PromptKind::MultiSelect { options, defaults } => {
+            PromptKind::MultiSelect { options, defaults, min_selections } => {
                 let mut prompt = inquire::MultiSelect::new(step.label, options.clone());
                 let default_indices: Vec<usize> = defaults
                     .iter()
@@ -134,6 +137,22 @@ pub fn execute_prompts(
                 prompt = prompt.with_default(&default_indices);
                 if let Some(help) = step.help {
                     prompt = prompt.with_help_message(help);
+                }
+                if *min_selections > 0 {
+                    let min = *min_selections;
+                    prompt = prompt.with_validator(
+                        move |selected: &[inquire::list_option::ListOption<&&str>]| {
+                            if selected.len() < min {
+                                let msg = format!(
+                                    "Select at least {min} option{}",
+                                    if min == 1 { "" } else { "s" }
+                                );
+                                Ok(inquire::validator::Validation::Invalid(msg.into()))
+                            } else {
+                                Ok(inquire::validator::Validation::Valid)
+                            }
+                        },
+                    );
                 }
                 let selected = prompt.prompt()?;
                 let indices: Vec<usize> =
@@ -167,8 +186,11 @@ mod tests {
         let select = PromptKind::Select { options: vec!["a"], default_index: 0 };
         let confirm = PromptKind::Confirm { default: true };
         let text = PromptKind::Text { placeholder: String::new(), validate: false };
-        let multi =
-            PromptKind::MultiSelect { options: vec!["x", "y"], defaults: vec![true, false] };
+        let multi = PromptKind::MultiSelect {
+            options: vec!["x", "y"],
+            defaults: vec![true, false],
+            min_selections: 0,
+        };
         assert!(format!("{select:?}").contains("Select"));
         assert!(format!("{confirm:?}").contains("Confirm"));
         assert!(format!("{text:?}").contains("Text"));

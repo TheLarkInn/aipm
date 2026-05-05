@@ -42,9 +42,27 @@ pub fn resolve(
     let (workspace, marketplace, no_starter) = flags;
     if interactive {
         inquire::set_global_render_config(styled_render_config());
-        let steps = workspace_prompt_steps(workspace, marketplace, no_starter, flag_name);
+        // Feature 11 baseline: existing `wizard_tty::resolve` callers don't
+        // pass `--engine`, so the engine prompt is skipped (treated as
+        // "engine provided"). Feature 14 will replace this with a real
+        // signal once the wizard returns engine selections to cmd_init.
+        let flag_engine_provided = true;
+        let steps = workspace_prompt_steps(
+            workspace,
+            marketplace,
+            no_starter,
+            flag_name,
+            flag_engine_provided,
+        );
         let answers = libaipm::wizard::execute_prompts(&steps)?;
-        Ok(resolve_workspace_answers(&answers, workspace, marketplace, no_starter, flag_name))
+        Ok(resolve_workspace_answers(
+            &answers,
+            workspace,
+            marketplace,
+            no_starter,
+            flag_name,
+            flag_engine_provided,
+        ))
     } else {
         Ok(resolve_defaults(workspace, marketplace, no_starter, flag_name))
     }
@@ -164,7 +182,7 @@ pub fn resolve_make_plugin(
 
         let feature_step = PromptStep {
             label: "AI features to include",
-            kind: PromptKind::MultiSelect { options: labels, defaults },
+            kind: PromptKind::MultiSelect { options: labels, defaults, min_selections: 0 },
             help: Some("Select the features for your plugin"),
         };
         let feature_answers = libaipm::wizard::execute_prompts(&[feature_step])?;

@@ -1,3 +1,44 @@
+## Feature 11 — Wizard Prompt 2 "Which engine(s) should we scaffold?" (PASS)
+
+Date: 2026-05-05
+Iteration: 11
+Status: passes=true, all four CLAUDE.md gates green, coverage 90.25% (>=89% required)
+
+Changes shipped:
+- `crates/libaipm/src/wizard.rs:39-46` — Extended `PromptKind::MultiSelect` with `min_selections: usize` field. `0` = no constraint (current behavior); `>0` = require at least N selections via inquire validator.
+- `crates/libaipm/src/wizard.rs:127-160` — `execute_prompts` MultiSelect arm now applies an inquire validator when `min_selections > 0`. Validator message: "Select at least N option(s)".
+- `crates/aipm/src/wizard.rs:20-30` — NEW `pub const ENGINE_OPTIONS_INIT: &[(&str, libaipm::Engine)]` constant pairing labels with `Engine` variants. Distinct from `ENGINE_OPTIONS` (used by `aipm make plugin` with "Both" sentinel) — `init` uses MultiSelect.
+- `crates/aipm/src/wizard.rs:39-107` — `workspace_prompt_steps` extended with `flag_engine_provided: bool` parameter. Emits new MultiSelect prompt step "Which engine(s) should we scaffold for this project?" when `marketplace_possible && !flag_engine_provided`. All engines pre-checked by default (defaults vec all true), `min_selections: 1` enforces "at least one engine required".
+- `crates/aipm/src/wizard.rs:117-179` — `resolve_workspace_answers` extended with `flag_engine_provided: bool` parameter. Advances answer cursor past the engine prompt when emitted (without consuming the answer — Feature 13 will use it).
+- `crates/aipm/src/wizard_tty.rs:45-55` — `wizard_tty::resolve` passes `flag_engine_provided = true` (engine prompt currently suppressed). Feature 14 will switch to `!flags.engine.is_empty()` and capture the answer.
+- 4 other MultiSelect constructors updated to add `min_selections: 0`: 1 in `wizard_tty.rs` (make plugin features prompt), 1 in `wizard.rs::make_plugin_prompt_steps`, 2 in test fixtures.
+- `crates/aipm/src/wizard.rs:479-489` — `format_steps` MultiSelect arm prints `Min selections: N` line when constraint is active (helps snapshot-test debugging).
+- 19 existing test call sites updated to pass `true` for the new parameter (preserves existing snapshots).
+
+NEW tests in `crates/aipm/src/wizard.rs`:
+- `engine_prompt_emitted_when_engine_flag_absent_and_marketplace_in_scope`
+- `engine_prompt_skipped_when_engine_flag_provided`
+- `engine_prompt_skipped_for_workspace_only_scope`
+- `engine_prompt_emitted_for_marketplace_only_scope`
+- `engine_prompt_kind_and_defaults` — asserts MultiSelect with min_selections=1, all defaults true, exactly 2 options
+- `engine_prompt_help_text_mentions_engine_root_paths` — verifies help mentions `.claude/` and `copilot-instructions.md`
+- `engine_options_init_constant_pairs_labels_with_engine_variants` — sanity-checks the constant
+
+Test results: aipm CLI binary at 152 unit tests (+7 new), all green. Existing snapshot tests preserved (callers pass `flag_engine_provided = true`).
+
+CLAUDE.md lint compliance:
+- Fixed 4 clippy `doc_markdown` complaints by adding backticks around `MultiSelect` in doc comments.
+- No `unwrap()`/`expect()`/`panic!()` introduced.
+- No `#[allow(...)]` attributes.
+
+Notes for future iterations:
+- Feature 12 (Wizard Prompt 3 — support MultiSelect) adds a second engine prompt that defaults to all engines and validates support ⊇ scaffold.
+- Feature 13 (`resolve_workspace_answers + resolve_defaults`) replaces the dummy "advance idx" code at `wizard.rs:144-147` with proper EngineSet construction from the MultiSelect answer.
+- Feature 14 (`wizard_tty::resolve`) flips `flag_engine_provided = true` to `!flags.engine.is_empty()`, plumbs the engines back to `cmd_init`, and replaces the temporary `EngineSet::CLAUDE` baseline.
+- Feature 21 (snapshot refresh) will accept the snapshot diffs once the prompt actually emits in production.
+
+---
+
 ## Feature 10 — `--engine <list>` flag on `aipm init` (PASS)
 
 Date: 2026-05-05

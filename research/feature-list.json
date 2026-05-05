@@ -139,7 +139,7 @@
       "Add unit/snapshot tests in `wizard.rs::tests`: prompt visibility for every flag combination, snapshot of the new prompt list, validator-rejects-empty test.",
       "Run all four CLAUDE.md gates."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ui",
