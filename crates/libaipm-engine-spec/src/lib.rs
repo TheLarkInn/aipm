@@ -37,7 +37,7 @@ mod smoke_tests {
     fn engine_all_lists_known_variants() {
         let all = Engine::ALL;
         assert!(all.contains(&Engine::Claude));
-        assert!(all.contains(&Engine::CopilotCli));
+        assert!(all.contains(&Engine::Copilot));
         assert!(all.len() >= 2);
     }
 
@@ -52,10 +52,10 @@ mod smoke_tests {
 
     #[test]
     fn engine_set_all_is_union_of_individual_bits() {
-        let union = EngineSet::CLAUDE | EngineSet::COPILOT_CLI;
+        let union = EngineSet::CLAUDE | EngineSet::COPILOT;
         assert_eq!(EngineSet::ALL, union);
         assert!(EngineSet::ALL.contains(EngineSet::CLAUDE));
-        assert!(EngineSet::ALL.contains(EngineSet::COPILOT_CLI));
+        assert!(EngineSet::ALL.contains(EngineSet::COPILOT));
     }
 
     #[test]
@@ -63,13 +63,13 @@ mod smoke_tests {
         assert!(ENGINES.len() >= 2, "expected ≥ 2 engines, got {}", ENGINES.len());
         let names: Vec<&str> = ENGINES.iter().map(|(_, spec)| spec.name).collect();
         assert!(names.contains(&"claude"));
-        assert!(names.contains(&"copilot-cli"));
+        assert!(names.contains(&"copilot"));
     }
 
     #[test]
     fn engines_const_marketplace_paths_match_schema_wins_decision() {
         let claude = ENGINES.iter().find(|(e, _)| *e == Engine::Claude).map(|(_, s)| s);
-        let copilot = ENGINES.iter().find(|(e, _)| *e == Engine::CopilotCli).map(|(_, s)| s);
+        let copilot = ENGINES.iter().find(|(e, _)| *e == Engine::Copilot).map(|(_, s)| s);
         assert_eq!(
             claude.map(|s| s.marketplace_manifest_path),
             Some(".claude-plugin/marketplace.toml")
@@ -112,15 +112,15 @@ mod smoke_tests {
         assert_eq!(tool_compat_lookup("Edit"), Some(EngineSet::CLAUDE));
         let task = tool_compat_lookup("Task").expect("Task missing");
         assert!(task.contains(EngineSet::CLAUDE));
-        assert!(!task.contains(EngineSet::COPILOT_CLI));
+        assert!(!task.contains(EngineSet::COPILOT));
     }
 
     #[test]
     fn tool_compatibility_copilot_exclusive_tools_map_to_copilot_only() {
-        assert_eq!(tool_compat_lookup("browser_navigate"), Some(EngineSet::COPILOT_CLI));
-        assert_eq!(tool_compat_lookup("get_pull_request"), Some(EngineSet::COPILOT_CLI));
+        assert_eq!(tool_compat_lookup("browser_navigate"), Some(EngineSet::COPILOT));
+        assert_eq!(tool_compat_lookup("get_pull_request"), Some(EngineSet::COPILOT));
         let nav = tool_compat_lookup("browser_navigate").expect("browser_navigate missing");
-        assert!(nav.contains(EngineSet::COPILOT_CLI));
+        assert!(nav.contains(EngineSet::COPILOT));
         assert!(!nav.contains(EngineSet::CLAUDE));
     }
 
@@ -143,12 +143,12 @@ mod smoke_tests {
 
     #[test]
     fn hook_events_copilot_count_matches_known_baseline() {
-        assert_eq!(hook_events_for(Engine::CopilotCli).len(), 10);
+        assert_eq!(hook_events_for(Engine::Copilot).len(), 10);
     }
 
     #[test]
     fn hook_events_copilot_pre_tool_use_carries_pascal_case_alias() {
-        let pre = hook_events_for(Engine::CopilotCli)
+        let pre = hook_events_for(Engine::Copilot)
             .iter()
             .find(|e| e.name == "preToolUse")
             .expect("preToolUse missing from copilot hook events");
@@ -184,7 +184,7 @@ mod smoke_tests {
 
     #[test]
     fn features_copilot_carries_skill_agent_mcp_hook_lsp_extension() {
-        let f = features_for(Engine::CopilotCli);
+        let f = features_for(Engine::Copilot);
         for bit in [
             EngineFeatureSet::SKILL,
             EngineFeatureSet::AGENT,

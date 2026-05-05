@@ -60,7 +60,7 @@
       "type": "object",
       "properties": {
         "name": {
-          "description": "Engine identifier (e.g. \"claude\", \"copilot-cli\").",
+          "description": "Engine identifier (e.g. \"claude\", \"copilot\").",
           "type": "string"
         },
         "source": {

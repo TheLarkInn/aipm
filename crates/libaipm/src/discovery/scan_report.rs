@@ -105,7 +105,7 @@ mod tests {
     fn make_feature(kind: FeatureKind) -> DiscoveredFeature {
         DiscoveredFeature {
             kind,
-            source: DiscoverySource::COPILOT_CLI,
+            source: DiscoverySource::COPILOT,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".github"),
             feature_dir: Some(PathBuf::from(".github/skills/test")),

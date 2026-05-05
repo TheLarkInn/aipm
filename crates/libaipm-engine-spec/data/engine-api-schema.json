@@ -1,6 +1,6 @@
 {
   "$schema": "../../../schemas/engine-api.schema.json",
-  "meta_schema_version": "1.0.0",
+  "meta_schema_version": "2.0.0",
   "generated_at": "2026-05-05T13:04:12Z",
   "engines": [
     {
@@ -9,14 +9,14 @@
       "package": "@anthropic-ai/claude-code"
     },
     {
-      "name": "copilot-cli",
+      "name": "copilot",
       "source": "npm",
       "package": "@github/copilot"
     }
   ],
   "versions": {
     "claude": "2.1.128",
-    "copilot-cli": "1.0.40"
+    "copilot": "1.0.40"
   },
   "apis": {
     "claude": {
@@ -368,7 +368,7 @@
         }
       ]
     },
-    "copilot-cli": {
+    "copilot": {
       "manifest_fields": [
         {
           "name": "name",
@@ -1388,7 +1388,7 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "Edit": {
@@ -1396,7 +1396,7 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "Read": {
@@ -1404,7 +1404,7 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "Write": {
@@ -1412,7 +1412,7 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "Grep": {
@@ -1420,7 +1420,7 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "Glob": {
@@ -1428,7 +1428,7 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "WebSearch": {
@@ -1436,7 +1436,7 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "WebFetch": {
@@ -1444,7 +1444,7 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "TodoWrite": {
@@ -1452,7 +1452,7 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "mcp": {
@@ -1460,7 +1460,7 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "list_mcp_resources": {
@@ -1468,7 +1468,7 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "read_mcp_resource": {
@@ -1476,7 +1476,7 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "notebook_edit": {
@@ -1484,7 +1484,7 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "ask_user_question": {
@@ -1492,7 +1492,7 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "enter_worktree": {
@@ -1500,7 +1500,7 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "exit_worktree": {
@@ -1508,7 +1508,7 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "exit_plan_mode": {
@@ -1516,7 +1516,7 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "task_output": {
@@ -1524,7 +1524,7 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "task_stop": {
@@ -1532,12 +1532,12 @@
           "claude"
         ],
         "unsupported_by": [
-          "copilot-cli"
+          "copilot"
         ]
       },
       "get_file_contents": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1545,7 +1545,7 @@
       },
       "git_apply_patch": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1553,7 +1553,7 @@
       },
       "search": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1561,7 +1561,7 @@
       },
       "search_code": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1569,7 +1569,7 @@
       },
       "search_issues": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1577,7 +1577,7 @@
       },
       "search_repositories": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1585,7 +1585,7 @@
       },
       "search_users": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1593,7 +1593,7 @@
       },
       "get_me": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1601,7 +1601,7 @@
       },
       "get_commit": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1609,7 +1609,7 @@
       },
       "get_tag": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1617,7 +1617,7 @@
       },
       "get_pull_request": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1625,7 +1625,7 @@
       },
       "get_pull_request_comments": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1633,7 +1633,7 @@
       },
       "get_pull_request_files": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1641,7 +1641,7 @@
       },
       "get_pull_request_reviews": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1649,7 +1649,7 @@
       },
       "get_pull_request_status": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1657,7 +1657,7 @@
       },
       "list_pull_requests": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1665,7 +1665,7 @@
       },
       "list_issues": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1673,7 +1673,7 @@
       },
       "issue_read": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1681,7 +1681,7 @@
       },
       "list_branches": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1689,7 +1689,7 @@
       },
       "list_commits": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1697,7 +1697,7 @@
       },
       "list_tags": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1705,7 +1705,7 @@
       },
       "list_workflows": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1713,7 +1713,7 @@
       },
       "get_workflow": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1721,7 +1721,7 @@
       },
       "get_workflow_run": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1729,7 +1729,7 @@
       },
       "get_workflow_run_logs": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1737,7 +1737,7 @@
       },
       "list_workflow_runs": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1745,7 +1745,7 @@
       },
       "list_workflow_jobs": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1753,7 +1753,7 @@
       },
       "list_workflow_run_artifacts": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1761,7 +1761,7 @@
       },
       "summarize_job_log_failures": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1769,7 +1769,7 @@
       },
       "actions_get": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1777,7 +1777,7 @@
       },
       "actions_list": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1785,7 +1785,7 @@
       },
       "actions_run_trigger": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1793,7 +1793,7 @@
       },
       "get_code_scanning_alert": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1801,7 +1801,7 @@
       },
       "list_code_scanning_alerts": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1809,7 +1809,7 @@
       },
       "get_secret_scanning_alert": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1817,7 +1817,7 @@
       },
       "list_secret_scanning_alerts": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1825,7 +1825,7 @@
       },
       "get_job_logs": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1833,7 +1833,7 @@
       },
       "get_copilot_space": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1841,7 +1841,7 @@
       },
       "list_copilot_spaces": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1849,7 +1849,7 @@
       },
       "store_memory": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1857,7 +1857,7 @@
       },
       "semantic_issues_search": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1865,7 +1865,7 @@
       },
       "sequentialthinking": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1873,7 +1873,7 @@
       },
       "convert_time": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1881,7 +1881,7 @@
       },
       "get_current_time": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1889,7 +1889,7 @@
       },
       "browser_navigate": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1897,7 +1897,7 @@
       },
       "browser_navigate_back": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1905,7 +1905,7 @@
       },
       "browser_click": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1913,7 +1913,7 @@
       },
       "browser_type": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1921,7 +1921,7 @@
       },
       "browser_fill_form": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1929,7 +1929,7 @@
       },
       "browser_snapshot": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1937,7 +1937,7 @@
       },
       "browser_take_screenshot": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1945,7 +1945,7 @@
       },
       "browser_tabs": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1953,7 +1953,7 @@
       },
       "browser_close": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1961,7 +1961,7 @@
       },
       "browser_install": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1969,7 +1969,7 @@
       },
       "browser_hover": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1977,7 +1977,7 @@
       },
       "browser_drag": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1985,7 +1985,7 @@
       },
       "browser_press_key": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -1993,7 +1993,7 @@
       },
       "browser_select_option": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -2001,7 +2001,7 @@
       },
       "browser_resize": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -2009,7 +2009,7 @@
       },
       "browser_evaluate": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -2017,7 +2017,7 @@
       },
       "browser_file_upload": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -2025,7 +2025,7 @@
       },
       "browser_handle_dialog": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -2033,7 +2033,7 @@
       },
       "browser_console_messages": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -2041,7 +2041,7 @@
       },
       "browser_network_requests": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -2049,7 +2049,7 @@
       },
       "browser_wait_for": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -2057,7 +2057,7 @@
       },
       "sql": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -2065,7 +2065,7 @@
       },
       "report_intent": {
         "supported_by": [
-          "copilot-cli"
+          "copilot"
         ],
         "unsupported_by": [
           "claude"
@@ -2096,7 +2096,7 @@
         "AgentOutput includes detailed toolStats (readCount, searchCount, bashCount, editFileCount, linesAdded, linesRemoved)"
       ]
     },
-    "copilot-cli": {
+    "copilot": {
       "adaptor_fixes": [
         "crates/libaipm/src/detect.rs: add detection for .github/copilot-instructions.md and AGENTS.md",
         "crates/libaipm/src/manifest.rs (or equivalent): validate marketplace.json fields: name max 64 chars, regex /^[a-zA-Z0-9-]+$/, description max 1024 chars",

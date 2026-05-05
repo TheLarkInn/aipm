@@ -23,7 +23,10 @@ fn init_default_creates_marketplace_only() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("my-project");
 
-    aipm().args(["init", &dir.display().to_string()]).assert().success();
+    // `--engine claude` pins the scaffold set so existing assertions on
+    // `.claude/` survive Feature 13's spec G5 change (`--yes` headless
+    // mode now defaults to Copilot only).
+    aipm().args(["init", "--engine", "claude", &dir.display().to_string()]).assert().success();
 
     assert!(!dir.join("aipm.toml").exists(), "aipm.toml should NOT exist");
     // Starter plugin directory and components exist, but no aipm.toml (no --manifest)
@@ -136,7 +139,10 @@ fn init_claude_settings_generated() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("claude-gen");
 
-    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
+    aipm()
+        .args(["init", "--marketplace", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
 
     let content = std::fs::read_to_string(dir.join(".claude/settings.json")).unwrap();
     assert!(content.contains("extraKnownMarketplaces"));
@@ -206,7 +212,10 @@ fn init_settings_json_marketplace_name_and_enabled_plugins() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("settings-check");
 
-    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
+    aipm()
+        .args(["init", "--marketplace", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
 
     let content = std::fs::read_to_string(dir.join(".claude/settings.json")).unwrap();
     let v: serde_json::Value = serde_json::from_str(&content).unwrap();
@@ -302,7 +311,10 @@ fn scaffold_script_enables_in_settings_json() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("scaffold-settings");
 
-    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
+    aipm()
+        .args(["init", "--marketplace", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
 
     let output = run_scaffold(&dir, "my-new-plugin");
     assert!(
@@ -346,7 +358,10 @@ fn scaffold_script_multiple_plugins_no_duplicates() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("scaffold-multi");
 
-    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
+    aipm()
+        .args(["init", "--marketplace", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
 
     let out_a = run_scaffold(&dir, "plugin-a");
     assert!(out_a.status.success(), "plugin-a: {}", String::from_utf8_lossy(&out_a.stderr));

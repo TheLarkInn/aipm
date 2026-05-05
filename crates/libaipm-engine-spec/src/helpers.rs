@@ -42,7 +42,7 @@ pub fn engine_for_root_dir(name: &str) -> Option<Engine> {
     if name == paths::CLAUDE_DOT {
         Some(Engine::Claude)
     } else if name == paths::GITHUB_DOT {
-        Some(Engine::CopilotCli)
+        Some(Engine::Copilot)
     } else {
         None
     }
@@ -110,7 +110,7 @@ mod tests {
     #[test]
     fn engine_for_root_dir_known_engines() {
         assert_eq!(engine_for_root_dir(".claude"), Some(Engine::Claude));
-        assert_eq!(engine_for_root_dir(".github"), Some(Engine::CopilotCli));
+        assert_eq!(engine_for_root_dir(".github"), Some(Engine::Copilot));
     }
 
     #[test]
@@ -147,53 +147,50 @@ mod tests {
 
     #[test]
     fn is_valid_event_copilot_canonical_camel_case() {
-        assert!(is_valid_event("preToolUse", Engine::CopilotCli));
-        assert!(is_valid_event("agentStop", Engine::CopilotCli));
+        assert!(is_valid_event("preToolUse", Engine::Copilot));
+        assert!(is_valid_event("agentStop", Engine::Copilot));
     }
 
     #[test]
     fn is_valid_event_copilot_accepts_legacy_pascal_case_aliases() {
         // PreToolUse is an alias for preToolUse on copilot
-        assert!(is_valid_event("PreToolUse", Engine::CopilotCli));
+        assert!(is_valid_event("PreToolUse", Engine::Copilot));
         // Stop is an alias for agentStop on copilot
-        assert!(is_valid_event("Stop", Engine::CopilotCli));
+        assert!(is_valid_event("Stop", Engine::Copilot));
     }
 
     #[test]
     fn is_valid_event_unknown_event_rejected() {
         assert!(!is_valid_event("NotAnEvent", Engine::Claude));
-        assert!(!is_valid_event("NotAnEvent", Engine::CopilotCli));
+        assert!(!is_valid_event("NotAnEvent", Engine::Copilot));
     }
 
     #[test]
     fn suggest_canonical_pascal_case_to_camel_case_for_copilot() {
-        assert_eq!(suggest_canonical("PreToolUse", Engine::CopilotCli), Some("preToolUse"));
-        assert_eq!(suggest_canonical("PostToolUse", Engine::CopilotCli), Some("postToolUse"));
-        assert_eq!(suggest_canonical("Stop", Engine::CopilotCli), Some("agentStop"));
+        assert_eq!(suggest_canonical("PreToolUse", Engine::Copilot), Some("preToolUse"));
+        assert_eq!(suggest_canonical("PostToolUse", Engine::Copilot), Some("postToolUse"));
+        assert_eq!(suggest_canonical("Stop", Engine::Copilot), Some("agentStop"));
         assert_eq!(
-            suggest_canonical("UserPromptSubmit", Engine::CopilotCli),
+            suggest_canonical("UserPromptSubmit", Engine::Copilot),
             Some("userPromptSubmitted")
         );
         // PostToolUseFailure is mapped to errorOccurred — preserves the legacy
         // known_events::COPILOT_LEGACY_MAP behaviour after that module's
         // deletion in the engine-api-schema source-of-truth refactor.
-        assert_eq!(
-            suggest_canonical("PostToolUseFailure", Engine::CopilotCli),
-            Some("errorOccurred")
-        );
+        assert_eq!(suggest_canonical("PostToolUseFailure", Engine::Copilot), Some("errorOccurred"));
     }
 
     #[test]
     fn suggest_canonical_for_canonical_input_returns_none() {
         // Canonical names aren't aliases of themselves.
-        assert_eq!(suggest_canonical("preToolUse", Engine::CopilotCli), None);
+        assert_eq!(suggest_canonical("preToolUse", Engine::Copilot), None);
         assert_eq!(suggest_canonical("PreToolUse", Engine::Claude), None);
     }
 
     #[test]
     fn suggest_canonical_unknown_event_returns_none() {
         assert_eq!(suggest_canonical("Unknown", Engine::Claude), None);
-        assert_eq!(suggest_canonical("Unknown", Engine::CopilotCli), None);
+        assert_eq!(suggest_canonical("Unknown", Engine::Copilot), None);
     }
 
     #[test]
@@ -205,8 +202,7 @@ mod tests {
 
     #[test]
     fn valid_tool_name_check_shared_tool_always_ok() {
-        for declared in
-            [EngineSet::empty(), EngineSet::CLAUDE, EngineSet::COPILOT_CLI, EngineSet::ALL]
+        for declared in [EngineSet::empty(), EngineSet::CLAUDE, EngineSet::COPILOT, EngineSet::ALL]
         {
             assert!(
                 valid_tool_name_check("bash", declared).is_ok(),
@@ -227,19 +223,19 @@ mod tests {
     fn valid_tool_name_check_declared_engine_supports_tool_passes() {
         assert!(valid_tool_name_check("Task", EngineSet::CLAUDE).is_ok());
         assert!(valid_tool_name_check("Task", EngineSet::ALL).is_ok());
-        assert!(valid_tool_name_check("browser_navigate", EngineSet::COPILOT_CLI).is_ok());
+        assert!(valid_tool_name_check("browser_navigate", EngineSet::COPILOT).is_ok());
         assert!(valid_tool_name_check("browser_navigate", EngineSet::ALL).is_ok());
     }
 
     #[test]
     fn valid_tool_name_check_declared_engine_does_not_support_tool_errors() {
-        let v = valid_tool_name_check("Task", EngineSet::COPILOT_CLI)
+        let v = valid_tool_name_check("Task", EngineSet::COPILOT)
             .expect_err("Task on copilot-only plugin should error");
         assert_eq!(v.supported_by, EngineSet::CLAUDE);
-        assert_eq!(v.declared, EngineSet::COPILOT_CLI);
+        assert_eq!(v.declared, EngineSet::COPILOT);
 
         let v2 = valid_tool_name_check("browser_navigate", EngineSet::CLAUDE)
             .expect_err("browser_navigate on claude-only plugin should error");
-        assert_eq!(v2.supported_by, EngineSet::COPILOT_CLI);
+        assert_eq!(v2.supported_by, EngineSet::COPILOT);
     }
 }

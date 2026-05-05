@@ -56,7 +56,7 @@ impl Rule for LegacyEventName {
         for key in hooks.keys() {
             // The legacy event mapping is Copilot-specific (PascalCase ->
             // camelCase) — Claude doesn't normalise event names.
-            if let Some(canonical) = suggest_canonical(key, Engine::CopilotCli) {
+            if let Some(canonical) = suggest_canonical(key, Engine::Copilot) {
                 let (line, col, end_col) = locate_json_key(&content, key)
                     .map_or((None, None, None), |(l, c, e)| (Some(l), Some(c), Some(e)));
                 diagnostics.push(Diagnostic {

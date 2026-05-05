@@ -509,9 +509,7 @@ fn engine_set_expression(engine_names: &[String]) -> TokenStream {
 fn marker_paths_for(engine_name: &str) -> &'static [&'static str] {
     match engine_name {
         "claude" => &[".claude-plugin/plugin.json", ".claude-plugin/plugin.toml"],
-        "copilot-cli" => {
-            &["plugin.json", ".github/plugin/plugin.json", ".claude-plugin/plugin.json"]
-        },
+        "copilot" => &["plugin.json", ".github/plugin/plugin.json", ".claude-plugin/plugin.json"],
         _ => &[],
     }
 }
@@ -524,7 +522,7 @@ fn marker_paths_for(engine_name: &str) -> &'static [&'static str] {
 fn marketplace_manifest_path_for(engine_name: &str) -> &'static str {
     match engine_name {
         "claude" => ".claude-plugin/marketplace.toml",
-        "copilot-cli" => ".github/plugin/marketplace.json",
+        "copilot" => ".github/plugin/marketplace.json",
         _ => "",
     }
 }

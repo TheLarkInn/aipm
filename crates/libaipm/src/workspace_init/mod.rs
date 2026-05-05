@@ -21,6 +21,15 @@ pub trait ToolAdaptor {
     /// Human-readable name for user-facing output (e.g., "Claude Code").
     fn name(&self) -> &'static str;
 
+    /// The engine variant this adaptor scaffolds for.
+    ///
+    /// Returned values come from
+    /// [`libaipm_engine_spec::Engine`] so callers (notably the
+    /// scaffold-set filter in [`init`]) can match adaptors against the
+    /// user's selected engines without going through the human-readable
+    /// `name()`.
+    fn engine(&self) -> libaipm_engine_spec::Engine;
+
     /// Apply tool-specific settings to the workspace directory.
     ///
     /// `marketplace_name` is the user-chosen identifier for the local marketplace
@@ -62,6 +71,16 @@ pub struct Options<'a> {
     pub manifest: bool,
     /// Marketplace name (e.g., `"local-repo-plugins"`).
     pub marketplace_name: &'a str,
+    /// Engines to scaffold for. Filters the adaptor list passed to
+    /// [`init`]: only adaptors whose [`ToolAdaptor::engine`] is contained
+    /// in this set actually run. Empty set = no engine adaptors run.
+    pub engines_scaffold: libaipm_engine_spec::EngineSet,
+    /// Engines the project claims to support, written to
+    /// `[workspace].engines` and `[package].engines` of the starter
+    /// plugin. `None` (or `Some(EngineSet::empty())`) omits the field
+    /// entirely (semantic: "all engines"). `Some(set)` writes the
+    /// declared list.
+    pub engines_support: Option<libaipm_engine_spec::EngineSet>,
 }
 
 /// Actions taken during initialization — used for user feedback.
@@ -101,15 +120,27 @@ pub fn init(
     let mut actions = Vec::new();
 
     if opts.workspace {
-        init_workspace(opts.dir, fs)?;
+        init_workspace(opts.dir, opts.engines_support, fs)?;
         actions.push(InitAction::WorkspaceCreated);
     }
 
     if opts.marketplace {
-        scaffold_marketplace(opts.dir, opts.no_starter, opts.manifest, opts.marketplace_name, fs)?;
+        scaffold_marketplace(
+            opts.dir,
+            opts.no_starter,
+            opts.manifest,
+            opts.marketplace_name,
+            opts.engines_support,
+            fs,
+        )?;
         actions.push(InitAction::MarketplaceCreated);
 
         for adaptor in adaptors {
+            // Spec G3 / Feature 9: skip adaptors whose engine is not in
+            // the user's selected scaffold set.
+            if !opts.engines_scaffold.contains(adaptor.engine().as_set()) {
+                continue;
+            }
             if adaptor.apply(opts.dir, opts.no_starter, opts.marketplace_name, fs)? {
                 actions.push(InitAction::ToolConfigured(adaptor.name().to_string()));
             }
@@ -123,13 +154,17 @@ pub fn init(
 // Workspace manifest generation
 // =============================================================================
 
-fn init_workspace(dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
+fn init_workspace(
+    dir: &Path,
+    engines_support: Option<libaipm_engine_spec::EngineSet>,
+    fs: &dyn Fs,
+) -> Result<(), Error> {
     let manifest_path = dir.join("aipm.toml");
     if fs.exists(&manifest_path) {
         return Err(Error::WorkspaceAlreadyInitialized(dir.to_path_buf()));
     }
 
-    let content = generate_workspace_manifest();
+    let content = generate_workspace_manifest(engines_support);
 
     // Validate round-trip
     crate::manifest::parse_and_validate(&content, None)
@@ -141,12 +176,16 @@ fn init_workspace(dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
     Ok(())
 }
 
-fn generate_workspace_manifest() -> String {
+fn generate_workspace_manifest(engines_support: Option<libaipm_engine_spec::EngineSet>) -> String {
     let members = vec![".ai/*".to_string()];
+    let engines_vec = engine_set_to_canonical_names(engines_support);
+    let engines_slice: Option<Vec<&str>> =
+        engines_vec.as_ref().map(|v| v.iter().map(String::as_str).collect());
     crate::manifest::builder::build_workspace_manifest(
         &crate::manifest::builder::WorkspaceManifestOpts {
             members: &members,
             plugins_dir: Some(".ai"),
+            engines: engines_slice.as_deref(),
             header_comments: Some(&[
                 "AI Plugin Manager — Workspace Configuration",
                 "Docs: https://github.com/thelarkinn/aipm",
@@ -171,11 +210,40 @@ fn generate_workspace_manifest() -> String {
 // Marketplace scaffolding
 // =============================================================================
 
+/// Translate an `Options.engines_support` value into a `Vec<String>` of
+/// canonical engine names suitable for the manifest builder.
+///
+/// Returns `None` when the field should be omitted from the on-disk
+/// manifest entirely:
+/// - input is `None` (no support set declared)
+/// - input is `Some(EngineSet::empty())` (semantically "all engines")
+/// - input is `Some(EngineSet::ALL)` (the full known set is the default,
+///   no need to enumerate it)
+///
+/// Otherwise returns `Some(vec![...])` of canonical kebab-case names in
+/// `Engine::ALL` declaration order.
+fn engine_set_to_canonical_names(
+    engines: Option<libaipm_engine_spec::EngineSet>,
+) -> Option<Vec<String>> {
+    let set = engines?;
+    if set.is_empty() || set == libaipm_engine_spec::EngineSet::ALL {
+        return None;
+    }
+    Some(
+        libaipm_engine_spec::Engine::ALL
+            .iter()
+            .filter(|e| set.contains(e.as_set()))
+            .map(|e| e.name().to_string())
+            .collect(),
+    )
+}
+
 fn scaffold_marketplace(
     dir: &Path,
     no_starter: bool,
     manifest: bool,
     marketplace_name: &str,
+    engines_support: Option<libaipm_engine_spec::EngineSet>,
     fs: &dyn Fs,
 ) -> Result<(), Error> {
     let ai_dir = dir.join(".ai");
@@ -243,7 +311,7 @@ fn scaffold_marketplace(
 
     // .ai/starter-aipm-plugin/aipm.toml (only when --manifest is requested)
     if manifest {
-        let starter_manifest = generate_starter_manifest();
+        let starter_manifest = generate_starter_manifest(engines_support);
         fs.write_file(&starter.join("aipm.toml"), starter_manifest.as_bytes())?;
 
         // Validate starter manifest round-trips (with base_dir so component paths are checked)
@@ -273,20 +341,22 @@ fn scaffold_marketplace(
     Ok(())
 }
 
-fn generate_starter_manifest() -> String {
+fn generate_starter_manifest(engines_support: Option<libaipm_engine_spec::EngineSet>) -> String {
     let skills = vec!["skills/scaffold-plugin/SKILL.md".to_string()];
     let agents = vec!["agents/marketplace-scanner.md".to_string()];
     let hooks = vec!["hooks/hooks.json".to_string()];
     let scripts = vec!["scripts/scaffold-plugin.sh".to_string()];
 
-    let starter_engines: &[&str] = &["claude"];
+    let engines_vec = engine_set_to_canonical_names(engines_support);
+    let engines_slice: Option<Vec<&str>> =
+        engines_vec.as_ref().map(|v| v.iter().map(String::as_str).collect());
     crate::manifest::builder::build_plugin_manifest(
         &crate::manifest::builder::PluginManifestOpts {
             name: "starter-aipm-plugin",
             version: "0.1.0",
             plugin_type: Some("composite"),
             description: Some("Default starter plugin \u{2014} scaffold new plugins, scan your marketplace, and log tool usage"),
-            engines: Some(starter_engines),
+            engines: engines_slice.as_deref(),
         },
         Some(&crate::manifest::builder::PluginComponentsOpts {
             skills: Some(&skills),
@@ -418,7 +488,7 @@ mod tests {
 
     #[test]
     fn workspace_manifest_round_trips() {
-        let content = generate_workspace_manifest();
+        let content = generate_workspace_manifest(None);
         let result = crate::manifest::parse_and_validate(&content, None);
         assert!(result.is_ok(), "workspace manifest should round-trip: {result:?}");
         let m = result.ok();
@@ -446,7 +516,7 @@ mod tests {
         std::fs::create_dir_all(&scripts_dir).ok();
         std::fs::File::create(scripts_dir.join("scaffold-plugin.sh")).ok();
 
-        let content = generate_starter_manifest();
+        let content = generate_starter_manifest(Some(libaipm_engine_spec::EngineSet::CLAUDE));
         let result = crate::manifest::parse_and_validate(&content, Some(&tmp));
         assert!(result.is_ok(), "starter manifest should round-trip: {result:?}");
 
@@ -464,6 +534,8 @@ mod tests {
             no_starter: false,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -487,6 +559,8 @@ mod tests {
             no_starter: false,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -518,6 +592,8 @@ mod tests {
             no_starter: false,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_err());
@@ -540,6 +616,8 @@ mod tests {
             no_starter: false,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_err());
@@ -560,6 +638,8 @@ mod tests {
             no_starter: false,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -583,6 +663,8 @@ mod tests {
             no_starter: false,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -604,6 +686,8 @@ mod tests {
             no_starter: false,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -627,6 +711,8 @@ mod tests {
             no_starter: true,
             manifest: false,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -674,7 +760,7 @@ mod tests {
 
     #[test]
     fn workspace_manifest_has_correct_members() {
-        let content = generate_workspace_manifest();
+        let content = generate_workspace_manifest(None);
         assert!(content.contains("members = [\".ai/*\"]"));
         assert!(content.contains("plugins_dir = \".ai\""));
     }
@@ -741,6 +827,8 @@ mod tests {
             no_starter: true,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -808,6 +896,8 @@ mod tests {
             no_starter: false,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -845,6 +935,8 @@ mod tests {
             no_starter: true,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -875,6 +967,8 @@ mod tests {
             no_starter: true,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -907,12 +1001,20 @@ mod tests {
     #[test]
     fn init_marketplace_with_preconfigured_claude_settings() {
         let (tmp, _guard) = make_temp_dir("preconfigured");
-        // Pre-create fully-configured .claude/settings.json
+        // Pre-create fully-configured .claude/settings.json AND
+        // .github/copilot-instructions.md so both adaptors return Ok(false)
+        // (the Copilot adaptor preserves any existing instructions file).
         assert!(std::fs::create_dir_all(tmp.join(".claude")).is_ok());
         assert!(std::fs::write(
             tmp.join(".claude/settings.json"),
             r#"{"extraKnownMarketplaces":{"local-repo-plugins":{"source":{"source":"directory","path":"./.ai"}}},"enabledPlugins":{"starter-aipm-plugin@local-repo-plugins":true}}"#,
         ).is_ok());
+        assert!(std::fs::create_dir_all(tmp.join(".github")).is_ok());
+        assert!(std::fs::write(
+            tmp.join(".github/copilot-instructions.md"),
+            "# user-managed instructions\n",
+        )
+        .is_ok());
 
         let adaptors = default_adaptors();
         let opts = Options {
@@ -922,6 +1024,12 @@ mod tests {
             no_starter: false,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            // Both adaptors must actually run so this test exercises both
+            // idempotency paths (per the pre-seed setup above). With
+            // `engines_scaffold: CLAUDE`, the Copilot adaptor would be
+            // filtered out and only Claude's idempotent path would be tested.
+            engines_scaffold: libaipm_engine_spec::EngineSet::ALL,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -987,6 +1095,8 @@ mod tests {
             no_starter: true,
             manifest: false,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let fs = WriteFailAtSuffixFs { fail_suffix: "marketplace.json" };
         let result = init(&opts, &adaptors, &fs);
@@ -1006,6 +1116,8 @@ mod tests {
             no_starter: false,
             manifest: false,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let fs = WriteFailAtSuffixFs { fail_suffix: "SKILL.md" };
         let result = init(&opts, &adaptors, &fs);
@@ -1024,6 +1136,8 @@ mod tests {
             no_starter: false,
             manifest: false,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let fs = WriteFailAtSuffixFs { fail_suffix: "scaffold-plugin.sh" };
         let result = init(&opts, &adaptors, &fs);
@@ -1042,6 +1156,8 @@ mod tests {
             no_starter: false,
             manifest: false,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let fs = WriteFailAtSuffixFs { fail_suffix: "marketplace-scanner.md" };
         let result = init(&opts, &adaptors, &fs);
@@ -1110,6 +1226,8 @@ mod tests {
             no_starter: false,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &FailDirFs);
         assert!(result.is_err());
@@ -1128,6 +1246,8 @@ mod tests {
             no_starter: false,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &FailWriteFs);
         assert!(result.is_err());
@@ -1146,6 +1266,8 @@ mod tests {
             no_starter: true,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &FailDirFs);
         assert!(result.is_err());
@@ -1162,6 +1284,8 @@ mod tests {
             no_starter: true,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &FailWriteFs);
         assert!(result.is_err());
@@ -1178,6 +1302,8 @@ mod tests {
             no_starter: false,
             manifest: false,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -1203,6 +1329,8 @@ mod tests {
             no_starter: false,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -1220,6 +1348,9 @@ mod tests {
         impl ToolAdaptor for NoOpAdaptor {
             fn name(&self) -> &'static str {
                 "NoOpAdaptor"
+            }
+            fn engine(&self) -> libaipm_engine_spec::Engine {
+                libaipm_engine_spec::Engine::Claude
             }
             fn apply(
                 &self,
@@ -1241,6 +1372,8 @@ mod tests {
             no_starter: true,
             manifest: false,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -1260,6 +1393,9 @@ mod tests {
         impl ToolAdaptor for ErrorAdaptor {
             fn name(&self) -> &'static str {
                 "ErrorAdaptor"
+            }
+            fn engine(&self) -> libaipm_engine_spec::Engine {
+                libaipm_engine_spec::Engine::Claude
             }
             fn apply(
                 &self,
@@ -1281,6 +1417,8 @@ mod tests {
             no_starter: true,
             manifest: false,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_err());
@@ -1293,9 +1431,10 @@ mod tests {
     #[test]
     fn adaptor_apply_returns_false_when_already_configured() {
         // Pre-seed `.claude/settings.json` with the marketplace and starter
-        // plugin already registered so that the Claude adaptor's `apply()`
-        // returns `Ok(false)` — exercising the `False` branch of
-        // `if adaptor.apply(…)?` at the adaptor-loop in `init` (line 113).
+        // plugin already registered AND `.github/copilot-instructions.md`
+        // so both default adaptors' `apply()` return `Ok(false)` —
+        // exercising the `False` branch of `if adaptor.apply(…)?` at the
+        // adaptor-loop in `init` (line 113).
         let (tmp, _guard) = make_temp_dir("adaptor-idempotent");
 
         // Pre-create the settings directory and file.
@@ -1312,6 +1451,12 @@ mod tests {
             }
         });
         std::fs::write(claude_dir.join("settings.json"), settings.to_string().as_bytes()).ok();
+        // Same idempotency guarantee for the Copilot adaptor: an existing
+        // instructions file means the adaptor preserves it and returns
+        // `Ok(false)`.
+        let github_dir = tmp.join(".github");
+        std::fs::create_dir_all(&github_dir).ok();
+        std::fs::write(github_dir.join("copilot-instructions.md"), b"# user content\n").ok();
 
         let opts = Options {
             dir: &tmp,
@@ -1320,6 +1465,13 @@ mod tests {
             no_starter: false,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            // Both adaptors must actually run so this test exercises both
+            // idempotency paths (per the pre-seed of `.claude/settings.json`
+            // AND `.github/copilot-instructions.md` above). With
+            // `engines_scaffold: CLAUDE`, the Copilot adaptor would be
+            // filtered out and only Claude's `Ok(false)` path would be tested.
+            engines_scaffold: libaipm_engine_spec::EngineSet::ALL,
+            engines_support: None,
         };
         let adaptors = default_adaptors();
 
@@ -1358,10 +1510,9 @@ mod tests {
     #[test]
     fn init_adaptor_skips_when_settings_already_configured() {
         // Pre-populate .claude/settings.json with the marketplace and starter plugin
-        // already present. The adaptor should detect no changes are needed (both
-        // `mp_changed` and `ep_changed` are false) and return `Ok(false)`, which
-        // means the `if adaptor.apply(...)` branch evaluates to false — covering the
-        // previously-uncovered False branch at that condition.
+        // already present AND `.github/copilot-instructions.md` so both default
+        // adaptors detect no changes and return `Ok(false)`. This exercises the
+        // previously-uncovered False branch of `if adaptor.apply(...)`.
         let (tmp, _guard) = make_temp_dir("adaptor-skip");
         let settings_dir = tmp.join(".claude");
         std::fs::create_dir_all(&settings_dir).ok();
@@ -1375,6 +1526,9 @@ mod tests {
   }
 }"#;
         std::fs::write(settings_dir.join("settings.json"), settings_str.as_bytes()).ok();
+        let github_dir = tmp.join(".github");
+        std::fs::create_dir_all(&github_dir).ok();
+        std::fs::write(github_dir.join("copilot-instructions.md"), b"# user content\n").ok();
 
         let adaptors = default_adaptors();
         let opts = Options {
@@ -1384,6 +1538,11 @@ mod tests {
             no_starter: false,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            // Both adaptors must run so this test actually exercises the
+            // False branch of `if adaptor.apply(...)` for both engines
+            // (per the pre-seed setup above).
+            engines_scaffold: libaipm_engine_spec::EngineSet::ALL,
+            engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
         assert!(result.is_ok());
@@ -1393,5 +1552,200 @@ mod tests {
             .is_ok_and(|r| !r.actions.iter().any(|a| matches!(a, InitAction::ToolConfigured(_)))));
 
         cleanup(&tmp);
+    }
+
+    // =====================================================================
+    // Feature 9 — engines_scaffold filter + engines_support emission
+    // =====================================================================
+
+    #[test]
+    fn init_with_claude_only_scaffold_skips_copilot_adaptor() {
+        // engines_scaffold = CLAUDE only. Both default adaptors are passed
+        // in, but the Copilot adaptor is filtered out by the new scaffold
+        // filter, so `.github/copilot-instructions.md` is never created.
+        let (tmp, _guard) = make_temp_dir("scaffold-claude-only");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real).expect("init should succeed");
+        assert!(tmp.join(".claude/settings.json").exists(), "claude scaffold expected");
+        assert!(
+            !tmp.join(".github/copilot-instructions.md").exists(),
+            "copilot scaffold should be skipped when not in scaffold set"
+        );
+        // Only Claude's ToolConfigured action should be present.
+        let tool_configured_count =
+            result.actions.iter().filter(|a| matches!(a, InitAction::ToolConfigured(_))).count();
+        assert_eq!(tool_configured_count, 1, "expected exactly one ToolConfigured action");
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn init_with_copilot_only_scaffold_skips_claude_adaptor() {
+        // engines_scaffold = COPILOT only. The Claude adaptor is filtered
+        // out so `.claude/` is NOT created (the bug from issue #724).
+        let (tmp, _guard) = make_temp_dir("scaffold-copilot-only");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::COPILOT,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real).expect("init should succeed");
+        assert!(tmp.join(".github/copilot-instructions.md").exists(), "copilot scaffold expected");
+        assert!(
+            !tmp.join(".claude").exists(),
+            "claude scaffold should be skipped when not in scaffold set (issue #724)"
+        );
+        let tool_configured_count =
+            result.actions.iter().filter(|a| matches!(a, InitAction::ToolConfigured(_))).count();
+        assert_eq!(tool_configured_count, 1, "expected exactly one ToolConfigured action");
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn init_with_empty_scaffold_runs_no_adaptors() {
+        // engines_scaffold = empty. No adaptors run; no engine roots
+        // appear on disk.
+        let (tmp, _guard) = make_temp_dir("scaffold-empty");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real).expect("init should succeed");
+        assert!(!tmp.join(".claude").exists());
+        assert!(!tmp.join(".github").exists());
+        // MarketplaceCreated should still be present (only the adaptor
+        // loop is gated, not the marketplace scaffold itself).
+        assert!(
+            result.actions.iter().any(|a| matches!(a, InitAction::MarketplaceCreated)),
+            "marketplace should still be scaffolded with empty engines_scaffold"
+        );
+        assert!(
+            !result.actions.iter().any(|a| matches!(a, InitAction::ToolConfigured(_))),
+            "no ToolConfigured action expected with empty engines_scaffold"
+        );
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn init_workspace_with_narrow_support_writes_engines_field() {
+        // engines_support = Some(CLAUDE) with workspace=true → workspace
+        // aipm.toml gets `engines = ["claude"]`.
+        let (tmp, _guard) = make_temp_dir("workspace-narrow-support");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = Vec::new();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: Some(libaipm_engine_spec::EngineSet::CLAUDE),
+        };
+        init(&opts, &adaptors, &crate::fs::Real).expect("init should succeed");
+        let content = std::fs::read_to_string(tmp.join("aipm.toml")).unwrap_or_default();
+        assert!(
+            content.contains("engines = [\"claude\"]"),
+            "workspace aipm.toml should contain engines = [\"claude\"]: {content}"
+        );
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn init_workspace_with_default_support_omits_engines_field() {
+        // engines_support = None → workspace aipm.toml omits engines field.
+        let (tmp, _guard) = make_temp_dir("workspace-default-support");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = Vec::new();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: None,
+        };
+        init(&opts, &adaptors, &crate::fs::Real).expect("init should succeed");
+        let content = std::fs::read_to_string(tmp.join("aipm.toml")).unwrap_or_default();
+        assert!(
+            !content.contains("engines ="),
+            "workspace aipm.toml should NOT contain engines field: {content}"
+        );
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn init_workspace_with_engineset_all_support_omits_engines_field() {
+        // engines_support = Some(ALL) is the default state — should also
+        // omit the field (no need to enumerate all known engines).
+        let (tmp, _guard) = make_temp_dir("workspace-all-support");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = Vec::new();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: Some(libaipm_engine_spec::EngineSet::ALL),
+        };
+        init(&opts, &adaptors, &crate::fs::Real).expect("init should succeed");
+        let content = std::fs::read_to_string(tmp.join("aipm.toml")).unwrap_or_default();
+        assert!(
+            !content.contains("engines ="),
+            "workspace aipm.toml should NOT contain engines field when ALL: {content}"
+        );
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn engine_set_to_canonical_names_truth_table() {
+        use libaipm_engine_spec::EngineSet;
+
+        assert_eq!(engine_set_to_canonical_names(None), None, "None input → None");
+        assert_eq!(
+            engine_set_to_canonical_names(Some(EngineSet::empty())),
+            None,
+            "empty bitset → None"
+        );
+        assert_eq!(
+            engine_set_to_canonical_names(Some(EngineSet::ALL)),
+            None,
+            "ALL bitset → None (omit field)"
+        );
+        assert_eq!(
+            engine_set_to_canonical_names(Some(EngineSet::CLAUDE)),
+            Some(vec!["claude".to_string()]),
+            "single bit → single name"
+        );
+        assert_eq!(
+            engine_set_to_canonical_names(Some(EngineSet::COPILOT)),
+            Some(vec!["copilot".to_string()]),
+            "single bit → single name"
+        );
     }
 }

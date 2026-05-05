@@ -1,0 +1,8 @@
+# Valid aipm.toml with [package].engines field.
+# Used to validate the JSON Schema accepts the new engines property.
+
+[package]
+name = "my-claude-only-plugin"
+version = "0.1.0"
+type = "skill"
+engines = ["claude"]

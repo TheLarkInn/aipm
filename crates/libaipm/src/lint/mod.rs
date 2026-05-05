@@ -1468,6 +1468,11 @@ mod tests {
             no_starter: false,
             manifest: true,
             marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            // Spec G2: declare claude engines on the starter plugin so the
+            // valid-tool-name lint sees the declared engines and clears
+            // its diagnostics on Read/Glob/Grep references.
+            engines_support: Some(libaipm_engine_spec::EngineSet::CLAUDE),
         };
         let adaptors = crate::workspace_init::adaptors::defaults();
         crate::workspace_init::init(&init_opts, &adaptors, &crate::fs::Real).unwrap();

@@ -116,7 +116,7 @@ mod tests {
         let path = PathBuf::from("/repo/.github/copilot.md");
         let feat = classify_at(&path, &root).expect("should match");
         assert_eq!(feat.kind, FeatureKind::Instructions);
-        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
+        assert_eq!(feat.source, DiscoverySource::COPILOT);
     }
 
     #[test]
@@ -145,7 +145,7 @@ mod tests {
         let path = PathBuf::from("/repo/.github/copilot/skills/skill-alpha/SKILL.md");
         let feat = classify_at(&path, &root).expect("should match");
         assert_eq!(feat.kind, FeatureKind::Skill);
-        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
+        assert_eq!(feat.source, DiscoverySource::COPILOT);
         assert_eq!(feat.layout, Layout::CopilotSubrootWithSkills);
     }
 
@@ -174,7 +174,7 @@ mod tests {
         let path = PathBuf::from("/repo/.github/hooks.json");
         let feat = classify_at(&path, &root).expect("should match");
         assert_eq!(feat.kind, FeatureKind::Hook);
-        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
+        assert_eq!(feat.source, DiscoverySource::COPILOT);
     }
 
     #[test]
@@ -218,7 +218,7 @@ mod tests {
         let root = PathBuf::from("/repo");
         let path = PathBuf::from("/repo/.github/skills/my-skill/SKILL.md");
         let feat = classify_at(&path, &root).expect("should match");
-        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
+        assert_eq!(feat.source, DiscoverySource::COPILOT);
     }
 
     #[test]

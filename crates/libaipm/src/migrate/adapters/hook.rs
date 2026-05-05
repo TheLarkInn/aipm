@@ -27,7 +27,7 @@ impl Adapter for CopilotHookAdapter {
     }
 
     fn applies_to(&self, feat: &DiscoveredFeature) -> bool {
-        feat.source == DiscoverySource::COPILOT_CLI && feat.kind == FeatureKind::Hook
+        feat.source == DiscoverySource::COPILOT && feat.kind == FeatureKind::Hook
     }
 
     fn to_artifact(&self, feat: &DiscoveredFeature, fs: &dyn Fs) -> Result<Artifact, Error> {
@@ -76,7 +76,7 @@ mod tests {
         let adapter = CopilotHookAdapter;
         let hook = DiscoveredFeature {
             kind: FeatureKind::Hook,
-            source: DiscoverySource::COPILOT_CLI,
+            source: DiscoverySource::COPILOT,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".github"),
             feature_dir: Some(PathBuf::from(".github")),
@@ -104,7 +104,7 @@ mod tests {
         let adapter = CopilotHookAdapter;
         let skill = DiscoveredFeature {
             kind: FeatureKind::Skill,
-            source: DiscoverySource::COPILOT_CLI,
+            source: DiscoverySource::COPILOT,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".github"),
             feature_dir: Some(PathBuf::from(".github/skills/x")),
@@ -128,7 +128,7 @@ mod tests {
 
         let feat = DiscoveredFeature {
             kind: FeatureKind::Hook,
-            source: DiscoverySource::COPILOT_CLI,
+            source: DiscoverySource::COPILOT,
             layout: Layout::Canonical,
             source_root: tmp.path().to_path_buf(),
             feature_dir: Some(tmp.path().to_path_buf()),
@@ -150,7 +150,7 @@ mod tests {
 
         let feat = DiscoveredFeature {
             kind: FeatureKind::Hook,
-            source: DiscoverySource::COPILOT_CLI,
+            source: DiscoverySource::COPILOT,
             layout: Layout::Canonical,
             source_root: tmp.path().to_path_buf(),
             feature_dir: Some(tmp.path().to_path_buf()),

@@ -32,7 +32,7 @@ impl Adapter for CopilotAgentAdapter {
     }
 
     fn applies_to(&self, feat: &DiscoveredFeature) -> bool {
-        feat.source == DiscoverySource::COPILOT_CLI && feat.kind == FeatureKind::Agent
+        feat.source == DiscoverySource::COPILOT && feat.kind == FeatureKind::Agent
     }
 
     fn to_artifact(&self, feat: &DiscoveredFeature, fs: &dyn Fs) -> Result<Artifact, Error> {
@@ -132,7 +132,7 @@ mod tests {
         let adapter = CopilotAgentAdapter;
         let agent = DiscoveredFeature {
             kind: FeatureKind::Agent,
-            source: DiscoverySource::COPILOT_CLI,
+            source: DiscoverySource::COPILOT,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".github"),
             feature_dir: Some(PathBuf::from(".github/agents")),
@@ -160,7 +160,7 @@ mod tests {
         let adapter = CopilotAgentAdapter;
         let skill = DiscoveredFeature {
             kind: FeatureKind::Skill,
-            source: DiscoverySource::COPILOT_CLI,
+            source: DiscoverySource::COPILOT,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".github"),
             feature_dir: Some(PathBuf::from(".github/skills/x")),
@@ -188,7 +188,7 @@ mod tests {
 
         let feat = DiscoveredFeature {
             kind: FeatureKind::Agent,
-            source: DiscoverySource::COPILOT_CLI,
+            source: DiscoverySource::COPILOT,
             layout: Layout::Canonical,
             source_root: tmp.path().to_path_buf(),
             feature_dir: Some(agents_dir),
@@ -210,7 +210,7 @@ mod tests {
 
         let feat = DiscoveredFeature {
             kind: FeatureKind::Agent,
-            source: DiscoverySource::COPILOT_CLI,
+            source: DiscoverySource::COPILOT,
             layout: Layout::Canonical,
             source_root: tmp.path().to_path_buf(),
             feature_dir: Some(agents_dir),
@@ -230,7 +230,7 @@ mod tests {
 
         let feat = DiscoveredFeature {
             kind: FeatureKind::Agent,
-            source: DiscoverySource::COPILOT_CLI,
+            source: DiscoverySource::COPILOT,
             layout: Layout::Canonical,
             source_root: tmp.path().to_path_buf(),
             feature_dir: Some(agents_dir),
@@ -270,7 +270,7 @@ mod tests {
         let adapter = ClaudeAgentAdapter;
         let copilot_agent = DiscoveredFeature {
             kind: FeatureKind::Agent,
-            source: DiscoverySource::COPILOT_CLI,
+            source: DiscoverySource::COPILOT,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".github"),
             feature_dir: Some(PathBuf::from(".github/agents")),

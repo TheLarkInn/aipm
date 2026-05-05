@@ -20,7 +20,7 @@ use super::types::DiscoverySource;
 ///
 /// Recognized source-root directory names:
 /// - `.claude` → [`DiscoverySource::CLAUDE`]
-/// - `.github` → [`DiscoverySource::COPILOT_CLI`]
+/// - `.github` → [`DiscoverySource::COPILOT`]
 /// - `.ai`     → [`DiscoverySource::AI`]
 ///
 /// Returns `None` if no engine ancestor exists between `path` and
@@ -76,7 +76,7 @@ mod tests {
         let project = Path::new("/repo");
         let path = Path::new("/repo/.github/copilot/skills/skill-alpha/SKILL.md");
         let (source, root) = infer_engine_root(path, project).expect("should match");
-        assert_eq!(source, DiscoverySource::COPILOT_CLI);
+        assert_eq!(source, DiscoverySource::COPILOT);
         assert_eq!(root, PathBuf::from("/repo/.github"));
     }
 
@@ -85,7 +85,7 @@ mod tests {
         let project = Path::new("/repo");
         let path = Path::new("/repo/.github/skills/my-skill/SKILL.md");
         let (source, root) = infer_engine_root(path, project).expect("should match");
-        assert_eq!(source, DiscoverySource::COPILOT_CLI);
+        assert_eq!(source, DiscoverySource::COPILOT);
         assert_eq!(root, PathBuf::from("/repo/.github"));
     }
 
@@ -137,7 +137,7 @@ mod tests {
         let project = Path::new(".");
         let path = Path::new("./.github/skills/my-skill/SKILL.md");
         let (source, root) = infer_engine_root(path, project).expect("should match");
-        assert_eq!(source, DiscoverySource::COPILOT_CLI);
+        assert_eq!(source, DiscoverySource::COPILOT);
         assert_eq!(root, PathBuf::from("./.github"));
     }
 
@@ -167,7 +167,7 @@ mod tests {
         let project = Path::new("/repo");
         let path = Path::new("/repo/.foo/.github/skills/x/SKILL.md");
         let (source, root) = infer_engine_root(path, project).expect("should match");
-        assert_eq!(source, DiscoverySource::COPILOT_CLI);
+        assert_eq!(source, DiscoverySource::COPILOT);
         assert_eq!(root, PathBuf::from("/repo/.foo/.github"));
     }
 
@@ -186,7 +186,7 @@ mod tests {
         let project = Path::new("/");
         let path = Path::new("/.github/skills/x/SKILL.md");
         let (source, root) = infer_engine_root(path, project).expect("should match");
-        assert_eq!(source, DiscoverySource::COPILOT_CLI);
+        assert_eq!(source, DiscoverySource::COPILOT);
         assert_eq!(root, PathBuf::from("/.github"));
     }
 }

@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 
 /// Top-level meta-schema version. Bumped on breaking schema changes; the
 /// data file's `meta_schema_version` must match this string at build time.
-pub const META_SCHEMA_VERSION: &str = "1.0.0";
+pub const META_SCHEMA_VERSION: &str = "2.0.0";
 
 /// Root document — the shape of `data/engine-api-schema.json`.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
@@ -35,7 +35,7 @@ pub struct EngineApiSchemaFile {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct EngineBootstrap {
-    /// Engine identifier (e.g. "claude", "copilot-cli").
+    /// Engine identifier (e.g. "claude", "copilot").
     pub name: String,
     /// Distribution channel ("npm", "github-release", ...).
     pub source: String,

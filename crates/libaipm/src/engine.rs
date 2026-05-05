@@ -42,12 +42,12 @@ pub fn marketplace_manifest_path(engine: Engine) -> &'static str {
 pub const fn display_name(engine: Engine) -> &'static str {
     match engine {
         Engine::Claude => "Claude",
-        Engine::CopilotCli => "Copilot",
+        Engine::Copilot => "Copilot",
     }
 }
 
 /// All supported engine names (kebab-case identifiers, e.g. "claude",
-/// "copilot-cli").
+/// "copilot").
 #[must_use]
 pub fn all_names() -> Vec<&'static str> {
     Engine::ALL.iter().map(|e| e.name()).collect()
@@ -96,21 +96,13 @@ pub fn validate_plugin(plugin_dir: &Path, engine: Engine) -> Result<(), Validati
     validate_via_markers(plugin_dir, engine)
 }
 
-/// Minimal manifest structs for engine validation.
-/// Defined at module level to avoid "items after statements" clippy lint.
-#[derive(serde::Deserialize, Default)]
-struct MinimalPackage {
-    #[serde(default)]
-    engines: Option<Vec<String>>,
-}
-
-#[derive(serde::Deserialize, Default)]
-struct MinimalManifest {
-    #[serde(default)]
-    package: Option<MinimalPackage>,
-}
-
 /// Validate using the `engines` field from `aipm.toml`.
+///
+/// Uses the canonical [`crate::manifest::parse`] + [`crate::manifest::effective_engines`]
+/// pipeline so workspace-level engines are honored as a fallback when the
+/// member package omits its own declaration. Preserves the legacy
+/// "broken manifest is treated as universal" tolerance: I/O errors and
+/// parse errors short-circuit to `Ok(())`.
 fn validate_via_manifest(
     manifest_path: &Path,
     plugin_dir: &Path,
@@ -120,28 +112,33 @@ fn validate_via_manifest(
         return Ok(()); // Cannot read → treat as universal
     };
 
-    let Ok(manifest) = toml::from_str::<MinimalManifest>(&content) else {
+    let Ok(manifest) = crate::manifest::parse(&content) else {
         return Ok(()); // Parse error → treat as universal
     };
 
-    let engines = manifest.package.and_then(|p| p.engines).unwrap_or_default();
+    let engines =
+        crate::manifest::effective_engines(manifest.package.as_ref(), manifest.workspace.as_ref());
 
-    // Empty engines list = universal (all engines)
-    if engines.is_empty() {
+    // None or empty bitset = universal (all engines).
+    let Some(engines) = engines.filter(|s| !s.is_empty()) else {
         return Ok(());
-    }
+    };
 
-    // Check if target engine is in the list (case-insensitive against the
-    // schema-driven kebab-case name, e.g. "claude" / "copilot-cli").
-    let target_lower = engine.name().to_lowercase();
-    let matches = engines.iter().any(|e| e.to_lowercase() == target_lower);
-
-    if matches {
+    if engines.contains(engine.as_set()) {
         Ok(())
     } else {
+        // Reconstruct a Vec<String> of declared engines from the bitset
+        // for the error message. Only known engines (those that survived
+        // deserialization) appear here — silently-dropped unknowns do
+        // not.
+        let declared: Vec<String> = Engine::ALL
+            .iter()
+            .filter(|e| engines.contains(e.as_set()))
+            .map(|e| e.name().to_string())
+            .collect();
         Err(ValidationError::IncompatibleEngine {
             target: display_name(engine).to_string(),
-            declared: engines,
+            declared,
             path: plugin_dir.to_path_buf(),
         })
     }
@@ -197,7 +194,7 @@ mod tests {
         .unwrap_or_else(|_| {});
 
         assert!(validate_plugin(&plugin_dir, Engine::Claude).is_ok());
-        assert!(validate_plugin(&plugin_dir, Engine::CopilotCli).is_ok());
+        assert!(validate_plugin(&plugin_dir, Engine::Copilot).is_ok());
     }
 
     #[test]
@@ -207,11 +204,71 @@ mod tests {
         std::fs::create_dir_all(&plugin_dir).unwrap_or_else(|_| {});
         std::fs::write(
             plugin_dir.join("aipm.toml"),
-            "[package]\nname = \"test\"\nversion = \"1.0.0\"\nengines = [\"copilot-cli\"]\n",
+            "[package]\nname = \"test\"\nversion = \"1.0.0\"\nengines = [\"copilot\"]\n",
         )
         .unwrap_or_else(|_| {});
 
         assert!(validate_plugin(&plugin_dir, Engine::Claude).is_err());
+    }
+
+    #[test]
+    fn validate_inherits_engines_from_workspace_when_package_omits() {
+        // Spec G7 part 2: package omits engines, workspace declares
+        // ["claude"]. Validating against Claude must pass; validating
+        // against Copilot must fail (workspace-level restriction is
+        // honored via `effective_engines`).
+        let temp = make_temp();
+        let plugin_dir = temp.path().join("my-plugin");
+        std::fs::create_dir_all(&plugin_dir).unwrap_or_else(|_| {});
+        std::fs::write(
+            plugin_dir.join("aipm.toml"),
+            "[package]\n\
+             name = \"test\"\n\
+             version = \"1.0.0\"\n\
+             [workspace]\n\
+             members = [\".ai/*\"]\n\
+             engines = [\"claude\"]\n",
+        )
+        .unwrap_or_else(|_| {});
+
+        assert!(
+            validate_plugin(&plugin_dir, Engine::Claude).is_ok(),
+            "claude should be allowed by workspace declaration"
+        );
+        assert!(
+            validate_plugin(&plugin_dir, Engine::Copilot).is_err(),
+            "copilot should be rejected by workspace declaration"
+        );
+    }
+
+    #[test]
+    fn validate_package_engines_override_workspace_engines() {
+        // Spec G7 inheritance contract: package wins over workspace
+        // (no merging). Package declares only copilot; workspace declares
+        // only claude.
+        let temp = make_temp();
+        let plugin_dir = temp.path().join("my-plugin");
+        std::fs::create_dir_all(&plugin_dir).unwrap_or_else(|_| {});
+        std::fs::write(
+            plugin_dir.join("aipm.toml"),
+            "[package]\n\
+             name = \"test\"\n\
+             version = \"1.0.0\"\n\
+             engines = [\"copilot\"]\n\
+             [workspace]\n\
+             members = [\".ai/*\"]\n\
+             engines = [\"claude\"]\n",
+        )
+        .unwrap_or_else(|_| {});
+
+        assert!(
+            validate_plugin(&plugin_dir, Engine::Claude).is_err(),
+            "claude should be rejected by package declaration (overrides workspace)"
+        );
+        assert!(
+            validate_plugin(&plugin_dir, Engine::Copilot).is_ok(),
+            "copilot should be allowed by package declaration"
+        );
     }
 
     #[test]
@@ -231,7 +288,7 @@ mod tests {
         std::fs::create_dir_all(plugin_dir.join(".github/plugin")).unwrap_or_else(|_| {});
         std::fs::write(plugin_dir.join(".github/plugin/plugin.json"), "{}").unwrap_or_else(|_| {});
 
-        assert!(validate_plugin(&plugin_dir, Engine::CopilotCli).is_ok());
+        assert!(validate_plugin(&plugin_dir, Engine::Copilot).is_ok());
     }
 
     #[test]
@@ -249,7 +306,7 @@ mod tests {
         let plugin_dir = temp.path().join("my-plugin");
         std::fs::create_dir_all(&plugin_dir).unwrap_or_else(|_| {});
 
-        assert!(validate_plugin(&plugin_dir, Engine::CopilotCli).is_err());
+        assert!(validate_plugin(&plugin_dir, Engine::Copilot).is_err());
     }
 
     #[test]
@@ -263,21 +320,21 @@ mod tests {
 
     #[test]
     fn human_readable_error_multi_marker() {
-        let req = format_marker_requirement(Engine::CopilotCli);
+        let req = format_marker_requirement(Engine::Copilot);
         assert!(req.contains("expected at least one of"));
     }
 
     #[test]
     fn engine_display() {
         assert_eq!(display_name(Engine::Claude), "Claude");
-        assert_eq!(display_name(Engine::CopilotCli), "Copilot");
+        assert_eq!(display_name(Engine::Copilot), "Copilot");
     }
 
     #[test]
     fn engine_all_names() {
         let names = all_names();
         assert!(names.contains(&"claude"));
-        assert!(names.contains(&"copilot-cli"));
+        assert!(names.contains(&"copilot"));
     }
 
     #[test]
@@ -311,9 +368,6 @@ mod tests {
     #[test]
     fn marketplace_manifest_path_returns_correct_path() {
         assert_eq!(marketplace_manifest_path(Engine::Claude), ".claude-plugin/marketplace.toml");
-        assert_eq!(
-            marketplace_manifest_path(Engine::CopilotCli),
-            ".github/plugin/marketplace.json"
-        );
+        assert_eq!(marketplace_manifest_path(Engine::Copilot), ".github/plugin/marketplace.json");
     }
 }

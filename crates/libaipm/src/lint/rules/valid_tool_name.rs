@@ -137,7 +137,7 @@ fn engine_names(set: EngineSet) -> Vec<&'static str> {
         .filter_map(|e| {
             let bit = match e {
                 Engine::Claude => EngineSet::CLAUDE,
-                Engine::CopilotCli => EngineSet::COPILOT_CLI,
+                Engine::Copilot => EngineSet::COPILOT,
             };
             if set.contains(bit) {
                 Some(e.name())
@@ -176,11 +176,15 @@ fn format_toml_string_array(names: &[&'static str]) -> String {
 }
 
 /// Walk up from `file_path` looking for the nearest `aipm.toml` and return
-/// the `EngineSet` declared in its `[package].engines` field.
+/// the `EngineSet` declared via [`crate::manifest::effective_engines`].
+///
+/// Honors workspace-level inheritance: when the nearest manifest's
+/// `[package].engines` is omitted but `[workspace].engines` is set, the
+/// workspace value drives the lint (Spec G7).
 ///
 /// Returns [`EngineSet::empty()`] when no manifest is found, the manifest
-/// cannot be read or parsed, or the `engines` field is missing or empty.
-/// Names that don't parse via [`Engine::from_name`] are silently ignored.
+/// cannot be read or parsed, or the resolved engines are `None` /
+/// `Some(EngineSet::empty())`.
 fn nearest_declared_engines(file_path: &Path, fs: &dyn Fs) -> EngineSet {
     let Some(manifest_path) = find_nearest_manifest(file_path, fs) else {
         return EngineSet::empty();
@@ -188,20 +192,11 @@ fn nearest_declared_engines(file_path: &Path, fs: &dyn Fs) -> EngineSet {
     let Ok(content) = fs.read_to_string(&manifest_path) else {
         return EngineSet::empty();
     };
-    let Ok(manifest) = toml::from_str::<MinimalManifest>(&content) else {
+    let Ok(manifest) = crate::manifest::parse(&content) else {
         return EngineSet::empty();
     };
-    let names = manifest.package.and_then(|p| p.engines).unwrap_or_default();
-    let mut set = EngineSet::empty();
-    for name in names {
-        if let Some(engine) = Engine::from_name(&name) {
-            match engine {
-                Engine::Claude => set |= EngineSet::CLAUDE,
-                Engine::CopilotCli => set |= EngineSet::COPILOT_CLI,
-            }
-        }
-    }
-    set
+    crate::manifest::effective_engines(manifest.package.as_ref(), manifest.workspace.as_ref())
+        .unwrap_or_else(EngineSet::empty)
 }
 
 /// Walk parent directories looking for `aipm.toml`.
@@ -218,20 +213,6 @@ fn find_nearest_manifest(file_path: &Path, fs: &dyn Fs) -> Option<PathBuf> {
         current = dir.parent();
     }
     None
-}
-
-/// Subset of `aipm.toml` consumed by this lint — mirrors the pattern in
-/// `crate::engine::MinimalManifest`.
-#[derive(serde::Deserialize, Default)]
-struct MinimalManifest {
-    #[serde(default)]
-    package: Option<MinimalPackage>,
-}
-
-#[derive(serde::Deserialize, Default)]
-struct MinimalPackage {
-    #[serde(default)]
-    engines: Option<Vec<String>>,
 }
 
 #[cfg(test)]
@@ -300,7 +281,7 @@ mod tests {
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].severity, Severity::Warning);
         assert!(diags[0].message.contains("browser_navigate"));
-        assert!(diags[0].message.contains("copilot-cli"));
+        assert!(diags[0].message.contains("copilot"));
     }
 
     #[test]
@@ -404,16 +385,13 @@ mod tests {
     fn engine_names_for_all_returns_all_kebab_names() {
         let names = engine_names(EngineSet::ALL);
         assert!(names.contains(&"claude"));
-        assert!(names.contains(&"copilot-cli"));
+        assert!(names.contains(&"copilot"));
     }
 
     #[test]
     fn format_toml_string_array_round_trip() {
         assert_eq!(format_toml_string_array(&["claude"]), "[\"claude\"]");
-        assert_eq!(
-            format_toml_string_array(&["claude", "copilot-cli"]),
-            "[\"claude\", \"copilot-cli\"]"
-        );
+        assert_eq!(format_toml_string_array(&["claude", "copilot"]), "[\"claude\", \"copilot\"]");
     }
 
     #[test]
@@ -449,15 +427,16 @@ mod tests {
 
     #[test]
     fn manifest_unknown_engine_name_silently_ignored() {
-        // Covers line 197: Engine::from_name returns None for unrecognised names.
-        // Unknown names are dropped; result is as if no engines were declared.
+        // Behavior change post-Feature 15: the lint now uses the canonical
+        // `crate::manifest::parse` which REJECTS all-unknown engine lists
+        // (per `engine_set_serde::deserialize`). Parse error → empty
+        // EngineSet → no restriction declared → Task warns (claude-only).
         let mut fs = MockFs::new();
         add_agent_with_tools(&mut fs, "Task");
         add_manifest(
             &mut fs,
             "[package]\nname = \"p\"\nversion = \"1.0.0\"\nengines = [\"future-engine\"]\n",
         );
-        // Unknown engine → empty EngineSet → no restriction declared → Task warns (claude-only).
         let diags = ValidToolName.check_file(&agent_path(), &fs).ok().unwrap_or_default();
         assert_eq!(
             diags.len(),
@@ -466,5 +445,62 @@ mod tests {
         );
         assert_eq!(diags[0].severity, Severity::Warning);
         assert!(diags[0].message.contains("Task"), "message should mention the tool name");
+    }
+
+    #[test]
+    fn workspace_engines_inherited_when_package_omits() {
+        // Spec G7 / Feature 15: workspace-level engines drive the lint
+        // when the member package omits its own `engines` field. A plugin
+        // referencing a Claude-only tool ("Task") should be CLEAN under
+        // a workspace declaring `engines = ["claude"]`.
+        let mut fs = MockFs::new();
+        add_agent_with_tools(&mut fs, "Task");
+        add_manifest(
+            &mut fs,
+            "[package]\nname = \"p\"\nversion = \"1.0.0\"\n\
+             [workspace]\nmembers = [\".ai/*\"]\nengines = [\"claude\"]\n",
+        );
+        let diags = ValidToolName.check_file(&agent_path(), &fs).ok().unwrap_or_default();
+        assert!(
+            diags.is_empty(),
+            "Task on a workspace declaring claude should be clean: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn workspace_engines_rejects_copilot_only_tool_when_only_claude_declared() {
+        // Workspace declares claude only, member package omits engines.
+        // Tool "browser_navigate" is copilot-only → should error.
+        let mut fs = MockFs::new();
+        add_agent_with_tools(&mut fs, "browser_navigate");
+        add_manifest(
+            &mut fs,
+            "[package]\nname = \"p\"\nversion = \"1.0.0\"\n\
+             [workspace]\nmembers = [\".ai/*\"]\nengines = [\"claude\"]\n",
+        );
+        let diags = ValidToolName.check_file(&agent_path(), &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1, "expected one error: {diags:?}");
+        assert_eq!(diags[0].severity, Severity::Error);
+        assert!(diags[0].message.contains("browser_navigate"));
+    }
+
+    #[test]
+    fn package_engines_override_workspace_engines() {
+        // Inheritance contract: package wins over workspace. Package
+        // declares only copilot; workspace declares only claude.
+        // "browser_navigate" is copilot-only — should be CLEAN because
+        // package.engines (copilot) overrides workspace.engines (claude).
+        let mut fs = MockFs::new();
+        add_agent_with_tools(&mut fs, "browser_navigate");
+        add_manifest(
+            &mut fs,
+            "[package]\nname = \"p\"\nversion = \"1.0.0\"\nengines = [\"copilot\"]\n\
+             [workspace]\nmembers = [\".ai/*\"]\nengines = [\"claude\"]\n",
+        );
+        let diags = ValidToolName.check_file(&agent_path(), &fs).ok().unwrap_or_default();
+        assert!(
+            diags.is_empty(),
+            "package.engines=[copilot] should override workspace.engines=[claude]: {diags:?}"
+        );
     }
 }

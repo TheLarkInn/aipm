@@ -2,4 +2,4 @@
 source: crates/aipm/src/wizard.rs
 expression: "format!(\"{:?}\", result)"
 ---
-(false, true, false, "preset-mkt")
+WizardAnswers { workspace: false, marketplace: true, no_starter: false, marketplace_name: "preset-mkt", engines_scaffold: EngineSet(CLAUDE | COPILOT), engines_support: None }

@@ -58,6 +58,12 @@ enum Commands {
         #[arg(long)]
         name: Option<String>,
 
+        /// Engines to scaffold for, comma-separated (e.g. `--engine claude,copilot`).
+        /// Drives WHICH adaptors run; does NOT narrow `[workspace].engines`.
+        /// Repeated `--engine` flags are merged.
+        #[arg(long, value_name = "LIST", value_delimiter = ',')]
+        engine: Vec<String>,
+
         /// Directory to initialize (defaults to current directory).
         #[arg(default_value = ".")]
         dir: PathBuf,
@@ -393,6 +399,7 @@ struct InitWizardFlags {
     workspace: bool,
     marketplace: bool,
     no_starter: bool,
+    engine: Vec<String>,
 }
 
 fn cmd_init(
@@ -404,20 +411,33 @@ fn cmd_init(
     let dir = resolve_dir(dir)?;
     let interactive = !flags.yes && std::io::stdin().is_terminal();
 
-    let (do_workspace, do_marketplace, do_no_starter, marketplace_name) = wizard_tty::resolve(
+    let answers = wizard_tty::resolve(
         interactive,
         (flags.workspace, flags.marketplace, flags.no_starter),
         name,
+        &flags.engine,
     )?;
+
+    // CLI `--engine` wins over the wizard's scaffold-set placeholder.
+    // When the flag is non-empty the wizard skipped the engine prompts,
+    // so `answers.engines_scaffold` carries an `EngineSet::ALL` placeholder
+    // that we must overwrite with the parsed flag.
+    let engines_scaffold = if flags.engine.is_empty() {
+        answers.engines_scaffold
+    } else {
+        wizard::parse_engine_list(&flags.engine).map_err(error::CliError::Message)?
+    };
 
     let adaptors = libaipm::workspace_init::adaptors::defaults();
     let opts = libaipm::workspace_init::Options {
         dir: &dir,
-        workspace: do_workspace,
-        marketplace: do_marketplace,
-        no_starter: do_no_starter,
+        workspace: answers.workspace,
+        marketplace: answers.marketplace,
+        no_starter: answers.no_starter,
         manifest,
-        marketplace_name: &marketplace_name,
+        marketplace_name: &answers.marketplace_name,
+        engines_scaffold,
+        engines_support: answers.engines_support,
     };
 
     let result = libaipm::workspace_init::init(&opts, &adaptors, &libaipm::fs::Real)?;
@@ -429,10 +449,11 @@ fn cmd_init(
                 format!("Initialized workspace in {}", dir.display())
             },
             libaipm::workspace_init::InitAction::MarketplaceCreated => {
-                if do_no_starter {
-                    format!("Created .ai/ marketplace '{marketplace_name}' (no starter plugin)")
+                let mkt = &answers.marketplace_name;
+                if answers.no_starter {
+                    format!("Created .ai/ marketplace '{mkt}' (no starter plugin)")
                 } else {
-                    format!("Created .ai/ marketplace '{marketplace_name}' with starter plugin")
+                    format!("Created .ai/ marketplace '{mkt}' with starter plugin")
                 }
             },
             libaipm::workspace_init::InitAction::ToolConfigured(name) => {
@@ -1076,7 +1097,7 @@ fn cmd_make_plugin(
 
     // Validate engine — accept the legacy "claude" / "copilot" / "both"
     // CLI strings as well as the canonical kebab-case names (e.g.
-    // "copilot-cli") returned by `Engine::name`.
+    // "copilot") returned by `Engine::name`.
     let engine_set = libaipm::make::engine_features::parse_engine_arg(&resolved_engine)
         .ok_or_else(|| libaipm::make::Error::InvalidEngine(resolved_engine.clone()))?;
 
@@ -1198,8 +1219,17 @@ fn run() -> Result<(), error::CliError> {
     libaipm::logging::init(verbosity, log_fmt)?;
 
     match cli.command {
-        Some(Commands::Init { yes, workspace, marketplace, no_starter, manifest, name, dir }) => {
-            let flags = InitWizardFlags { yes, workspace, marketplace, no_starter };
+        Some(Commands::Init {
+            yes,
+            workspace,
+            marketplace,
+            no_starter,
+            manifest,
+            name,
+            engine,
+            dir,
+        }) => {
+            let flags = InitWizardFlags { yes, workspace, marketplace, no_starter, engine };
             cmd_init(&flags, manifest, name.as_deref(), dir)
         },
         Some(Commands::Install {

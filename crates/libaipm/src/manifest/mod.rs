@@ -10,8 +10,10 @@ pub mod validate;
 
 use std::path::Path;
 
+use libaipm_engine_spec::EngineSet;
+
 use error::Error;
-use types::Manifest;
+use types::{Manifest, Package, Workspace};
 
 /// Parse an `aipm.toml` manifest from a TOML string.
 ///
@@ -47,6 +49,29 @@ pub fn load(fs: &dyn crate::fs::Fs, manifest_path: &Path) -> Result<Manifest, Er
     let content = fs.read_to_string(manifest_path).map_err(|source| Error::Io { source })?;
     let base_dir = manifest_path.parent();
     parse_and_validate(&content, base_dir)
+}
+
+/// Resolve the effective engines for a (package, workspace) pair, walking
+/// from package to workspace.
+///
+/// Inheritance contract:
+/// - Returns `package.engines` when the package declares the field
+///   (regardless of whether the workspace also declares one — the package
+///   value wins, no merging).
+/// - Returns `workspace.engines` when the package omits the field but the
+///   workspace declares one.
+/// - Returns `None` only when both layers omit the field.
+///
+/// `Some(EngineSet::empty())` is preserved verbatim — callers that treat
+/// the empty bitset as "all engines" (matching the deserializer's
+/// three-state semantics) must apply that interpretation themselves; this
+/// helper does not normalize.
+#[must_use]
+pub fn effective_engines(
+    package: Option<&Package>,
+    workspace: Option<&Workspace>,
+) -> Option<EngineSet> {
+    package.and_then(|p| p.engines).or_else(|| workspace.and_then(|w| w.engines))
 }
 
 #[cfg(test)]
@@ -560,19 +585,19 @@ edition = "2024"
     #[test]
     fn manifest_with_engines_field() {
         // Use canonical engine names (legacy "copilot" doesn't map to any
-        // current `Engine` variant — the canonical name is "copilot-cli").
+        // current `Engine` variant — the canonical name is "copilot").
         let toml = r#"
 [package]
 name = "my-plugin"
 version = "1.0.0"
-engines = ["claude", "copilot-cli"]
+engines = ["claude", "copilot"]
 "#;
         let manifest = parse(toml);
         assert!(manifest.is_ok());
         let manifest = manifest.unwrap_or_default();
         let engines = manifest.package.as_ref().and_then(|p| p.engines.as_ref());
         let expected =
-            libaipm_engine_spec::EngineSet::CLAUDE | libaipm_engine_spec::EngineSet::COPILOT_CLI;
+            libaipm_engine_spec::EngineSet::CLAUDE | libaipm_engine_spec::EngineSet::COPILOT;
         assert_eq!(engines.copied(), Some(expected));
     }
 
@@ -626,6 +651,176 @@ engines = []
         let manifest = parse(toml).expect("empty list should parse");
         let engines = manifest.package.as_ref().and_then(|p| p.engines.as_ref());
         assert_eq!(engines.copied(), Some(libaipm_engine_spec::EngineSet::empty()));
+    }
+
+    // ---------- [workspace].engines parity tests (Spec G7) ----------
+
+    #[test]
+    fn manifest_workspace_with_engines_field() {
+        let toml = r#"
+[workspace]
+members = [".ai/*"]
+engines = ["claude", "copilot"]
+"#;
+        let manifest = parse(toml).expect("workspace engines should parse");
+        let engines = manifest.workspace.as_ref().and_then(|w| w.engines.as_ref());
+        let expected =
+            libaipm_engine_spec::EngineSet::CLAUDE | libaipm_engine_spec::EngineSet::COPILOT;
+        assert_eq!(engines.copied(), Some(expected));
+    }
+
+    #[test]
+    fn manifest_workspace_engines_omitted_is_none() {
+        let toml = r#"
+[workspace]
+members = [".ai/*"]
+"#;
+        let manifest = parse(toml).expect("omitted engines should parse");
+        let engines = manifest.workspace.as_ref().and_then(|w| w.engines);
+        assert_eq!(engines, None);
+    }
+
+    #[test]
+    fn manifest_workspace_engines_explicit_empty_list_is_all_engines() {
+        let toml = r#"
+[workspace]
+members = [".ai/*"]
+engines = []
+"#;
+        let manifest = parse(toml).expect("empty list should parse");
+        let engines = manifest.workspace.as_ref().and_then(|w| w.engines);
+        assert_eq!(engines, Some(libaipm_engine_spec::EngineSet::empty()));
+    }
+
+    #[test]
+    fn manifest_workspace_engines_only_unknown_names_fails_to_parse() {
+        let toml = r#"
+[workspace]
+members = [".ai/*"]
+engines = ["unknown-future-engine"]
+"#;
+        let manifest = parse(toml);
+        assert!(manifest.is_err(), "expected parse error for all-unknown workspace engines");
+        let err = manifest.err().expect("checked above");
+        let msg = format!("{err}");
+        assert!(msg.contains("contains no known engine names"), "unexpected error message: {msg}");
+    }
+
+    #[test]
+    fn manifest_workspace_engines_mixed_known_and_unknown_drops_unknowns() {
+        let toml = r#"
+[workspace]
+members = [".ai/*"]
+engines = ["claude", "future-engine"]
+"#;
+        let manifest = parse(toml).expect("mixed list should parse");
+        let engines = manifest.workspace.as_ref().and_then(|w| w.engines);
+        assert_eq!(engines, Some(libaipm_engine_spec::EngineSet::CLAUDE));
+    }
+
+    // ---------- effective_engines() inheritance helper (Spec G7) ----------
+
+    fn parse_manifest(toml: &str) -> Manifest {
+        parse(toml).expect("test fixture must parse")
+    }
+
+    #[test]
+    fn effective_engines_both_omitted_returns_none() {
+        // Truth-table case 1: pkg None, ws None -> None.
+        let m = parse_manifest(
+            r#"
+[package]
+name = "p"
+version = "0.1.0"
+
+[workspace]
+members = [".ai/*"]
+"#,
+        );
+        let got = effective_engines(m.package.as_ref(), m.workspace.as_ref());
+        assert_eq!(got, None);
+    }
+
+    #[test]
+    fn effective_engines_package_only_returns_package_value() {
+        // Truth-table case 2: pkg Some, ws None -> Some(pkg).
+        let m = parse_manifest(
+            r#"
+[package]
+name = "p"
+version = "0.1.0"
+engines = ["copilot"]
+
+[workspace]
+members = [".ai/*"]
+"#,
+        );
+        let got = effective_engines(m.package.as_ref(), m.workspace.as_ref());
+        assert_eq!(got, Some(libaipm_engine_spec::EngineSet::COPILOT));
+    }
+
+    #[test]
+    fn effective_engines_workspace_only_returns_workspace_value() {
+        // Truth-table case 3: pkg None, ws Some -> Some(ws).
+        let m = parse_manifest(
+            r#"
+[package]
+name = "p"
+version = "0.1.0"
+
+[workspace]
+members = [".ai/*"]
+engines = ["claude"]
+"#,
+        );
+        let got = effective_engines(m.package.as_ref(), m.workspace.as_ref());
+        assert_eq!(got, Some(libaipm_engine_spec::EngineSet::CLAUDE));
+    }
+
+    #[test]
+    fn effective_engines_package_wins_when_both_declared() {
+        // Truth-table case 4: pkg Some, ws Some -> Some(pkg). No merging.
+        let m = parse_manifest(
+            r#"
+[package]
+name = "p"
+version = "0.1.0"
+engines = ["copilot"]
+
+[workspace]
+members = [".ai/*"]
+engines = ["claude"]
+"#,
+        );
+        let got = effective_engines(m.package.as_ref(), m.workspace.as_ref());
+        assert_eq!(got, Some(libaipm_engine_spec::EngineSet::COPILOT));
+    }
+
+    #[test]
+    fn effective_engines_preserves_empty_set_verbatim() {
+        // Edge case: `engines = []` deserializes to Some(EngineSet::empty()).
+        // The helper must NOT normalize this back to None — callers can
+        // distinguish "explicitly opted out" from "field omitted" if they
+        // care.
+        let m = parse_manifest(
+            r#"
+[package]
+name = "p"
+version = "0.1.0"
+engines = []
+"#,
+        );
+        let got = effective_engines(m.package.as_ref(), m.workspace.as_ref());
+        assert_eq!(got, Some(libaipm_engine_spec::EngineSet::empty()));
+    }
+
+    #[test]
+    fn effective_engines_with_no_package_or_workspace_returns_none() {
+        // Edge case: both arguments None (e.g., a manifest with no
+        // [package] section AND no [workspace] section). Treated as the
+        // "both omitted" case.
+        let got = effective_engines(None, None);
+        assert_eq!(got, None);
     }
 
     #[test]
