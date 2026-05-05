@@ -916,12 +916,20 @@ mod tests {
     #[test]
     fn init_marketplace_with_preconfigured_claude_settings() {
         let (tmp, _guard) = make_temp_dir("preconfigured");
-        // Pre-create fully-configured .claude/settings.json
+        // Pre-create fully-configured .claude/settings.json AND
+        // .github/copilot-instructions.md so both adaptors return Ok(false)
+        // (the Copilot adaptor preserves any existing instructions file).
         assert!(std::fs::create_dir_all(tmp.join(".claude")).is_ok());
         assert!(std::fs::write(
             tmp.join(".claude/settings.json"),
             r#"{"extraKnownMarketplaces":{"local-repo-plugins":{"source":{"source":"directory","path":"./.ai"}}},"enabledPlugins":{"starter-aipm-plugin@local-repo-plugins":true}}"#,
         ).is_ok());
+        assert!(std::fs::create_dir_all(tmp.join(".github")).is_ok());
+        assert!(std::fs::write(
+            tmp.join(".github/copilot-instructions.md"),
+            "# user-managed instructions\n",
+        )
+        .is_ok());
 
         let adaptors = default_adaptors();
         let opts = Options {
@@ -1308,9 +1316,10 @@ mod tests {
     #[test]
     fn adaptor_apply_returns_false_when_already_configured() {
         // Pre-seed `.claude/settings.json` with the marketplace and starter
-        // plugin already registered so that the Claude adaptor's `apply()`
-        // returns `Ok(false)` — exercising the `False` branch of
-        // `if adaptor.apply(…)?` at the adaptor-loop in `init` (line 113).
+        // plugin already registered AND `.github/copilot-instructions.md`
+        // so both default adaptors' `apply()` return `Ok(false)` —
+        // exercising the `False` branch of `if adaptor.apply(…)?` at the
+        // adaptor-loop in `init` (line 113).
         let (tmp, _guard) = make_temp_dir("adaptor-idempotent");
 
         // Pre-create the settings directory and file.
@@ -1327,6 +1336,12 @@ mod tests {
             }
         });
         std::fs::write(claude_dir.join("settings.json"), settings.to_string().as_bytes()).ok();
+        // Same idempotency guarantee for the Copilot adaptor: an existing
+        // instructions file means the adaptor preserves it and returns
+        // `Ok(false)`.
+        let github_dir = tmp.join(".github");
+        std::fs::create_dir_all(&github_dir).ok();
+        std::fs::write(github_dir.join("copilot-instructions.md"), b"# user content\n").ok();
 
         let opts = Options {
             dir: &tmp,
@@ -1373,10 +1388,9 @@ mod tests {
     #[test]
     fn init_adaptor_skips_when_settings_already_configured() {
         // Pre-populate .claude/settings.json with the marketplace and starter plugin
-        // already present. The adaptor should detect no changes are needed (both
-        // `mp_changed` and `ep_changed` are false) and return `Ok(false)`, which
-        // means the `if adaptor.apply(...)` branch evaluates to false — covering the
-        // previously-uncovered False branch at that condition.
+        // already present AND `.github/copilot-instructions.md` so both default
+        // adaptors detect no changes and return `Ok(false)`. This exercises the
+        // previously-uncovered False branch of `if adaptor.apply(...)`.
         let (tmp, _guard) = make_temp_dir("adaptor-skip");
         let settings_dir = tmp.join(".claude");
         std::fs::create_dir_all(&settings_dir).ok();
@@ -1390,6 +1404,9 @@ mod tests {
   }
 }"#;
         std::fs::write(settings_dir.join("settings.json"), settings_str.as_bytes()).ok();
+        let github_dir = tmp.join(".github");
+        std::fs::create_dir_all(&github_dir).ok();
+        std::fs::write(github_dir.join("copilot-instructions.md"), b"# user content\n").ok();
 
         let adaptors = default_adaptors();
         let opts = Options {

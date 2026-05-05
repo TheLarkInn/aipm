@@ -52,7 +52,7 @@
       "Add a snapshot test for `generate_copilot_instructions_template` output (use `insta` like the existing `scaffold_script_snapshot.snap`). Snapshot path: `crates/libaipm/src/workspace_init/snapshots/libaipm__workspace_init__adaptors__copilot__tests__template_snapshot.snap`.",
       "Run all four CLAUDE.md gates and confirm coverage on `copilot.rs` is ≥89% (the file is NOT in the coverage ignore list)."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

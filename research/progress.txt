@@ -1,3 +1,28 @@
+## Feature 4 — `copilot::Adaptor` MVP (PASS)
+
+Date: 2026-05-05
+Iteration: 4
+Status: passes=true, all four CLAUDE.md gates green, coverage 90.19% (>=89% required)
+
+Changes shipped:
+- NEW `crates/libaipm/src/workspace_init/adaptors/copilot.rs` (~230 lines):
+  - `pub struct Adaptor;` implementing `ToolAdaptor` with `name() -> "Copilot CLI"`, `engine() -> Engine::Copilot`, and `apply()`.
+  - `apply()` writes `.github/copilot-instructions.md` (using `paths::GITHUB_DOT` for the `.github` literal) when absent. When the file already exists, returns `Ok(false)` and preserves user content (no merge logic in MVP per spec NG3).
+  - Private helper `generate_copilot_instructions_template(no_starter, marketplace_name) -> String` builds the templated body with header, marketplace pointer line, optional starter-plugin block, and BEGIN/END markers.
+  - 10 unit tests: engine/name reporting, fresh-file write, preserve-existing, `no_starter` omits starter block, template-with-starter, template-no-starter, 2 insta snapshot tests, 2 mock-Fs error-path tests (create_dir_all failure, write_file failure).
+- `crates/libaipm/src/workspace_init/adaptors/mod.rs` — added `pub mod copilot;` and updated `defaults()` to return both adaptors: `vec![Box::new(claude::Adaptor), Box::new(copilot::Adaptor)]`.
+- 2 NEW snapshot files at `crates/libaipm/src/workspace_init/adaptors/snapshots/libaipm__workspace_init__adaptors__copilot__tests__template_snapshot_with_starter.snap` and `..._no_starter.snap`.
+- 3 EXISTING tests updated to also pre-seed `.github/copilot-instructions.md` so both adaptors return `Ok(false)` when the workspace is fully configured (preserves the test intent: `init_marketplace_with_preconfigured_claude_settings`, `adaptor_apply_returns_false_when_already_configured`, `init_adaptor_skips_when_settings_already_configured`).
+
+Test results: libaipm at 2163 unit tests (+10 new copilot tests), all green.
+
+Notes for future iterations:
+- `defaults()` now contains BOTH adaptors. Until Feature 9 (Options + scaffold-set filter) lands, EVERY `aipm init` invocation creates `.github/copilot-instructions.md` in addition to `.claude/settings.json`. Feature 9 will gate this on the user's selection.
+- The Copilot adaptor's MVP does NOT register the marketplace inside `.github/copilot-instructions.md` in any structured/parseable way — the BEGIN/END markers exist for a future merge implementation but the current write-once-then-skip behavior means user-edited files are never updated.
+- Feature 17 (`valid-tool-name` lint cleanup) and Feature 18 (existing-test pinning) will likely need to consider the Copilot file presence too.
+
+---
+
 ## Feature 3 — Claude adaptor uses `paths::CLAUDE_DOT` (PASS)
 
 Date: 2026-05-05
