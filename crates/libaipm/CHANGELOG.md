@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.24.0] - 2026-05-05
+
+### Features
+- Engine API schema source-of-truth (libaipm-engine-spec crate) ([#771](https://github.com/TheLarkInn/aipm/pull/771)) (14a7f4f)
+
 ## [0.23.1] - 2026-05-04
 
 ### Testing
