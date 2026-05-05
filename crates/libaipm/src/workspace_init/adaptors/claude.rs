@@ -5,6 +5,8 @@
 
 use std::path::Path;
 
+use libaipm_engine_spec::Engine;
+
 use crate::fs::Fs;
 use crate::workspace_init::{Error, ToolAdaptor};
 
@@ -14,6 +16,10 @@ pub struct Adaptor;
 impl ToolAdaptor for Adaptor {
     fn name(&self) -> &'static str {
         "Claude Code"
+    }
+
+    fn engine(&self) -> Engine {
+        Engine::Claude
     }
 
     fn apply(
@@ -85,6 +91,15 @@ mod tests {
 
     fn cleanup(path: &Path) {
         let _ = std::fs::remove_dir_all(path);
+    }
+
+    #[test]
+    fn adaptor_reports_claude_engine() {
+        // Spec G3 wiring: the scaffold-set filter in `init()` will match
+        // adaptors via `engine()`, so this binding must be stable.
+        let adaptor = Adaptor;
+        assert_eq!(adaptor.engine(), Engine::Claude);
+        assert_eq!(adaptor.name(), "Claude Code");
     }
 
     #[test]

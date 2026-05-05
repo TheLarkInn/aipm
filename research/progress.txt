@@ -1,3 +1,23 @@
+## Feature 2 — `ToolAdaptor::engine()` trait method (PASS)
+
+Date: 2026-05-05
+Iteration: 2
+Status: passes=true, all four CLAUDE.md gates green, coverage 94.73% (>=89% required)
+
+Changes shipped:
+- `crates/libaipm/src/workspace_init/mod.rs:20-49` — Added `fn engine(&self) -> libaipm_engine_spec::Engine;` to the `ToolAdaptor` trait with doc-comment explaining the scaffold-set filter use case.
+- `crates/libaipm/src/workspace_init/adaptors/claude.rs:6-22` — Added `use libaipm_engine_spec::Engine;` import and `fn engine(&self) -> Engine { Engine::Claude }` impl on `Adaptor`.
+- `crates/libaipm/src/workspace_init/mod.rs:1220-1233, 1260-1273` — Updated the two test-stub adaptors (`NoOpAdaptor`, `ErrorAdaptor`) to implement the new method (return `Engine::Claude` arbitrarily — value isn't asserted by those tests).
+- `crates/libaipm/src/workspace_init/adaptors/claude.rs:90-97` — NEW unit test `adaptor_reports_claude_engine` asserting `Adaptor.engine() == Engine::Claude` and `Adaptor.name() == "Claude Code"`.
+
+Test results: libaipm now at 2153 unit tests (+1 from prior 2152), all green.
+
+Notes for future iterations:
+- The `engine()` method is now a load-bearing piece of the `ToolAdaptor` trait. Feature 9 (`Options + init() filters`) will consume it via `adaptor.engine().as_set()` to filter the adaptor list against `Options.engines_scaffold`.
+- Feature 4 (`copilot::Adaptor` MVP) needs to implement this method too (returning `Engine::Copilot`).
+
+---
+
 ## Feature 1 — Engine rename `copilot-cli` -> `copilot` (PASS)
 
 Date: 2026-05-05

@@ -25,7 +25,7 @@
       "Add a unit test in `claude.rs` asserting `Adaptor.engine() == Engine::Claude`.",
       "Run all four CLAUDE.md gates (build/test/clippy/fmt) and confirm zero warnings."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

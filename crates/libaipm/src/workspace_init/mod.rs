@@ -21,6 +21,15 @@ pub trait ToolAdaptor {
     /// Human-readable name for user-facing output (e.g., "Claude Code").
     fn name(&self) -> &'static str;
 
+    /// The engine variant this adaptor scaffolds for.
+    ///
+    /// Returned values come from
+    /// [`libaipm_engine_spec::Engine`] so callers (notably the
+    /// scaffold-set filter in [`init`]) can match adaptors against the
+    /// user's selected engines without going through the human-readable
+    /// `name()`.
+    fn engine(&self) -> libaipm_engine_spec::Engine;
+
     /// Apply tool-specific settings to the workspace directory.
     ///
     /// `marketplace_name` is the user-chosen identifier for the local marketplace
@@ -1221,6 +1230,9 @@ mod tests {
             fn name(&self) -> &'static str {
                 "NoOpAdaptor"
             }
+            fn engine(&self) -> libaipm_engine_spec::Engine {
+                libaipm_engine_spec::Engine::Claude
+            }
             fn apply(
                 &self,
                 _: &Path,
@@ -1260,6 +1272,9 @@ mod tests {
         impl ToolAdaptor for ErrorAdaptor {
             fn name(&self) -> &'static str {
                 "ErrorAdaptor"
+            }
+            fn engine(&self) -> libaipm_engine_spec::Engine {
+                libaipm_engine_spec::Engine::Claude
             }
             fn apply(
                 &self,
