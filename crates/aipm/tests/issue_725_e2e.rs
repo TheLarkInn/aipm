@@ -140,7 +140,28 @@ fn lint_no_summary_suppresses_stderr_summary() {
 }
 
 // =========================================================================
-// Test 4: ci-github reporter — diagnostics on stdout, summary on stderr
+// Test 4: migrate --log-format json suppresses the stderr summary
+// =========================================================================
+
+#[test]
+fn migrate_log_format_json_suppresses_stderr_summary() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    build_issue_725_fixture(root);
+
+    let output =
+        aipm().args(["--log-format", "json", "migrate", root.to_str().unwrap()]).output().unwrap();
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert!(
+        !stderr.contains("Scanned"),
+        "--log-format json should suppress the 'Scanned …' summary on stderr; got: {stderr}"
+    );
+}
+
+// =========================================================================
+// Test 5: ci-github reporter — diagnostics on stdout, summary on stderr
 // =========================================================================
 
 #[test]
