@@ -23,6 +23,37 @@ engines = ["claude", "copilot"]    # Optional; omit for all engines
 | `engines = ["copilot"]` | Copilot only |
 | `engines = ["claude", "copilot"]` | Both Claude and Copilot |
 
+### Workspace-Level Engine Declarations
+
+Declare engine compatibility at the workspace level so all member plugins inherit the same restriction unless they override it individually:
+
+```toml
+[workspace]
+members = [".ai/*"]
+engines = ["claude", "copilot"]   # default for all members; narrows to this set
+```
+
+**Inheritance rules (`effective_engines` semantics):**
+
+| `[package].engines` | `[workspace].engines` | Effective engines |
+|---------------------|----------------------|-------------------|
+| Omitted | Omitted | All engines (universal) |
+| Omitted | `["claude"]` | `["claude"]` — inherited from workspace |
+| `["copilot"]` | `["claude"]` | `["copilot"]` — package declaration wins |
+| `[]` (explicit empty) | `["claude"]` | All engines — explicit empty package declaration wins |
+
+> **Package wins over workspace.** When a `[package]` declares `engines` — even as an empty array — that value takes precedence. The workspace value is used only when the package omits the field entirely.
+
+The `[workspace].engines` field is optional. Omitting it (or setting it to `[]`) means the workspace is universal; individual plugins may still narrow their own scope with `[package].engines`.
+
+Set `[workspace].engines` during workspace initialization:
+
+```bash
+aipm init --yes --engine claude,copilot --workspace
+```
+
+The interactive wizard also prompts for the support set and writes `[workspace].engines` automatically when narrower than "all engines". See [Initializing a Workspace](./init.md#declaring-engine-support-in-aipmtoml) for the full walkthrough.
+
 ### Validation Behavior
 
 When a plugin is installed, aipm validates engine compatibility:

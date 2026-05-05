@@ -3,9 +3,9 @@
 | Document Metadata      | Details                                                                                            |
 | ---------------------- | -------------------------------------------------------------------------------------------------- |
 | Author(s)              | Sean Larkin (selarkin@microsoft.com)                                                               |
-| Status                 | Draft (WIP)                                                                                        |
+| Status                 | **Implemented** — change shipped in [Unreleased] CHANGELOG; see `### Removed` entry |
 | Team / Owner           | aipm core (libaipm/discovery, libaipm/lint)                                                        |
-| Created / Last Updated | 2026-05-02 / 2026-05-02                                                                            |
+| Created / Last Updated | 2026-05-02 / 2026-05-05                                                                            |
 | Primary Research       | [`research/docs/2026-05-02-engine-instructions-md-pattern-removal.md`](../research/docs/2026-05-02-engine-instructions-md-pattern-removal.md) |
 | Supersedes (in part)   | [`specs/2026-05-01-unified-discovery-and-copilot-skill-detection.md`](2026-05-01-unified-discovery-and-copilot-skill-detection.md) — section 5.4 and goal G7 |
 | Related Issue          | [#725](https://github.com/TheLarkInn/aipm/issues/725) (lint-side fix being withdrawn; migrate-side fix unaffected) |
@@ -585,25 +585,27 @@ and require resolution before this spec leaves Draft.
       filename only appears under `.github/` (Copilot's documented path), so
       false positives are negligible. Non-goal **N3** is therefore relaxed
       for this PR; no follow-up spec is needed.
-- [ ] **9.2 Spec retraction style.** Should
+- [x] **9.2 Spec retraction style.** Should
       `2026-05-01-unified-discovery-and-copilot-skill-detection.md` be edited
       in place (delete G7 / section 5.4) or marked with a "Withdrawn"
       preamble that links to this spec? Editing in place loses the audit
       trail; preamble preserves it. → **Default: preamble at top of the spec
       + line-level edits per §6.1.4 of the research doc.**
+      **RESOLVED 2026-05-05:** The preamble was added to `2026-05-01-unified-discovery-and-copilot-skill-detection.md` (see the "Partial withdrawal (2026-05-02)" block at the top of that spec).
 - [ ] **9.3 Issue #725 status.** The migrate-side fix is shipped and correct;
       the lint-side claim is being withdrawn. Reopen the issue with a
       comment, post-merge update, or close-with-note? → **Default: post a
       comment on #725 linking to this spec, then close.** (No reopen — the
       customer-visible behavior is "skills found in `.github/copilot/skills/`",
       which works.)
-- [ ] **9.4 The misleading comment in
+- [x] **9.4 The misleading comment in
       `docs/rules/source/misplaced-features.md:62`** — replace with what?
       Pick a real `*.instructions.md`-matching example. → **Default:
       `code-review.instructions.md` or `frontend.instructions.md`** (the
       latter is already used as a fixture in
       [`lint/rules/instructions_oversized.rs:255`](https://github.com/TheLarkInn/aipm/blob/0f4e837c0e3ba30ad34827197fd54c0c6a9a7348/crates/libaipm/src/lint/rules/instructions_oversized.rs#L255)
       so it has docs-fidelity precedent).
+      **RESOLVED 2026-05-05:** `docs/rules/source/misplaced-features.md` now shows `frontend.instructions.md` as the `*.instructions.md` example.
 - [ ] **9.5 `format_counts` rendering for `instructions == 0`.** Verify in
       `crates/libaipm/src/discovery/scan_report.rs` that the function emits
       `"matched 3 skills"` (not `"matched 3 skills, 0 instructions"` and not

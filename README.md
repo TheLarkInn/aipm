@@ -490,6 +490,7 @@ allowed_build_scripts = ["native-tool"]
 [workspace]
 members = ["plugins/*"]
 plugins_dir = "plugins"
+engines = ["claude", "copilot"]    # optional — omit (or []) to support all engines
 
 [workspace.dependencies]
 common-skill = "^2.0"

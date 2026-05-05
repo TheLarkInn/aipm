@@ -3,7 +3,7 @@
 | Document Metadata      | Details                                                                        |
 | ---------------------- | ------------------------------------------------------------------------------ |
 | Author(s)              | Sean Larkin                                                                    |
-| Status                 | Draft (WIP)                                                                    |
+| Status                 | **Implemented** — shipped in PR [#792](https://github.com/TheLarkInn/aipm/pull/792); docs in [#794](https://github.com/TheLarkInn/aipm/pull/794) |
 | Team / Owner           | aipm core (TheLarkInn/aipm)                                                    |
 | Created / Last Updated | 2026-05-05 / 2026-05-05                                                        |
 | Research Source        | [`research/tickets/2026-05-05-0724-init-engine-aware-wizard.md`](../research/tickets/2026-05-05-0724-init-engine-aware-wizard.md) |
