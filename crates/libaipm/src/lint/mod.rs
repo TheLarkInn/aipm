@@ -1670,4 +1670,39 @@ mod tests {
         // filtered out by source_filter inside discover().
         assert_eq!(outcome.scan_counts.skills, 3, "filter to .github keeps 3 skills");
     }
+
+    #[test]
+    fn lint_instruction_file_in_github_dir_not_flagged_as_misplaced() {
+        // An instructions file (CLAUDE.md) inside .github/ is NOT inside .ai/,
+        // so `is_inside_ai` is false. Yet its kind is `FeatureKind::Instructions`,
+        // so the compound condition at `run_rules_for_feature` line 124
+        // `!is_inside_ai && feature.kind != FeatureKind::Instructions`
+        // evaluates to `true && false = false`, exercising the False branch of
+        // the second operand and ensuring instructions files are never reported
+        // as misplaced regardless of which engine directory they live in.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        std::fs::create_dir_all(root.join(".github")).unwrap();
+        std::fs::write(
+            root.join(".github").join("CLAUDE.md"),
+            "# Instructions\n\nsome project-level instructions\n",
+        )
+        .unwrap();
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap();
+        // CLAUDE.md is an instructions file — must never be flagged as misplaced.
+        assert!(
+            !outcome.diagnostics.iter().any(|d| d.rule_id == "source/misplaced-features"),
+            "instructions file in .github/ should not be flagged as misplaced"
+        );
+    }
 }
