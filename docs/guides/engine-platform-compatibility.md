@@ -41,6 +41,18 @@ When a plugin is installed, aipm validates engine compatibility:
 
 Unknown engine names (e.g., from a newer schema) are preserved as-is. They won't match any current engine but will be stored and compared correctly.
 
+### Tool-Engine Compatibility Lint
+
+The [`valid-tool-name`](../rules/valid-tool-name.md) lint rule catches mismatches between the tools a plugin uses and the engines it targets. Some tools (such as `Task`, `Edit`, and `Read`) are exclusive to Claude Code; others (such as `browser_navigate` and `search_code`) are exclusive to Copilot CLI. If a plugin references an engine-exclusive tool without declaring the corresponding engine, `aipm lint` warns:
+
+```
+warning[valid-tool-name]: Tool 'Task' is exclusive to claude; consider declaring engines = ["claude"] in aipm.toml.
+```
+
+If the plugin *does* declare engines and the declared set does not include any engine that supports the tool, the diagnostic is promoted to an error.
+
+See the [valid-tool-name rule reference](../rules/valid-tool-name.md) for the complete tool lists and fix guidance.
+
 ## Platform Compatibility
 
 ### Declaring Platforms
