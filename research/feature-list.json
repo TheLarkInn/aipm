@@ -75,7 +75,7 @@
       "Document the contract in the function's doc comment: returns `None` only when both layers omit; `Some(EngineSet::empty())` is preserved (semantic 'all engines'); package always wins, no merging.",
       "Run all four CLAUDE.md gates."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

@@ -1,3 +1,22 @@
+## Feature 6 — `manifest::effective_engines` helper (PASS)
+
+Date: 2026-05-05
+Iteration: 6
+Status: passes=true, all four CLAUDE.md gates green, coverage 90.22% (>=89% required)
+
+Changes shipped:
+- `crates/libaipm/src/manifest/mod.rs:11-15` — extended imports: `use libaipm_engine_spec::EngineSet;` and pulled `Package, Workspace` from types.
+- `crates/libaipm/src/manifest/mod.rs:52-72` — NEW `pub fn effective_engines(package, workspace) -> Option<EngineSet>`. Implementation is a one-line `package.and_then(|p| p.engines).or_else(|| workspace.and_then(|w| w.engines))`. Doc comment specifies: package wins (no merging), returns `None` only when both layers omit, and `Some(EngineSet::empty())` is preserved verbatim (callers apply the "empty = all engines" interpretation themselves).
+- `crates/libaipm/src/manifest/mod.rs:701-799` — 6 new tests covering: (a) the 4-case truth table required by the feature step, (b) preservation of `Some(EngineSet::empty())` (the "explicit opt-out" case), and (c) the trivial `(None, None)` case for completeness.
+
+Test results: libaipm at 2174 unit tests (+6 new), all green.
+
+Notes for future iterations:
+- Features 7 (manifest builder) and 8 (Options + init filter) consume this helper indirectly via the workspace engines field. Feature 9 (the Options struct extension) writes both `engines_scaffold` and `engines_support` fields that connect to this helper at lookup time.
+- Features 15 (`engine.rs` migration) and 17 (`valid-tool-name` lint cleanup) will switch direct `Package.engines` reads to `effective_engines` calls so workspace-level engines are honored.
+
+---
+
 ## Feature 5 — `Workspace.engines` field (PASS)
 
 Date: 2026-05-05
