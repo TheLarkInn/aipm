@@ -15,11 +15,8 @@ use super::wizard;
 use super::wizard::{
     migrate_cleanup_prompt_steps, resolve_defaults, resolve_migrate_cleanup_answer,
     resolve_workspace_answers, styled_render_config, workspace_prompt_steps, PromptAnswer,
-    PromptKind, PromptStep,
+    PromptKind, PromptStep, WizardAnswers,
 };
-
-/// Resolved wizard output: `(workspace, marketplace, no_starter, marketplace_name)`.
-type WizardResult = (bool, bool, bool, String);
 
 /// Resolved make-plugin output: `(name, engine, features)`.
 type MakePluginResult = (String, String, Vec<String>);
@@ -30,23 +27,25 @@ type PackInitResult = (Option<String>, Option<PluginType>);
 /// Resolve workspace init options, launching the interactive wizard if needed.
 ///
 /// When `interactive` is `true`, sets the global render config, prompts the
-/// user for any values not provided via flags, and returns the resolved tuple.
-/// When `false`, applies today's defaulting logic (marketplace only if no flags).
+/// user for any values not provided via flags, and returns the resolved
+/// [`WizardAnswers`]. When `false`, applies today's defaulting logic
+/// (marketplace only if no flags; Copilot-only scaffold default per spec
+/// §5.2.3).
 ///
 /// `flags` is `(workspace, marketplace, no_starter)` from CLI args.
+/// `engine_flag` is the parsed `--engine <list>` from `aipm init`; when
+/// non-empty the wizard skips the engine prompts and the caller is
+/// responsible for converting the value into the final `engines_scaffold`.
 pub fn resolve(
     interactive: bool,
     flags: (bool, bool, bool),
     flag_name: Option<&str>,
-) -> Result<WizardResult, Box<dyn std::error::Error>> {
+    engine_flag: &[String],
+) -> Result<WizardAnswers, Box<dyn std::error::Error>> {
     let (workspace, marketplace, no_starter) = flags;
+    let flag_engine_provided = !engine_flag.is_empty();
     if interactive {
         inquire::set_global_render_config(styled_render_config());
-        // Feature 11 baseline: existing `wizard_tty::resolve` callers don't
-        // pass `--engine`, so the engine prompt is skipped (treated as
-        // "engine provided"). Feature 14 will replace this with a real
-        // signal once the wizard returns engine selections to cmd_init.
-        let flag_engine_provided = true;
         let steps = workspace_prompt_steps(
             workspace,
             marketplace,
@@ -64,7 +63,8 @@ pub fn resolve(
             flag_engine_provided,
         ))
     } else {
-        Ok(resolve_defaults(workspace, marketplace, no_starter, flag_name))
+        resolve_defaults(workspace, marketplace, no_starter, flag_name, engine_flag)
+            .map_err(|e| -> Box<dyn std::error::Error> { e.into() })
     }
 }
 

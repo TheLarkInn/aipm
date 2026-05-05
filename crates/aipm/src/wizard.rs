@@ -131,14 +131,70 @@ pub fn workspace_prompt_steps(
     steps
 }
 
-/// Map raw wizard answers to final `(workspace, marketplace, no_starter, marketplace_name)`.
+/// Final resolved wizard answers consumed by `cmd_init` to construct the
+/// `libaipm::workspace_init::Options`.
 ///
-/// `answers` correspond 1:1 with the steps returned by [`workspace_prompt_steps`].
+/// Replaces the legacy 4-tuple return type `(bool, bool, bool, String)`
+/// from `resolve_workspace_answers`/`resolve_defaults` so the engine
+/// fields can flow through alongside the existing four.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WizardAnswers {
+    /// Whether to write a `[workspace]` manifest at `<dir>/aipm.toml`.
+    pub workspace: bool,
+    /// Whether to scaffold a `.ai/` marketplace.
+    pub marketplace: bool,
+    /// Whether the marketplace scaffold should skip the starter plugin.
+    pub no_starter: bool,
+    /// Marketplace identifier (e.g., `"local-repo-plugins"`).
+    pub marketplace_name: String,
+    /// Engines to scaffold for. Drives `workspace_init::Options::engines_scaffold`.
+    pub engines_scaffold: libaipm::EngineSet,
+    /// Engines the manifest claims to support. `None` means "supports
+    /// all" — the manifest engines field is omitted on disk.
+    pub engines_support: Option<libaipm::EngineSet>,
+}
+
+/// Decode a `MultiSelect` answer (selected indices into [`ENGINE_OPTIONS_INIT`])
+/// into an [`libaipm::EngineSet`]. Out-of-range indices are silently
+/// ignored — they cannot occur from a well-formed `inquire` flow but the
+/// helper stays defensive in case `answers` were constructed by tests.
+fn decode_engine_multi_select(answer: Option<&PromptAnswer>) -> libaipm::EngineSet {
+    let mut set = libaipm::EngineSet::empty();
+    if let Some(PromptAnswer::MultiSelected(indices)) = answer {
+        for idx in indices {
+            if let Some((_, engine)) = ENGINE_OPTIONS_INIT.get(*idx) {
+                set |= engine.as_set();
+            }
+        }
+    }
+    set
+}
+
+/// Map raw wizard answers to a [`WizardAnswers`] value.
 ///
-/// `flag_engine_provided` must match the value passed to
-/// [`workspace_prompt_steps`] so the answer cursor advances past the
-/// engine-scaffold `MultiSelect` when it was emitted. Feature 13
-/// extends the return type to carry the parsed engine selection.
+/// `answers` correspond 1:1 with the steps returned by
+/// [`workspace_prompt_steps`]. `flag_engine_provided` must match the value
+/// passed to that builder so the answer cursor advances past the engine
+/// prompts (when emitted) and the scaffold-set comes from the right
+/// source: the CLI flag (parsed elsewhere) when `flag_engine_provided` is
+/// `true`, or the prompt answers otherwise.
+///
+/// Engine semantics:
+/// - When the engine prompts were emitted, `engines_scaffold` is decoded
+///   from prompt 2's answer. If the user accepted defaults (all checked),
+///   the bitset is `EngineSet::ALL`.
+/// - `engines_support` is decoded from prompt 3's answer. If the answer
+///   equals `EngineSet::ALL` (the default), it is normalised to `None`
+///   so the manifest field is omitted on disk.
+/// - Strict spec G10 enforcement: support is auto-widened to be a
+///   superset of scaffold (any scaffold engines missing from the user's
+///   support selection are added back). This is friendlier than
+///   rejecting the answer and re-prompting.
+/// - When `flag_engine_provided` is `true`, the engine prompts were
+///   skipped. `engines_scaffold` defaults to [`EngineSet::ALL`] here as
+///   a placeholder; the caller (`cmd_init`) will overwrite it with the
+///   parsed `--engine` value.
+#[must_use]
 pub fn resolve_workspace_answers(
     answers: &[PromptAnswer],
     flag_workspace: bool,
@@ -146,7 +202,7 @@ pub fn resolve_workspace_answers(
     flag_no_starter: bool,
     flag_name: Option<&str>,
     flag_engine_provided: bool,
-) -> (bool, bool, bool, String) {
+) -> WizardAnswers {
     let needs_setup_prompt = !flag_workspace && !flag_marketplace;
     let mut idx = 0;
 
@@ -163,17 +219,30 @@ pub fn resolve_workspace_answers(
         (flag_workspace, flag_marketplace)
     };
 
-    // Skip the engine-scaffold + engine-support MultiSelect answers when
-    // the prompts were emitted (they're emitted as a pair). Feature 13
-    // will consume them; for now the index is just advanced so downstream
-    // prompts align.
-    let marketplace_possible_for_engine = flag_marketplace || needs_setup_prompt;
-    if marketplace_possible_for_engine && !flag_engine_provided {
-        idx += 2; // scaffold + support
-    }
+    // Decode the paired engine prompts when they were emitted.
+    let marketplace_possible = flag_marketplace || needs_setup_prompt;
+    let (engines_scaffold, engines_support) = if marketplace_possible && !flag_engine_provided {
+        let scaffold = decode_engine_multi_select(answers.get(idx));
+        idx += 1;
+        let raw_support = decode_engine_multi_select(answers.get(idx));
+        idx += 1;
+        // Spec G10: support must be a superset of scaffold. Auto-widen
+        // rather than reject — friendlier UX and matches the spec's
+        // "default to all engines" intent.
+        let widened_support = raw_support | scaffold;
+        // Normalise "supports all" to None so the manifest field is
+        // omitted on disk when the user accepted defaults.
+        let support =
+            if widened_support == libaipm::EngineSet::ALL { None } else { Some(widened_support) };
+        (scaffold, support)
+    } else {
+        // Placeholder for engines_scaffold when the prompts were
+        // skipped; the caller (`cmd_init`) populates it from the
+        // parsed `--engine` flag.
+        (libaipm::EngineSet::ALL, None)
+    };
 
     // Resolve marketplace name
-    let marketplace_possible = flag_marketplace || needs_setup_prompt;
     let marketplace_name = flag_name.filter(|s| !s.is_empty()).map_or_else(
         || {
             if marketplace_possible {
@@ -201,7 +270,14 @@ pub fn resolve_workspace_answers(
         flag_no_starter
     };
 
-    (do_workspace, do_marketplace, no_starter, marketplace_name)
+    WizardAnswers {
+        workspace: do_workspace,
+        marketplace: do_marketplace,
+        no_starter,
+        marketplace_name,
+        engines_scaffold,
+        engines_support,
+    }
 }
 
 // =============================================================================
@@ -210,17 +286,55 @@ pub fn resolve_workspace_answers(
 
 /// Apply today's defaulting logic for the non-interactive path.
 ///
-/// If neither `--workspace` nor `--marketplace` is set, default to marketplace only.
+/// If neither `--workspace` nor `--marketplace` is set, default to
+/// marketplace only.
+///
+/// `engine_flag` is the parsed list of `--engine` values from the CLI:
+/// - non-empty: parsed via [`parse_engine_list`] and used as the
+///   scaffold set;
+/// - empty AND marketplace in scope: defaults to
+///   [`libaipm::EngineSet::COPILOT`] per spec §5.2.3 / Round 6;
+/// - empty AND workspace-only scope: empty bitset (no adaptors run).
+///
+/// `engines_support` is always `None` in headless mode — the manifest
+/// engines field is omitted on disk and the user can narrow it later by
+/// re-running `aipm init` interactively.
+///
+/// # Errors
+///
+/// Returns the stringly-typed error from [`parse_engine_list`] when the
+/// `--engine` values include unknown engine names or empty entries.
 pub fn resolve_defaults(
     workspace: bool,
     marketplace: bool,
     no_starter: bool,
     name: Option<&str>,
-) -> (bool, bool, bool, String) {
+    engine_flag: &[String],
+) -> Result<WizardAnswers, String> {
     let (w, m) = if !workspace && !marketplace { (false, true) } else { (workspace, marketplace) };
     let marketplace_name =
         name.filter(|s| !s.is_empty()).unwrap_or("local-repo-plugins").to_string();
-    (w, m, no_starter, marketplace_name)
+
+    let engines_scaffold = if engine_flag.is_empty() {
+        if m {
+            // Spec G5 / Round 6: --yes mode without --engine defaults to
+            // Copilot only.
+            libaipm::EngineSet::COPILOT
+        } else {
+            libaipm::EngineSet::empty()
+        }
+    } else {
+        parse_engine_list(engine_flag)?
+    };
+
+    Ok(WizardAnswers {
+        workspace: w,
+        marketplace: m,
+        no_starter,
+        marketplace_name,
+        engines_scaffold,
+        engines_support: None,
+    })
 }
 
 /// Parse the values from `aipm init --engine <list>` into an `EngineSet`.
@@ -571,6 +685,13 @@ mod tests {
         out
     }
 
+    /// Extract the legacy 4-tuple from a [`WizardAnswers`] for terse
+    /// equality assertions in tests that don't care about the engine
+    /// fields.
+    fn summary(a: WizardAnswers) -> (bool, bool, bool, String) {
+        (a.workspace, a.marketplace, a.no_starter, a.marketplace_name)
+    }
+
     // =========================================================================
     // Prompt step snapshots — flag combinations
     // =========================================================================
@@ -875,7 +996,7 @@ mod tests {
         //   - "if marketplace_possible && !flag_no_starter" (starter prompt skipped)
         let answers: Vec<PromptAnswer> = vec![];
         let result = resolve_workspace_answers(&answers, true, false, false, None, true);
-        assert_eq!(result, (true, false, false, "local-repo-plugins".to_string()));
+        assert_eq!(summary(result), (true, false, false, "local-repo-plugins".to_string()));
     }
 
     #[test]
@@ -931,7 +1052,7 @@ mod tests {
     fn resolve_defaults_no_flags() {
         // Neither flag → marketplace only, default name
         assert_eq!(
-            resolve_defaults(false, false, false, None),
+            summary(resolve_defaults(false, false, false, None, &[]).expect("ok")),
             (false, true, false, "local-repo-plugins".to_string())
         );
     }
@@ -939,7 +1060,7 @@ mod tests {
     #[test]
     fn resolve_defaults_workspace_only() {
         assert_eq!(
-            resolve_defaults(true, false, false, None),
+            summary(resolve_defaults(true, false, false, None, &[]).expect("ok")),
             (true, false, false, "local-repo-plugins".to_string())
         );
     }
@@ -947,7 +1068,7 @@ mod tests {
     #[test]
     fn resolve_defaults_both_flags() {
         assert_eq!(
-            resolve_defaults(true, true, false, None),
+            summary(resolve_defaults(true, true, false, None, &[]).expect("ok")),
             (true, true, false, "local-repo-plugins".to_string())
         );
     }
@@ -955,7 +1076,7 @@ mod tests {
     #[test]
     fn resolve_defaults_no_starter() {
         assert_eq!(
-            resolve_defaults(false, false, true, None),
+            summary(resolve_defaults(false, false, true, None, &[]).expect("ok")),
             (false, true, true, "local-repo-plugins".to_string())
         );
     }
@@ -963,7 +1084,7 @@ mod tests {
     #[test]
     fn resolve_defaults_with_name() {
         assert_eq!(
-            resolve_defaults(false, false, false, Some("custom-mkt")),
+            summary(resolve_defaults(false, false, false, Some("custom-mkt"), &[]).expect("ok")),
             (false, true, false, "custom-mkt".to_string())
         );
     }
@@ -1264,9 +1385,113 @@ mod tests {
         // workspace=false, marketplace=true: takes the else branch directly, covering
         // the False branch of `!marketplace` in `if !workspace && !marketplace`.
         assert_eq!(
-            resolve_defaults(false, true, false, None),
+            summary(resolve_defaults(false, true, false, None, &[]).expect("ok")),
             (false, true, false, "local-repo-plugins".to_string())
         );
+    }
+
+    // ---------- engine-aware resolve_* (Feature 13) ----------
+
+    #[test]
+    fn resolve_defaults_marketplace_no_engine_flag_defaults_to_copilot() {
+        // Spec G5 / Round 6: --yes mode without --engine in marketplace
+        // scope defaults to Copilot only.
+        let result = resolve_defaults(false, false, false, None, &[]).expect("ok");
+        assert_eq!(result.engines_scaffold, libaipm::EngineSet::COPILOT);
+        assert_eq!(result.engines_support, None);
+    }
+
+    #[test]
+    fn resolve_defaults_workspace_only_no_engine_flag_returns_empty_set() {
+        // workspace-only scope = no marketplace = no adaptors = empty
+        // scaffold set.
+        let result = resolve_defaults(true, false, false, None, &[]).expect("ok");
+        assert_eq!(result.engines_scaffold, libaipm::EngineSet::empty());
+        assert_eq!(result.engines_support, None);
+    }
+
+    #[test]
+    fn resolve_defaults_with_engine_flag_uses_parsed_set() {
+        let result =
+            resolve_defaults(false, false, false, None, &["claude".to_string()]).expect("ok");
+        assert_eq!(result.engines_scaffold, libaipm::EngineSet::CLAUDE);
+    }
+
+    #[test]
+    fn resolve_defaults_with_multi_engine_flag() {
+        let engine = vec!["claude".to_string(), "copilot".to_string()];
+        let result = resolve_defaults(false, false, false, None, &engine).expect("ok");
+        assert_eq!(result.engines_scaffold, libaipm::EngineSet::ALL);
+    }
+
+    #[test]
+    fn resolve_defaults_unknown_engine_flag_errors() {
+        let err = resolve_defaults(false, false, false, None, &["gemini".to_string()])
+            .expect_err("unknown engine should error");
+        assert!(err.contains("unknown engine 'gemini'"), "unexpected error: {err}");
+    }
+
+    #[test]
+    fn resolve_workspace_decodes_engine_scaffold_from_multiselect() {
+        // Setup answer (marketplace only) + scaffold MultiSelect
+        // (Claude only) + support MultiSelect (all) + name + starter.
+        let answers = vec![
+            PromptAnswer::Selected(0),               // marketplace only
+            PromptAnswer::MultiSelected(vec![0]),    // scaffold = Claude
+            PromptAnswer::MultiSelected(vec![0, 1]), // support = ALL
+            PromptAnswer::Text("local-repo-plugins".to_string()),
+            PromptAnswer::Bool(true),
+        ];
+        let result = resolve_workspace_answers(&answers, false, false, false, None, false);
+        assert_eq!(result.engines_scaffold, libaipm::EngineSet::CLAUDE);
+        assert_eq!(result.engines_support, None, "support=ALL should normalise to None");
+    }
+
+    #[test]
+    fn resolve_workspace_decodes_engine_support_narrower_than_all() {
+        let answers = vec![
+            PromptAnswer::Selected(0),            // marketplace only
+            PromptAnswer::MultiSelected(vec![0]), // scaffold = Claude
+            PromptAnswer::MultiSelected(vec![0]), // support = Claude only (narrower)
+            PromptAnswer::Text("local-repo-plugins".to_string()),
+            PromptAnswer::Bool(true),
+        ];
+        let result = resolve_workspace_answers(&answers, false, false, false, None, false);
+        assert_eq!(result.engines_scaffold, libaipm::EngineSet::CLAUDE);
+        assert_eq!(result.engines_support, Some(libaipm::EngineSet::CLAUDE));
+    }
+
+    #[test]
+    fn resolve_workspace_auto_widens_support_to_superset_of_scaffold() {
+        // Spec G10: if user picks scaffold=[claude,copilot] but support=[claude]
+        // (would violate superset), auto-widen support to include scaffold.
+        let answers = vec![
+            PromptAnswer::Selected(0),               // marketplace only
+            PromptAnswer::MultiSelected(vec![0, 1]), // scaffold = ALL
+            PromptAnswer::MultiSelected(vec![0]),    // support = Claude only (violates superset)
+            PromptAnswer::Text("local-repo-plugins".to_string()),
+            PromptAnswer::Bool(true),
+        ];
+        let result = resolve_workspace_answers(&answers, false, false, false, None, false);
+        assert_eq!(result.engines_scaffold, libaipm::EngineSet::ALL);
+        // Support auto-widened to ALL (= scaffold | original support).
+        // Then normalised to None because it equals EngineSet::ALL.
+        assert_eq!(result.engines_support, None);
+    }
+
+    #[test]
+    fn resolve_workspace_engine_flag_provided_skips_decoding() {
+        // When `flag_engine_provided` is true, the wizard skipped both
+        // engine prompts. The placeholder `EngineSet::ALL` is returned;
+        // the caller (cmd_init) overrides with the parsed flag.
+        let answers = vec![
+            PromptAnswer::Selected(0), // marketplace only
+            PromptAnswer::Text("local-repo-plugins".to_string()),
+            PromptAnswer::Bool(true),
+        ];
+        let result = resolve_workspace_answers(&answers, false, false, false, None, true);
+        assert_eq!(result.engines_scaffold, libaipm::EngineSet::ALL);
+        assert_eq!(result.engines_support, None);
     }
 
     // ---------- parse_engine_list (Feature 10 / Spec G4) ----------

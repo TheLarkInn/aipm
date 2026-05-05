@@ -2,4 +2,4 @@
 source: crates/aipm/src/wizard.rs
 expression: "format!(\"{:?}\", result)"
 ---
-(true, false, false, "local-repo-plugins")
+WizardAnswers { workspace: true, marketplace: false, no_starter: false, marketplace_name: "local-repo-plugins", engines_scaffold: EngineSet(CLAUDE | COPILOT), engines_support: None }

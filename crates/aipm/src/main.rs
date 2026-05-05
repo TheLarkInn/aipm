@@ -411,17 +411,19 @@ fn cmd_init(
     let dir = resolve_dir(dir)?;
     let interactive = !flags.yes && std::io::stdin().is_terminal();
 
-    let (do_workspace, do_marketplace, do_no_starter, marketplace_name) = wizard_tty::resolve(
+    let answers = wizard_tty::resolve(
         interactive,
         (flags.workspace, flags.marketplace, flags.no_starter),
         name,
+        &flags.engine,
     )?;
 
-    // Parse `--engine` if provided; otherwise fall back to the Feature 9
-    // baseline (`EngineSet::CLAUDE`). Feature 14 will replace the baseline
-    // with wizard-derived answers.
+    // CLI `--engine` wins over the wizard's scaffold-set placeholder.
+    // When the flag is non-empty the wizard skipped the engine prompts,
+    // so `answers.engines_scaffold` carries an `EngineSet::ALL` placeholder
+    // that we must overwrite with the parsed flag.
     let engines_scaffold = if flags.engine.is_empty() {
-        libaipm::EngineSet::CLAUDE
+        answers.engines_scaffold
     } else {
         wizard::parse_engine_list(&flags.engine).map_err(error::CliError::Message)?
     };
@@ -429,13 +431,13 @@ fn cmd_init(
     let adaptors = libaipm::workspace_init::adaptors::defaults();
     let opts = libaipm::workspace_init::Options {
         dir: &dir,
-        workspace: do_workspace,
-        marketplace: do_marketplace,
-        no_starter: do_no_starter,
+        workspace: answers.workspace,
+        marketplace: answers.marketplace,
+        no_starter: answers.no_starter,
         manifest,
-        marketplace_name: &marketplace_name,
+        marketplace_name: &answers.marketplace_name,
         engines_scaffold,
-        engines_support: None,
+        engines_support: answers.engines_support,
     };
 
     let result = libaipm::workspace_init::init(&opts, &adaptors, &libaipm::fs::Real)?;
@@ -447,10 +449,11 @@ fn cmd_init(
                 format!("Initialized workspace in {}", dir.display())
             },
             libaipm::workspace_init::InitAction::MarketplaceCreated => {
-                if do_no_starter {
-                    format!("Created .ai/ marketplace '{marketplace_name}' (no starter plugin)")
+                let mkt = &answers.marketplace_name;
+                if answers.no_starter {
+                    format!("Created .ai/ marketplace '{mkt}' (no starter plugin)")
                 } else {
-                    format!("Created .ai/ marketplace '{marketplace_name}' with starter plugin")
+                    format!("Created .ai/ marketplace '{mkt}' with starter plugin")
                 }
             },
             libaipm::workspace_init::InitAction::ToolConfigured(name) => {

@@ -1,3 +1,53 @@
+## Features 13 + 17 + 19 (bundled) — WizardAnswers struct + e2e/BDD test pinning (PASS)
+
+Date: 2026-05-05
+Iteration: 13
+Status: passes=true, all four CLAUDE.md gates green, coverage 94.33% (>=89% required)
+
+This iteration bundled three logically-coupled features because Feature 13's behavior change cascades naturally into Features 17 and 19 (both pin pre-existing tests for the new `--yes`/headless default of Copilot-only).
+
+### Feature 13 — `WizardAnswers` struct + engine-aware resolvers
+
+Changes:
+- `crates/aipm/src/wizard.rs:140-155` — NEW `pub struct WizardAnswers` with 6 fields (workspace, marketplace, no_starter, marketplace_name, engines_scaffold, engines_support). Replaces the 4-tuple return of `resolve_workspace_answers` and `resolve_defaults`.
+- `crates/aipm/src/wizard.rs:157-172` — NEW `decode_engine_multi_select(Option<&PromptAnswer>) -> EngineSet` helper translates MultiSelect indices into the bitset.
+- `crates/aipm/src/wizard.rs:174-265` — `resolve_workspace_answers` rewritten to consume both engine MultiSelect answers. When the prompts were emitted, `engines_scaffold` is the user's selection and `engines_support` is auto-widened to be a superset of scaffold (Spec G10) then normalised to `None` when it equals `EngineSet::ALL` (so the manifest field is omitted on disk). When the prompts were skipped (`flag_engine_provided=true`), returns `EngineSet::ALL` as a placeholder for the caller to overwrite with the parsed `--engine` flag.
+- `crates/aipm/src/wizard.rs:267-302` — `resolve_defaults` rewritten to take `engine_flag: &[String]` and return `Result<WizardAnswers, String>`. Spec G5/Round 6 headless default: marketplace scope without `--engine` → `EngineSet::COPILOT`; workspace-only scope → `EngineSet::empty()`; `engines_support` is always `None`.
+- `crates/aipm/src/wizard_tty.rs:14-66` — `wizard_tty::resolve` now takes `engine_flag: &[String]` and returns `Result<WizardAnswers, ...>`. Computes `flag_engine_provided = !engine_flag.is_empty()` and threads it through both `workspace_prompt_steps` and `resolve_workspace_answers`.
+- `crates/aipm/src/main.rs:414-440` — `cmd_init` consumes `WizardAnswers` and uses `answers.engines_support` directly. CLI `--engine` overrides the scaffold-set placeholder when provided. Output messages reference `answers.marketplace_name` and `answers.no_starter` (replaces the deleted local bindings).
+- `crates/aipm/src/wizard.rs:705-712` — NEW `summary(WizardAnswers) -> (bool, bool, bool, String)` test helper extracts the legacy 4-tuple for terse equality assertions.
+- 6 existing `resolve_defaults_*` tests + 1 `resolve_workspace_workspace_only_skips_marketplace_prompt` test updated to use `summary(...)`.
+- 9 existing snapshot tests for `resolve_workspace_*` accepted with new `WizardAnswers` debug output.
+- 10 NEW unit tests covering: Copilot default in marketplace headless mode, empty set in workspace-only mode, --engine flag parsing, multi-engine flag parsing, error on unknown engine, engine-scaffold decoding from MultiSelect, support narrower than ALL, support auto-widening to scaffold, ALL→None normalisation, placeholder behavior when engine prompts were skipped.
+
+### Feature 17 — Pin existing init_e2e.rs tests
+
+5 tests in `crates/aipm/tests/init_e2e.rs` updated to pass `--engine claude` explicitly so their `.claude/settings.json` assertions survive Feature 13's headless default change:
+- `init_default_creates_marketplace_only` (line 22)
+- `init_claude_settings_generated` (line 137)
+- `init_settings_json_marketplace_name_and_enabled_plugins` (line 207)
+- `scaffold_script_enables_in_settings_json` (line 300)
+- `scaffold_script_multiple_plugins_no_duplicates` (line 344)
+
+### Feature 19 — Pin existing BDD scenarios
+
+- `crates/libaipm/tests/bdd.rs:747-755` — `given_workspace_initialized` step now runs `aipm init --engine claude`. This single change pins all downstream BDD scenarios that depend on `.claude/settings.json` existing after init.
+- `tests/features/manifest/workspace-init.feature:83-84` — "No-starter flag still configures tool settings" scenario updated to `aipm init --no-starter --engine claude`.
+- `tests/features/manifest/workspace-init.feature:174-186` — both "Rule: Tool settings integration" scenarios updated with `--engine claude`.
+
+Test results: 76 BDD scenarios + 158 aipm CLI unit tests + 2186 libaipm unit tests, all green. Coverage jumped from 90.25% → 94.33% because the new feature 13 unit tests exercise the engine-decoding helpers extensively.
+
+CLAUDE.md lint compliance:
+- Fixed one clippy `doc_markdown` complaint by adding backticks around `MultiSelect`.
+- No `unwrap()`/`expect()`/`panic!()` introduced.
+- No `#[allow(...)]` attributes.
+
+Notes for future iterations:
+- Feature 14 (`wizard_tty::resolve` confirmation print) — most of feature 14's wiring is already done as part of feature 13's WizardAnswers refactor. The remaining work is the stderr summary print and any structural tweaks.
+- Feature 21 (snapshot refresh) — the 9 `resolve_workspace_*` snapshots have already been refreshed to the new `WizardAnswers` debug format. The 8 prompt-step snapshots (`workspace_prompts_*_snapshot`) still reflect the old 3-prompt sequence because callers pass `flag_engine_provided=true` — once Feature 14 exercises the live engine prompts, those snapshots will refresh.
+
+---
+
 ## Feature 12 — Wizard Prompt 3 "Which engines does your project support?" (PASS)
 
 Date: 2026-05-05

@@ -80,7 +80,7 @@ Feature: Workspace initialization
 
   Scenario: No-starter flag still configures tool settings
     Given an empty directory "my-project"
-    When the user runs "aipm init --no-starter" in "my-project"
+    When the user runs "aipm init --no-starter --engine claude" in "my-project"
     Then a file ".claude/settings.json" exists in "my-project"
     And there is no directory ".ai/starter-aipm-plugin" in "my-project"
 
@@ -173,14 +173,14 @@ Feature: Workspace initialization
 
     Scenario: Claude Code settings point to .ai/ as local marketplace
       Given an empty directory "my-project"
-      When the user runs "aipm init --marketplace" in "my-project"
+      When the user runs "aipm init --marketplace --engine claude" in "my-project"
       Then a file ".claude/settings.json" exists in "my-project"
       And the Claude settings contain "extraKnownMarketplaces"
       And the Claude settings marketplace path is "./.ai"
 
     Scenario: Claude Code settings have enabledPlugins at top level
       Given an empty directory "my-project"
-      When the user runs "aipm init --marketplace" in "my-project"
+      When the user runs "aipm init --marketplace --engine claude" in "my-project"
       Then a file ".claude/settings.json" exists in "my-project"
       And the Claude settings contain "enabledPlugins" at the top level
       And the Claude settings enable "starter-aipm-plugin@local-repo-plugins"

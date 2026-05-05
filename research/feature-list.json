@@ -163,7 +163,7 @@
       "Update existing snapshot tests for `resolve_workspace_answers` and `resolve_defaults` (lines 516-675) to cover all MultiSelect output cases.",
       "Run all four CLAUDE.md gates."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ui",
@@ -207,7 +207,7 @@
       "Run `cargo test --workspace` and confirm all five tests still pass with the updated commands.",
       "Run all four CLAUDE.md gates."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test",
@@ -234,7 +234,7 @@
       "Run `cargo test --workspace` (BDD scenarios run via `crates/libaipm/tests/bdd.rs`) and confirm green.",
       "Run all four CLAUDE.md gates."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "test",

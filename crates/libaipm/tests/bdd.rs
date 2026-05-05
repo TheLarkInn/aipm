@@ -746,7 +746,11 @@ async fn then_plugin_has_feature_dir(
 
 #[given(expr = "a workspace initialized in {string}")]
 async fn given_workspace_initialized(world: &mut AipmWorld, dir: String) {
-    run_command(world, "aipm init", Some(&dir));
+    // `--engine claude` pins the scaffold set so downstream scenarios
+    // that assert `.claude/settings.json` exists continue to work after
+    // Feature 13's spec G5 change (`--yes` headless mode now defaults to
+    // Copilot only).
+    run_command(world, "aipm init --engine claude", Some(&dir));
     assert_eq!(world.last_exit_code, Some(0), "aipm init failed: {}", world.last_stderr);
 }
 
