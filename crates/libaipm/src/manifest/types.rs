@@ -114,6 +114,19 @@ pub struct Workspace {
 
     /// Shared dependency catalog for workspace members.
     pub dependencies: Option<BTreeMap<String, DependencySpec>>,
+
+    /// Workspace-level engine compatibility list (e.g.,
+    /// `["claude", "copilot"]`). Inherited by member packages that omit
+    /// their own `[package].engines` via [`crate::manifest::effective_engines`].
+    /// `None` (field omitted) or `Some(EngineSet::empty())` (explicit
+    /// empty list `engines = []`) means all engines.
+    ///
+    /// Same three-state semantics and validation as
+    /// [`Package::engines`]: a non-empty list whose entries are ALL
+    /// unknown errors out, while mixed known/unknown lists silently drop
+    /// the unknowns.
+    #[serde(default, deserialize_with = "engine_set_serde::deserialize")]
+    pub engines: Option<EngineSet>,
 }
 
 /// A dependency specification — either a version string or a detailed object.

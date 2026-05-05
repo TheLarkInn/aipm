@@ -64,7 +64,7 @@
       "Confirm `#[serde(deny_unknown_fields)]` still rejects typos (e.g. `engins = [\"claude\"]`).",
       "Run all four CLAUDE.md gates."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",

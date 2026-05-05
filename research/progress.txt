@@ -1,3 +1,27 @@
+## Feature 5 — `Workspace.engines` field (PASS)
+
+Date: 2026-05-05
+Iteration: 5
+Status: passes=true, all four CLAUDE.md gates green, coverage 90.20% (>=89% required)
+
+Changes shipped:
+- `crates/libaipm/src/manifest/types.rs:117-128` — added `engines: Option<EngineSet>` field to the `Workspace` struct, reusing the existing `engine_set_serde::deserialize` adapter that `Package.engines` already uses. Doc comment documents the same three-state semantics (None/empty = all engines, named list = bitset) plus the workspace-specific note that the field is inherited by member packages via `effective_engines` (Feature 6).
+- `crates/libaipm/src/manifest/mod.rs:631-696` — 5 new tests mirroring the package-level engine tests:
+  - `manifest_workspace_with_engines_field` — `engines = ["claude", "copilot"]` parses to `CLAUDE | COPILOT`.
+  - `manifest_workspace_engines_omitted_is_none` — field absent → `None`.
+  - `manifest_workspace_engines_explicit_empty_list_is_all_engines` — `engines = []` → `Some(EngineSet::empty())`.
+  - `manifest_workspace_engines_only_unknown_names_fails_to_parse` — all-unknown list rejected with the same "contains no known engine names" error.
+  - `manifest_workspace_engines_mixed_known_and_unknown_drops_unknowns` — silently drops unknowns, keeps known.
+
+Test results: libaipm at 2168 unit tests (+5 new), all green. cargo fmt auto-collapsed one long line in the new tests.
+
+Notes for future iterations:
+- The `Workspace` struct still does NOT have `#[serde(deny_unknown_fields)]`. The feature step suggested confirming that typos like `engins` are rejected, but adding `deny_unknown_fields` to `Workspace` would be a behavior change that could break existing manifests with extra fields. Left untouched; a future tightening can land separately if desired.
+- Feature 6 (`effective_engines` helper) consumes this new field as the workspace fallback when a package omits its own `engines`.
+- Feature 8 (manifest builder) writes this field to disk when `engines_support` is narrower than `EngineSet::ALL`.
+
+---
+
 ## Feature 4 — `copilot::Adaptor` MVP (PASS)
 
 Date: 2026-05-05

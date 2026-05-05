@@ -628,6 +628,71 @@ engines = []
         assert_eq!(engines.copied(), Some(libaipm_engine_spec::EngineSet::empty()));
     }
 
+    // ---------- [workspace].engines parity tests (Spec G7) ----------
+
+    #[test]
+    fn manifest_workspace_with_engines_field() {
+        let toml = r#"
+[workspace]
+members = [".ai/*"]
+engines = ["claude", "copilot"]
+"#;
+        let manifest = parse(toml).expect("workspace engines should parse");
+        let engines = manifest.workspace.as_ref().and_then(|w| w.engines.as_ref());
+        let expected =
+            libaipm_engine_spec::EngineSet::CLAUDE | libaipm_engine_spec::EngineSet::COPILOT;
+        assert_eq!(engines.copied(), Some(expected));
+    }
+
+    #[test]
+    fn manifest_workspace_engines_omitted_is_none() {
+        let toml = r#"
+[workspace]
+members = [".ai/*"]
+"#;
+        let manifest = parse(toml).expect("omitted engines should parse");
+        let engines = manifest.workspace.as_ref().and_then(|w| w.engines);
+        assert_eq!(engines, None);
+    }
+
+    #[test]
+    fn manifest_workspace_engines_explicit_empty_list_is_all_engines() {
+        let toml = r#"
+[workspace]
+members = [".ai/*"]
+engines = []
+"#;
+        let manifest = parse(toml).expect("empty list should parse");
+        let engines = manifest.workspace.as_ref().and_then(|w| w.engines);
+        assert_eq!(engines, Some(libaipm_engine_spec::EngineSet::empty()));
+    }
+
+    #[test]
+    fn manifest_workspace_engines_only_unknown_names_fails_to_parse() {
+        let toml = r#"
+[workspace]
+members = [".ai/*"]
+engines = ["unknown-future-engine"]
+"#;
+        let manifest = parse(toml);
+        assert!(manifest.is_err(), "expected parse error for all-unknown workspace engines");
+        let err = manifest.err().expect("checked above");
+        let msg = format!("{err}");
+        assert!(msg.contains("contains no known engine names"), "unexpected error message: {msg}");
+    }
+
+    #[test]
+    fn manifest_workspace_engines_mixed_known_and_unknown_drops_unknowns() {
+        let toml = r#"
+[workspace]
+members = [".ai/*"]
+engines = ["claude", "future-engine"]
+"#;
+        let manifest = parse(toml).expect("mixed list should parse");
+        let engines = manifest.workspace.as_ref().and_then(|w| w.engines);
+        assert_eq!(engines, Some(libaipm_engine_spec::EngineSet::CLAUDE));
+    }
+
     #[test]
     fn manifest_with_source_redirect() {
         let toml = r#"
