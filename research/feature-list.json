@@ -1,126 +1,451 @@
 [
   {
     "category": "refactor",
-    "description": "Update sibling source-file unit-test fixtures so they no longer depend on the engine-prefix classification branch (spec G4)",
+    "description": "Scaffold libaipm-engine-spec crate and register workspace dependencies",
     "steps": [
-      "In crates/libaipm/src/discovery/mod.rs, edit `discover_unified_finds_issue_725_tree` (lines 122-136): remove the `touch(&root.join(\".github/copilot/copilot-instructions.md\"))` call at line 128 and any assertion that depends on the file appearing in `set.features`. Keep the SKILL.md fixtures and assertions intact — those cover the legitimate part of issue #725.",
-      "In crates/libaipm/src/discovery/mod.rs, delete the test `discover_finds_copilot_instructions_md` at lines 149-164 entirely — its sole purpose is to assert the deleted branch's behavior.",
-      "In crates/libaipm/src/discovery/walker.rs, edit `issue_725_tree_visible_to_walker` (lines 209-223): remove the `touch(...copilot-instructions.md)` write at line 216 and the `result.files.iter().any(|p| p.ends_with(\"copilot-instructions.md\"))` assertion at line 222. Walker-level visibility for SKILL.md paths still asserted.",
-      "In crates/libaipm/src/discovery/classify.rs, delete the test `copilot_instructions_md_classified_as_instructions` at lines 122-130 entirely — it mirrors the unit tests in instruction.rs::tests Case C.",
-      "In crates/libaipm/src/discovery/classify.rs, edit `issue_725_full_tree_dispatch` (lines 162-175): remove the `classify_at(&PathBuf::from(\"/repo/.github/copilot/copilot-instructions.md\"), &root)` call at line 172 and any related assertion. Keep SKILL.md dispatch assertions intact.",
-      "In crates/libaipm/src/discovery/types.rs, edit `discovered_feature_clone_and_eq` (line 169): replace the path string `.github/copilot/copilot-instructions.md` with any other neutral path (e.g. `.claude/skills/foo/SKILL.md`) — the value is incidental to the Clone/Eq round-trip.",
-      "In crates/libaipm/src/lint/mod.rs, edit `lint_unified_finds_issue_725_skills_and_instructions` (lines 1583-1628): rename to `lint_unified_finds_issue_725_skills` (drop `_and_instructions`); in the helper `write_issue_725_tree` at line 1606 remove the `touch(&root.join(\".github/copilot/copilot-instructions.md\"))` line; drop the assertion message `\"unified path must find copilot-instructions.md (the #725 lint-side fix)\"` at line 1626. Keep all SKILL.md assertions.",
-      "In crates/libaipm/src/lint/mod.rs, edit `lint_outcome_carries_scan_counts_and_dirs` (lines 1630-1644+): change the `instructions == 1` expectation to `instructions == 0` (or drop the field assertion entirely if it is no longer load-bearing for the test's intent).",
-      "Run `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` — all four green. The deleted branch in instruction.rs is still in place, so all lints and tests pass; this feature only removes downstream test dependencies on it.",
-      "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 1 complete — sibling source-file test fixtures decoupled from engine-prefix branch.`"
+      "Create crates/libaipm-engine-spec/ directory with Cargo.toml declaring name='libaipm-engine-spec', edition='2021'",
+      "Create empty src/lib.rs, src/types.rs, src/helpers.rs, src/generated.rs, build.rs, bin/export-schema.rs files as stubs",
+      "Add 'crates/libaipm-engine-spec' to workspace.members in /workspaces/aipm/Cargo.toml",
+      "Add phf='0.13', phf_codegen='0.13', schemars='1', jsonschema='0.46', prettyplease='0.2', bitflags='2' to workspace.dependencies in /workspaces/aipm/Cargo.toml",
+      "Set crate's [build-dependencies]: serde, serde_json, schemars, jsonschema, phf_codegen, prettyplease, syn, proc-macro2, quote",
+      "Set crate's [dependencies]: serde, serde_json, phf, bitflags",
+      "Verify cargo build --workspace succeeds with empty stubs"
     ],
     "passes": true
   },
   {
-    "category": "test",
-    "description": "Delete the BDD step `given_copilot_instructions_file_exists` and the corresponding `quality.feature` scenario (spec G5)",
+    "category": "functional",
+    "description": "Define canonical Rust types in libaipm-engine-spec/src/types.rs with schemars derives",
     "steps": [
-      "In crates/libaipm/tests/bdd.rs, delete lines 791-807 (the entire `#[given(expr = \"a copilot instructions file with {int} lines exists in {string}\")]` step `given_copilot_instructions_file_exists`).",
-      "Run `grep -n 'unified_discovery' crates/libaipm/tests/bdd.rs` — if the `unified_discovery: bool` field on `World` (line 62) is no longer referenced by any other step, delete the field declaration (line 62) and the initializer at line 118. If it IS referenced elsewhere, leave it.",
-      "In tests/features/guardrails/quality.feature, edit the comment block at lines 51-54 to remove the `copilot-instructions.md` clause; preserve the SKILL.md context for the issue-#725 layout rationale.",
-      "In tests/features/guardrails/quality.feature, delete the entire scenario `Scenario: Lint flags oversized .github/copilot/copilot-instructions.md` at lines 64-69 (six lines, including the blank separator line).",
-      "Run `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` — all four green. The deleted step is unreferenced; the deleted scenario was the only consumer; no regressions.",
-      "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 2 complete — BDD step + quality.feature scenario for engine-prefix branch deleted.`"
+      "Define EngineApiSchemaFile struct with $schema, meta_schema_version, generated_at, engines, versions, apis, tool_compatibility, suggestions fields",
+      "Define EngineBootstrap, EngineApi, ManifestFieldSpec, Constraints, ConventionFile, SizeLimits, ToolCall, HookEvent, FeatureSpec, FeatureKind, ToolCompatibility, ToolSupport, EngineSuggestions structs/enums per spec section 5.2",
+      "Apply #[derive(serde::Deserialize, serde::Serialize, schemars::JsonSchema, Debug, Clone, PartialEq, Eq)] to all types",
+      "Apply #[serde(deny_unknown_fields)] to all named structs",
+      "Add pub const META_SCHEMA_VERSION: &str = \"1.0.0\" at crate root",
+      "Use BTreeMap (not HashMap) where the schema requires deterministic key order",
+      "Verify cargo build --workspace succeeds"
     ],
     "passes": true
   },
   {
-    "category": "test",
-    "description": "Update the issue-#725 e2e test fixture and the four count-based assertions (spec G6)",
+    "category": "functional",
+    "description": "Implement bin/export-schema.rs to regenerate schemas/engine-api.schema.json",
     "steps": [
-      "Open crates/libaipm/src/discovery/scan_report.rs and verify `format_counts` (or the equivalent function) emits a clean string when `counts.instructions == 0` — e.g. `\"matched 3 skills\"` rather than `\"matched 3 skills, 0 instructions\"` or a panic. If rendering is broken for the zero case, file a separate ticket; do NOT bundle the fix here. Document the verified format string in this feature's progress entry.",
-      "In crates/aipm/tests/issue_725_e2e.rs, edit the file-level doc comment at line 5 to drop the `.github/copilot/copilot-instructions.md` mention.",
-      "In crates/aipm/tests/issue_725_e2e.rs, delete the tree-diagram line `\\`-- copilot-instructions.md` at line 37.",
-      "In crates/aipm/tests/issue_725_e2e.rs, edit `build_issue_725_fixture` (lines 39-58): drop lines 55-57 (the `let instructions_path = root.join(...)` write of `.github/copilot/copilot-instructions.md`), and the `// copilot-instructions.md sibling to skills/.` comment at line 55. The fixture now writes only the marketplace stub and the three SKILL.md skills.",
-      "In crates/aipm/tests/issue_725_e2e.rs, in `migrate_finds_issue_725_skills` (lines 64-94) update the stderr assertion at lines 78-81 from `\"matched 3 skills, 1 instruction\"` to the verified zero-case format string from step 1 (typically `\"matched 3 skills\"`).",
-      "In crates/aipm/tests/issue_725_e2e.rs, in `lint_summary_visible` (lines 100-127) update the stderr assertion at lines 116-119 to the same verified zero-case format string.",
-      "In crates/aipm/tests/issue_725_e2e.rs, in `lint_ci_github_summary_on_stderr_diagnostics_on_stdout` (lines 153-179) update the stderr assertion at lines 175-178 to the same verified zero-case format string.",
-      "Leave `lint_no_summary_suppresses_stderr_summary` (lines 133-147) unchanged — it asserts on the absence of `\"Scanned\"`, which is independent of the instructions count.",
-      "Run `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` — all four green. The deleted-branch behavior is still active in instruction.rs; the e2e tests now assert on the post-cut count regardless.",
-      "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 3 complete — e2e fixture + count assertions updated; format_counts zero-case verified as <string>.`"
+      "Implement main() returning Result<(), Box<dyn Error>>",
+      "Call schemars::schema_for!(EngineApiSchemaFile) to derive a RootSchema",
+      "Serialize to pretty-printed JSON via serde_json::to_string_pretty",
+      "Write to ../../schemas/engine-api.schema.json (relative to the crate root)",
+      "Verify cargo run -p libaipm-engine-spec --bin export-schema succeeds",
+      "Confirm schemas/engine-api.schema.json is created and contains a valid JSON Schema draft 2020-12 document"
     ],
     "passes": true
   },
   {
     "category": "refactor",
-    "description": "Cut the engine-prefix classification branch in `discovery/instruction.rs`, delete its Case-C unit tests, edit the structural test, and add the load-bearing regression guard (spec G1, G2, G3, G12)",
+    "description": "Migrate engine-api-schema.json data file into the new crate with restructured fields",
     "steps": [
-      "In crates/libaipm/src/discovery/instruction.rs, delete module-doc lines 11-13 (the Case 3 enumeration listing `<engine>-instructions.md` and the four filenames).",
-      "In crates/libaipm/src/discovery/instruction.rs, delete line 32 (the doc comment `Engine prefixes accepted in the <engine>-instructions.md shape.`) and line 33 (the `const ENGINE_INSTRUCTION_PREFIXES: &[&str] = &[\"copilot\", \"claude\", \"agents\", \"gemini\"];` declaration).",
-      "In crates/libaipm/src/discovery/instruction.rs, edit `is_instruction_filename` at lines 66-70: remove the third disjunct `|| matches_engine_instructions(file_name_lower)` at line 69. The function body should reduce to: `INSTRUCTION_FILENAMES.contains(&file_name_lower) || file_name_lower.ends_with(\".instructions.md\")`.",
-      "In crates/libaipm/src/discovery/instruction.rs, delete lines 72-79 (the `matches_engine_instructions` function and its doc comment) entirely.",
-      "In crates/libaipm/src/discovery/instruction.rs, delete the test-section comment at line 143 (`// --- Case C: <engine>-instructions.md (the #725 fix) ---`) and all Case-C tests immediately following it: `copilot_instructions_md_matches_issue_725` (145-150), `claude_instructions_md_matches` (152-155), `agents_instructions_md_matches` (157-160), `gemini_instructions_md_matches` (162-165), `engine_instructions_md_case_insensitive` (167-171).",
-      "In crates/libaipm/src/discovery/instruction.rs, delete the negative tests that exist solely to guard the deleted branch: `instructions_copilot_md_wrong_order_no_match` (180-184), `unknown_engine_prefix_no_match` (186-191), `copilot_tools_md_does_not_match` (193-197), `copilot_instructions_md_with_extra_suffix_no_match` (199-203), `just_dash_instructions_md_no_match` (210-214). Leave `random_md_does_not_match` (175-178) and `empty_filename_no_match` (205-208) alone — they cover the surviving branches.",
-      "In crates/libaipm/src/discovery/instruction.rs, edit `classify_returns_path_unchanged` (lines 218-228): replace the path `/repo/.github/copilot/copilot-instructions.md` with `/repo/.claude/CLAUDE.md` (or any `INSTRUCTION_FILENAMES` filename), and replace the call `classify(\"copilot-instructions.md\", &path, Engine::Copilot, &root)` with `classify(\"CLAUDE.md\", &path, Engine::Claude, &root)`. The structural assertions (`feat.path == path`, `feat.source_root == root`, etc.) remain valid because the test's intent is `classify` echoes its inputs unchanged, not that any specific filename matches.",
-      "Append a new test at the end of `mod tests` in crates/libaipm/src/discovery/instruction.rs named `nested_engine_instructions_md_not_classified`. Body: a one-line comment `// Regression guard: see specs/2026-05-02-engine-instructions-md-pattern-removal.md` followed by four `assert!(classify_with(\"<name>\").is_none());` lines for `copilot-instructions.md`, `claude-instructions.md`, `agents-instructions.md`, and `gemini-instructions.md`. This is the load-bearing G12 guard against future agent-loop re-introduction.",
-      "Run `grep -rn \"ENGINE_INSTRUCTION_PREFIXES\\|matches_engine_instructions\" crates/libaipm/src/` — must return zero hits (no remaining references in production code).",
-      "Run `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` — all four must be green with zero warnings. Confirm no .unwrap()/.expect()/panic!()/println! anywhere per CLAUDE.md lint policy.",
-      "Run the coverage gate from CLAUDE.md: `cargo +nightly llvm-cov clean --workspace`, `cargo +nightly llvm-cov --no-report --workspace --branch`, `cargo +nightly llvm-cov --no-report --doc`, then `cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs|lsp\\.rs)'`. TOTAL branch column must be ≥ 89%.",
-      "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 4 complete — engine-prefix branch removed from instruction.rs; regression guard added; coverage <pct>% / target 89%.`"
+      "git mv research/engine-api-schema.json crates/libaipm-engine-spec/data/engine-api-schema.json",
+      "git mv research/engine-api-changelog.md crates/libaipm-engine-spec/data/engine-api-changelog.md",
+      "Add top-level \"$schema\": \"../../../schemas/engine-api.schema.json\" and \"meta_schema_version\": \"1.0.0\" to the moved JSON",
+      "Restructure each entry of apis.<engine>.manifest_fields from prose strings into structured [{name, type, required, constraints: {max_length?, regex?, default?}, notes?}] records (use existing prose like 'name (max 64 chars, regex /^[a-zA-Z0-9-]+$/)' as input)",
+      "Rename apis.<engine>.detection_heuristics → detection_notes; discovery_algorithm → discovery_notes; rules → rule_notes (per Q3a)",
+      "Add hook_events: [{name, aliases, deprecated, notes}] arrays per engine, populated from existing crates/libaipm/src/lint/rules/known_events.rs CLAUDE_EVENTS, COPILOT_EVENTS, COPILOT_LEGACY_MAP",
+      "Add features: [{kind, manifest_field?, layout_hint?, capabilities?}] arrays per engine, populated from crates/libaipm/src/make/engine_features.rs CLAUDE_FEATURES and COPILOT_FEATURES",
+      "Confirm git status shows the data files moved and the JSON edited"
     ],
     "passes": true
   },
   {
-    "category": "docs",
-    "description": "Withdraw the misinterpreted goal G7 and section 5.4 from the source spec at `specs/2026-05-01-unified-discovery-and-copilot-skill-detection.md` (spec G7)",
+    "category": "functional",
+    "description": "Generate initial committed schemas/engine-api.schema.json from Rust types",
     "steps": [
-      "Add a withdrawal preamble at the top of specs/2026-05-01-unified-discovery-and-copilot-skill-detection.md (immediately after the metadata block) noting that goal G7 and section 5.4 have been superseded by specs/2026-05-02-engine-instructions-md-pattern-removal.md following engine-documentation verification. Keep the rest of the spec verbatim — the SKILL.md sections are correct.",
-      "Edit line 16 (executive-summary prose) to remove the misreading of Copilot's path requirement. Recommended replacement: keep the sentence about migrate's silent drop on `.github/copilot/skills/...`; replace the lint clause with `(The lint-side claim previously made here regarding copilot-instructions.md was withdrawn — see specs/2026-05-02-engine-instructions-md-pattern-removal.md.)`",
-      "Edit the customer-fixture diagram at lines 76-83: remove the line `└── copilot-instructions.md`. The diagram now shows only the SKILL.md tree.",
-      "Edit line 90 (why-it-fails item 2): replace with a one-line note that the originally-claimed lint-side gap was based on a misreading of GitHub Copilot's documentation; cross-link to specs/2026-05-02-engine-instructions-md-pattern-removal.md §1.",
-      "Delete goal G7 at line 109 entirely (the `[ ] **G7**: INSTRUCTION_FILENAMES recognition is extended...` line).",
-      "Edit the module-layout comment at line 213: change `instruction.rs    // INSTRUCTION_FILENAMES + the new <engine>-instructions.md regex` to `instruction.rs    // INSTRUCTION_FILENAMES + *.instructions.md suffix`.",
-      "Delete the entirety of section `5.4 Instruction-file recognition (the copilot-instructions.md fix)` at lines 415-450 — the section heading, the pseudocode block, and the three-case enumeration. Replace with a one-line stub: `### 5.4 Instruction-file recognition — withdrawn per specs/2026-05-02-engine-instructions-md-pattern-removal.md.`",
-      "Edit the decision-matrix table row at line 632: remove the `Doesn't address lint's copilot-instructions.md gap.` clause from Alternative A's `Cons` cell. (The other clauses in that cell remain valid.)",
-      "Edit the test-plan bullet at line 685: remove the `copilot-instructions.md, claude-instructions.md` enumeration and the `rejection of instructions-copilot.md` clause. Keep `my-thing.instructions.md`, `claude.md`, and `random.md` references.",
-      "Edit the integration tree at line 700: remove the `└── copilot-instructions.md` line.",
-      "Delete lines 709 and 710 (the planned `quality.feature` scenario and the planned `bdd.rs` step `given_copilot_instructions_file_exists`).",
-      "Run `git diff specs/2026-05-01-unified-discovery-and-copilot-skill-detection.md | grep -c '<engine>-instructions.md\\|copilot-instructions.md\\|claude-instructions.md\\|agents-instructions.md\\|gemini-instructions.md'` to verify no engine-prefix references remain in the file (zero hits expected).",
-      "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 5 complete — source spec G7/§5.4 withdrawn; preamble added; line edits applied.`"
+      "Run cargo run -p libaipm-engine-spec --bin export-schema",
+      "Verify schemas/engine-api.schema.json is committed at workspace root",
+      "Open the file and confirm it includes definitions for EngineApiSchemaFile, EngineBootstrap, EngineApi, ManifestFieldSpec, Constraints, ConventionFile, SizeLimits, ToolCall, HookEvent, FeatureSpec, FeatureKind, ToolCompatibility, ToolSupport, EngineSuggestions"
     ],
     "passes": true
   },
   {
-    "category": "docs",
-    "description": "Update CHANGELOG.md to remove the misleading bullet and add a Removed entry citing this spec (spec G8)",
+    "category": "functional",
+    "description": "Implement build.rs validation step (data file vs meta-schema)",
     "steps": [
-      "In CHANGELOG.md, locate the bullet at line 10: `- **\\`aipm lint\\` now recognises \\`<engine>-instructions.md\\` files** — \\`copilot-instructions.md\\`, \\`claude-instructions.md\\`, \\`agents-instructions.md\\`, and \\`gemini-instructions.md\\` are all classified as instruction files. Closes the second silent-drop case from issue #725.` Delete this bullet entirely.",
-      "Verify the sibling bullet at line 9 (the migrate-side skill-detection fix) remains unchanged — that bullet is the legitimate part of issue #725 and stays.",
-      "Under `## [Unreleased]`, locate or create a `### Removed` subsection and add a single bullet: `- **\\`aipm lint\\` no longer classifies \\`<engine>-instructions.md\\` files (\\`copilot-instructions.md\\`, \\`claude-instructions.md\\`, \\`agents-instructions.md\\`, \\`gemini-instructions.md\\`) as instruction files** — engine-documentation verification (Anthropic Claude Code, GitHub Copilot, Google Gemini CLI, AGENTS.md spec) confirmed three of the four prefixes correspond to filenames no engine reads, and the fourth (\\`copilot-instructions.md\\`) is recognized by GitHub Copilot only at \\`.github/copilot-instructions.md\\` (bare) and \\`$HOME/.copilot/copilot-instructions.md\\`. See specs/2026-05-02-engine-instructions-md-pattern-removal.md.`",
-      "If the `### Fixed` subsection becomes empty after the deletion, leave the subsection heading in place but add a one-line note `(no changes in this release yet)` if that is the project convention; otherwise delete the now-empty subheading. Verify against existing CHANGELOG conventions before choosing.",
-      "Run `git diff CHANGELOG.md` and confirm the diff shows exactly one bullet removed under `### Fixed` and exactly one bullet added under `### Removed`. No other changes.",
-      "Run `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` — all four green (CHANGELOG edits do not affect build, but verify nothing else regressed).",
-      "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 6 complete — CHANGELOG updated; Removed entry added under [Unreleased].`"
+      "In build.rs main() returning Result<(), Box<dyn Error>>: print cargo:rerun-if-changed= for data/engine-api-schema.json, ../../schemas/engine-api.schema.json, src/types.rs, build.rs",
+      "Read schemas/engine-api.schema.json and data/engine-api-schema.json from disk",
+      "Parse meta-schema as serde_json::Value, build a jsonschema::validator_for(&meta_schema)",
+      "Call validator.validate(&data_value); on failure return an Err whose Display includes the failing JSON pointer and remediation hint ('regenerate via bin/export-schema')",
+      "Deserialize the data into EngineApiSchemaFile via serde_json::from_value",
+      "Verify parsed.meta_schema_version equals types::META_SCHEMA_VERSION; on mismatch return Err",
+      "Verify cargo build -p libaipm-engine-spec succeeds"
     ],
     "passes": true
   },
   {
-    "category": "docs",
-    "description": "Correct the misleading example comment in `docs/rules/source/misplaced-features.md` (spec G9)",
+    "category": "functional",
+    "description": "build.rs codegen: generated Engine enum and EngineSet bitflags",
     "steps": [
-      "Open docs/rules/source/misplaced-features.md and locate the tree-diagram line at line 62: `copilot-instructions.md   # ✅ exempt — *.instructions.md pattern`. This comment is incorrect — `copilot-instructions.md` does NOT match the `*.instructions.md` suffix (no dot before `instructions`); it was matched only via the now-deleted engine-prefix branch.",
-      "Replace the line with a real `*.instructions.md`-matching example: `frontend.instructions.md   # ✅ exempt — *.instructions.md pattern`. (Cross-reference: `frontend.instructions.md` is already used as a fixture in crates/libaipm/src/lint/rules/instructions_oversized.rs:255, so it has docs-fidelity precedent.)",
-      "Verify no other line in this file references the engine-prefix family by running `grep -n 'copilot-instructions\\|claude-instructions\\|agents-instructions\\|gemini-instructions' docs/rules/source/misplaced-features.md` — must return zero hits.",
-      "Run `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check` — all four green.",
-      "Append a one-line entry to research/progress.txt: `<UTC timestamp> Feature 7 complete — misplaced-features.md tree-diagram example corrected.`"
+      "From parsed.engines, generate pub enum Engine with one PascalCase variant per engine name (claude → Claude, copilot-cli → CopilotCli)",
+      "Generate impl Engine: pub const ALL: &'static [Engine], pub const fn name(self) -> &'static str (returns the original name string), pub fn from_name(name: &str) -> Option<Self>",
+      "Generate bitflags::bitflags! { pub struct EngineSet: u32 { const CLAUDE = ..., const COPILOT_CLI = ..., const ALL = union } }",
+      "Use proc-macro2 + quote to produce TokenStream; format with prettyplease::unparse",
+      "Write to OUT_DIR/engine_data.rs",
+      "Add include!(concat!(env!(\"OUT_DIR\"), \"/engine_data.rs\")) in src/generated.rs",
+      "Verify cargo build -p libaipm-engine-spec succeeds and Engine + EngineSet are accessible from crate root"
     ],
     "passes": true
   },
   {
-    "category": "verification",
-    "description": "Final verification — workspace-wide grep for engine-prefix references; cargo gates green; branch coverage ≥ 89%; spec G11 satisfied",
+    "category": "functional",
+    "description": "build.rs codegen: ENGINES const table with EngineSpec struct",
     "steps": [
-      "Run a workspace-wide search for any remaining reference to the engine-prefix family: `grep -rn 'ENGINE_INSTRUCTION_PREFIXES\\|matches_engine_instructions\\|claude-instructions.md\\|agents-instructions.md\\|gemini-instructions.md' --include='*.rs' --include='*.md' --include='*.feature' --include='*.toml' --include='*.json' --include='*.yml' --include='*.yaml' .` — all surviving hits MUST be in (a) specs/2026-05-02-engine-instructions-md-pattern-removal.md (this spec itself), (b) research/docs/2026-05-02-engine-instructions-md-pattern-removal.md (the research doc), (c) the regression test added in Feature 4, (d) the CHANGELOG `### Removed` entry from Feature 6, or (e) the withdrawal preamble in 2026-05-01-unified-discovery-... from Feature 5. Any other hit indicates a missed edit.",
-      "Run a separate search for the bare `copilot-instructions.md` token (which IS a real Copilot path): `grep -rn 'copilot-instructions.md' --include='*.rs' --include='*.md' .`. Surviving hits should be limited to (a) the regression test, (b) the spec/research/CHANGELOG entries enumerated above, (c) `.github/workflows/reverse-binary-analysis.md:142` (illustrative reference to the real `.github/copilot-instructions.md` path — keep), (d) `specs/2026-04-11-lint-instructions-oversized.md:36` (factual prose about Copilot CLI conventions — keep), (e) `research/docs/2026-03-28-copilot-cli-source-code-analysis.md` and `research/tickets/2026-04-11-185-prevent-long-instructions-files.md` (historical research — keep).",
-      "Run all four cargo quality gates from CLAUDE.md: `cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check`. All four MUST pass with zero warnings.",
-      "Run the branch-coverage gate from CLAUDE.md: `cargo +nightly llvm-cov clean --workspace && cargo +nightly llvm-cov --no-report --workspace --branch && cargo +nightly llvm-cov --no-report --doc && cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs|lsp\\.rs)'`. The TOTAL branch column MUST be ≥ 89%.",
-      "Confirm the regression test from Feature 4 is present and passing by running `cargo test --workspace -p libaipm nested_engine_instructions_md_not_classified` (or equivalent) — output must show 1 test passed.",
-      "Append a final summary entry to research/progress.txt: `<UTC timestamp> All features complete — engine-prefix branch removal verified workspace-green; branch coverage <pct>% (target ≥89%); regression guard active.`"
+      "Define struct EngineSpec { name: &'static str, package: &'static str, version: &'static str, marker_paths: &'static [&'static str], marketplace_manifest_path: &'static str, manifest_search_paths: &'static [&'static str], settings_paths: &'static [&'static str], folder_conventions: &'static [&'static str], convention_files: &'static [(&'static str, &'static [&'static str])] } in types.rs",
+      "From parsed.apis, generate pub const ENGINES: &[(Engine, EngineSpec)] = &[ ... ] populated from each engine's EngineApi fields",
+      "marker_paths and marketplace_manifest_path: derive from manifest_search_paths (the schema reports them; this is where the .toml→.json fix vs current Rust takes effect — Q2b 'schema wins')",
+      "Verify cargo build succeeds and ENGINES.len() >= 2 in a smoke test"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "build.rs codegen: VALID_TOOLS phf::Set via phf_codegen",
+    "steps": [
+      "Iterate every parsed.apis.<engine>.tool_calls[].name and tool_calls[].aliases into a phf_codegen::Set",
+      "Write 'pub static VALID_TOOLS: phf::Set<&\\'static str> = ' followed by set.build() to OUT_DIR/valid_tools.rs",
+      "Either include the file in src/generated.rs alongside engine_data.rs, or merge into engine_data.rs in build.rs",
+      "Verify VALID_TOOLS is non-empty and contains known tools like 'Bash', 'Edit', 'Read', 'browser_navigate'"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "build.rs codegen: TOOL_COMPATIBILITY const table",
+    "steps": [
+      "From parsed.tool_compatibility.shared_tools and engine_exclusive_tools, generate pub const TOOL_COMPATIBILITY: &[(&'static str, EngineSet)] = &[ ... ]",
+      "Each shared tool maps to EngineSet::ALL",
+      "Each engine_exclusive_tools[name].supported_by maps to a bitflag union of those engines",
+      "Verify a shared tool ('bash') maps to EngineSet::ALL and a claude-exclusive tool ('Task') maps to EngineSet::CLAUDE only"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "build.rs codegen: HOOK_EVENTS_BY_ENGINE const table",
+    "steps": [
+      "Define HookEventStatic struct { name: &'static str, aliases: &'static [&'static str], deprecated: bool, notes: Option<&'static str> } in types.rs",
+      "From parsed.apis.<engine>.hook_events, generate pub const HOOK_EVENTS_BY_ENGINE: &[(Engine, &'static [HookEventStatic])] = &[ ... ]",
+      "Verify Engine::Claude maps to ~27 hook events and Engine::CopilotCli to ~10",
+      "Confirm that the legacy aliases (PreToolUse → preToolUse) appear in the aliases array of the canonical event"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "build.rs codegen: FEATURES_BY_ENGINE table and FeatureKind generated enum",
+    "steps": [
+      "Decide whether FeatureKind is hand-written in types.rs (already added in feature 2) or generated from parsed kinds; spec section 5.2 has it hand-written so prefer that",
+      "Generate pub const FEATURES_BY_ENGINE: &[(Engine, EngineFeatureSet)] = &[ ... ] where EngineFeatureSet is a bitflags struct over FeatureKind variants",
+      "Confirm Engine::Claude carries Skill|Agent|Mcp|Hook|OutputStyle and Engine::CopilotCli carries Skill|Agent|Mcp|Hook|OutputStyle|Lsp|Extension"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "build.rs codegen: paths module of centralized path constants",
+    "steps": [
+      "Aggregate all path-constant strings appearing across engines (.claude-plugin, .github/plugin, marketplace.json, marketplace.toml, plugin.json, aipm.toml, settings.json, settings.local.json, .claude, .github, .ai)",
+      "Generate pub mod paths { pub const CLAUDE_PLUGIN_DIR: &str = \".claude-plugin\"; pub const GITHUB_PLUGIN_DIR: &str = \".github/plugin\"; ... }",
+      "Note: aipm.toml is a project file, not engine-specific; include it in paths anyway since it appears alongside the others in scattered literal sites",
+      "Verify all spec section 5.3 path constants are present"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "build.rs codegen: constraints module from manifest_fields",
+    "steps": [
+      "Iterate parsed.apis.<engine>.manifest_fields entries; for fields with constraints.max_length, emit named constants",
+      "Generate pub mod constraints { pub const PLUGIN_NAME_MAX_LEN: usize = 64; pub const DESCRIPTION_MAX_LEN: usize = 1024; pub const POST_INSTALL_MSG_MAX_LEN: usize = 2048; ... }",
+      "If a regex constraint exists, emit pub const PLUGIN_NAME_REGEX: &str = \"...\" so consumers can compile it (or hand-validate against the same pattern)",
+      "Verify that PLUGIN_NAME_MAX_LEN matches the value currently in crates/libaipm/src/lint/rules/skill_name_too_long.rs (= 64)"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Implement libaipm-engine-spec helpers module + unit tests",
+    "steps": [
+      "Implement helpers::is_valid_event(event: &str, engine: Engine) -> bool by scanning HOOK_EVENTS_BY_ENGINE for the engine and checking name + aliases",
+      "Implement helpers::suggest_canonical(event: &str, engine: Engine) -> Option<&'static str> by reverse-lookup: find an entry where event matches an alias, return the canonical name",
+      "Implement helpers::engine_for_root_dir(name: &str) -> Option<Engine> mapping path component name (e.g. '.claude' → Engine::Claude); pair with marketplace_host_for_root_dir for '.ai'",
+      "Implement helpers::valid_tool_name_check(tool: &str, declared: EngineSet) -> Result<(), ToolNameViolation> consulting TOOL_COMPATIBILITY",
+      "Add unit tests covering: known events for both engines, legacy alias suggestion (PreToolUse → preToolUse for copilot context), unknown events, root-dir → engine mapping, tool-name check with empty/full/partial declared sets",
+      "Verify all helpers compile and pass tests"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add libaipm-engine-spec integration tests (validation, drift, generated tables smoke)",
+    "steps": [
+      "tests/schema_validation.rs: load data/engine-api-schema.json + schemas/engine-api.schema.json, run jsonschema validation, assert success",
+      "tests/schema_export_drift.rs: run schemars::schema_for!(EngineApiSchemaFile), serialize, semantic-compare against committed schemas/engine-api.schema.json, fail with a hint to re-run export-schema if drift",
+      "tests/generated_tables.rs: assert Engine::ALL.len() >= 2, VALID_TOOLS contains 'bash' and 'Bash', TOOL_COMPATIBILITY non-empty, every entry has a non-empty support set, HOOK_EVENTS_BY_ENGINE has entries for each Engine variant",
+      "Verify cargo test -p libaipm-engine-spec passes all three tests"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Wire libaipm to depend on libaipm-engine-spec",
+    "steps": [
+      "Add libaipm-engine-spec = { path = \"../libaipm-engine-spec\" } to crates/libaipm/Cargo.toml [dependencies]",
+      "Add a lib.rs re-export: pub use libaipm_engine_spec::{Engine, EngineSet, MarketplaceHost, paths, constraints} (paths/constraints/MarketplaceHost added in later features)",
+      "Verify cargo build -p libaipm succeeds"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Replace crates/libaipm/src/engine.rs Engine enum with re-export of generated Engine",
+    "steps": [
+      "Delete the local pub enum Engine { Claude, Copilot } at crates/libaipm/src/engine.rs:13-21",
+      "Replace const fn marker_paths(self) etc. (lines 25-53) with thin wrappers that read libaipm_engine_spec::ENGINES",
+      "Where existing call sites match Engine::Copilot, ensure they continue to compile by either renaming references to Engine::CopilotCli or by adding pub use libaipm_engine_spec::Engine; pub use libaipm_engine_spec::Engine::CopilotCli as Copilot; (alias for backwards compat — defer cleanup if needed)",
+      "Update validate_plugin (engine.rs:155-157) to iterate Engine::ALL.iter().map(|e| e.spec().marker_paths)",
+      "Update Engine::all_names → use Engine::ALL.iter().map(|e| e.name())",
+      "Verify cargo build -p libaipm succeeds and all engine.rs unit tests pass"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Replace crates/libaipm/src/discovery/types.rs Engine enum + introduce MarketplaceHost",
+    "steps": [
+      "Delete the local pub enum Engine { Claude, Copilot, Ai } at crates/libaipm/src/discovery/types.rs:38-46",
+      "Add pub enum MarketplaceHost { Ai } in discovery/types.rs (hand-written, since .ai/ is a marketplace-host concept, not an engine — Q2)",
+      "Replace any uses of the old Engine in discovery code with libaipm_engine_spec::Engine; for the Ai variant, use Option<MarketplaceHost>",
+      "Update DiscoveredFeature struct to carry both engine: Option<Engine> and host: Option<MarketplaceHost> (or a tagged enum if they're mutually exclusive)",
+      "Verify cargo build -p libaipm succeeds"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Update discovery/source.rs and lint/rules/scan.rs path-walker dispatch",
+    "steps": [
+      "Update infer_engine_root in crates/libaipm/src/discovery/source.rs:37-54 to call libaipm_engine_spec::helpers::engine_for_root_dir for .claude/.github and helpers::marketplace_host_for_root_dir for .ai",
+      "Update source_type_from_path in crates/libaipm/src/lint/rules/scan.rs:33-44 similarly",
+      "Replace literal '.claude'/'.github'/'.ai' strings with libaipm_engine_spec::paths::CLAUDE_DOT, GITHUB_DOT, AI_DOT",
+      "Verify discovery and lint tests pass"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Update discovery/instruction.rs, layout.rs, discovery_legacy.rs to use generated paths and convention files",
+    "steps": [
+      "Replace INSTRUCTION_FILENAMES const at crates/libaipm/src/discovery/instruction.rs:32-39 with a function that returns convention filenames aggregated from libaipm_engine_spec::ENGINES.iter().flat_map(|e| e.1.convention_files.iter().map(|(f, _)| *f)) deduplicated",
+      "Update crates/libaipm/src/discovery/layout.rs lines 52, 194, 227 literal substitutions to use libaipm_engine_spec::paths::*",
+      "Update crates/libaipm/src/discovery_legacy.rs:48-71 literal directory list to use libaipm_engine_spec::paths::CLAUDE_DOT, GITHUB_DOT",
+      "Verify discovery tests pass"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Delete known_events.rs and reroute hook_unknown_event.rs to engine-spec helpers",
+    "steps": [
+      "Delete crates/libaipm/src/lint/rules/known_events.rs entirely",
+      "Remove the corresponding mod statement from crates/libaipm/src/lint/rules/mod.rs",
+      "Update crates/libaipm/src/lint/rules/hook_unknown_event.rs:73 to call libaipm_engine_spec::helpers::is_valid_event and helpers::suggest_canonical instead of the local functions",
+      "Migrate the test cases from the deleted file into crates/libaipm-engine-spec/src/helpers.rs unit tests if they aren't already covered there",
+      "Verify cargo test -p libaipm passes"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Replace skill name/desc/regex/oversized lint constants with generated constraints",
+    "steps": [
+      "In crates/libaipm/src/lint/rules/skill_name_too_long.rs:13 replace const MAX_SKILL_NAME_LENGTH with libaipm_engine_spec::constraints::PLUGIN_NAME_MAX_LEN",
+      "In crates/libaipm/src/lint/rules/skill_desc_too_long.rs:13 replace const MAX_DESCRIPTION_LENGTH with libaipm_engine_spec::constraints::DESCRIPTION_MAX_LEN",
+      "In crates/libaipm/src/lint/rules/skill_name_invalid.rs:13-24 replace the byte-iteration regex implementation with a check using libaipm_engine_spec::constraints::PLUGIN_NAME_REGEX (compile via regex crate, or keep a hand-validator and add a test cross-checking against the constant)",
+      "If a hand-validator is kept (per OQ-S3), add a test that asserts the validator's behavior matches what the regex pattern would accept",
+      "Verify lint tests pass"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Implement valid-tool-name lint rule (issue #697) and wire it into the lint registry",
+    "steps": [
+      "Create crates/libaipm/src/lint/rules/valid_tool_name.rs implementing the Rule trait per spec section 5.6",
+      "Read declared engines from the plugin manifest (aipm.toml [engines] block) — if absent, treat as EngineSet::empty()",
+      "Iterate referenced tool names in agent/skill/hook frontmatter (look at existing agent_missing_tools.rs and frontmatter.rs for the extraction sites)",
+      "For each tool, look up libaipm_engine_spec::TOOL_COMPATIBILITY; if engine-exclusive and declared engines don't cover the support set, emit a Diagnostic per spec",
+      "Wire the rule in crates/libaipm/src/lint/rules/mod.rs",
+      "Add unit tests covering: undeclared + claude-only tool, undeclared + copilot-only tool, declared [\"claude\"] + claude-only tool (clean), declared [\"claude\"] + copilot-only tool (error), shared tool (always clean)",
+      "Verify cargo test -p libaipm passes"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Update lint/mod.rs RECOGNIZED_SOURCE_NAMES",
+    "steps": [
+      "At crates/libaipm/src/lint/mod.rs:30 replace const RECOGNIZED_SOURCE_NAMES: &[&str] = &[\".claude\", \".github\", \".ai\"] with a function or const constructed from libaipm_engine_spec::paths::CLAUDE_DOT, GITHUB_DOT, AI_DOT",
+      "Update all readers of RECOGNIZED_SOURCE_NAMES if its type changes",
+      "Verify lint tests pass"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Update manifest/types.rs engines field to EngineSet and adjust serde",
+    "steps": [
+      "At crates/libaipm/src/manifest/types.rs:66 change pub engines: Option<Vec<String>> to pub engines: Option<EngineSet>",
+      "Implement custom serde for EngineSet that reads/writes a JSON array of engine name strings",
+      "Update all readers of manifest.package.engines to call .iter() / .contains() on the new EngineSet",
+      "Verify manifest unit tests pass; if any test relied on the Vec<String> shape, port it to the new type"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Update manifest/validate.rs to source name regex and version checks from generated constraints",
+    "steps": [
+      "At crates/libaipm/src/manifest/validate.rs:55, 92-103 replace the hand-rolled regex with the constant from libaipm_engine_spec::constraints::PLUGIN_NAME_REGEX (or keep the byte validator with a cross-check test, per OQ-S3)",
+      "Length caps in manifest validators reroute to libaipm_engine_spec::constraints::*",
+      "Keep semver::VersionReq::parse and Version::parse usage (validate.rs:118, :179) — versions are not schema-driven",
+      "Verify manifest tests pass"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Rewrite make/engine_features.rs as re-export of generated FeatureKind and FEATURES_BY_ENGINE",
+    "steps": [
+      "Replace pub enum Feature in crates/libaipm/src/make/engine_features.rs:8 with pub use libaipm_engine_spec::FeatureKind as Feature",
+      "Delete CLAUDE_FEATURES and COPILOT_FEATURES constants",
+      "Replace features_for_engine(engine: &str) signature with features_for_engine(engine: Engine) -> EngineFeatureSet that consults libaipm_engine_spec::FEATURES_BY_ENGINE",
+      "Update callers in crates/libaipm/src/make/* to pass Engine values instead of strings",
+      "Update crates/aipm/src/main.rs:1074-1077 string match arms ('claude'|'copilot'|'both') to typed Engine + EngineSet logic",
+      "Verify make tests pass and the make CLI still accepts the same engine inputs"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Update migrate/adapters/{agent,hook,skill}.rs to use generated Engine type",
+    "steps": [
+      "In crates/libaipm/src/migrate/adapters/agent.rs lines 33-34, 58, 91-92, ~108: update Engine references (Engine::Copilot becomes Engine::CopilotCli throughout, or keep Copilot alias from earlier feature)",
+      "In crates/libaipm/src/migrate/adapters/hook.rs:29 same",
+      "In crates/libaipm/src/migrate/adapters/skill.rs lines 26, 76 same",
+      "Replace any hardcoded \"${COPILOT_AGENT_DIR}/\" / \"${CLAUDE_AGENT_DIR}/\" prefix strings with refs to libaipm_engine_spec::paths or per-engine spec lookup",
+      "Verify migrate tests pass"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Centralize path literals in 13 migrate detector files",
+    "steps": [
+      "For each of crates/libaipm/src/migrate/{agent,command,hook,mcp,skill,output_style}_detector.rs and copilot_{agent,extension,hook,lsp,mcp,skill}_detector.rs: identify literal occurrences of .claude-plugin, .github/plugin, marketplace.json, marketplace.toml, plugin.json, .claude, .github, settings.json, settings.local.json",
+      "Replace each with a reference to libaipm_engine_spec::paths::*",
+      "Run cargo build -p libaipm and cargo test -p libaipm and ensure no behavior change"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Centralize scattered path literals in installer, init, acquirer, cache, and other libaipm modules",
+    "steps": [
+      "crates/libaipm/src/installer/manifest_editor.rs lines 104, 123, 137, 151, 166, 200, 212: replace aipm.toml literals with paths::AIPM_TOML",
+      "crates/libaipm/src/init.rs lines 61, 286, 296: same",
+      "crates/libaipm/src/acquirer.rs lines 220, 331, 432, 471, 497, 587, 596, 714, 756, 802, 951, 994, 1020, 1028, 1071, 1079: replace .claude-plugin, plugin.json, aipm.toml, etc.",
+      "crates/libaipm/src/cache.rs lines 534, 1008: same",
+      "crates/libaipm/src/manifest/mod.rs lines 513, 523, 531: aipm.toml → paths",
+      "crates/libaipm/src/linker/{pipeline,hard_link}.rs: aipm.toml → paths",
+      "crates/libaipm/src/migrate/reconciler.rs lines 307, 319: settings.json → paths",
+      "Run cargo grep for any remaining stray literals (.claude-plugin|.github/plugin|marketplace.json|marketplace.toml|plugin.json|aipm.toml|CLAUDE.md|AGENTS.md|copilot-instructions.md|GEMINI.md) outside libaipm-engine-spec and confirm intentional remains only",
+      "Verify cargo build/test -p libaipm clean"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Update aipm CLI (wizard, main, wizard_tty) to use generated Engine and paths",
+    "steps": [
+      "crates/aipm/src/wizard.rs:297 replace pub const ENGINE_OPTIONS: &[&str] with a function returning libaipm_engine_spec::Engine::ALL.iter().map(|e| e.name())",
+      "crates/aipm/src/main.rs:730 replace const SUPPORTED_SOURCES: &[&str] = &[\".claude\", \".github\", \".ai\"] with refs to libaipm_engine_spec::paths::*",
+      "crates/aipm/src/main.rs:1074-1077 replace string-typed engine validation with Engine::from_name + EngineSet handling for the 'both' case",
+      "crates/aipm/src/wizard_tty.rs:145 replace match engine.as_str() string arms with typed match on Engine",
+      "Verify cargo build -p aipm and tests/cli_tests.rs pass"
+    ],
+    "passes": true
+  },
+  {
+    "category": "refactor",
+    "description": "Update reverse-binary-analysis.md workflow prompt for new schema fields and paths",
+    "steps": [
+      "Edit .github/workflows/reverse-binary-analysis.md frontmatter safe-outputs.create_pull_request.protected-paths to add 'crates/**', 'Cargo.toml', 'Cargo.lock', 'schemas/**' (Q5a)",
+      "Update prompt path references (md:63, :208, :278): research/engine-api-schema.json → crates/libaipm-engine-spec/data/engine-api-schema.json",
+      "Update prompt path references (md:65, :256, :278): research/engine-api-changelog.md → crates/libaipm-engine-spec/data/engine-api-changelog.md",
+      "Update extraction prompt (md:128-164) to require detection_notes/discovery_notes/rule_notes (renamed) instead of detection_heuristics/discovery_algorithm/rules",
+      "Update extraction prompt to emit manifest_fields as structured records with {name, type, required, constraints: {max_length?, regex?, default?}, notes?}",
+      "Update extraction prompt to also emit hook_events: [{name, aliases, deprecated, notes}] per engine",
+      "Update extraction prompt to also emit features: [{kind, manifest_field?, layout_hint?, capabilities?}] per engine",
+      "Update schema-shape JSONC examples (md:74-82, :196-203, :212-254) to reflect $schema URI top-level field and meta_schema_version field",
+      "Confirm changes preserve PR title prefix [reverse-binary-analysis] and labels automation, analysis"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Recompile reverse-binary-analysis.lock.yml via gh aw compile",
+    "steps": [
+      "Run gh aw compile reverse-binary-analysis from the repo root",
+      "Verify .github/workflows/reverse-binary-analysis.lock.yml is regenerated",
+      "Confirm protected-paths in the .lock.yml matches the .md frontmatter",
+      "Confirm the data file path appears correctly in safe-outputs JSON config",
+      "Commit both .md and .lock.yml together"
+    ],
+    "passes": true
+  },
+  {
+    "category": "documentation",
+    "description": "Update CLAUDE.md to document libaipm-engine-spec and export-schema workflow",
+    "steps": [
+      "Add an entry under Project Structure listing crates/libaipm-engine-spec/",
+      "Add a 'Schema export' section explaining cargo run -p libaipm-engine-spec --bin export-schema → schemas/engine-api.schema.json",
+      "Add a note that crates/libaipm-engine-spec/build.rs and bin/export-schema.rs should be in the cargo llvm-cov --ignore-filename-regex pattern",
+      "Add a note about META_SCHEMA_VERSION bumping when types.rs changes in a breaking way",
+      "Update the workflow file table to reflect that reverse-binary-analysis writes to crates/libaipm-engine-spec/data/ instead of research/",
+      "Verify CLAUDE.md renders without broken links"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Add stray-literals grep script and BDD scenarios for valid-tool-name",
+    "steps": [
+      "Create scripts/check-no-stray-literals.sh that greps the workspace for literal occurrences of '.claude-plugin', '.github/plugin', 'marketplace.json', 'marketplace.toml', 'plugin.json', 'aipm.toml' outside crates/libaipm-engine-spec/ and tests/, and reports any hits",
+      "Make the script return non-zero on any unexpected hit so it can run in CI",
+      "Add at least 3 BDD scenarios in tests/features/lint/ for valid-tool-name: undeclared engines + engine-exclusive tool emits warning, declared engines covering tool support emits no diagnostic, declared engines NOT covering emits error",
+      "Verify the BDD scenarios pass via cargo test --test bdd in libaipm"
+    ],
+    "passes": true
+  },
+  {
+    "category": "functional",
+    "description": "Verify workspace cargo build/test/clippy/fmt and 89% branch coverage",
+    "steps": [
+      "Run cargo build --workspace; expect clean exit",
+      "Run cargo test --workspace; expect all green (including new schema_validation, schema_export_drift, generated_tables, valid_tool_name unit tests, BDD scenarios)",
+      "Run cargo clippy --workspace -- -D warnings; expect clean (zero warnings)",
+      "Run cargo fmt --check; expect clean",
+      "Run cargo +nightly llvm-cov --no-report --workspace --branch followed by cargo +nightly llvm-cov report --doctests --branch with the existing --ignore-filename-regex pattern updated to also ignore crates/libaipm-engine-spec/build.rs and crates/libaipm-engine-spec/src/bin/export-schema.rs",
+      "Confirm TOTAL branch column ≥ 89%",
+      "If any of the above fails, fix root cause (do NOT add #[allow] or modify ignore patterns to mask failures)"
     ],
     "passes": true
   }

@@ -1,0 +1,488 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EngineApiSchemaFile",
+  "description": "Root document — the shape of `data/engine-api-schema.json`.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "Self-referential pointer to the schema this file conforms to.",
+      "type": "string"
+    },
+    "meta_schema_version": {
+      "type": "string"
+    },
+    "generated_at": {
+      "description": "ISO-8601 generation timestamp written by the workflow.",
+      "type": "string"
+    },
+    "engines": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/EngineBootstrap"
+      }
+    },
+    "versions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "apis": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/EngineApi"
+      }
+    },
+    "tool_compatibility": {
+      "$ref": "#/$defs/ToolCompatibility"
+    },
+    "suggestions": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/EngineSuggestions"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "meta_schema_version",
+    "generated_at",
+    "engines",
+    "versions",
+    "apis",
+    "tool_compatibility",
+    "suggestions"
+  ],
+  "$defs": {
+    "EngineBootstrap": {
+      "description": "Bootstrap information for an engine — how to acquire its binary.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Engine identifier (e.g. \"claude\", \"copilot-cli\").",
+          "type": "string"
+        },
+        "source": {
+          "description": "Distribution channel (\"npm\", \"github-release\", ...).",
+          "type": "string"
+        },
+        "package": {
+          "description": "Package identifier in the source channel.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "source",
+        "package"
+      ]
+    },
+    "EngineApi": {
+      "description": "Per-engine API surface, keyed by engine name in the parent map.",
+      "type": "object",
+      "properties": {
+        "manifest_fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ManifestFieldSpec"
+          }
+        },
+        "manifest_search_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "settings_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "folder_conventions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "convention_files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ConventionFile"
+          }
+        },
+        "skill_registration": {
+          "default": null
+        },
+        "lsp_config": {
+          "default": null
+        },
+        "mcp_config": {
+          "default": null
+        },
+        "output_styles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "size_limits": {
+          "$ref": "#/$defs/SizeLimits"
+        },
+        "detection_notes": {
+          "description": "Documentation only. Not consumed by Rust code.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "discovery_notes": {
+          "description": "Documentation only. Not consumed by Rust code.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "rule_notes": {
+          "description": "Documentation only. Not consumed by Rust code.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "tool_calls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ToolCall"
+          }
+        },
+        "hook_events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HookEvent"
+          }
+        },
+        "agent_commands": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "feature_flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/FeatureSpec"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "manifest_fields",
+        "settings_paths",
+        "folder_conventions",
+        "convention_files",
+        "size_limits",
+        "tool_calls",
+        "hook_events",
+        "features"
+      ]
+    },
+    "ManifestFieldSpec": {
+      "description": "Specification for a single manifest field.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "description": "JSON-schema-style primitive: \"string\" | \"number\" | \"boolean\" | \"array\" | \"object\" | \"url\" | ...",
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean",
+          "default": false
+        },
+        "constraints": {
+          "$ref": "#/$defs/Constraints",
+          "default": {}
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "type"
+      ]
+    },
+    "Constraints": {
+      "description": "Optional value-level constraints attached to a manifest field.",
+      "type": "object",
+      "properties": {
+        "max_length": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "min_length": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "regex": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "default": true
+      },
+      "additionalProperties": false
+    },
+    "ConventionFile": {
+      "description": "A \"convention file\" (CLAUDE.md, AGENTS.md, ...) and the directories it can live in.",
+      "type": "object",
+      "properties": {
+        "filename": {
+          "type": "string"
+        },
+        "convention_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "filename",
+        "convention_paths"
+      ]
+    },
+    "SizeLimits": {
+      "description": "Engine-imposed size limits (e.g. `Bash.timeout`, `plugin.name`).\n\nNumeric ceilings are flattened — every unknown numeric key collected at\nthe top level of `size_limits` becomes an entry in `numeric`. The\noptional `notes` field surfaces qualitative caveats from the workflow.",
+      "type": "object",
+      "properties": {
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      }
+    },
+    "ToolCall": {
+      "description": "A single tool call recognised by an engine.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "deprecated": {
+          "type": "boolean",
+          "default": false
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "HookEvent": {
+      "description": "A hook event recognised by an engine.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "deprecated": {
+          "type": "boolean",
+          "default": false
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name"
+      ]
+    },
+    "FeatureSpec": {
+      "description": "A single discoverable feature an engine supports (skills, agents, hooks, ...).",
+      "type": "object",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/FeatureKind"
+        },
+        "manifest_field": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "layout_hint": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ]
+    },
+    "FeatureKind": {
+      "description": "Closed enumeration of feature kinds. Hand-written so the variants are\nstable across schema regenerations and consumers can `match` exhaustively.",
+      "type": "string",
+      "enum": [
+        "skill",
+        "agent",
+        "mcp",
+        "hook",
+        "output_style",
+        "lsp",
+        "extension",
+        "command"
+      ]
+    },
+    "ToolCompatibility": {
+      "description": "Cross-engine tool compatibility classification.",
+      "type": "object",
+      "properties": {
+        "shared_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "engine_exclusive_tools": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/ToolSupport"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "shared_tools",
+        "engine_exclusive_tools"
+      ]
+    },
+    "ToolSupport": {
+      "description": "The set of engines that do / do not support a given tool name.",
+      "type": "object",
+      "properties": {
+        "supported_by": {
+          "description": "Engine name strings (matched against `engines[].name`).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unsupported_by": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "supported_by",
+        "unsupported_by"
+      ]
+    },
+    "EngineSuggestions": {
+      "description": "Free-form remediation suggestions emitted by the workflow per engine.",
+      "type": "object",
+      "properties": {
+        "adaptor_fixes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "test_cases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "behaviour_variants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

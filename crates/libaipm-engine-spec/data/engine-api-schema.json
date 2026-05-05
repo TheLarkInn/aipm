@@ -1,4 +1,6 @@
 {
+  "$schema": "../../../schemas/engine-api.schema.json",
+  "meta_schema_version": "1.0.0",
   "generated_at": "2026-05-01T23:45:47Z",
   "engines": [
     { "name": "claude", "source": "npm", "package": "@anthropic-ai/claude-code" },
@@ -35,13 +37,13 @@
         "bash_timeout_max_ms": 600000,
         "notes": "BashInput.timeout max is 600000ms"
       },
-      "detection_heuristics": [
+      "detection_notes": [
         "Presence of CLAUDE.md in repo root or .claude/ folder"
       ],
-      "discovery_algorithm": [
+      "discovery_notes": [
         "Scans .claude/ folder and ~/.claude/ for skills and settings"
       ],
-      "rules": [],
+      "rule_notes": [],
       "tool_calls": [
         { "name": "Task", "aliases": ["Agent"], "deprecated": false, "notes": "Spawn sub-agent; supports isolation:worktree" },
         { "name": "Bash", "aliases": [], "deprecated": false, "notes": "Execute shell command; max timeout 600000ms; supports run_in_background" },
@@ -63,31 +65,67 @@
         { "name": "exit_plan_mode", "aliases": ["ExitPlanMode"], "deprecated": false, "notes": "Exit planning mode" },
         { "name": "task_output", "aliases": ["TaskOutput"], "deprecated": false, "notes": "Emit task output" },
         { "name": "task_stop", "aliases": ["TaskStop"], "deprecated": false, "notes": "Stop a running task" }
+      ],
+      "hook_events": [
+        { "name": "PreToolUse", "aliases": [], "deprecated": false },
+        { "name": "PostToolUse", "aliases": [], "deprecated": false },
+        { "name": "PostToolUseFailure", "aliases": [], "deprecated": false },
+        { "name": "Notification", "aliases": [], "deprecated": false },
+        { "name": "SessionStart", "aliases": [], "deprecated": false },
+        { "name": "Stop", "aliases": [], "deprecated": false },
+        { "name": "StopFailure", "aliases": [], "deprecated": false },
+        { "name": "SubagentStart", "aliases": [], "deprecated": false },
+        { "name": "SubagentStop", "aliases": [], "deprecated": false },
+        { "name": "PreCompact", "aliases": [], "deprecated": false },
+        { "name": "PostCompact", "aliases": [], "deprecated": false },
+        { "name": "SessionEnd", "aliases": [], "deprecated": false },
+        { "name": "PermissionRequest", "aliases": [], "deprecated": false },
+        { "name": "Setup", "aliases": [], "deprecated": false },
+        { "name": "TeammateIdle", "aliases": [], "deprecated": false },
+        { "name": "TaskCreated", "aliases": [], "deprecated": false },
+        { "name": "TaskCompleted", "aliases": [], "deprecated": false },
+        { "name": "UserPromptSubmit", "aliases": [], "deprecated": false },
+        { "name": "ToolError", "aliases": [], "deprecated": false },
+        { "name": "Elicitation", "aliases": [], "deprecated": false },
+        { "name": "ElicitationResult", "aliases": [], "deprecated": false },
+        { "name": "ConfigChange", "aliases": [], "deprecated": false },
+        { "name": "InstructionsLoaded", "aliases": [], "deprecated": false },
+        { "name": "WorktreeCreate", "aliases": [], "deprecated": false },
+        { "name": "WorktreeRemove", "aliases": [], "deprecated": false },
+        { "name": "CwdChanged", "aliases": [], "deprecated": false },
+        { "name": "FileChanged", "aliases": [], "deprecated": false }
+      ],
+      "features": [
+        { "kind": "skill", "manifest_field": "skills" },
+        { "kind": "agent", "manifest_field": "agents" },
+        { "kind": "mcp", "manifest_field": "mcpServers" },
+        { "kind": "hook", "manifest_field": "hooks" },
+        { "kind": "output_style", "manifest_field": "outputStyles" }
       ]
     },
     "copilot-cli": {
       "manifest_fields": [
-        "name (max 64 chars, regex /^[a-zA-Z0-9-]+$/)",
-        "source",
-        "description (max 1024 chars)",
-        "version",
-        "author { name, email? }",
-        "homepage (url)",
-        "repository (url)",
-        "license",
-        "keywords (string[])",
-        "category",
-        "tags (string[])",
-        "commands",
-        "agents",
-        "skills",
-        "hooks (string | record)",
-        "mcpServers (string | record)",
-        "lspServers (string | record)",
-        "outputStyles (string | string[])",
-        "logo",
-        "postInstallMessage (max 2048 chars)",
-        "strict (boolean, default true)"
+        { "name": "name", "type": "string", "required": true, "constraints": { "max_length": 64, "regex": "^[a-zA-Z0-9-]+$" } },
+        { "name": "source", "type": "string" },
+        { "name": "description", "type": "string", "constraints": { "max_length": 1024 } },
+        { "name": "version", "type": "string" },
+        { "name": "author", "type": "object", "notes": "{ name, email? }" },
+        { "name": "homepage", "type": "url" },
+        { "name": "repository", "type": "url" },
+        { "name": "license", "type": "string" },
+        { "name": "keywords", "type": "array", "notes": "string[]" },
+        { "name": "category", "type": "string" },
+        { "name": "tags", "type": "array", "notes": "string[]" },
+        { "name": "commands", "type": "object" },
+        { "name": "agents", "type": "object" },
+        { "name": "skills", "type": "object" },
+        { "name": "hooks", "type": "object", "notes": "string | record" },
+        { "name": "mcpServers", "type": "object", "notes": "string | record" },
+        { "name": "lspServers", "type": "object", "notes": "string | record" },
+        { "name": "outputStyles", "type": "array", "notes": "string | string[]" },
+        { "name": "logo", "type": "string" },
+        { "name": "postInstallMessage", "type": "string", "constraints": { "max_length": 2048 } },
+        { "name": "strict", "type": "boolean", "constraints": { "default": true } }
       ],
       "manifest_search_paths": [
         "marketplace.json",
@@ -154,20 +192,20 @@
         "max_buffer_bytes": 1048576,
         "notes": "1MB maxBuffer for child_process.execFileSync calls"
       },
-      "detection_heuristics": [
+      "detection_notes": [
         "Presence of .github/copilot-instructions.md",
         "Presence of AGENTS.md in repo root",
         "Presence of .github/copilot/ folder",
         "Presence of .github/extensions/ folder"
       ],
-      "discovery_algorithm": [
+      "discovery_notes": [
         "Scans .github/extensions/ (project) and ~/.copilot/extensions/ (personal) for extensions",
         "Scans .github/skills/, .agents/skills/, .claude/skills/ for project skills",
         "Scans ~/.copilot/skills/, ~/.agents/skills/, ~/.claude/skills/ for personal skills",
         "Scans .github/agents/ for project agents",
         "Loads marketplace.json from plugin root for plugin metadata"
       ],
-      "rules": [
+      "rule_notes": [
         "Plugin name must match /^[a-zA-Z0-9-]+$/",
         "Plugin name max length 64 chars",
         "Homepage and repository must be valid URLs",
@@ -301,6 +339,26 @@
         { "name": "bestpractices", "aliases": [], "deprecated": false, "notes": "General best practices tool" },
         { "name": "documentation", "aliases": [], "deprecated": false, "notes": "Documentation lookup tool" },
         { "name": "ait", "aliases": [], "deprecated": false, "notes": "Azure IT tool" }
+      ],
+      "hook_events": [
+        { "name": "sessionStart", "aliases": ["SessionStart"], "deprecated": false },
+        { "name": "sessionEnd", "aliases": ["SessionEnd"], "deprecated": false },
+        { "name": "userPromptSubmitted", "aliases": ["UserPromptSubmit"], "deprecated": false },
+        { "name": "preToolUse", "aliases": ["PreToolUse"], "deprecated": false },
+        { "name": "postToolUse", "aliases": ["PostToolUse"], "deprecated": false },
+        { "name": "errorOccurred", "aliases": ["PostToolUseFailure", "ErrorOccurred"], "deprecated": false },
+        { "name": "agentStop", "aliases": ["Stop"], "deprecated": false },
+        { "name": "subagentStop", "aliases": ["SubagentStop"], "deprecated": false },
+        { "name": "subagentStart", "aliases": [], "deprecated": false },
+        { "name": "preCompact", "aliases": ["PreCompact"], "deprecated": false }
+      ],
+      "features": [
+        { "kind": "skill", "manifest_field": "skills" },
+        { "kind": "agent", "manifest_field": "agents" },
+        { "kind": "mcp", "manifest_field": "mcpServers" },
+        { "kind": "hook", "manifest_field": "hooks" },
+        { "kind": "lsp", "manifest_field": "lspServers" },
+        { "kind": "extension" }
       ]
     }
   },

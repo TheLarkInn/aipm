@@ -342,7 +342,7 @@ fn resolve_plugins_dir(dir: &Path) -> PathBuf {
             tracing::debug!(path = %manifest_path.display(), error = %e, "could not load manifest, using .ai");
         },
     }
-    dir.join(".ai")
+    dir.join(libaipm::paths::AI_DOT)
 }
 
 /// Get the global content-addressable store path (`~/.aipm/store/`).
@@ -727,7 +727,8 @@ fn cmd_lint(
 
     // Validate --source against supported set
     if let Some(ref src) = source {
-        const SUPPORTED_SOURCES: &[&str] = &[".claude", ".github", ".ai"];
+        const SUPPORTED_SOURCES: &[&str] =
+            &[libaipm::paths::CLAUDE_DOT, libaipm::paths::GITHUB_DOT, libaipm::paths::AI_DOT];
         if !SUPPORTED_SOURCES.contains(&src.as_str()) {
             return Err(format!(
                 "unsupported source '{src}'; valid sources: .claude, .github, .ai"
@@ -922,7 +923,10 @@ fn derive_summary_sources(source: Option<&str>, scanned_dirs: &[PathBuf]) -> Vec
         for component in dir.components() {
             if let std::path::Component::Normal(os) = component {
                 if let Some(seg) = os.to_str() {
-                    if matches!(seg, ".github" | ".claude" | ".ai") {
+                    if seg == libaipm::paths::GITHUB_DOT
+                        || seg == libaipm::paths::CLAUDE_DOT
+                        || seg == libaipm::paths::AI_DOT
+                    {
                         found.insert(seg.to_string());
                         break;
                     }
@@ -1070,27 +1074,34 @@ fn cmd_make_plugin(
     )
     .map_err(libaipm::make::Error::InvalidName)?;
 
-    // Validate engine
-    match resolved_engine.as_str() {
-        "claude" | "copilot" | "both" => {},
-        _ => return Err(libaipm::make::Error::InvalidEngine(resolved_engine).into()),
-    }
+    // Validate engine — accept the legacy "claude" / "copilot" / "both"
+    // CLI strings as well as the canonical kebab-case names (e.g.
+    // "copilot-cli") returned by `Engine::name`.
+    let engine_set = libaipm::make::engine_features::parse_engine_arg(&resolved_engine)
+        .ok_or_else(|| libaipm::make::Error::InvalidEngine(resolved_engine.clone()))?;
 
     // Parse and validate features
     let parsed_features: Vec<libaipm::make::Feature> = resolved_features
         .iter()
         .map(|f| {
-            libaipm::make::Feature::from_cli_name(f)
+            <libaipm::make::Feature as libaipm::make::FeatureExt>::from_cli_name(f)
                 .ok_or_else(|| libaipm::make::Error::InvalidFeature(f.clone()))
         })
         .collect::<Result<_, _>>()?;
 
-    if let Err(unsupported) =
-        libaipm::make::engine_features::validate_features(&resolved_engine, &parsed_features)
-    {
+    let target_engines: Vec<libaipm::Engine> = libaipm::Engine::ALL
+        .iter()
+        .copied()
+        .filter(|e| engine_set.contains(libaipm::make::engine_features::engine_to_set_bit(*e)))
+        .collect();
+    if let Err(unsupported) = libaipm::make::engine_features::validate_features_for_engines(
+        &target_engines,
+        &parsed_features,
+    ) {
         if let Some(first) = unsupported.first() {
             return Err(libaipm::make::Error::UnsupportedFeature {
-                feature: first.cli_name().to_string(),
+                feature: <libaipm::make::Feature as libaipm::make::FeatureExt>::cli_name(*first)
+                    .to_string(),
                 engine: resolved_engine,
             }
             .into());

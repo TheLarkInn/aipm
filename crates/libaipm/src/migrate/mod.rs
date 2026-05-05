@@ -1,5 +1,16 @@
 //! Migration pipeline: scan AI tool configurations and convert to marketplace plugins.
 
+/// Engine-specific agent-directory environment-variable placeholders that
+/// agent scripts use to reference their own working directory at runtime.
+///
+/// These are CLI-runtime API contracts (`${CLAUDE_AGENT_DIR}` resolves
+/// per-engine when the engine spawns the agent), not aipm filesystem
+/// paths — hence they live here rather than in
+/// `libaipm_engine_spec::paths`. Centralised so the migrate detectors
+/// and adapters share a single source of truth.
+pub(crate) const CLAUDE_AGENT_DIR_VAR: &str = "${CLAUDE_AGENT_DIR}/";
+pub(crate) const COPILOT_AGENT_DIR_VAR: &str = "${COPILOT_AGENT_DIR}/";
+
 pub mod adapters;
 pub mod agent_detector;
 pub mod cleanup;

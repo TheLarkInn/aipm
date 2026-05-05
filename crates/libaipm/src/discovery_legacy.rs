@@ -44,12 +44,12 @@ impl DiscoveredSource {
 
 /// Walk the project tree and find all `.claude/` directories.
 ///
-/// Delegates to `discover_source_dirs` with `[".claude"]` patterns.
+/// Delegates to `discover_source_dirs` with `[paths::CLAUDE_DOT]` patterns.
 pub fn discover_claude_dirs(
     project_root: &Path,
     max_depth: Option<usize>,
 ) -> Result<Vec<DiscoveredSource>, Error> {
-    discover_source_dirs(project_root, &[".claude"], max_depth)
+    discover_source_dirs(project_root, &[libaipm_engine_spec::paths::CLAUDE_DOT], max_depth)
 }
 
 /// Walk the project tree and find all source directories matching the given patterns.

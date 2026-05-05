@@ -279,12 +279,14 @@ fn generate_starter_manifest() -> String {
     let hooks = vec!["hooks/hooks.json".to_string()];
     let scripts = vec!["scripts/scaffold-plugin.sh".to_string()];
 
+    let starter_engines: &[&str] = &["claude"];
     crate::manifest::builder::build_plugin_manifest(
         &crate::manifest::builder::PluginManifestOpts {
             name: "starter-aipm-plugin",
             version: "0.1.0",
             plugin_type: Some("composite"),
             description: Some("Default starter plugin \u{2014} scaffold new plugins, scan your marketplace, and log tool usage"),
+            engines: Some(starter_engines),
         },
         Some(&crate::manifest::builder::PluginComponentsOpts {
             skills: Some(&skills),

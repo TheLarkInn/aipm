@@ -124,7 +124,7 @@ mod tests {
         let stub = StubAdapter;
         let feat = DiscoveredFeature {
             kind: crate::discovery::FeatureKind::Skill,
-            engine: crate::discovery::Engine::Claude,
+            source: crate::discovery::types::DiscoverySource::CLAUDE,
             layout: crate::discovery::Layout::Canonical,
             source_root: std::path::PathBuf::from(".claude"),
             feature_dir: None,

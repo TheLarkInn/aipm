@@ -15,7 +15,8 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::discovery::{DiscoveredFeature, Engine, FeatureKind};
+use crate::discovery::types::DiscoverySource;
+use crate::discovery::{DiscoveredFeature, FeatureKind};
 use crate::fs::Fs;
 use crate::migrate::skill_common;
 use crate::migrate::{Artifact, ArtifactKind, Error};
@@ -31,7 +32,7 @@ impl Adapter for CopilotAgentAdapter {
     }
 
     fn applies_to(&self, feat: &DiscoveredFeature) -> bool {
-        feat.engine == Engine::Copilot && feat.kind == FeatureKind::Agent
+        feat.source == DiscoverySource::COPILOT_CLI && feat.kind == FeatureKind::Agent
     }
 
     fn to_artifact(&self, feat: &DiscoveredFeature, fs: &dyn Fs) -> Result<Artifact, Error> {
@@ -54,8 +55,10 @@ impl Adapter for CopilotAgentAdapter {
         // Extract script references using the Copilot prefix so the emitter
         // can copy referenced scripts alongside the agent artifact (parity
         // with the legacy CopilotAgentDetector).
-        let referenced_scripts =
-            skill_common::extract_script_references(&content, "${COPILOT_AGENT_DIR}/");
+        let referenced_scripts = skill_common::extract_script_references(
+            &content,
+            crate::migrate::COPILOT_AGENT_DIR_VAR,
+        );
 
         Ok(Artifact {
             kind: ArtifactKind::Agent,
@@ -89,7 +92,7 @@ impl Adapter for ClaudeAgentAdapter {
     }
 
     fn applies_to(&self, feat: &DiscoveredFeature) -> bool {
-        feat.engine == Engine::Claude && feat.kind == FeatureKind::Agent
+        feat.source == DiscoverySource::CLAUDE && feat.kind == FeatureKind::Agent
     }
 
     fn to_artifact(&self, feat: &DiscoveredFeature, fs: &dyn Fs) -> Result<Artifact, Error> {
@@ -104,7 +107,7 @@ impl Adapter for ClaudeAgentAdapter {
         let name = metadata.name.clone().unwrap_or(stem_from_filename);
 
         let referenced_scripts =
-            skill_common::extract_script_references(&content, "${CLAUDE_AGENT_DIR}/");
+            skill_common::extract_script_references(&content, crate::migrate::CLAUDE_AGENT_DIR_VAR);
 
         Ok(Artifact {
             kind: ArtifactKind::Agent,
@@ -129,7 +132,7 @@ mod tests {
         let adapter = CopilotAgentAdapter;
         let agent = DiscoveredFeature {
             kind: FeatureKind::Agent,
-            engine: Engine::Copilot,
+            source: DiscoverySource::COPILOT_CLI,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".github"),
             feature_dir: Some(PathBuf::from(".github/agents")),
@@ -143,7 +146,7 @@ mod tests {
         let adapter = CopilotAgentAdapter;
         let agent = DiscoveredFeature {
             kind: FeatureKind::Agent,
-            engine: Engine::Claude,
+            source: DiscoverySource::CLAUDE,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".claude"),
             feature_dir: Some(PathBuf::from(".claude/agents")),
@@ -157,7 +160,7 @@ mod tests {
         let adapter = CopilotAgentAdapter;
         let skill = DiscoveredFeature {
             kind: FeatureKind::Skill,
-            engine: Engine::Copilot,
+            source: DiscoverySource::COPILOT_CLI,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".github"),
             feature_dir: Some(PathBuf::from(".github/skills/x")),
@@ -185,7 +188,7 @@ mod tests {
 
         let feat = DiscoveredFeature {
             kind: FeatureKind::Agent,
-            engine: Engine::Copilot,
+            source: DiscoverySource::COPILOT_CLI,
             layout: Layout::Canonical,
             source_root: tmp.path().to_path_buf(),
             feature_dir: Some(agents_dir),
@@ -207,7 +210,7 @@ mod tests {
 
         let feat = DiscoveredFeature {
             kind: FeatureKind::Agent,
-            engine: Engine::Copilot,
+            source: DiscoverySource::COPILOT_CLI,
             layout: Layout::Canonical,
             source_root: tmp.path().to_path_buf(),
             feature_dir: Some(agents_dir),
@@ -227,7 +230,7 @@ mod tests {
 
         let feat = DiscoveredFeature {
             kind: FeatureKind::Agent,
-            engine: Engine::Copilot,
+            source: DiscoverySource::COPILOT_CLI,
             layout: Layout::Canonical,
             source_root: tmp.path().to_path_buf(),
             feature_dir: Some(agents_dir),
@@ -253,7 +256,7 @@ mod tests {
         let adapter = ClaudeAgentAdapter;
         let claude_agent = DiscoveredFeature {
             kind: FeatureKind::Agent,
-            engine: Engine::Claude,
+            source: DiscoverySource::CLAUDE,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".claude"),
             feature_dir: Some(PathBuf::from(".claude/agents")),
@@ -267,7 +270,7 @@ mod tests {
         let adapter = ClaudeAgentAdapter;
         let copilot_agent = DiscoveredFeature {
             kind: FeatureKind::Agent,
-            engine: Engine::Copilot,
+            source: DiscoverySource::COPILOT_CLI,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".github"),
             feature_dir: Some(PathBuf::from(".github/agents")),
@@ -281,7 +284,7 @@ mod tests {
         let adapter = ClaudeAgentAdapter;
         let claude_skill = DiscoveredFeature {
             kind: FeatureKind::Skill,
-            engine: Engine::Claude,
+            source: DiscoverySource::CLAUDE,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".claude"),
             feature_dir: Some(PathBuf::from(".claude/skills/x")),
@@ -309,7 +312,7 @@ mod tests {
 
         let feat = DiscoveredFeature {
             kind: FeatureKind::Agent,
-            engine: Engine::Claude,
+            source: DiscoverySource::CLAUDE,
             layout: Layout::Canonical,
             source_root: tmp.path().to_path_buf(),
             feature_dir: Some(agents_dir),
@@ -333,7 +336,7 @@ mod tests {
 
         let feat = DiscoveredFeature {
             kind: FeatureKind::Agent,
-            engine: Engine::Claude,
+            source: DiscoverySource::CLAUDE,
             layout: Layout::Canonical,
             source_root: tmp.path().to_path_buf(),
             feature_dir: Some(agents_dir),
@@ -357,7 +360,7 @@ mod tests {
 
         let feat = DiscoveredFeature {
             kind: FeatureKind::Agent,
-            engine: Engine::Claude,
+            source: DiscoverySource::CLAUDE,
             layout: Layout::Canonical,
             source_root: tmp.path().to_path_buf(),
             feature_dir: Some(agents_dir),
@@ -379,7 +382,7 @@ mod tests {
 
         let feat = DiscoveredFeature {
             kind: FeatureKind::Agent,
-            engine: Engine::Claude,
+            source: DiscoverySource::CLAUDE,
             layout: Layout::Canonical,
             source_root: tmp.path().to_path_buf(),
             feature_dir: Some(agents_dir),

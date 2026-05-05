@@ -8,7 +8,7 @@
 use toml_edit::{value, Array, DocumentMut, Item, Table};
 
 /// Options for generating a plugin `aipm.toml`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PluginManifestOpts<'a> {
     /// Package name (required).
     pub name: &'a str,
@@ -18,6 +18,9 @@ pub struct PluginManifestOpts<'a> {
     pub plugin_type: Option<&'a str>,
     /// Human-readable description.  `None` omits the field.
     pub description: Option<&'a str>,
+    /// Optional declared engines list for `[package].engines`. `None` or an
+    /// empty slice omits the field.
+    pub engines: Option<&'a [&'a str]>,
 }
 
 /// Options for the `[components]` section of a plugin manifest.
@@ -65,6 +68,15 @@ pub fn build_plugin_manifest(
     }
     if let Some(d) = opts.description {
         pkg.insert("description", value(d));
+    }
+    if let Some(engines) = opts.engines {
+        if !engines.is_empty() {
+            let mut arr = Array::new();
+            for e in engines {
+                arr.push(*e);
+            }
+            pkg.insert("engines", value(arr));
+        }
     }
     doc.insert("package", Item::Table(pkg));
 
@@ -167,6 +179,7 @@ mod tests {
             version: "0.1.0",
             plugin_type: None,
             description: None,
+            engines: None,
         };
         let output = build_plugin_manifest(&opts, None);
         assert!(output.contains("[package]"), "missing [package]: {output}");
@@ -184,6 +197,7 @@ mod tests {
             version: "1.0.0",
             plugin_type: Some("skill"),
             description: None,
+            engines: None,
         };
         let output = build_plugin_manifest(&opts, None);
         assert!(output.contains("type = \"skill\""), "missing type: {output}");
@@ -196,6 +210,7 @@ mod tests {
             version: "2.0.0",
             plugin_type: Some("composite"),
             description: Some("A plugin with a description"),
+            engines: None,
         };
         let output = build_plugin_manifest(&opts, None);
         assert!(
@@ -216,6 +231,7 @@ mod tests {
             version: "0.1.0",
             plugin_type: Some("composite"),
             description: Some("Full-featured plugin"),
+            engines: None,
         };
         let components = PluginComponentsOpts {
             skills: Some(&skills),
@@ -242,6 +258,7 @@ mod tests {
             version: "0.1.0",
             plugin_type: None,
             description: None,
+            engines: None,
         };
         let components = PluginComponentsOpts::default();
         let output = build_plugin_manifest(&opts, Some(&components));
@@ -255,6 +272,7 @@ mod tests {
             version: "0.1.0",
             plugin_type: None,
             description: Some("Contains \"quotes\" and \\ backslashes"),
+            engines: None,
         };
         let output = build_plugin_manifest(&opts, None);
         // toml_edit should properly escape the quotes and backslashes
@@ -269,6 +287,7 @@ mod tests {
             version: "1.2.3",
             plugin_type: Some("composite"),
             description: None,
+            engines: None,
         };
         let output = build_plugin_manifest(&opts, None);
         assert!(output.contains("name = \"@company/ci-tools\""), "missing scoped name: {output}");
@@ -283,6 +302,7 @@ mod tests {
             version: "0.1.0",
             plugin_type: Some("mcp"),
             description: None,
+            engines: None,
         };
         let components = PluginComponentsOpts {
             mcp_servers: Some(&mcp),
@@ -305,6 +325,7 @@ mod tests {
             version: "0.1.0",
             plugin_type: Some("skill"),
             description: Some("Test round-trip"),
+            engines: None,
         };
         let components =
             PluginComponentsOpts { skills: Some(&skills), ..PluginComponentsOpts::default() };
@@ -485,6 +506,7 @@ mod tests {
             version: "0.1.0",
             plugin_type: None,
             description: None,
+            engines: None,
         };
         let empty: Vec<String> = Vec::new();
         let components =

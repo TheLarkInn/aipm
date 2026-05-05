@@ -4,13 +4,17 @@
 
 use std::path::Path;
 
+use libaipm_engine_spec::constraints::PLUGIN_NAME_MAX_LEN;
+
 use crate::fs::Fs;
 use crate::lint::diagnostic::{Diagnostic, Severity};
 use crate::lint::rule::Rule;
 use crate::lint::Error;
 
-/// Maximum length for a skill name (Copilot CLI limit).
-const MAX_SKILL_NAME_LENGTH: usize = 64;
+/// Maximum length for a skill name. Sourced from the schema-driven
+/// `constraints::PLUGIN_NAME_MAX_LEN` (the Copilot CLI plugin name cap,
+/// also applied here to skill names).
+const MAX_SKILL_NAME_LENGTH: usize = PLUGIN_NAME_MAX_LEN;
 
 /// Checks that skill names don't exceed 64 characters.
 pub struct NameTooLong;

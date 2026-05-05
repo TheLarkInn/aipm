@@ -5,9 +5,10 @@
 //!
 //! The skill grammar is the heart of the issue #725 fix: a `SKILL.md` matches
 //! when (A) any ancestor between the file's parent and the engine source root
-//! is literally named `skills`, OR (B) the engine is Copilot and the file's
-//! grandparent is named `copilot` (the legacy `.github/copilot/<name>/SKILL.md`
-//! accommodation already supported by the migrate detector).
+//! is literally named `skills`, OR (B) the source is the Copilot CLI engine
+//! and the file's grandparent is named `copilot` (the legacy
+//! `.github/copilot/<name>/SKILL.md` accommodation already supported by the
+//! migrate detector).
 //!
 //! Also provides matchers for the non-skill feature kinds:
 //! `match_agent` (any `<...>/agents/*.md`), `match_hook` (`hooks.json` under
@@ -24,9 +25,11 @@
 use std::ffi::OsString;
 use std::path::Path;
 
-use super::types::{DiscoveredFeature, Engine, FeatureKind, Layout};
+use libaipm_engine_spec::paths;
 
-/// Try to match `path` as a skill (`SKILL.md`) under the given `engine` and
+use super::types::{DiscoveredFeature, DiscoverySource, FeatureKind, Layout};
+
+/// Try to match `path` as a skill (`SKILL.md`) under the given `source` and
 /// `source_root`.
 ///
 /// Returns `Some(DiscoveredFeature)` if the path matches one of the supported
@@ -40,7 +43,11 @@ use super::types::{DiscoveredFeature, Engine, FeatureKind, Layout};
 ///
 /// Returns `None` for paths that don't match any known shape.
 #[must_use]
-pub fn match_skill(path: &Path, engine: Engine, source_root: &Path) -> Option<DiscoveredFeature> {
+pub fn match_skill(
+    path: &Path,
+    source: DiscoverySource,
+    source_root: &Path,
+) -> Option<DiscoveredFeature> {
     let ancestors = collect_ancestors(path, source_root);
 
     let any_skills = ancestors.iter().any(|n| n.to_string_lossy() == "skills");
@@ -49,7 +56,7 @@ pub fn match_skill(path: &Path, engine: Engine, source_root: &Path) -> Option<Di
     if !any_skills {
         // Case B: only Copilot's `.github/copilot/<name>/SKILL.md` accommodation
         // qualifies when there is no `skills` ancestor.
-        if !(engine == Engine::Copilot && grandparent_is_copilot) {
+        if !(source == DiscoverySource::COPILOT_CLI && grandparent_is_copilot) {
             return None;
         }
     }
@@ -57,7 +64,7 @@ pub fn match_skill(path: &Path, engine: Engine, source_root: &Path) -> Option<Di
     let layout = pick_layout_for_skill(&ancestors);
     Some(DiscoveredFeature {
         kind: FeatureKind::Skill,
-        engine,
+        source,
         layout,
         source_root: source_root.to_path_buf(),
         feature_dir: path.parent().map(Path::to_path_buf),
@@ -101,7 +108,11 @@ fn pick_layout_for_skill(ancestors: &[OsString]) -> Layout {
 /// feature) is responsible for ordering instruction-file detection BEFORE
 /// agent detection.
 #[must_use]
-pub fn match_agent(path: &Path, engine: Engine, source_root: &Path) -> Option<DiscoveredFeature> {
+pub fn match_agent(
+    path: &Path,
+    source: DiscoverySource,
+    source_root: &Path,
+) -> Option<DiscoveredFeature> {
     // Match the dispatch contract from `classify::classify`, which routes
     // here using a case-insensitive `.md` extension check. Using a
     // case-sensitive `ends_with(".md")` here silently rejected files like
@@ -115,7 +126,7 @@ pub fn match_agent(path: &Path, engine: Engine, source_root: &Path) -> Option<Di
     }
     Some(DiscoveredFeature {
         kind: FeatureKind::Agent,
-        engine,
+        source,
         layout: Layout::Canonical,
         source_root: source_root.to_path_buf(),
         feature_dir: path.parent().map(Path::to_path_buf),
@@ -130,7 +141,11 @@ pub fn match_agent(path: &Path, engine: Engine, source_root: &Path) -> Option<Di
 /// - `<...>/hooks/hooks.json` (today's `classify_feature_kind` rule — broad
 ///   match wherever a `hooks/` parent appears).
 #[must_use]
-pub fn match_hook(path: &Path, engine: Engine, source_root: &Path) -> Option<DiscoveredFeature> {
+pub fn match_hook(
+    path: &Path,
+    source: DiscoverySource,
+    source_root: &Path,
+) -> Option<DiscoveredFeature> {
     let file_name = path.file_name()?.to_string_lossy();
     if file_name != "hooks.json" {
         return None;
@@ -143,7 +158,7 @@ pub fn match_hook(path: &Path, engine: Engine, source_root: &Path) -> Option<Dis
     }
     Some(DiscoveredFeature {
         kind: FeatureKind::Hook,
-        engine,
+        source,
         layout: Layout::Canonical,
         source_root: source_root.to_path_buf(),
         feature_dir: path.parent().map(Path::to_path_buf),
@@ -156,7 +171,11 @@ pub fn match_hook(path: &Path, engine: Engine, source_root: &Path) -> Option<Dis
 /// Accepts `<.ai>/<plugin>/aipm.toml` — the grandparent must be named `.ai`.
 /// Mirrors today's `classify_feature_kind` Plugin branch.
 #[must_use]
-pub fn match_plugin(path: &Path, engine: Engine, source_root: &Path) -> Option<DiscoveredFeature> {
+pub fn match_plugin(
+    path: &Path,
+    source: DiscoverySource,
+    source_root: &Path,
+) -> Option<DiscoveredFeature> {
     let file_name = path.file_name()?.to_string_lossy();
     if file_name != "aipm.toml" {
         return None;
@@ -167,7 +186,7 @@ pub fn match_plugin(path: &Path, engine: Engine, source_root: &Path) -> Option<D
     }
     Some(DiscoveredFeature {
         kind: FeatureKind::Plugin,
-        engine,
+        source,
         layout: Layout::Canonical,
         source_root: source_root.to_path_buf(),
         feature_dir: path.parent().map(Path::to_path_buf),
@@ -183,24 +202,24 @@ pub fn match_plugin(path: &Path, engine: Engine, source_root: &Path) -> Option<D
 #[must_use]
 pub fn match_marketplace(
     path: &Path,
-    engine: Engine,
+    source: DiscoverySource,
     source_root: &Path,
 ) -> Option<DiscoveredFeature> {
     let file_name = path.file_name()?.to_string_lossy();
-    if file_name != "marketplace.json" {
+    if file_name != paths::MARKETPLACE_JSON {
         return None;
     }
     let parent_name = parent_name_lossy(path)?;
-    if parent_name != ".claude-plugin" {
+    if parent_name != paths::CLAUDE_PLUGIN_DIR {
         return None;
     }
     let grandparent = ancestor_name_lossy(path, 2)?;
-    if grandparent != ".ai" {
+    if grandparent != paths::AI_DOT {
         return None;
     }
     Some(DiscoveredFeature {
         kind: FeatureKind::Marketplace,
-        engine,
+        source,
         layout: Layout::Canonical,
         source_root: source_root.to_path_buf(),
         feature_dir: path.parent().map(Path::to_path_buf),
@@ -216,24 +235,24 @@ pub fn match_marketplace(
 #[must_use]
 pub fn match_plugin_json(
     path: &Path,
-    engine: Engine,
+    source: DiscoverySource,
     source_root: &Path,
 ) -> Option<DiscoveredFeature> {
     let file_name = path.file_name()?.to_string_lossy();
-    if file_name != "plugin.json" {
+    if file_name != paths::PLUGIN_JSON {
         return None;
     }
     let parent_name = parent_name_lossy(path)?;
-    if parent_name != ".claude-plugin" {
+    if parent_name != paths::CLAUDE_PLUGIN_DIR {
         return None;
     }
     let great_grandparent = ancestor_name_lossy(path, 3)?;
-    if great_grandparent != ".ai" {
+    if great_grandparent != paths::AI_DOT {
         return None;
     }
     Some(DiscoveredFeature {
         kind: FeatureKind::PluginJson,
-        engine,
+        source,
         layout: Layout::Canonical,
         source_root: source_root.to_path_buf(),
         feature_dir: path.parent().map(Path::to_path_buf),
@@ -266,9 +285,9 @@ mod tests {
     fn canonical_layout_claude() {
         let root = PathBuf::from("/repo/.claude");
         let path = PathBuf::from("/repo/.claude/skills/my-skill/SKILL.md");
-        let feat = match_skill(&path, Engine::Claude, &root).expect("should match");
+        let feat = match_skill(&path, DiscoverySource::CLAUDE, &root).expect("should match");
         assert_eq!(feat.kind, FeatureKind::Skill);
-        assert_eq!(feat.engine, Engine::Claude);
+        assert_eq!(feat.source, DiscoverySource::CLAUDE);
         assert_eq!(feat.layout, Layout::Canonical);
         assert_eq!(feat.source_root, root);
         assert_eq!(feat.feature_dir, Some(PathBuf::from("/repo/.claude/skills/my-skill")));
@@ -279,8 +298,8 @@ mod tests {
     fn canonical_layout_copilot() {
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/skills/my-skill/SKILL.md");
-        let feat = match_skill(&path, Engine::Copilot, &root).expect("should match");
-        assert_eq!(feat.engine, Engine::Copilot);
+        let feat = match_skill(&path, DiscoverySource::COPILOT_CLI, &root).expect("should match");
+        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
         assert_eq!(feat.layout, Layout::Canonical);
     }
 
@@ -289,8 +308,8 @@ mod tests {
         // .github/copilot/<name>/SKILL.md — the existing aipm accommodation.
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/copilot/my-skill/SKILL.md");
-        let feat = match_skill(&path, Engine::Copilot, &root).expect("should match");
-        assert_eq!(feat.engine, Engine::Copilot);
+        let feat = match_skill(&path, DiscoverySource::COPILOT_CLI, &root).expect("should match");
+        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
         assert_eq!(feat.layout, Layout::CopilotSubroot);
     }
 
@@ -299,8 +318,8 @@ mod tests {
         // The exact #725 customer layout: .github/copilot/skills/<name>/SKILL.md
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/copilot/skills/skill-alpha/SKILL.md");
-        let feat = match_skill(&path, Engine::Copilot, &root).expect("should match");
-        assert_eq!(feat.engine, Engine::Copilot);
+        let feat = match_skill(&path, DiscoverySource::COPILOT_CLI, &root).expect("should match");
+        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
         assert_eq!(feat.layout, Layout::CopilotSubrootWithSkills);
         assert_eq!(
             feat.feature_dir,
@@ -313,7 +332,8 @@ mod tests {
         let root = PathBuf::from("/repo/.github");
         for name in ["skill-alpha", "skill-beta", "skill-gamma"] {
             let path = PathBuf::from(format!("/repo/.github/copilot/skills/{name}/SKILL.md"));
-            let feat = match_skill(&path, Engine::Copilot, &root).expect("skill should match");
+            let feat = match_skill(&path, DiscoverySource::COPILOT_CLI, &root)
+                .expect("skill should match");
             assert_eq!(feat.layout, Layout::CopilotSubrootWithSkills);
         }
     }
@@ -327,8 +347,8 @@ mod tests {
         // to `Canonical`.
         let root = PathBuf::from("/repo/.ai");
         let path = PathBuf::from("/repo/.ai/my-plugin/skills/my-skill/SKILL.md");
-        let feat = match_skill(&path, Engine::Ai, &root).expect("should match");
-        assert_eq!(feat.engine, Engine::Ai);
+        let feat = match_skill(&path, DiscoverySource::AI, &root).expect("should match");
+        assert_eq!(feat.source, DiscoverySource::AI);
         assert_eq!(feat.layout, Layout::Canonical);
     }
 
@@ -341,8 +361,8 @@ mod tests {
         // through to `Canonical`.
         let root = PathBuf::from("/repo/.ai");
         let path = PathBuf::from("/repo/.ai/my-plugin/.claude/skills/my-skill/SKILL.md");
-        let feat = match_skill(&path, Engine::Ai, &root).expect("should match");
-        assert_eq!(feat.engine, Engine::Ai);
+        let feat = match_skill(&path, DiscoverySource::AI, &root).expect("should match");
+        assert_eq!(feat.source, DiscoverySource::AI);
         assert_eq!(feat.layout, Layout::Canonical);
     }
 
@@ -354,7 +374,7 @@ mod tests {
         // a per-skill name dir). Single ancestor: "skills".
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/skills/SKILL.md");
-        let feat = match_skill(&path, Engine::Copilot, &root).expect("should match");
+        let feat = match_skill(&path, DiscoverySource::COPILOT_CLI, &root).expect("should match");
         assert_eq!(feat.layout, Layout::Canonical);
     }
 
@@ -365,7 +385,7 @@ mod tests {
         // .github/SKILL.md — no skills ancestor, no copilot grandparent.
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/SKILL.md");
-        assert!(match_skill(&path, Engine::Copilot, &root).is_none());
+        assert!(match_skill(&path, DiscoverySource::COPILOT_CLI, &root).is_none());
     }
 
     #[test]
@@ -374,17 +394,17 @@ mod tests {
         // ancestors = [copilot]. ancestors.get(1) == None so Case B fails.
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/copilot/SKILL.md");
-        assert!(match_skill(&path, Engine::Copilot, &root).is_none());
+        assert!(match_skill(&path, DiscoverySource::COPILOT_CLI, &root).is_none());
     }
 
     #[test]
     fn copilot_subroot_only_works_for_copilot_engine() {
         // Even if path looks like .github/copilot/<name>/SKILL.md, Case B
-        // applies only when engine == Engine::Copilot.
+        // applies only when source == DiscoverySource::COPILOT_CLI.
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/copilot/my-skill/SKILL.md");
-        // Same path with engine=Claude — must not match (Case B is engine-gated).
-        assert!(match_skill(&path, Engine::Claude, &root).is_none());
+        // Same path with source=Claude — must not match (Case B is engine-gated).
+        assert!(match_skill(&path, DiscoverySource::CLAUDE, &root).is_none());
     }
 
     #[test]
@@ -393,7 +413,7 @@ mod tests {
         // accommodation — must return None.
         let root = PathBuf::from("/repo/.claude");
         let path = PathBuf::from("/repo/.claude/notes/random/SKILL.md");
-        assert!(match_skill(&path, Engine::Claude, &root).is_none());
+        assert!(match_skill(&path, DiscoverySource::CLAUDE, &root).is_none());
     }
 
     // --- positive: tricky shapes ---
@@ -412,20 +432,20 @@ mod tests {
         // the conservative default.
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/copilot/skills/group/my-skill/SKILL.md");
-        let feat = match_skill(&path, Engine::Copilot, &root).expect("should match");
+        let feat = match_skill(&path, DiscoverySource::COPILOT_CLI, &root).expect("should match");
         assert_eq!(feat.kind, FeatureKind::Skill);
-        assert_eq!(feat.engine, Engine::Copilot);
+        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
     }
 
     #[test]
     fn ai_plugin_path_with_claude_engine_is_canonical() {
-        // For .ai/<plugin>/skills/<name>/SKILL.md called with engine=Claude
+        // For .ai/<plugin>/skills/<name>/SKILL.md called with source=Claude
         // — falls through to Canonical (no dedicated AiPlugin layout exists
         // any more; the unified pipeline routes such paths via the innermost
         // engine root anyway).
         let root = PathBuf::from("/repo/.ai");
         let path = PathBuf::from("/repo/.ai/my-plugin/skills/my-skill/SKILL.md");
-        let feat = match_skill(&path, Engine::Claude, &root).expect("should match");
+        let feat = match_skill(&path, DiscoverySource::CLAUDE, &root).expect("should match");
         assert_eq!(feat.layout, Layout::Canonical);
     }
 
@@ -437,7 +457,7 @@ mod tests {
         // bare-`.ai`-root behavior is `Canonical` for both engines.
         let root = PathBuf::from("/repo/.ai");
         let path = PathBuf::from("/repo/.ai/my-plugin/.claude/skills/my-skill/SKILL.md");
-        let feat = match_skill(&path, Engine::Claude, &root).expect("should match");
+        let feat = match_skill(&path, DiscoverySource::CLAUDE, &root).expect("should match");
         assert_eq!(feat.layout, Layout::Canonical);
     }
 
@@ -447,7 +467,7 @@ mod tests {
     fn returns_correct_feature_dir() {
         let root = PathBuf::from("/repo/.claude");
         let path = PathBuf::from("/repo/.claude/skills/my-skill/SKILL.md");
-        let feat = match_skill(&path, Engine::Claude, &root).expect("should match");
+        let feat = match_skill(&path, DiscoverySource::CLAUDE, &root).expect("should match");
         assert_eq!(feat.feature_dir, Some(PathBuf::from("/repo/.claude/skills/my-skill")));
     }
 
@@ -455,7 +475,7 @@ mod tests {
     fn returns_correct_path_unchanged() {
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/copilot/skills/skill-alpha/SKILL.md");
-        let feat = match_skill(&path, Engine::Copilot, &root).expect("should match");
+        let feat = match_skill(&path, DiscoverySource::COPILOT_CLI, &root).expect("should match");
         assert_eq!(feat.path, path);
     }
 
@@ -465,9 +485,9 @@ mod tests {
     fn agent_canonical_layout() {
         let root = PathBuf::from("/repo/.claude");
         let path = PathBuf::from("/repo/.claude/agents/my-agent.md");
-        let feat = match_agent(&path, Engine::Claude, &root).expect("should match");
+        let feat = match_agent(&path, DiscoverySource::CLAUDE, &root).expect("should match");
         assert_eq!(feat.kind, FeatureKind::Agent);
-        assert_eq!(feat.engine, Engine::Claude);
+        assert_eq!(feat.source, DiscoverySource::CLAUDE);
         assert_eq!(feat.layout, Layout::Canonical);
         assert_eq!(feat.source_root, root);
         assert_eq!(feat.feature_dir, Some(PathBuf::from("/repo/.claude/agents")));
@@ -478,29 +498,29 @@ mod tests {
     fn agent_under_github_agents() {
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/agents/my-agent.md");
-        let feat = match_agent(&path, Engine::Copilot, &root).expect("should match");
-        assert_eq!(feat.engine, Engine::Copilot);
+        let feat = match_agent(&path, DiscoverySource::COPILOT_CLI, &root).expect("should match");
+        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
     }
 
     #[test]
     fn agent_non_md_extension_no_match() {
         let root = PathBuf::from("/repo/.claude");
         let path = PathBuf::from("/repo/.claude/agents/my-agent.txt");
-        assert!(match_agent(&path, Engine::Claude, &root).is_none());
+        assert!(match_agent(&path, DiscoverySource::CLAUDE, &root).is_none());
     }
 
     #[test]
     fn agent_wrong_parent_no_match() {
         let root = PathBuf::from("/repo/.claude");
         let path = PathBuf::from("/repo/.claude/skills/my-agent.md");
-        assert!(match_agent(&path, Engine::Claude, &root).is_none());
+        assert!(match_agent(&path, DiscoverySource::CLAUDE, &root).is_none());
     }
 
     #[test]
     fn agent_no_parent_no_match() {
         let root = PathBuf::from("/");
         let path = PathBuf::from("agent.md");
-        assert!(match_agent(&path, Engine::Claude, &root).is_none());
+        assert!(match_agent(&path, DiscoverySource::CLAUDE, &root).is_none());
     }
 
     // --- match_hook ---
@@ -509,9 +529,9 @@ mod tests {
     fn hook_under_hooks_subdir() {
         let root = PathBuf::from("/repo/.claude");
         let path = PathBuf::from("/repo/.claude/hooks/hooks.json");
-        let feat = match_hook(&path, Engine::Claude, &root).expect("should match");
+        let feat = match_hook(&path, DiscoverySource::CLAUDE, &root).expect("should match");
         assert_eq!(feat.kind, FeatureKind::Hook);
-        assert_eq!(feat.engine, Engine::Claude);
+        assert_eq!(feat.source, DiscoverySource::CLAUDE);
         assert_eq!(feat.layout, Layout::Canonical);
     }
 
@@ -520,15 +540,15 @@ mod tests {
         // The CopilotHookDetector pattern: .github/hooks.json directly under root.
         let root = PathBuf::from("/repo/.github");
         let path = PathBuf::from("/repo/.github/hooks.json");
-        let feat = match_hook(&path, Engine::Copilot, &root).expect("should match");
-        assert_eq!(feat.engine, Engine::Copilot);
+        let feat = match_hook(&path, DiscoverySource::COPILOT_CLI, &root).expect("should match");
+        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
     }
 
     #[test]
     fn hook_wrong_filename_no_match() {
         let root = PathBuf::from("/repo/.claude");
         let path = PathBuf::from("/repo/.claude/hooks/other.json");
-        assert!(match_hook(&path, Engine::Claude, &root).is_none());
+        assert!(match_hook(&path, DiscoverySource::CLAUDE, &root).is_none());
     }
 
     #[test]
@@ -537,7 +557,7 @@ mod tests {
         // "hooks" and parent isn't the source_root).
         let root = PathBuf::from("/repo/.claude");
         let path = PathBuf::from("/repo/.claude/skills/hooks.json");
-        assert!(match_hook(&path, Engine::Claude, &root).is_none());
+        assert!(match_hook(&path, DiscoverySource::CLAUDE, &root).is_none());
     }
 
     // --- match_plugin (aipm.toml) ---
@@ -546,7 +566,7 @@ mod tests {
     fn plugin_under_ai_directory() {
         let root = PathBuf::from("/repo/.ai");
         let path = PathBuf::from("/repo/.ai/my-plugin/aipm.toml");
-        let feat = match_plugin(&path, Engine::Ai, &root).expect("should match");
+        let feat = match_plugin(&path, DiscoverySource::AI, &root).expect("should match");
         assert_eq!(feat.kind, FeatureKind::Plugin);
         assert_eq!(feat.layout, Layout::Canonical);
         assert_eq!(feat.feature_dir, Some(PathBuf::from("/repo/.ai/my-plugin")));
@@ -556,14 +576,14 @@ mod tests {
     fn plugin_outside_ai_directory_no_match() {
         let root = PathBuf::from("/repo");
         let path = PathBuf::from("/repo/some-other-plugin/aipm.toml");
-        assert!(match_plugin(&path, Engine::Ai, &root).is_none());
+        assert!(match_plugin(&path, DiscoverySource::AI, &root).is_none());
     }
 
     #[test]
     fn plugin_wrong_filename_no_match() {
         let root = PathBuf::from("/repo/.ai");
         let path = PathBuf::from("/repo/.ai/my-plugin/Cargo.toml");
-        assert!(match_plugin(&path, Engine::Ai, &root).is_none());
+        assert!(match_plugin(&path, DiscoverySource::AI, &root).is_none());
     }
 
     #[test]
@@ -571,7 +591,7 @@ mod tests {
         // .ai/aipm.toml — grandparent is the project root, not .ai.
         let root = PathBuf::from("/repo/.ai");
         let path = PathBuf::from("/repo/.ai/aipm.toml");
-        assert!(match_plugin(&path, Engine::Ai, &root).is_none());
+        assert!(match_plugin(&path, DiscoverySource::AI, &root).is_none());
     }
 
     // --- match_marketplace ---
@@ -580,7 +600,7 @@ mod tests {
     fn marketplace_at_canonical_path() {
         let root = PathBuf::from("/repo/.ai");
         let path = PathBuf::from("/repo/.ai/.claude-plugin/marketplace.json");
-        let feat = match_marketplace(&path, Engine::Ai, &root).expect("should match");
+        let feat = match_marketplace(&path, DiscoverySource::AI, &root).expect("should match");
         assert_eq!(feat.kind, FeatureKind::Marketplace);
         assert_eq!(feat.layout, Layout::Canonical);
     }
@@ -589,14 +609,14 @@ mod tests {
     fn marketplace_wrong_parent_no_match() {
         let root = PathBuf::from("/repo/.ai");
         let path = PathBuf::from("/repo/.ai/some-other-dir/marketplace.json");
-        assert!(match_marketplace(&path, Engine::Ai, &root).is_none());
+        assert!(match_marketplace(&path, DiscoverySource::AI, &root).is_none());
     }
 
     #[test]
     fn marketplace_grandparent_not_ai_no_match() {
         let root = PathBuf::from("/repo");
         let path = PathBuf::from("/repo/.notai/.claude-plugin/marketplace.json");
-        assert!(match_marketplace(&path, Engine::Ai, &root).is_none());
+        assert!(match_marketplace(&path, DiscoverySource::AI, &root).is_none());
     }
 
     // --- match_plugin_json ---
@@ -605,7 +625,7 @@ mod tests {
     fn plugin_json_at_canonical_path() {
         let root = PathBuf::from("/repo/.ai");
         let path = PathBuf::from("/repo/.ai/my-plugin/.claude-plugin/plugin.json");
-        let feat = match_plugin_json(&path, Engine::Ai, &root).expect("should match");
+        let feat = match_plugin_json(&path, DiscoverySource::AI, &root).expect("should match");
         assert_eq!(feat.kind, FeatureKind::PluginJson);
         assert_eq!(feat.layout, Layout::Canonical);
     }
@@ -614,7 +634,7 @@ mod tests {
     fn plugin_json_wrong_parent_no_match() {
         let root = PathBuf::from("/repo/.ai");
         let path = PathBuf::from("/repo/.ai/my-plugin/elsewhere/plugin.json");
-        assert!(match_plugin_json(&path, Engine::Ai, &root).is_none());
+        assert!(match_plugin_json(&path, DiscoverySource::AI, &root).is_none());
     }
 
     #[test]
@@ -625,14 +645,14 @@ mod tests {
         let path = PathBuf::from("/repo/.ai/.claude-plugin/plugin.json");
         // Here parent=.claude-plugin (good), grandparent=.ai (good for marketplace),
         // great-grandparent=/repo (NOT .ai). So this is rejected by match_plugin_json.
-        assert!(match_plugin_json(&path, Engine::Ai, &root).is_none());
+        assert!(match_plugin_json(&path, DiscoverySource::AI, &root).is_none());
     }
 
     #[test]
     fn plugin_json_correct_great_grandparent() {
         let root = PathBuf::from("/host/.ai");
         let path = PathBuf::from("/host/.ai/my-plugin/.claude-plugin/plugin.json");
-        let feat = match_plugin_json(&path, Engine::Ai, &root).expect("should match");
+        let feat = match_plugin_json(&path, DiscoverySource::AI, &root).expect("should match");
         assert_eq!(feat.kind, FeatureKind::PluginJson);
     }
 }

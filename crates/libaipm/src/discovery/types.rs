@@ -1,10 +1,12 @@
 //! Core feature types for the unified discovery module.
 //!
-//! Defines the kinds of AI plugin features that can be discovered, the engine
-//! they belong to, the layout shape under which they were found, and the
+//! Defines the kinds of AI plugin features that can be discovered, the source
+//! root they belong to, the layout shape under which they were found, and the
 //! `DiscoveredFeature` struct that carries all of that together.
 
 use std::path::PathBuf;
+
+pub use libaipm_engine_spec::{Engine, MarketplaceHost};
 
 /// The kind of AI plugin feature discovered.
 ///
@@ -30,19 +32,31 @@ pub enum FeatureKind {
     Instructions,
 }
 
-/// The engine root a discovered feature belongs to.
+/// What kind of root directory a discovered feature was found under.
 ///
-/// `Ai` is the marketplace root, not an authoring engine — it's distinguished
-/// here so that `.ai/<plugin>/` content can be classified differently from
-/// `.claude/` or `.github/` source content.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Engine {
-    /// The Claude engine — features under `.claude/`.
-    Claude,
-    /// The GitHub Copilot engine — features under `.github/`.
-    Copilot,
-    /// The marketplace root — features under `.ai/`.
-    Ai,
+/// Either a concrete engine root (`.claude/`, `.github/`) or a
+/// marketplace-host root (`.ai/`). The two are mutually exclusive — never
+/// both — which is why this is a tagged enum rather than a single `Engine`
+/// with an `Ai` synthetic variant.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DiscoverySource {
+    /// A real engine root such as `.claude/` or `.github/`.
+    Engine(Engine),
+    /// A marketplace-host root such as `.ai/`.
+    MarketplaceHost(MarketplaceHost),
+}
+
+impl DiscoverySource {
+    /// Convenient short-hand constants matching the legacy `Engine::*`
+    /// variants. Use these in constructors and equality checks; for
+    /// exhaustive `match` arms, write the explicit tagged-enum form
+    /// (`DiscoverySource::Engine(Engine::Claude)`, etc.) instead, since
+    /// associated constants are not structural patterns.
+    pub const CLAUDE: Self = Self::Engine(Engine::Claude);
+    /// Short-hand for the GitHub Copilot CLI engine root (`.github/`).
+    pub const COPILOT_CLI: Self = Self::Engine(Engine::CopilotCli);
+    /// Short-hand for the `.ai/` marketplace-host root.
+    pub const AI: Self = Self::MarketplaceHost(MarketplaceHost::Ai);
 }
 
 /// The layout shape under which a skill (or other feature) was discovered.
@@ -66,8 +80,8 @@ pub enum Layout {
     CopilotSubrootWithSkills,
 }
 
-/// A discovered AI plugin feature file along with the engine, layout, and root
-/// directory context derived from its path.
+/// A discovered AI plugin feature file along with the source-root, layout,
+/// and root directory context derived from its path.
 ///
 /// This is the new shape the unified discovery module produces. Today's lint
 /// callers continue to use the legacy `DiscoveredFeature` re-exported from
@@ -77,8 +91,9 @@ pub enum Layout {
 pub struct DiscoveredFeature {
     /// The kind of feature.
     pub kind: FeatureKind,
-    /// The engine root this feature belongs to.
-    pub engine: Engine,
+    /// The source root this feature belongs to — either a real engine root
+    /// (`.claude/`, `.github/`) or the marketplace-host root (`.ai/`).
+    pub source: DiscoverySource,
     /// The layout under which the feature was matched.
     pub layout: Layout,
     /// The engine source root directory (e.g. `.github`, `.claude`, `.ai`).
@@ -113,17 +128,24 @@ mod tests {
     }
 
     #[test]
-    fn engine_variants_are_distinct() {
-        assert_ne!(Engine::Claude, Engine::Copilot);
-        assert_ne!(Engine::Copilot, Engine::Ai);
-        assert_ne!(Engine::Claude, Engine::Ai);
+    fn discovery_source_variants_are_distinct() {
+        assert_ne!(DiscoverySource::CLAUDE, DiscoverySource::COPILOT_CLI);
+        assert_ne!(DiscoverySource::COPILOT_CLI, DiscoverySource::AI);
+        assert_ne!(DiscoverySource::CLAUDE, DiscoverySource::AI);
     }
 
     #[test]
-    fn engine_is_copy() {
-        let e = Engine::Copilot;
-        let copied = e;
-        assert_eq!(e, copied);
+    fn discovery_source_is_copy() {
+        let s = DiscoverySource::COPILOT_CLI;
+        let copied = s;
+        assert_eq!(s, copied);
+    }
+
+    #[test]
+    fn discovery_source_constants_match_tagged_form() {
+        assert_eq!(DiscoverySource::CLAUDE, DiscoverySource::Engine(Engine::Claude));
+        assert_eq!(DiscoverySource::COPILOT_CLI, DiscoverySource::Engine(Engine::CopilotCli));
+        assert_eq!(DiscoverySource::AI, DiscoverySource::MarketplaceHost(MarketplaceHost::Ai));
     }
 
     #[test]
@@ -144,14 +166,14 @@ mod tests {
     fn discovered_feature_construction() {
         let feat = DiscoveredFeature {
             kind: FeatureKind::Skill,
-            engine: Engine::Copilot,
+            source: DiscoverySource::COPILOT_CLI,
             layout: Layout::CopilotSubrootWithSkills,
             source_root: PathBuf::from(".github"),
             feature_dir: Some(PathBuf::from(".github/copilot/skills/skill-alpha")),
             path: PathBuf::from(".github/copilot/skills/skill-alpha/SKILL.md"),
         };
         assert_eq!(feat.kind, FeatureKind::Skill);
-        assert_eq!(feat.engine, Engine::Copilot);
+        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
         assert_eq!(feat.layout, Layout::CopilotSubrootWithSkills);
         assert_eq!(feat.source_root, PathBuf::from(".github"));
         assert!(feat.feature_dir.is_some());
@@ -162,7 +184,7 @@ mod tests {
     fn discovered_feature_clone_and_eq() {
         let feat = DiscoveredFeature {
             kind: FeatureKind::Instructions,
-            engine: Engine::Copilot,
+            source: DiscoverySource::COPILOT_CLI,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".github"),
             feature_dir: None,
@@ -176,7 +198,7 @@ mod tests {
     fn discovered_feature_with_no_feature_dir() {
         let feat = DiscoveredFeature {
             kind: FeatureKind::Instructions,
-            engine: Engine::Claude,
+            source: DiscoverySource::CLAUDE,
             layout: Layout::Canonical,
             source_root: PathBuf::from(".claude"),
             feature_dir: None,

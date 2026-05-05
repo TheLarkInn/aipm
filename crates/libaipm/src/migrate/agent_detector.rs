@@ -49,7 +49,10 @@ impl Detector for AgentDetector {
                 name,
                 source_path: agent_path,
                 files: vec![PathBuf::from(&entry.name)],
-                referenced_scripts: extract_script_references(&content, "${CLAUDE_AGENT_DIR}/"),
+                referenced_scripts: extract_script_references(
+                    &content,
+                    super::CLAUDE_AGENT_DIR_VAR,
+                ),
                 metadata,
             });
         }

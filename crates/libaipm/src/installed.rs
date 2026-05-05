@@ -116,7 +116,7 @@ impl Registry {
 
         // Expand "all" to explicit list
         if plugin.engines.is_empty() {
-            plugin.engines = Engine::all_names().iter().map(|s| (*s).to_string()).collect();
+            plugin.engines = crate::engine::all_names().iter().map(|s| (*s).to_string()).collect();
         }
 
         for engine in engines_to_remove {
@@ -353,7 +353,7 @@ mod tests {
         assert_eq!(registry.plugins.len(), 1);
         assert_eq!(
             registry.plugins.first().map(|p| &p.engines),
-            Some(&vec!["copilot".to_string()])
+            Some(&vec!["copilot-cli".to_string()])
         );
     }
 
@@ -381,7 +381,7 @@ mod tests {
             cache_ttl_secs: None,
         };
         assert!(plugin.applies_to(Engine::Claude));
-        assert!(plugin.applies_to(Engine::Copilot));
+        assert!(plugin.applies_to(Engine::CopilotCli));
     }
 
     #[test]
@@ -393,7 +393,7 @@ mod tests {
             cache_ttl_secs: None,
         };
         assert!(plugin.applies_to(Engine::Claude));
-        assert!(!plugin.applies_to(Engine::Copilot));
+        assert!(!plugin.applies_to(Engine::CopilotCli));
     }
 
     #[test]
@@ -408,12 +408,12 @@ mod tests {
         );
         let _ = registry.install(
             "local:./copilot-only".to_string(),
-            &["copilot".to_string()],
+            &["copilot-cli".to_string()],
             None,
             None,
         );
         assert_eq!(registry.plugins_for_engine(Engine::Claude).len(), 2);
-        assert_eq!(registry.plugins_for_engine(Engine::Copilot).len(), 2);
+        assert_eq!(registry.plugins_for_engine(Engine::CopilotCli).len(), 2);
     }
 
     #[test]

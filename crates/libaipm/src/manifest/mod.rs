@@ -559,17 +559,73 @@ edition = "2024"
 
     #[test]
     fn manifest_with_engines_field() {
+        // Use canonical engine names (legacy "copilot" doesn't map to any
+        // current `Engine` variant — the canonical name is "copilot-cli").
         let toml = r#"
 [package]
 name = "my-plugin"
 version = "1.0.0"
-engines = ["claude", "copilot"]
+engines = ["claude", "copilot-cli"]
 "#;
         let manifest = parse(toml);
         assert!(manifest.is_ok());
         let manifest = manifest.unwrap_or_default();
         let engines = manifest.package.as_ref().and_then(|p| p.engines.as_ref());
-        assert_eq!(engines.map(Vec::len), Some(2));
+        let expected =
+            libaipm_engine_spec::EngineSet::CLAUDE | libaipm_engine_spec::EngineSet::COPILOT_CLI;
+        assert_eq!(engines.copied(), Some(expected));
+    }
+
+    #[test]
+    fn manifest_engines_field_with_only_unknown_names_fails_to_parse() {
+        // A non-empty engines list whose entries are ALL unknown must
+        // error rather than silently widening to "all engines"
+        // (preserves the user's restriction intent — see the
+        // engine_set_serde docs in manifest/types.rs).
+        let toml = r#"
+[package]
+name = "my-plugin"
+version = "1.0.0"
+engines = ["unknown-future-engine"]
+"#;
+        let manifest = parse(toml);
+        assert!(manifest.is_err(), "expected parse error for all-unknown engines list");
+        let err = manifest.err().expect("checked above");
+        let msg = format!("{err}");
+        assert!(msg.contains("contains no known engine names"), "unexpected error message: {msg}");
+    }
+
+    #[test]
+    fn manifest_engines_mixed_known_and_unknown_drops_unknowns() {
+        // Mixed list (known + unknown) is permitted: the known names
+        // form the bitset, unknowns are silently dropped — keeps
+        // manifests that target a current engine + a future one
+        // parseable while still pre-validating the known portion.
+        let toml = r#"
+[package]
+name = "my-plugin"
+version = "1.0.0"
+engines = ["claude", "future-engine"]
+"#;
+        let manifest = parse(toml).expect("mixed list should parse");
+        let engines = manifest.package.as_ref().and_then(|p| p.engines.as_ref());
+        assert_eq!(engines.copied(), Some(libaipm_engine_spec::EngineSet::CLAUDE));
+    }
+
+    #[test]
+    fn manifest_engines_explicit_empty_list_is_all_engines() {
+        // `engines = []` resolves to Some(EngineSet::empty()) — semantically
+        // equivalent to omitting the field; the lint treats both as
+        // "no restriction".
+        let toml = r#"
+[package]
+name = "my-plugin"
+version = "1.0.0"
+engines = []
+"#;
+        let manifest = parse(toml).expect("empty list should parse");
+        let engines = manifest.package.as_ref().and_then(|p| p.engines.as_ref());
+        assert_eq!(engines.copied(), Some(libaipm_engine_spec::EngineSet::empty()));
     }
 
     #[test]

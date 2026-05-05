@@ -11,7 +11,7 @@ pub mod error;
 pub mod templates;
 
 pub use action::Action;
-pub use engine_features::Feature;
+pub use engine_features::{Feature, FeatureExt};
 pub use error::Error;
 
 use std::path::Path;
@@ -135,6 +135,7 @@ fn scaffold_single_feature(
         Feature::OutputStyle => scaffold_output_style(opts, fs, plugin_dir, components, actions),
         Feature::Lsp => scaffold_lsp(fs, plugin_dir, components, actions),
         Feature::Extension => scaffold_extension(fs, plugin_dir, components, actions),
+        Feature::Command => scaffold_command(fs, plugin_dir, actions),
     }
 }
 
@@ -255,6 +256,23 @@ fn scaffold_extension(
         description: "Extension placeholder".to_string(),
     });
     components.extensions = Some("./extensions/");
+    Ok(())
+}
+
+fn scaffold_command(
+    fs: &dyn Fs,
+    plugin_dir: &Path,
+    actions: &mut Vec<Action>,
+) -> Result<(), Error> {
+    let cmd_dir = plugin_dir.join("commands");
+    fs.create_dir_all(&cmd_dir)?;
+    actions.push(Action::DirectoryCreated { path: cmd_dir.clone() });
+    let gitkeep = cmd_dir.join(".gitkeep");
+    fs.write_file(&gitkeep, b"")?;
+    actions.push(Action::FileWritten {
+        path: gitkeep,
+        description: "Command placeholder".to_string(),
+    });
     Ok(())
 }
 

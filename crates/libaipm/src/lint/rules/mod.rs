@@ -10,7 +10,6 @@ pub mod hook_legacy_event;
 pub mod hook_unknown_event;
 pub mod import_resolver;
 pub mod instructions_oversized;
-pub mod known_events;
 pub mod marketplace_field_mismatch;
 pub mod marketplace_source_resolve;
 pub mod misplaced_features;
@@ -27,6 +26,7 @@ pub mod skill_name_too_long;
 pub mod skill_oversized;
 #[cfg(test)]
 pub(crate) mod test_helpers;
+pub mod valid_tool_name;
 
 use std::path::Path;
 
@@ -132,11 +132,16 @@ pub(crate) fn quality_rules_for_kind(kind: &FeatureKind, config: &Config) -> Vec
             Box::new(skill_desc_too_long::DescriptionTooLong),
             Box::new(skill_invalid_shell::InvalidShell),
             Box::new(broken_paths::BrokenPaths),
+            Box::new(valid_tool_name::ValidToolName),
         ],
-        FeatureKind::Agent => vec![Box::new(agent_missing_tools::MissingTools)],
+        FeatureKind::Agent => vec![
+            Box::new(agent_missing_tools::MissingTools),
+            Box::new(valid_tool_name::ValidToolName),
+        ],
         FeatureKind::Hook => vec![
             Box::new(hook_unknown_event::UnknownEvent),
             Box::new(hook_legacy_event::LegacyEventName),
+            Box::new(valid_tool_name::ValidToolName),
         ],
         FeatureKind::Plugin => vec![Box::new(broken_paths::BrokenPaths)],
         FeatureKind::Marketplace => vec![
@@ -195,6 +200,7 @@ pub fn catalog() -> Vec<Box<dyn Rule>> {
         Box::new(plugin_required_fields::RequiredFields),
         Box::new(instructions_oversized::Oversized::default()),
         Box::new(MisplacedFeatures { ai_exists: true }),
+        Box::new(valid_tool_name::ValidToolName),
     ]
 }
 

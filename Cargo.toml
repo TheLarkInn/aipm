@@ -23,6 +23,15 @@ readme = "README.md"
 [workspace.dependencies]
 # Shared library
 libaipm = { path = "crates/libaipm", version = "0.23.1" }
+libaipm-engine-spec = { path = "crates/libaipm-engine-spec", version = "0.23.1" }
+
+# Engine API schema source-of-truth (build-time codegen + runtime tables)
+phf = "0.13"
+phf_codegen = "0.13"
+schemars = "1"
+jsonschema = "0.46"
+prettyplease = "0.2"
+bitflags = "2"
 
 # CLI
 clap = { version = "4", features = ["derive"] }

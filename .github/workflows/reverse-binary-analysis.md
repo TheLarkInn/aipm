@@ -28,6 +28,12 @@ safe-outputs:
     draft: false
     auto-merge: false
     labels: [automation, analysis]
+    # Only allow the agent to modify the engine API data file and its
+    # changelog. Everything else (workflow sources, code crates, Cargo
+    # workspace files, exported meta-schema, docs, tests) is implicitly
+    # protected.
+    allowed-files:
+      - "crates/libaipm-engine-spec/data/**"
   push-to-pull-request-branch:
     target: "*"
     title-prefix: "[reverse-binary-analysis]"
@@ -60,17 +66,18 @@ track their plugin APIs and keep aipm's detection, migration, and lint rules up 
   - New unit test cases
   - Behavior variants to handle
   - Cross-engine tool compatibility warnings (for the `valid-tool-name` lint rule, issue #697)
-- Update (or create) `research/engine-api-schema.json` — a canonical schema of all discovered APIs,
-  including the per-engine tool-call catalog.
-- Update (or create) `research/engine-api-changelog.md` — a versioned changelog that records every
-  API change, when it was first observed, and the engine version at that time.
+- Update (or create) `crates/libaipm-engine-spec/data/engine-api-schema.json` — a canonical schema
+  of all discovered APIs, including the per-engine tool-call catalog.
+- Update (or create) `crates/libaipm-engine-spec/data/engine-api-changelog.md` — a versioned
+  changelog that records every API change, when it was first observed, and the engine version at
+  that time.
 - Open a PR when the schema or changelog has changed.
 
 ## Engine Configuration
 
-The list of engines to analyze is read from `research/engine-api-schema.json` under the
-`"engines"` key if that file already exists.  If the file does not exist yet, bootstrap with these
-defaults:
+The list of engines to analyze is read from
+`crates/libaipm-engine-spec/data/engine-api-schema.json` under the `"engines"` key if that file
+already exists.  If the file does not exist yet, bootstrap with these defaults:
 
 ```json
 {
@@ -85,9 +92,17 @@ defaults:
 
 ### 1 — Read existing schema and changelog
 
-Read `research/engine-api-schema.json` and `research/engine-api-changelog.md` if they exist.
+Read `crates/libaipm-engine-spec/data/engine-api-schema.json` and
+`crates/libaipm-engine-spec/data/engine-api-changelog.md` if they exist.
 Note the `engines` list and the `versions` map (engine → last-seen version).  These will be used
 to detect changes.
+
+The data file is governed by an exported meta-schema at `schemas/engine-api.schema.json` (the
+canonical published meta-schema).  The data file's top-level `$schema` field MUST point at that
+meta-schema using a relative path (currently `../../../schemas/engine-api.schema.json`), and
+`meta_schema_version` MUST be a SemVer string ("1.0.0" today).  Do NOT modify
+`schemas/engine-api.schema.json` from this workflow — it is owned by the
+`libaipm-engine-spec` crate.
 
 ### 2 — Download each engine CLI
 
@@ -134,26 +149,45 @@ concurrently where possible to stay within the 45-minute timeout.
 
 Read the bundled source files (they may be minified; do your best to interpret them).
 
-Specifically look for and extract:
+Specifically look for and extract — each bullet maps onto a specific field name in the data file
+(see step 5 for the full schema shape):
 
-- **manifest / plugin fields**: all keys expected in `marketplace.json`, `plugin.json`,
-  `plugin-manifest.json`, or equivalent.
-- **settings file paths**: any file paths the engine reads from disk at startup or during a session
-  (e.g. `.claude/settings.json`, `.github/copilot-instructions.md`).
-- **folder conventions**: all directories the engine scans or mounts
-  (`.claude/`, `.github/copilot/`, `.vscode/`, `.opencode/`, `codex/`, `gemini-cli/`, etc.).
-- **skill / command / agent registration**: how skills, slash commands, or sub-agents are declared
-  and discovered.
-- **LSP and MCP configuration**: how Language Server Protocols and Model Context Protocol servers
-  are configured.
-- **output styles**: structured output formats supported by the engine.
-- **size limits**: any hard-coded file size, token, or payload limits.
-- **detection heuristics**: logic used to detect whether a repo uses this engine.
-- **discovery algorithm**: how plugins, skills, or extensions are discovered.
-- **every rule or validation**: any validation or lint rules baked into the engine.
-- **internal tool calls**: every tool name (function/tool call identifier) the engine internally
-  recognizes and can invoke.  These are the names a plugin author can use in `tools:` or skill
-  declarations.  Look for:
+- **manifest / plugin fields** (`apis.<engine>.manifest_fields`): all keys expected in
+  `marketplace.json`, `plugin.json`, `plugin-manifest.json`, or equivalent.  Record each as a
+  structured record (`name`, `type`, `required`, `constraints`, `notes`) — NOT a prose string.
+- **settings file paths** (`apis.<engine>.settings_paths`): any file paths the engine reads from
+  disk at startup or during a session (e.g. `.claude/settings.json`,
+  `.github/copilot-instructions.md`).
+- **folder conventions** (`apis.<engine>.folder_conventions`): all directories the engine scans
+  or mounts (`.claude/`, `.github/copilot/`, `.vscode/`, `.opencode/`, `codex/`, `gemini-cli/`,
+  etc.).
+- **skill / command / agent registration** (`apis.<engine>.skill_registration`): how skills,
+  slash commands, or sub-agents are declared and discovered.
+- **LSP and MCP configuration** (`apis.<engine>.lsp_config`, `apis.<engine>.mcp_config`): how
+  Language Server Protocols and Model Context Protocol servers are configured.
+- **output styles** (`apis.<engine>.output_styles`): structured output formats supported by the
+  engine.
+- **size limits** (`apis.<engine>.size_limits`): any hard-coded file size, token, or payload
+  limits.
+- **detection notes** (`apis.<engine>.detection_notes`, formerly `detection_heuristics`):
+  free-form `string[]` describing logic used to detect whether a repo uses this engine.
+- **discovery notes** (`apis.<engine>.discovery_notes`, formerly `discovery_algorithm`):
+  free-form `string[]` describing how plugins, skills, or extensions are discovered.
+- **rule notes** (`apis.<engine>.rule_notes`, formerly `rules`): free-form `string[]` describing
+  any validation or lint rules baked into the engine.
+- **hook events** (`apis.<engine>.hook_events`, NEW): every hook/event identifier the engine
+  emits or accepts (e.g. `PreToolUse`, `PostToolUse`, `Notification`, `Stop`, `SubagentStop`).
+  Look for hook dispatch tables, event emitter calls, and any documented event names.  Record
+  each as `{ "name", "aliases": [...], "deprecated": bool, "notes"? }`.  When the engine accepts
+  more than one casing for the same event (e.g. `PreToolUse` and `preToolUse`), record one
+  canonical record and list the alternates in `aliases`.
+- **feature kinds** (`apis.<engine>.features`, NEW): every plugin-feature kind the engine
+  supports.  Record each as `{ "kind", "manifest_field"?, "layout_hint"?, "capabilities"? }`
+  where `kind` is snake_case and drawn from the fixed set
+  `"skill" | "agent" | "mcp" | "hook" | "output_style" | "lsp" | "extension" | "command"`.
+- **internal tool calls** (`apis.<engine>.tool_calls`): every tool name (function/tool call
+  identifier) the engine internally recognizes and can invoke.  These are the names a plugin
+  author can use in `tools:` or skill declarations.  Look for:
   - Tool registration tables, dispatch maps, or switch/case blocks routing tool names to handlers.
   - String literals that look like tool identifiers (e.g. `"Read"`, `"Write"`, `"Bash"`,
     `"web_fetch"`, `"computer_use"`, `"mcp__<server>__<tool>"`).
@@ -205,12 +239,18 @@ Record the results as:
 This data feeds the `valid-tool-name` lint rule (issue #697): if a plugin declares no `engines`
 restriction but uses an engine-exclusive tool, aipm should warn.
 
-### 5 — Update `research/engine-api-schema.json`
+### 5 — Update `crates/libaipm-engine-spec/data/engine-api-schema.json`
 
-Merge all extracted API surfaces into the schema file.  Structure:
+Merge all extracted API surfaces into the schema file.  The file is structured according to the
+exported meta-schema at `schemas/engine-api.schema.json` and MUST include the `$schema` and
+`meta_schema_version` top-level fields shown below.  Structure:
 
 ```jsonc
 {
+  // Required: relative path to the canonical exported meta-schema.
+  "$schema": "../../../schemas/engine-api.schema.json",
+  // Required: SemVer string identifying which version of the meta-schema this file conforms to.
+  "meta_schema_version": "1.0.0",
   "generated_at": "<ISO-8601 timestamp>",
   "engines": [
     { "name": "<engine>", "source": "npm", "package": "<package>" }
@@ -221,7 +261,17 @@ Merge all extracted API surfaces into the schema file.  Structure:
   },
   "apis": {
     "<engine>": {
-      "manifest_fields": [ ... ],
+      // Structured per-field records (NOT prose strings).
+      "manifest_fields": [
+        {
+          "name": "name",
+          "type": "string",
+          "required": true,
+          "constraints": { "max_length": 64, "regex": "^[a-zA-Z0-9-]+$" },
+          "notes": "Plugin identifier."
+        }
+        // ...
+      ],
       "settings_paths": [ ... ],
       "folder_conventions": [ ... ],
       "skill_registration": { ... },
@@ -229,9 +279,27 @@ Merge all extracted API surfaces into the schema file.  Structure:
       "mcp_config": { ... },
       "output_styles": [ ... ],
       "size_limits": { ... },
-      "detection_heuristics": [ ... ],
-      "discovery_algorithm": [ ... ],
-      "rules": [ ... ],
+      // Renamed from `detection_heuristics`. Free-form notes describing detection logic.
+      "detection_notes": [ "<note>", ... ],
+      // Renamed from `discovery_algorithm`. Free-form notes describing discovery logic.
+      "discovery_notes": [ "<note>", ... ],
+      // Renamed from `rules`. Free-form notes describing baked-in validation/lint rules.
+      "rule_notes": [ "<note>", ... ],
+      // NEW required array: every hook event the engine recognizes.
+      "hook_events": [
+        { "name": "PreToolUse",  "aliases": [],              "deprecated": false },
+        { "name": "preToolUse",  "aliases": ["PreToolUse"],  "deprecated": false, "notes": "camelCase alias" }
+        // ...
+      ],
+      // NEW required array: structured plugin-feature kinds the engine supports.
+      "features": [
+        { "kind": "skill",  "manifest_field": "skills"  },
+        { "kind": "agent",  "manifest_field": "agents"  },
+        { "kind": "hook",   "manifest_field": "hooks"   }
+        // Each record: { kind, manifest_field?, layout_hint?, capabilities? }.
+        // `kind` is snake_case from this fixed set:
+        // "skill" | "agent" | "mcp" | "hook" | "output_style" | "lsp" | "extension" | "command".
+      ],
       "tool_calls": [
         { "name": "<tool-name>", "aliases": [...], "deprecated": false, "notes": "<restrictions>" }
       ]
@@ -253,7 +321,41 @@ Merge all extracted API surfaces into the schema file.  Structure:
 }
 ```
 
-### 6 — Update `research/engine-api-changelog.md`
+#### Field shapes — extraction rules
+
+When populating the per-engine `apis.<engine>` object, follow these shapes exactly:
+
+- **`manifest_fields`** — array of records, NOT prose strings.  Each record:
+  - `name` (string, required) — the manifest key as it appears on disk.
+  - `type` (string, required) — one of `"string"`, `"number"`, `"boolean"`, `"array"`,
+    `"object"`, `"url"`, or other concrete primitive types found in the source.
+  - `required` (bool, optional, default `false`) — whether the engine rejects the manifest if
+    this field is absent.
+  - `constraints` (object, optional) — any of `max_length` (number), `min_length` (number),
+    `regex` (string), `default` (any).  Only include keys whose values are observed in source.
+  - `notes` (string, optional) — short free-form clarification.
+- **`detection_notes`** — array of strings.  Replaces the old `detection_heuristics` field.
+- **`discovery_notes`** — array of strings.  Replaces the old `discovery_algorithm` field.
+- **`rule_notes`** — array of strings.  Replaces the old `rules` field.
+- **`hook_events`** — array of records (NEW, required).  Each record:
+  - `name` (string, required) — the canonical event name as the engine emits it.
+  - `aliases` (string[], required, possibly empty) — legacy/alternate names that resolve to the
+    same event (e.g. `"preToolUse"` ↔ `"PreToolUse"`).
+  - `deprecated` (bool, required) — whether the engine still emits this event but discourages
+    its use.
+  - `notes` (string, optional).
+- **`features`** — array of records (NEW, required).  Each record:
+  - `kind` (string, required) — snake_case enum: `"skill"`, `"agent"`, `"mcp"`, `"hook"`,
+    `"output_style"`, `"lsp"`, `"extension"`, `"command"`.
+  - `manifest_field` (string, optional) — manifest key declaring this feature.
+  - `layout_hint` (string, optional) — directory or file layout convention.
+  - `capabilities` (string[], optional) — fine-grained capability flags scoped to the feature.
+
+If a previous version of the data file used the old field names (`detection_heuristics`,
+`discovery_algorithm`, `rules`) or contained `manifest_fields` as plain prose strings, REWRITE
+those entries into the new shape during this run.  Do not retain the old field names.
+
+### 6 — Update `crates/libaipm-engine-spec/data/engine-api-changelog.md`
 
 Prepend a new entry at the top of the changelog (or create the file) with:
 
@@ -275,7 +377,9 @@ If this is the first run, record the baseline versions and note "initial schema 
 Compare the new schema with the committed version using:
 
 ```bash
-git diff --stat research/engine-api-schema.json research/engine-api-changelog.md
+git diff --stat \
+  crates/libaipm-engine-spec/data/engine-api-schema.json \
+  crates/libaipm-engine-spec/data/engine-api-changelog.md
 ```
 
 - If **nothing changed**, call the `noop` safe output:

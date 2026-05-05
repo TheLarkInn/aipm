@@ -25,7 +25,7 @@ use super::layout::{
     match_agent, match_hook, match_marketplace, match_plugin, match_plugin_json, match_skill,
 };
 use super::source;
-use super::types::{DiscoveredFeature, Engine};
+use super::types::{DiscoveredFeature, DiscoverySource};
 
 /// Classify `path` as a discovered feature, given the `project_root`.
 ///
@@ -46,28 +46,28 @@ pub fn classify(path: &Path, project_root: &Path, _fs: &dyn Fs) -> Option<Discov
 
     // Instruction files first — they can match WITHOUT an engine ancestor
     // (e.g. `/repo/CLAUDE.md` at the project root). For root-level
-    // instructions we synthesize an engine context — `Engine::Ai` with the
-    // project_root as source_root — since these instructions logically
-    // apply to the marketplace as a whole. Instruction precedence is also
-    // important here so that files like `agents/AGENTS.md` are classified
-    // as Instructions, not Agent.
-    let (instr_engine, instr_source_root) =
-        inferred.clone().unwrap_or_else(|| (Engine::Ai, project_root.to_path_buf()));
-    if let Some(feat) = instruction::classify(&file_name, path, instr_engine, &instr_source_root) {
+    // instructions we synthesize a source context — `DiscoverySource::AI`
+    // with the project_root as source_root — since these instructions
+    // logically apply to the marketplace as a whole. Instruction precedence
+    // is also important here so that files like `agents/AGENTS.md` are
+    // classified as Instructions, not Agent.
+    let (instr_source, instr_source_root) =
+        inferred.clone().unwrap_or_else(|| (DiscoverySource::AI, project_root.to_path_buf()));
+    if let Some(feat) = instruction::classify(&file_name, path, instr_source, &instr_source_root) {
         return Some(feat);
     }
 
     // All other feature kinds require a real engine ancestor.
-    let (engine, source_root) = inferred?;
+    let (source, source_root) = inferred?;
 
     match file_name.as_ref() {
-        "SKILL.md" => match_skill(path, engine, &source_root),
-        "hooks.json" => match_hook(path, engine, &source_root),
-        "aipm.toml" => match_plugin(path, engine, &source_root),
-        "marketplace.json" => match_marketplace(path, engine, &source_root),
-        "plugin.json" => match_plugin_json(path, engine, &source_root),
+        "SKILL.md" => match_skill(path, source, &source_root),
+        "hooks.json" => match_hook(path, source, &source_root),
+        "aipm.toml" => match_plugin(path, source, &source_root),
+        "marketplace.json" => match_marketplace(path, source, &source_root),
+        "plugin.json" => match_plugin_json(path, source, &source_root),
         _ if path.extension().is_some_and(|ext| ext.eq_ignore_ascii_case("md")) => {
-            match_agent(path, engine, &source_root)
+            match_agent(path, source, &source_root)
         },
         _ => None,
     }
@@ -76,7 +76,7 @@ pub fn classify(path: &Path, project_root: &Path, _fs: &dyn Fs) -> Option<Discov
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::discovery::types::{Engine, FeatureKind, Layout};
+    use crate::discovery::types::{DiscoverySource, FeatureKind, Layout};
     use crate::fs::Real;
     use std::path::PathBuf;
 
@@ -116,7 +116,7 @@ mod tests {
         let path = PathBuf::from("/repo/.github/copilot.md");
         let feat = classify_at(&path, &root).expect("should match");
         assert_eq!(feat.kind, FeatureKind::Instructions);
-        assert_eq!(feat.engine, Engine::Copilot);
+        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
     }
 
     #[test]
@@ -135,7 +135,7 @@ mod tests {
         let path = PathBuf::from("/repo/.claude/skills/my-skill/SKILL.md");
         let feat = classify_at(&path, &root).expect("should match");
         assert_eq!(feat.kind, FeatureKind::Skill);
-        assert_eq!(feat.engine, Engine::Claude);
+        assert_eq!(feat.source, DiscoverySource::CLAUDE);
         assert_eq!(feat.layout, Layout::Canonical);
     }
 
@@ -145,7 +145,7 @@ mod tests {
         let path = PathBuf::from("/repo/.github/copilot/skills/skill-alpha/SKILL.md");
         let feat = classify_at(&path, &root).expect("should match");
         assert_eq!(feat.kind, FeatureKind::Skill);
-        assert_eq!(feat.engine, Engine::Copilot);
+        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
         assert_eq!(feat.layout, Layout::CopilotSubrootWithSkills);
     }
 
@@ -174,7 +174,7 @@ mod tests {
         let path = PathBuf::from("/repo/.github/hooks.json");
         let feat = classify_at(&path, &root).expect("should match");
         assert_eq!(feat.kind, FeatureKind::Hook);
-        assert_eq!(feat.engine, Engine::Copilot);
+        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
     }
 
     #[test]
@@ -183,7 +183,7 @@ mod tests {
         let path = PathBuf::from("/repo/.ai/my-plugin/aipm.toml");
         let feat = classify_at(&path, &root).expect("should match");
         assert_eq!(feat.kind, FeatureKind::Plugin);
-        assert_eq!(feat.engine, Engine::Ai);
+        assert_eq!(feat.source, DiscoverySource::AI);
     }
 
     #[test]
@@ -208,25 +208,25 @@ mod tests {
         let path = PathBuf::from("/repo/.claude/agents/my-agent.md");
         let feat = classify_at(&path, &root).expect("should match");
         assert_eq!(feat.kind, FeatureKind::Agent);
-        assert_eq!(feat.engine, Engine::Claude);
+        assert_eq!(feat.source, DiscoverySource::CLAUDE);
     }
 
-    // --- engine attribution ---
+    // --- source attribution ---
 
     #[test]
-    fn copilot_skill_carries_copilot_engine() {
+    fn copilot_skill_carries_copilot_source() {
         let root = PathBuf::from("/repo");
         let path = PathBuf::from("/repo/.github/skills/my-skill/SKILL.md");
         let feat = classify_at(&path, &root).expect("should match");
-        assert_eq!(feat.engine, Engine::Copilot);
+        assert_eq!(feat.source, DiscoverySource::COPILOT_CLI);
     }
 
     #[test]
-    fn ai_plugin_carries_ai_engine() {
+    fn ai_plugin_carries_ai_source() {
         let root = PathBuf::from("/repo");
         let path = PathBuf::from("/repo/.ai/my-plugin/skills/my-skill/SKILL.md");
         let feat = classify_at(&path, &root).expect("should match");
-        assert_eq!(feat.engine, Engine::Ai);
+        assert_eq!(feat.source, DiscoverySource::AI);
         assert_eq!(feat.layout, Layout::Canonical);
     }
 

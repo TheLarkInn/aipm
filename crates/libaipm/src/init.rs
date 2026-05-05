@@ -8,6 +8,7 @@ use std::path::Path;
 use crate::fs::Fs;
 use crate::manifest::error::Error as ManifestError;
 use crate::manifest::types::PluginType;
+use crate::paths;
 
 /// Options for initializing a new plugin package.
 pub struct Options<'a> {
@@ -58,7 +59,7 @@ pub fn init(opts: &Options<'_>, fs: &dyn Fs) -> Result<(), Error> {
     let dir = opts.dir;
 
     // Check for existing manifest
-    let manifest_path = dir.join("aipm.toml");
+    let manifest_path = dir.join(paths::AIPM_TOML);
     if fs.exists(&manifest_path) {
         return Err(Error::AlreadyInitialized(dir.to_path_buf()));
     }
@@ -171,6 +172,7 @@ fn generate_manifest(name: &str, plugin_type: PluginType) -> String {
             version: "0.1.0",
             plugin_type: Some(type_str),
             description: None,
+            engines: None,
         },
         None,
     )

@@ -5,12 +5,14 @@
 
 use std::path::Path;
 
+use libaipm_engine_spec::{is_valid_event, Engine};
+
 use crate::fs::Fs;
 use crate::lint::diagnostic::{Diagnostic, Severity};
 use crate::lint::rule::Rule;
 use crate::lint::Error;
 
-use super::{known_events, locate_json_key};
+use super::locate_json_key;
 
 /// Checks that hook event names are valid.
 pub struct UnknownEvent;
@@ -70,7 +72,11 @@ impl Rule for UnknownEvent {
             if key == "version" || key == "disableAllHooks" || key == "hooks" {
                 continue;
             }
-            if !known_events::is_valid_for_any_tool(key) {
+            // For .ai marketplace plugins, accept any event recognised by
+            // any engine — the union-of-engines rule from the legacy
+            // known_events::is_valid_for_any_tool helper, now inlined.
+            let valid_for_any = Engine::ALL.iter().any(|&e| is_valid_event(key, e));
+            if !valid_for_any {
                 let (line, col, end_col) = locate_json_key(&content, key)
                     .map_or((None, None, None), |(l, c, e)| (Some(l), Some(c), Some(e)));
                 diagnostics.push(Diagnostic {
