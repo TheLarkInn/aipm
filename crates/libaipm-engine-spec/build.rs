@@ -79,10 +79,8 @@ fn emit_rerun_directives() -> Result<(), std::io::Error> {
 }
 
 fn load_and_validate() -> Result<types::EngineApiSchemaFile, Box<dyn std::error::Error>> {
-    let meta_schema_text = std::fs::read_to_string("../../schemas/engine-api.schema.json")?;
+    let meta_schema = load_meta_schema()?;
     let data_text = std::fs::read_to_string("data/engine-api-schema.json")?;
-
-    let meta_schema: serde_json::Value = serde_json::from_str(&meta_schema_text)?;
     let data: serde_json::Value = serde_json::from_str(&data_text)?;
 
     let validator = jsonschema::validator_for(&meta_schema)?;
@@ -107,6 +105,16 @@ fn load_and_validate() -> Result<types::EngineApiSchemaFile, Box<dyn std::error:
     }
 
     Ok(parsed)
+}
+
+fn load_meta_schema() -> Result<serde_json::Value, Box<dyn std::error::Error>> {
+    match std::fs::read_to_string("../../schemas/engine-api.schema.json") {
+        Ok(meta_schema_text) => Ok(serde_json::from_str(&meta_schema_text)?),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Ok(serde_json::to_value(schemars::schema_for!(types::EngineApiSchemaFile))?)
+        },
+        Err(error) => Err(error.into()),
+    }
 }
 
 fn generate_engine_module(parsed: &types::EngineApiSchemaFile) -> TokenStream {
