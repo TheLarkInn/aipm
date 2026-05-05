@@ -1,3 +1,30 @@
+## Feature 21 — Wizard prompt snapshot refresh (PASS)
+
+Date: 2026-05-05
+Iteration: 19
+Status: passes=true, all four CLAUDE.md gates green, coverage 90.30% (>=89% required)
+
+This iteration is essentially a verification step — the snapshot work was already done as part of iterations 11-13 with deliberate care:
+
+- The 8 `workspace_prompts_*` snapshots were preserved (engine prompts NOT included) because every test caller passes `flag_engine_provided = true`. This was the intentional design choice in Feature 11 to avoid forcing a snapshot update before the wizard was wired into production. The 8 files at `crates/aipm/src/snapshots/aipm__wizard__tests__workspace_prompts_*.snap` correctly reflect the 3-prompt sequence: setup mode → marketplace name → starter plugin.
+
+- The 9 `resolve_workspace_*` snapshots were refreshed in iteration 13 (Feature 13) to capture the new `WizardAnswers { workspace, marketplace, no_starter, marketplace_name, engines_scaffold, engines_support }` debug format. They show the placeholder `engines_scaffold: EngineSet(CLAUDE | COPILOT)` (= `EngineSet::ALL`) used when `flag_engine_provided = true` in the resolver.
+
+- The 2 new copilot adaptor snapshots (`template_snapshot_with_starter`, `template_snapshot_no_starter`) landed in iteration 4 (Feature 4) when the Copilot adaptor was first built.
+
+Verification performed in this iteration:
+- `cargo test --workspace` passes with no pending snapshot diffs (`cargo insta pending-snapshots` returns "No pending snapshots.").
+- Spot-checked `workspace_prompts_no_flags_snapshot.snap` — confirmed 3-prompt sequence intact.
+- Spot-checked `resolve_workspace_marketplace_only_snapshot.snap` — confirmed new `WizardAnswers` format.
+- All 4 CLAUDE.md gates green; coverage stable at 90.30%.
+
+No file changes in this iteration — feature was complete-as-built thanks to careful incremental snapshot management in earlier features.
+
+Notes for future iterations:
+- Feature 22 (final coverage gate) is the last remaining feature. The cargo-verifier subagent has been validating coverage at every iteration, so feature 22 will be a final summary check.
+
+---
+
 ## Feature 20 — New BDD rule "Engine-aware init scaffolds only chosen engines" (PASS)
 
 Date: 2026-05-05
