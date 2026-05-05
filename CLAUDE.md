@@ -129,3 +129,13 @@ This regenerates `schemas/engine-api.schema.json`. Commit the regenerated schema
 If the change is **breaking** (renames, removed fields, type changes that existing data files won't deserialize through), bump `META_SCHEMA_VERSION` in `src/types.rs`. The `data/engine-api-schema.json` file's `meta_schema_version` field must equal the constant — `build.rs` enforces this. Bumping the version forces the next reverse-binary-analysis run to emit a data file with the new shape.
 
 `build.rs` and `src/bin/export-schema.rs` are excluded from the coverage `--ignore-filename-regex` pattern (they only run during `cargo build` / on demand, not under normal test execution).
+
+### Packaging / crates.io fallback
+
+When `libaipm-engine-spec` is built **outside the workspace** — for example, by a downstream crate that depends on it via crates.io — the file `../../schemas/engine-api.schema.json` does not exist (the workspace `schemas/` directory is not included in the published crate). In that case `build.rs` automatically falls back to validating `data/engine-api-schema.json` against the schema derived on-the-fly from `src/types.rs` via `schemars`. A `cargo:warning=` line is emitted to make the fallback visible in the build output:
+
+```
+warning: ../../schemas/engine-api.schema.json not found; using schema derived from src/types.rs for validation
+```
+
+This is expected and harmless: `data/engine-api-schema.json` is included in the published crate, and `src/types.rs` is the canonical shape, so validation always runs. The warning is purely informational.

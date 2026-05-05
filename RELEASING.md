@@ -66,7 +66,8 @@ Note: crates.io also does not permit deletion — `cargo yank` is the equivalent
 
 ```bash
 cargo yank --version <broken> aipm
-cargo yank --version <broken> libaipm   # also yank the library crate if published in lockstep
+cargo yank --version <broken> libaipm              # also yank the library crate if published in lockstep
+cargo yank --version <broken> libaipm-engine-spec  # also yank the engine-spec crate if published in lockstep
 ```
 
 Yanked versions remain downloadable for anyone who has them in a lockfile but cannot be picked up by new resolution.
@@ -74,8 +75,8 @@ Yanked versions remain downloadable for anyone who has them in a lockfile but ca
 ## Version scheme
 
 - Workspace is versioned in **lockstep**: all member crates share the same version, set in [`Cargo.toml:10`](Cargo.toml) `[workspace.package]`.
-- release-plz creates **per-crate tags** (`aipm-v*`, `libaipm-v*`), not a single `v*` tag.
-- The `aipm-v*` tag is the authoritative trigger for binary/NuGet publishing. The `libaipm-v*` tag has no publishing side effect beyond `cargo publish`.
+- release-plz creates **per-crate tags** (`aipm-v*`, `libaipm-v*`, `libaipm-engine-spec-v*`), not a single `v*` tag.
+- The `aipm-v*` tag is the authoritative trigger for binary/NuGet publishing. The `libaipm-v*` and `libaipm-engine-spec-v*` tags have no publishing side effect beyond `cargo publish`.
 - Pre-release suffixes (`-alpha.N`, `-beta.N`, `-rc.N`) are honored by SemVer 2.0 but are **not** published to nuget.org (the workflow's `if:` guard skips `prerelease` releases).
 
 ## References

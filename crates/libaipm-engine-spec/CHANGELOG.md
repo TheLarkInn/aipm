@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 ## [0.24.0] - 2026-05-05
 
 ### Bug Fixes
+- Fix release packaging: `data/engine-api-schema.json` is now correctly included when publishing to crates.io ([#798](https://github.com/TheLarkInn/aipm/pull/798))
+- Emit `cargo:warning=` when `build.rs` falls back to the schemars-derived schema because `schemas/engine-api.schema.json` is not present (e.g., crates.io builds) ([#798](https://github.com/TheLarkInn/aipm/pull/798))
 - Correct GitHub latest release download URL format in README installers ([#171](https://github.com/TheLarkInn/aipm/pull/171)) (99b7ec5)
 
 ### Documentation
