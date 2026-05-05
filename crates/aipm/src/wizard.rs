@@ -337,6 +337,64 @@ pub fn resolve_defaults(
     })
 }
 
+/// Render a human-readable summary of [`WizardAnswers`] suitable for
+/// printing to stderr after an interactive `aipm init` wizard run.
+///
+/// The summary recaps what the wizard decided so the user has a chance
+/// to confirm before scaffolding starts. Format:
+///
+/// ```text
+/// ✓ Setup mode: Marketplace only
+/// ✓ Scaffold engines: Claude Code, Copilot CLI
+/// ✓ Support engines: all (engines field omitted)
+/// ✓ Marketplace name: local-repo-plugins
+/// ✓ Include starter plugin: yes
+/// ```
+///
+/// Pure function — no I/O. The TTY bridge ([`super::wizard_tty`]) writes
+/// the result to stderr via `std::io::Write` to satisfy the workspace's
+/// no-`println!` lint policy.
+#[must_use]
+pub fn format_wizard_summary(answers: &WizardAnswers) -> String {
+    let setup_mode = match (answers.workspace, answers.marketplace) {
+        (false, true) => "Marketplace only",
+        (true, false) => "Workspace manifest only",
+        (true, true) => "Both workspace + marketplace",
+        (false, false) => "Nothing (no scope selected)",
+    };
+
+    let scaffold_engines = format_engine_set_for_summary(answers.engines_scaffold);
+    let support_engines = answers
+        .engines_support
+        .map_or_else(|| "all (engines field omitted)".to_string(), format_engine_set_for_summary);
+
+    let starter = if answers.no_starter { "no" } else { "yes" };
+
+    format!(
+        "\u{2713} Setup mode: {setup_mode}\n\
+         \u{2713} Scaffold engines: {scaffold_engines}\n\
+         \u{2713} Support engines: {support_engines}\n\
+         \u{2713} Marketplace name: {marketplace_name}\n\
+         \u{2713} Include starter plugin: {starter}\n",
+        marketplace_name = answers.marketplace_name,
+    )
+}
+
+/// Format an [`libaipm::EngineSet`] as a comma-separated list of human
+/// labels (e.g., `"Claude Code, Copilot CLI"`). Empty bitsets render as
+/// `"none"`.
+fn format_engine_set_for_summary(set: libaipm::EngineSet) -> String {
+    if set.is_empty() {
+        return "none".to_string();
+    }
+    let names: Vec<&str> = ENGINE_OPTIONS_INIT
+        .iter()
+        .filter(|(_, e)| set.contains(e.as_set()))
+        .map(|(l, _)| *l)
+        .collect();
+    names.join(", ")
+}
+
 /// Parse the values from `aipm init --engine <list>` into an `EngineSet`.
 ///
 /// Each value is trimmed and looked up via [`libaipm::Engine::from_name`].
@@ -1492,6 +1550,85 @@ mod tests {
         let result = resolve_workspace_answers(&answers, false, false, false, None, true);
         assert_eq!(result.engines_scaffold, libaipm::EngineSet::ALL);
         assert_eq!(result.engines_support, None);
+    }
+
+    // ---------- format_wizard_summary (Feature 14 / Spec §5.2.4) ----------
+
+    fn make_test_answers() -> WizardAnswers {
+        WizardAnswers {
+            workspace: false,
+            marketplace: true,
+            no_starter: false,
+            marketplace_name: "local-repo-plugins".to_string(),
+            engines_scaffold: libaipm::EngineSet::CLAUDE | libaipm::EngineSet::COPILOT,
+            engines_support: None,
+        }
+    }
+
+    #[test]
+    fn format_wizard_summary_marketplace_only_with_all_engines() {
+        let summary = format_wizard_summary(&make_test_answers());
+        assert!(summary.contains("Setup mode: Marketplace only"));
+        assert!(summary.contains("Scaffold engines: Claude Code, Copilot CLI"));
+        assert!(summary.contains("Support engines: all (engines field omitted)"));
+        assert!(summary.contains("Marketplace name: local-repo-plugins"));
+        assert!(summary.contains("Include starter plugin: yes"));
+    }
+
+    #[test]
+    fn format_wizard_summary_workspace_only_setup_mode() {
+        let answers = WizardAnswers { workspace: true, marketplace: false, ..make_test_answers() };
+        let summary = format_wizard_summary(&answers);
+        assert!(summary.contains("Setup mode: Workspace manifest only"));
+    }
+
+    #[test]
+    fn format_wizard_summary_both_setup_mode() {
+        let answers = WizardAnswers { workspace: true, marketplace: true, ..make_test_answers() };
+        let summary = format_wizard_summary(&answers);
+        assert!(summary.contains("Setup mode: Both workspace + marketplace"));
+    }
+
+    #[test]
+    fn format_wizard_summary_no_starter_renders_no() {
+        let answers = WizardAnswers { no_starter: true, ..make_test_answers() };
+        let summary = format_wizard_summary(&answers);
+        assert!(summary.contains("Include starter plugin: no"));
+    }
+
+    #[test]
+    fn format_wizard_summary_narrowed_support_renders_engine_list() {
+        let answers = WizardAnswers {
+            engines_support: Some(libaipm::EngineSet::CLAUDE),
+            ..make_test_answers()
+        };
+        let summary = format_wizard_summary(&answers);
+        assert!(summary.contains("Support engines: Claude Code"));
+        assert!(!summary.contains("all (engines field omitted)"));
+    }
+
+    #[test]
+    fn format_wizard_summary_empty_scaffold_renders_none() {
+        let answers =
+            WizardAnswers { engines_scaffold: libaipm::EngineSet::empty(), ..make_test_answers() };
+        let summary = format_wizard_summary(&answers);
+        assert!(summary.contains("Scaffold engines: none"));
+    }
+
+    #[test]
+    fn format_wizard_summary_uses_check_marker() {
+        // Spec §5.2.4 example uses ✓ U+2713 markers.
+        let summary = format_wizard_summary(&make_test_answers());
+        assert!(summary.contains('\u{2713}'), "summary should use ✓ markers: {summary}");
+    }
+
+    #[test]
+    fn format_wizard_summary_copilot_only_scaffold() {
+        let answers =
+            WizardAnswers { engines_scaffold: libaipm::EngineSet::COPILOT, ..make_test_answers() };
+        let summary = format_wizard_summary(&answers);
+        assert!(summary.contains("Scaffold engines: Copilot CLI"));
+        assert!(!summary.contains("Claude"));
     }
 
     // ---------- parse_engine_list (Feature 10 / Spec G4) ----------

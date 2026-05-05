@@ -1,3 +1,39 @@
+## Feature 14 — `wizard_tty::resolve` confirmation print (PASS)
+
+Date: 2026-05-05
+Iteration: 14
+Status: passes=true, all four CLAUDE.md gates green, coverage 90.30% (>=89% required)
+
+Most of Feature 14's wiring was already done as part of iteration 13's bundled work (the `WizardAnswers` return type). This iteration completes the feature by adding the spec §5.2.4 confirmation print.
+
+Changes shipped:
+- `crates/aipm/src/wizard.rs:309-360` — NEW `pub fn format_wizard_summary(answers: &WizardAnswers) -> String` builds the user-facing confirmation block. Format follows the spec example exactly: ✓ markers, "Setup mode", "Scaffold engines", "Support engines" (with `all (engines field omitted)` when `None`), "Marketplace name", "Include starter plugin: yes|no". Pure function — no I/O.
+- `crates/aipm/src/wizard.rs:362-374` — NEW private helper `format_engine_set_for_summary(EngineSet) -> String` returns comma-separated human labels (e.g., `"Claude Code, Copilot CLI"`); empty bitsets render as `"none"`.
+- `crates/aipm/src/wizard_tty.rs:1-19` — added `use std::io::Write;` and pulled `format_wizard_summary` into the imports.
+- `crates/aipm/src/wizard_tty.rs:55-72` — interactive branch of `resolve` now writes the summary to stderr after answers are resolved. Uses `std::io::stderr().lock()` + `write_all` per CLAUDE.md (no `println!`/`eprintln!`). Write failures are intentionally ignored — the summary is informational.
+- 8 NEW unit tests in `wizard.rs::tests`:
+  - `format_wizard_summary_marketplace_only_with_all_engines` — covers the spec's primary example.
+  - `format_wizard_summary_workspace_only_setup_mode` — verifies "Workspace manifest only" mode label.
+  - `format_wizard_summary_both_setup_mode` — verifies "Both workspace + marketplace" mode label.
+  - `format_wizard_summary_no_starter_renders_no` — starter plugin "no" rendering.
+  - `format_wizard_summary_narrowed_support_renders_engine_list` — narrowed support set renders as labels (not "all").
+  - `format_wizard_summary_empty_scaffold_renders_none` — empty bitset → "none" string.
+  - `format_wizard_summary_uses_check_marker` — confirms ✓ U+2713 markers per spec example.
+  - `format_wizard_summary_copilot_only_scaffold` — single-engine scaffold renders just "Copilot CLI".
+
+Test results: aipm CLI binary at 175 unit tests (+8 new), all green.
+
+CLAUDE.md lint compliance:
+- `std::io::Write` used for stderr output (no `println!`/`eprintln!`).
+- No `unwrap()`/`expect()`/`panic!()` introduced — write failures are explicitly discarded with `let _ =`.
+- No `#[allow(...)]` attributes.
+
+Notes for future iterations:
+- Feature 21 (snapshot refresh) — the wizard summary output isn't snapshot-tested directly; the format_wizard_summary tests use string `contains` assertions, which is more resilient to whitespace/punctuation tweaks than insta snapshots.
+- The wizard_tty bridge is excluded from coverage per CLAUDE.md, so the actual stderr write isn't tested. The pure logic in format_wizard_summary is fully tested.
+
+---
+
 ## Features 13 + 17 + 19 (bundled) — WizardAnswers struct + e2e/BDD test pinning (PASS)
 
 Date: 2026-05-05

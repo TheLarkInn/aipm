@@ -174,7 +174,7 @@
       "Update `cmd_init` in `main.rs:398-445` to consume the new struct and pass `engines_scaffold` and `engines_support` into the new `Options` fields.",
       "Run all four CLAUDE.md gates."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "refactor",

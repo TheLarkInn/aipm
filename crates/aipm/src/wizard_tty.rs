@@ -7,15 +7,16 @@
 //! All logic (prompt definitions, answer resolution, theming) lives in
 //! [`super::wizard`] and is fully tested (snapshot + unit tests).
 
+use std::io::Write;
 use std::path::Path;
 
 use libaipm::manifest::types::PluginType;
 
 use super::wizard;
 use super::wizard::{
-    migrate_cleanup_prompt_steps, resolve_defaults, resolve_migrate_cleanup_answer,
-    resolve_workspace_answers, styled_render_config, workspace_prompt_steps, PromptAnswer,
-    PromptKind, PromptStep, WizardAnswers,
+    format_wizard_summary, migrate_cleanup_prompt_steps, resolve_defaults,
+    resolve_migrate_cleanup_answer, resolve_workspace_answers, styled_render_config,
+    workspace_prompt_steps, PromptAnswer, PromptKind, PromptStep, WizardAnswers,
 };
 
 /// Resolved make-plugin output: `(name, engine, features)`.
@@ -54,14 +55,25 @@ pub fn resolve(
             flag_engine_provided,
         );
         let answers = libaipm::wizard::execute_prompts(&steps)?;
-        Ok(resolve_workspace_answers(
+        let resolved = resolve_workspace_answers(
             &answers,
             workspace,
             marketplace,
             no_starter,
             flag_name,
             flag_engine_provided,
-        ))
+        );
+
+        // Spec §5.2.4: print a confirmation block to stderr so the user
+        // sees what the wizard decided before scaffolding starts. Write
+        // failures are intentionally ignored — the user-facing summary
+        // is informational and shouldn't fail the init.
+        let stderr = std::io::stderr();
+        let mut handle = stderr.lock();
+        let _ = handle.write_all(format_wizard_summary(&resolved).as_bytes());
+        let _ = handle.flush();
+
+        Ok(resolved)
     } else {
         resolve_defaults(workspace, marketplace, no_starter, flag_name, engine_flag)
             .map_err(|e| -> Box<dyn std::error::Error> { e.into() })
