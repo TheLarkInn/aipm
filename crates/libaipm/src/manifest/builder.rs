@@ -43,6 +43,11 @@ pub struct WorkspaceManifestOpts<'a> {
     pub members: &'a [String],
     /// Default plugins directory.
     pub plugins_dir: Option<&'a str>,
+    /// Optional declared engines list for `[workspace].engines`. `None` or an
+    /// empty slice omits the field. Mirrors [`PluginManifestOpts::engines`]
+    /// shape so the wizard can pass either or both depending on whether the
+    /// user narrowed the support set.
+    pub engines: Option<&'a [&'a str]>,
     /// Optional header comment lines (each line is prefixed with `# `).
     pub header_comments: Option<&'a [&'a str]>,
     /// Optional trailing comment lines appended after the workspace section.
@@ -116,6 +121,16 @@ pub fn build_workspace_manifest(opts: &WorkspaceManifestOpts<'_>) -> String {
 
     if let Some(dir) = opts.plugins_dir {
         ws.insert("plugins_dir", value(dir));
+    }
+
+    if let Some(engines) = opts.engines {
+        if !engines.is_empty() {
+            let mut arr = Array::new();
+            for e in engines {
+                arr.push(*e);
+            }
+            ws.insert("engines", value(arr));
+        }
     }
 
     doc.insert("workspace", Item::Table(ws));
@@ -350,6 +365,7 @@ mod tests {
         let opts = WorkspaceManifestOpts {
             members: &members,
             plugins_dir: None,
+            engines: None,
             header_comments: None,
             trailing_comments: None,
         };
@@ -365,6 +381,7 @@ mod tests {
         let opts = WorkspaceManifestOpts {
             members: &members,
             plugins_dir: Some(".ai"),
+            engines: None,
             header_comments: None,
             trailing_comments: None,
         };
@@ -378,6 +395,7 @@ mod tests {
         let opts = WorkspaceManifestOpts {
             members: &members,
             plugins_dir: Some(".ai"),
+            engines: None,
             header_comments: Some(&[
                 "AI Plugin Manager — Workspace Configuration",
                 "Docs: https://github.com/thelarkinn/aipm",
@@ -401,6 +419,7 @@ mod tests {
         let opts = WorkspaceManifestOpts {
             members: &members,
             plugins_dir: Some(".ai"),
+            engines: None,
             header_comments: None,
             trailing_comments: Some(&[
                 "Shared dependency versions for all workspace members.",
@@ -421,6 +440,7 @@ mod tests {
         let opts = WorkspaceManifestOpts {
             members: &members,
             plugins_dir: None,
+            engines: None,
             header_comments: Some(&["Line one", "", "Line three"]),
             trailing_comments: None,
         };
@@ -435,6 +455,7 @@ mod tests {
         let opts = WorkspaceManifestOpts {
             members: &members,
             plugins_dir: None,
+            engines: None,
             header_comments: None,
             trailing_comments: None,
         };
@@ -449,6 +470,7 @@ mod tests {
         let opts = WorkspaceManifestOpts {
             members: &members,
             plugins_dir: Some(".ai"),
+            engines: None,
             header_comments: None,
             trailing_comments: None,
         };
@@ -467,6 +489,7 @@ mod tests {
         let opts = WorkspaceManifestOpts {
             members: &members,
             plugins_dir: Some(".ai"),
+            engines: None,
             header_comments: Some(&[
                 "AI Plugin Manager — Workspace Configuration",
                 "Docs: https://github.com/thelarkinn/aipm",
@@ -494,6 +517,69 @@ mod tests {
             output.contains("# [workspace.dependencies]"),
             "missing trailing comment: {output}"
         );
+    }
+
+    // ── Workspace manifest engines tests (Spec G7 / Feature 8) ────────
+
+    #[test]
+    fn workspace_manifest_engines_none_omits_field() {
+        let members = vec![".ai/*".to_string()];
+        let opts = WorkspaceManifestOpts {
+            members: &members,
+            plugins_dir: Some(".ai"),
+            engines: None,
+            header_comments: None,
+            trailing_comments: None,
+        };
+        let output = build_workspace_manifest(&opts);
+        assert!(
+            !output.contains("engines"),
+            "engines: None should not produce an engines key: {output}"
+        );
+    }
+
+    #[test]
+    fn workspace_manifest_engines_empty_slice_omits_field() {
+        let members = vec![".ai/*".to_string()];
+        let opts = WorkspaceManifestOpts {
+            members: &members,
+            plugins_dir: Some(".ai"),
+            engines: Some(&[]),
+            header_comments: None,
+            trailing_comments: None,
+        };
+        let output = build_workspace_manifest(&opts);
+        assert!(
+            !output.contains("engines"),
+            "empty engines slice should not produce an engines key: {output}"
+        );
+    }
+
+    #[test]
+    fn workspace_manifest_engines_round_trips_through_parser() {
+        let members = vec![".ai/*".to_string()];
+        let opts = WorkspaceManifestOpts {
+            members: &members,
+            plugins_dir: Some(".ai"),
+            engines: Some(&["claude", "copilot"]),
+            header_comments: None,
+            trailing_comments: None,
+        };
+        let output = build_workspace_manifest(&opts);
+        assert!(
+            output.contains("engines = [\"claude\", \"copilot\"]"),
+            "expected engines line in output: {output}"
+        );
+
+        // Round-trip-validate via the canonical parse_and_validate pipeline.
+        let parsed = crate::manifest::parse_and_validate(&output, None);
+        assert!(parsed.is_ok(), "should parse + validate as a Manifest: {parsed:?}");
+        let m = parsed.unwrap_or_default();
+        let ws = m.workspace.as_ref();
+        assert!(ws.is_some_and(|w| w
+            .engines
+            .is_some_and(|s| s.contains(libaipm_engine_spec::EngineSet::CLAUDE)
+                && s.contains(libaipm_engine_spec::EngineSet::COPILOT))));
     }
 
     #[test]

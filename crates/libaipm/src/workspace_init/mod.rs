@@ -156,6 +156,7 @@ fn generate_workspace_manifest() -> String {
         &crate::manifest::builder::WorkspaceManifestOpts {
             members: &members,
             plugins_dir: Some(".ai"),
+            engines: None,
             header_comments: Some(&[
                 "AI Plugin Manager — Workspace Configuration",
                 "Docs: https://github.com/thelarkinn/aipm",

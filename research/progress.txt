@@ -1,3 +1,27 @@
+## Feature 8 — Manifest builder accepts `[workspace].engines` (PASS)
+
+Date: 2026-05-05
+Iteration: 8
+Status: passes=true, all four CLAUDE.md gates green, coverage 90.16% (>=89% required)
+
+Changes shipped:
+- `crates/libaipm/src/manifest/builder.rs:41-56` — extended `WorkspaceManifestOpts` struct with `pub engines: Option<&'a [&'a str]>,` field. Doc comment notes the "None or empty slice omits the field" semantics, mirroring `PluginManifestOpts::engines`.
+- `crates/libaipm/src/manifest/builder.rs:117-127` — extended `build_workspace_manifest` to insert `engines = […]` into the `[workspace]` table when `Some(slice)` AND `!slice.is_empty()`. Field order: after `plugins_dir` and before any future trailing-comment-rendered sections.
+- 10 caller sites updated to add `engines: None`:
+  - `crates/libaipm/src/workspace_init/mod.rs:158` (production caller in `generate_workspace_manifest`)
+  - 9 test initializers in `manifest/builder.rs` (replace_all caught 7 with `header_comments: None,`; 2 more had `header_comments: Some(&[...])` and were updated individually).
+- 3 NEW tests added:
+  - `workspace_manifest_engines_none_omits_field` — `engines: None` produces no `engines` key.
+  - `workspace_manifest_engines_empty_slice_omits_field` — `engines: Some(&[])` also produces no `engines` key (semantic parity with the deserializer's "empty = all engines" interpretation).
+  - `workspace_manifest_engines_round_trips_through_parser` — `engines: Some(&["claude", "copilot"])` produces `engines = ["claude", "copilot"]`, AND the output round-trip-validates via `crate::manifest::parse_and_validate` to a `Workspace.engines` containing both bits.
+
+Test results: libaipm at 2179 unit tests (+3 new), all green.
+
+Notes for future iterations:
+- Feature 9 (`Options` extension) calls this builder with the user's selected `engines_support` set. The wizard's 5.5.3 spec §5.5.3 logic — "omit the engines field unless the support set is narrower than `EngineSet::ALL`" — happens at the `Options → builder` translation step in `generate_workspace_manifest`, not inside the builder itself. The builder just respects whatever the caller passes.
+
+---
+
 ## Feature 7 — `validate_via_manifest` cleanup (PASS)
 
 Date: 2026-05-05

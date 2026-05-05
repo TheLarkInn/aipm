@@ -99,7 +99,7 @@
       "Round-trip-validate via `crate::manifest::parse_and_validate` in the tests.",
       "Run all four CLAUDE.md gates."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
