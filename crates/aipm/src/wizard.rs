@@ -79,6 +79,31 @@ pub fn workspace_prompt_steps(
                  Enter to confirm. At least one engine required.",
             ),
         });
+
+        // Engine support prompt (Spec G2 / Feature 12). Always paired with
+        // the scaffold prompt above — emitted under identical conditions.
+        // Defaults to all engines pre-checked (matches the "supports all"
+        // baseline; manifest field is omitted when the user accepts
+        // defaults). Strict "support ⊇ scaffold" enforcement happens in
+        // `resolve_workspace_answers` (Feature 13); the in-prompt
+        // `min_selections: 1` is a weaker safety net that prevents the
+        // user from selecting nothing.
+        let support_labels: Vec<&'static str> =
+            ENGINE_OPTIONS_INIT.iter().map(|(l, _)| *l).collect();
+        let support_defaults: Vec<bool> = ENGINE_OPTIONS_INIT.iter().map(|_| true).collect();
+        steps.push(PromptStep {
+            label: "Which engines does your project support?",
+            kind: PromptKind::MultiSelect {
+                options: support_labels,
+                defaults: support_defaults,
+                min_selections: 1,
+            },
+            help: Some(
+                "Defaults to all engines (the manifest will omit the engines \
+                 field). Narrow this only if your plugin is engine-specific. \
+                 Must include all scaffolded engines.",
+            ),
+        });
     }
 
     // Marketplace name prompt — skip if a non-empty --name was provided or marketplace not possible.
@@ -138,12 +163,13 @@ pub fn resolve_workspace_answers(
         (flag_workspace, flag_marketplace)
     };
 
-    // Skip the engine-scaffold MultiSelect answer when the prompt was
-    // emitted. Feature 13 will consume it; for now the index is just
-    // advanced so downstream prompts align.
+    // Skip the engine-scaffold + engine-support MultiSelect answers when
+    // the prompts were emitted (they're emitted as a pair). Feature 13
+    // will consume them; for now the index is just advanced so downstream
+    // prompts align.
     let marketplace_possible_for_engine = flag_marketplace || needs_setup_prompt;
     if marketplace_possible_for_engine && !flag_engine_provided {
-        idx += 1;
+        idx += 2; // scaffold + support
     }
 
     // Resolve marketplace name
@@ -678,6 +704,89 @@ mod tests {
         assert!(
             help.contains("at least one") || help.contains("required"),
             "help should mention min-1 requirement: {help}"
+        );
+    }
+
+    // ---------- engine-support MultiSelect (Feature 12 / Spec G2) ----------
+
+    #[test]
+    fn support_prompt_emitted_alongside_scaffold_prompt() {
+        // The two engine prompts are paired — both are emitted under the
+        // same conditions (marketplace in scope AND --engine not given).
+        let steps = workspace_prompt_steps(false, false, false, None, false);
+        let support = steps.iter().find(|s| s.label == "Which engines does your project support?");
+        assert!(support.is_some(), "support prompt should be emitted alongside scaffold prompt");
+    }
+
+    #[test]
+    fn support_prompt_skipped_when_engine_flag_provided() {
+        let steps = workspace_prompt_steps(false, false, false, None, true);
+        let support = steps.iter().find(|s| s.label == "Which engines does your project support?");
+        assert!(support.is_none(), "support prompt should be skipped when --engine provided");
+    }
+
+    #[test]
+    fn support_prompt_skipped_for_workspace_only_scope() {
+        let steps = workspace_prompt_steps(true, false, false, None, false);
+        let support = steps.iter().find(|s| s.label == "Which engines does your project support?");
+        assert!(support.is_none(), "support prompt should be skipped in workspace-only scope");
+    }
+
+    #[test]
+    fn support_prompt_kind_and_defaults() {
+        let steps = workspace_prompt_steps(false, true, false, None, false);
+        let support = steps
+            .iter()
+            .find(|s| s.label == "Which engines does your project support?")
+            .expect("support prompt should be present");
+
+        match &support.kind {
+            PromptKind::MultiSelect { options, defaults, min_selections } => {
+                assert_eq!(options.len(), ENGINE_OPTIONS_INIT.len(), "options count");
+                assert_eq!(options[0], "Claude Code");
+                assert_eq!(options[1], "Copilot CLI");
+                assert!(defaults.iter().all(|d| *d), "all engines pre-checked by default");
+                assert_eq!(*min_selections, 1, "min_selections must be 1");
+            },
+            other => panic!("support prompt kind should be MultiSelect, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn support_prompt_appears_after_scaffold_prompt() {
+        // Order matters: scaffold is asked first (the user must pick at
+        // least one engine to actually create), then support is asked
+        // (defaults to all). resolve_workspace_answers depends on this
+        // ordering for index advancement.
+        let steps = workspace_prompt_steps(false, false, false, None, false);
+
+        let scaffold_idx = steps
+            .iter()
+            .position(|s| s.label == "Which engine(s) should we scaffold for this project?")
+            .expect("scaffold prompt should be present");
+        let support_idx = steps
+            .iter()
+            .position(|s| s.label == "Which engines does your project support?")
+            .expect("support prompt should be present");
+
+        assert!(
+            support_idx == scaffold_idx + 1,
+            "support prompt should immediately follow scaffold prompt: scaffold={scaffold_idx} support={support_idx}"
+        );
+    }
+
+    #[test]
+    fn support_prompt_help_describes_default_and_constraint() {
+        let steps = workspace_prompt_steps(false, true, false, None, false);
+        let support = steps
+            .iter()
+            .find(|s| s.label == "Which engines does your project support?")
+            .expect("support prompt should be present");
+        let help = support.help.unwrap_or("");
+        assert!(help.contains("all engines"), "help should explain default = all: {help}");
+        assert!(
+            help.contains("scaffolded"),
+            "help should mention superset-of-scaffold constraint: {help}"
         );
     }
 

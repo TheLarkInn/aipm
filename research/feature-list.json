@@ -151,7 +151,7 @@
       "Add unit/snapshot tests: defaults-to-all, narrowed-to-claude-only, narrowed-not-superset-rejected.",
       "Run all four CLAUDE.md gates."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "ui",

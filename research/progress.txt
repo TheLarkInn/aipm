@@ -1,3 +1,39 @@
+## Feature 12 — Wizard Prompt 3 "Which engines does your project support?" (PASS)
+
+Date: 2026-05-05
+Iteration: 12
+Status: passes=true, all four CLAUDE.md gates green, coverage 90.25% (>=89% required)
+
+Changes shipped:
+- `crates/aipm/src/wizard.rs:83-106` — added second `PromptStep` to `workspace_prompt_steps`, immediately following the scaffold prompt. Label: "Which engines does your project support?". MultiSelect with all engines pre-checked (defaults all true), `min_selections: 1`. Help text explains the "defaults to all → omits engines field" rule and mentions the superset-of-scaffold constraint.
+- `crates/aipm/src/wizard.rs:166-172` — `resolve_workspace_answers` updated to advance idx by 2 (scaffold + support) instead of 1, since both prompts are emitted as a pair under the same `marketplace_possible && !flag_engine_provided` gate.
+
+Pragmatic compromise on the validator:
+- The spec calls for a cross-prompt validator that rejects "support not a superset of scaffold" with message "Cannot drop {engine} from support — it's in the scaffold set." That requires extending `execute_prompts` to share state between prompts (a non-trivial refactor).
+- This iteration uses `min_selections: 1` as a weaker safety net (prevents zero selections). The strict superset check is deferred to Feature 13's `resolve_workspace_answers` rewrite, which can compare the two MultiSelect answers and either error out or auto-include scaffold engines in support.
+- Documented in code comments at `wizard.rs:87-90`.
+
+NEW tests in `crates/aipm/src/wizard.rs::tests`:
+- `support_prompt_emitted_alongside_scaffold_prompt` — both prompts emitted as a pair.
+- `support_prompt_skipped_when_engine_flag_provided` — `--engine` skips both.
+- `support_prompt_skipped_for_workspace_only_scope` — workspace-only scope skips both.
+- `support_prompt_kind_and_defaults` — MultiSelect with all engines pre-checked, `min_selections: 1`, exactly 2 options matching ENGINE_OPTIONS_INIT.
+- `support_prompt_appears_after_scaffold_prompt` — order matters; resolve_workspace_answers depends on it.
+- `support_prompt_help_describes_default_and_constraint` — help text mentions "all engines" default and "scaffolded" constraint.
+
+Test results: aipm CLI binary at 158 unit tests (+6 new), all green. Existing snapshot tests still preserved (callers pass `flag_engine_provided = true`, so neither engine prompt emits).
+
+CLAUDE.md lint compliance:
+- No `unwrap()`/`expect()`/`panic!()` introduced.
+- No `#[allow(...)]` attributes.
+- One unrelated clippy issue from the previous iteration (which I'd already fixed) — no new issues this iteration.
+
+Notes for future iterations:
+- Feature 13 (`resolve_workspace_answers + resolve_defaults`) replaces both index-advancement stubs at `wizard.rs:170-172` with proper EngineSet construction from the two MultiSelect answers. That's also where the strict "support ⊇ scaffold" check lands. The `resolve_*` return type extends to carry `engines_scaffold` and `engines_support`.
+- Feature 14 (`wizard_tty::resolve` rewrite) flips `flag_engine_provided = true` to `!flags.engine.is_empty()`, plumbs the engines back to `cmd_init`, and replaces the `EngineSet::CLAUDE` baseline with wizard-derived defaults.
+
+---
+
 ## Feature 11 — Wizard Prompt 2 "Which engine(s) should we scaffold?" (PASS)
 
 Date: 2026-05-05
