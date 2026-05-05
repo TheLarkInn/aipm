@@ -184,7 +184,7 @@
       "Add a test fixture or extend existing tests so a workspace-level `engines = [\"claude\"]` with a member plugin omitting the field correctly drives the lint to apply Claude-only tool-name rules.",
       "Run all four CLAUDE.md gates."
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
