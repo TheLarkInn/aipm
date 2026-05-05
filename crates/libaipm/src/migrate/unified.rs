@@ -792,4 +792,70 @@ mod tests {
         assert!(!is_dot_agent_md(Path::new("/repo/.claude/agents/foo.md")));
         assert!(!is_dot_agent_md(Path::new("/repo/.claude/agents/agent.md")));
     }
+
+    /// Covers the `else` branch of `dedup_agent_artifacts` (line 153): when two
+    /// plain `.md` Agent artifacts share a name the first (existing) survives and
+    /// the duplicate is dropped.
+    #[test]
+    fn dedup_agent_artifacts_plain_md_existing_wins_over_duplicate_plain_md() {
+        use super::super::ArtifactKind;
+
+        let first = Artifact {
+            kind: ArtifactKind::Agent,
+            name: "bar".into(),
+            source_path: PathBuf::from("/repo/.claude/agents/bar.md"),
+            files: Vec::new(),
+            referenced_scripts: Vec::new(),
+            metadata: Default::default(),
+        };
+        let second = Artifact {
+            kind: ArtifactKind::Agent,
+            name: "bar".into(),
+            source_path: PathBuf::from("/repo/.claude/agents/bar.md"),
+            files: Vec::new(),
+            referenced_scripts: Vec::new(),
+            metadata: Default::default(),
+        };
+        let mut artifacts = vec![first, second];
+        dedup_agent_artifacts(&mut artifacts);
+        assert_eq!(artifacts.len(), 1, "duplicate plain .md must be deduplicated to one");
+        assert_eq!(artifacts[0].name, "bar");
+    }
+
+    /// Covers the `else` branch of `dedup_agent_artifacts` (line 153): when the
+    /// existing entry is already `.agent.md` and the new entry is a plain `.md`,
+    /// the existing `.agent.md` is kept and the plain `.md` is dropped.
+    #[test]
+    fn dedup_agent_artifacts_existing_dot_agent_md_wins_over_new_plain_md() {
+        use super::super::ArtifactKind;
+
+        let dot_agent = Artifact {
+            kind: ArtifactKind::Agent,
+            name: "baz".into(),
+            source_path: PathBuf::from("/repo/.claude/agents/baz.agent.md"),
+            files: Vec::new(),
+            referenced_scripts: Vec::new(),
+            metadata: Default::default(),
+        };
+        let plain = Artifact {
+            kind: ArtifactKind::Agent,
+            name: "baz".into(),
+            source_path: PathBuf::from("/repo/.claude/agents/baz.md"),
+            files: Vec::new(),
+            referenced_scripts: Vec::new(),
+            metadata: Default::default(),
+        };
+        // dot_agent is inserted first → it becomes the existing entry;
+        // plain is the new entry → should be dropped via the else branch.
+        let mut artifacts = vec![dot_agent, plain];
+        dedup_agent_artifacts(&mut artifacts);
+        assert_eq!(artifacts.len(), 1, "plain .md must lose to existing .agent.md");
+        assert!(
+            artifacts[0]
+                .source_path
+                .file_name()
+                .is_some_and(|n| n.to_string_lossy().ends_with(".agent.md")),
+            "the .agent.md variant must survive when it was already the existing entry"
+        );
+    }
 }
