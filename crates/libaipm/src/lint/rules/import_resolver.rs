@@ -58,18 +58,6 @@ fn parse_markdown_links(content: &str) -> Vec<String> {
     links
 }
 
-/// Return `true` when `path` is safe to follow.
-///
-/// Rejects absolute paths, Windows drive prefixes, and `..` segments using
-/// `Path::components()` so that both `/`-separated and `\`-separated paths
-/// are handled correctly on every platform.
-fn is_path_safe(path: &str) -> bool {
-    use std::path::Component;
-    Path::new(path)
-        .components()
-        .all(|c| !matches!(c, Component::ParentDir | Component::RootDir | Component::Prefix(..)))
-}
-
 /// Lexically normalize a path by stripping redundant `./` prefixes.
 ///
 /// `a.md` and `./a.md` resolve to the same file; normalizing before inserting
@@ -117,7 +105,7 @@ pub fn resolve_imports<S: BuildHasher>(
     let mut total_chars = direct_chars;
 
     for import_path in parse_at_imports(&content) {
-        if is_path_safe(&import_path) {
+        if crate::lint::path_guard::is_safe_path(&import_path) {
             let resolved = parent_dir.join(&import_path);
             let (lines, chars) = resolve_imports(&resolved, fs, visited);
             total_lines += lines;
@@ -126,7 +114,7 @@ pub fn resolve_imports<S: BuildHasher>(
     }
 
     for link_path in parse_markdown_links(&content) {
-        if is_path_safe(&link_path) {
+        if crate::lint::path_guard::is_safe_path(&link_path) {
             let resolved = parent_dir.join(&link_path);
             let (lines, chars) = resolve_imports(&resolved, fs, visited);
             total_lines += lines;
@@ -212,24 +200,8 @@ mod tests {
         assert!(links.is_empty());
     }
 
-    // --- is_path_safe ---
-
-    #[test]
-    fn path_traversal_rejected() {
-        assert!(!is_path_safe("../../etc/passwd"));
-    }
-
-    #[test]
-    fn absolute_path_rejected() {
-        assert!(!is_path_safe("/etc/passwd"));
-    }
-
-    #[test]
-    fn relative_path_safe() {
-        assert!(is_path_safe("shared/context.md"));
-    }
-
     // --- resolve_imports integration ---
+    // (is_path_safe tests moved to lint::path_guard module — see #793)
 
     #[test]
     fn at_import_resolves_and_sums_sizes() {
@@ -367,7 +339,7 @@ mod tests {
     #[test]
     fn path_traversal_in_markdown_link_rejected() {
         // A markdown link whose URL contains `..` must not be followed.
-        // Exercises the `else` branch of `if is_path_safe(&link_path)` (line 129).
+        // Exercises the `else` branch of `if crate::lint::path_guard::is_safe_path(&link_path)` (line 129).
         let mut fs = MockFs::new();
         let main = PathBuf::from("CLAUDE.md");
         let secret = PathBuf::from("../secret.md");

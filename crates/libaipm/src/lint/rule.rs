@@ -38,6 +38,23 @@ pub trait Rule: Send + Sync {
     /// Returns zero or more diagnostics. An empty vec means no issues found.
     /// Errors indicate infrastructure failures (I/O errors), not lint findings.
     fn check_file(&self, file_path: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, super::Error>;
+
+    /// Run the rule against a single feature file with awareness of the
+    /// lint root directory.
+    ///
+    /// Default implementation delegates to [`Rule::check_file`]; the
+    /// `lint_dir` argument is intended for rules that walk the directory
+    /// tree above `file_path` and need an upper bound on that walk
+    /// (issue #793 Finding 2 / spec §5.1.3). Override only when the rule
+    /// actually needs the bound — most rules ignore it.
+    fn check_file_in(
+        &self,
+        file_path: &Path,
+        _lint_dir: &Path,
+        fs: &dyn Fs,
+    ) -> Result<Vec<Diagnostic>, super::Error> {
+        self.check_file(file_path, fs)
+    }
 }
 
 #[cfg(test)]

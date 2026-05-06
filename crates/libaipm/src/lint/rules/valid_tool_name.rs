@@ -50,6 +50,20 @@ impl Rule for ValidToolName {
     }
 
     fn check_file(&self, file_path: &Path, fs: &dyn Fs) -> Result<Vec<Diagnostic>, Error> {
+        // Live invocations route through `check_file_in` (overridden below)
+        // and pass an explicit `lint_dir`. This `check_file` path is reached
+        // only by direct test callers and the catalog query; an empty
+        // `lint_dir` means "no upper bound on the parent walk", which
+        // preserves pre-#793 behaviour for those callers.
+        self.check_file_in(file_path, Path::new(""), fs)
+    }
+
+    fn check_file_in(
+        &self,
+        file_path: &Path,
+        lint_dir: &Path,
+        fs: &dyn Fs,
+    ) -> Result<Vec<Diagnostic>, Error> {
         let Ok(content) = fs.read_to_string(file_path) else {
             return Ok(vec![]);
         };
@@ -60,7 +74,7 @@ impl Rule for ValidToolName {
             return Ok(vec![]);
         };
 
-        let declared = nearest_declared_engines(file_path, fs);
+        let declared = nearest_declared_engines(file_path, lint_dir, fs);
         let source_type = super::scan::source_type_from_path(file_path).to_string();
         let tools_line = fm.field_lines.get("tools").copied();
 
@@ -185,8 +199,8 @@ fn format_toml_string_array(names: &[&'static str]) -> String {
 /// Returns [`EngineSet::empty()`] when no manifest is found, the manifest
 /// cannot be read or parsed, or the resolved engines are `None` /
 /// `Some(EngineSet::empty())`.
-fn nearest_declared_engines(file_path: &Path, fs: &dyn Fs) -> EngineSet {
-    let Some(manifest_path) = find_nearest_manifest(file_path, fs) else {
+fn nearest_declared_engines(file_path: &Path, lint_dir: &Path, fs: &dyn Fs) -> EngineSet {
+    let Some(manifest_path) = find_nearest_manifest(file_path, lint_dir, fs) else {
         return EngineSet::empty();
     };
     let Ok(content) = fs.read_to_string(&manifest_path) else {
@@ -202,13 +216,25 @@ fn nearest_declared_engines(file_path: &Path, fs: &dyn Fs) -> EngineSet {
 /// Walk parent directories looking for `aipm.toml`.
 ///
 /// Returns the first existing `aipm.toml` encountered moving from the
-/// feature file toward the filesystem root.
-fn find_nearest_manifest(file_path: &Path, fs: &dyn Fs) -> Option<PathBuf> {
+/// feature file toward the filesystem root. The walk stops at `lint_dir`
+/// (inclusive) — a manifest *at* `lint_dir/aipm.toml` is found, but the
+/// walk does not ascend above it. An empty `lint_dir` (the convention
+/// passed by the legacy `check_file` callers) disables the cap.
+///
+/// Issue #793 Finding 2 / spec §5.1.3 (sub-option A): without the cap,
+/// the walk would terminate only at the filesystem root, allowing a
+/// PR-author-controlled feature placed near the root to draw declared
+/// engines from an `aipm.toml` outside the linted workspace.
+fn find_nearest_manifest(file_path: &Path, lint_dir: &Path, fs: &dyn Fs) -> Option<PathBuf> {
+    let cap_enabled = !lint_dir.as_os_str().is_empty();
     let mut current = file_path.parent();
     while let Some(dir) = current {
         let candidate = dir.join("aipm.toml");
         if fs.exists(&candidate) {
             return Some(candidate);
+        }
+        if cap_enabled && dir == lint_dir {
+            return None;
         }
         current = dir.parent();
     }
@@ -502,5 +528,136 @@ mod tests {
             diags.is_empty(),
             "package.engines=[copilot] should override workspace.engines=[claude]: {diags:?}"
         );
+    }
+
+    // --- Parent-walk cap (issue #793 Finding 2 / spec G4) ---
+
+    /// Plant `aipm.toml` at an ABOVE-lint-root location that is on the walk
+    /// path. The agent file uses a copilot-only tool. Without the cap, the
+    /// rule would find the manifest, see `engines = ["claude"]`, and emit
+    /// an Error (declared-but-incompatible). With the cap, the manifest is
+    /// invisible and the rule treats the workspace as having no declared
+    /// engines (Warning, not Error).
+    #[test]
+    fn parent_walk_stops_at_lint_dir_above_manifest_invisible() {
+        let mut fs = MockFs::new();
+        // Agent at .ai/p/agents/reviewer.md uses a copilot-only tool.
+        add_agent_with_tools(&mut fs, "browser_navigate");
+        // Manifest planted ONE LEVEL ABOVE the lint root, AT a directory
+        // the parent walk would otherwise traverse. Walk path from the
+        // agent file is .ai/p/agents -> .ai/p -> .ai -> "". Without the
+        // cap, the walk reaches .ai/aipm.toml and reads engines=["claude"];
+        // copilot-only tool against ["claude"] → Severity::Error. With the
+        // cap at lint_dir = .ai/p, the walk returns None at the boundary
+        // → declared = empty → Severity::Warning. Asserting Warning here
+        // pins the cap behaviour: a regression that lets the walk through
+        // the boundary would flip the severity to Error and fail this test.
+        let above_manifest = PathBuf::from(".ai/aipm.toml");
+        fs.exists.insert(above_manifest.clone());
+        fs.files.insert(
+            above_manifest,
+            "[package]\nname = \"p\"\nversion = \"1.0.0\"\nengines = [\"claude\"]\n".to_string(),
+        );
+        // lint_dir is the .ai/p directory the user ran lint against.
+        let lint_dir = PathBuf::from(".ai/p");
+        let diags =
+            ValidToolName.check_file_in(&agent_path(), &lint_dir, &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1, "{diags:?}");
+        // No declared engines visible → Warning (not Error from the
+        // declared-but-incompatible branch). This is the assertion that
+        // pins the cap: regressing the cap would flip severity to Error.
+        assert_eq!(
+            diags[0].severity,
+            Severity::Warning,
+            "cap regression: walk reached above-lint-root manifest and \
+             severity became Error. Diagnostic was: {diags:?}"
+        );
+        assert!(diags[0].message.contains("browser_navigate"));
+    }
+
+    /// Companion to the above: WITHOUT the cap (legacy `check_file` path),
+    /// the same fixture should emit an Error because the walk reaches the
+    /// `.ai/aipm.toml` manifest. This pins the inverse behaviour — proves
+    /// the test fixture is non-trivial for the cap-enabled assertion.
+    #[test]
+    fn parent_walk_without_cap_finds_above_lint_root_manifest() {
+        let mut fs = MockFs::new();
+        add_agent_with_tools(&mut fs, "browser_navigate");
+        let above_manifest = PathBuf::from(".ai/aipm.toml");
+        fs.exists.insert(above_manifest.clone());
+        fs.files.insert(
+            above_manifest,
+            "[package]\nname = \"p\"\nversion = \"1.0.0\"\nengines = [\"claude\"]\n".to_string(),
+        );
+        // Legacy entry point — no lint_dir cap.
+        let diags = ValidToolName.check_file(&agent_path(), &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1, "{diags:?}");
+        // Walk reaches the manifest → declared = ["claude"] → copilot-only
+        // tool against ["claude"] → Error.
+        assert_eq!(diags[0].severity, Severity::Error);
+        assert!(diags[0].message.contains("browser_navigate"));
+    }
+
+    /// Plant `aipm.toml` INSIDE the lint root. The cap allows the walk to
+    /// reach it; the rule sees the declared engines and applies them.
+    #[test]
+    fn parent_walk_succeeds_inside_lint_dir() {
+        let mut fs = MockFs::new();
+        add_agent_with_tools(&mut fs, "browser_navigate");
+        add_manifest(
+            &mut fs,
+            "[package]\nname = \"p\"\nversion = \"1.0.0\"\nengines = [\"copilot\"]\n",
+        );
+        // lint_dir at the .ai root; manifest is at .ai/p/aipm.toml (inside it).
+        let lint_dir = PathBuf::from(".ai");
+        let diags =
+            ValidToolName.check_file_in(&agent_path(), &lint_dir, &fs).ok().unwrap_or_default();
+        // copilot tool with copilot declared → clean.
+        assert!(diags.is_empty(), "{diags:?}");
+    }
+
+    /// Plant `aipm.toml` at exactly `lint_dir/aipm.toml`. The cap is
+    /// inclusive — the manifest at the cap boundary IS found.
+    #[test]
+    fn parent_walk_finds_manifest_at_lint_dir_boundary() {
+        let mut fs = MockFs::new();
+        // Different agent layout for this case: agent directly under
+        // lint_dir/agents, manifest at lint_dir/aipm.toml.
+        let agent = PathBuf::from(".ai/agents/reviewer.md");
+        fs.exists.insert(agent.clone());
+        fs.files.insert(
+            agent.clone(),
+            "---\nname: reviewer\ntools: browser_navigate\n---\nPrompt".to_string(),
+        );
+        let manifest = PathBuf::from(".ai/aipm.toml");
+        fs.exists.insert(manifest.clone());
+        fs.files.insert(
+            manifest,
+            "[package]\nname = \"p\"\nversion = \"1.0.0\"\nengines = [\"copilot\"]\n".to_string(),
+        );
+        // lint_dir == .ai (the directory containing the manifest).
+        let lint_dir = PathBuf::from(".ai");
+        let diags = ValidToolName.check_file_in(&agent, &lint_dir, &fs).ok().unwrap_or_default();
+        // Manifest at the cap boundary is found → engines visible → clean.
+        assert!(diags.is_empty(), "{diags:?}");
+    }
+
+    /// Confirms the legacy `check_file` entry point (no `lint_dir` cap)
+    /// still walks to filesystem root. Direct test callers and the
+    /// catalog query rely on this — only the live lint pipeline routes
+    /// through `check_file_in` with a real cap.
+    #[test]
+    fn legacy_check_file_path_disables_cap() {
+        let mut fs = MockFs::new();
+        add_agent_with_tools(&mut fs, "browser_navigate");
+        // Manifest at .ai/p/aipm.toml (the standard test layout).
+        add_manifest(
+            &mut fs,
+            "[package]\nname = \"p\"\nversion = \"1.0.0\"\nengines = [\"copilot\"]\n",
+        );
+        // Calling check_file directly (no lint_dir) — must still find
+        // the manifest.
+        let diags = ValidToolName.check_file(&agent_path(), &fs).ok().unwrap_or_default();
+        assert!(diags.is_empty(), "{diags:?}");
     }
 }

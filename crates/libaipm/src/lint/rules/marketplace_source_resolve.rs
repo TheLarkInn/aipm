@@ -99,13 +99,28 @@ fn check_marketplace(mp_path: &Path, ai_dir: &Path, fs: &dyn Fs) -> Vec<Diagnost
                     ),
                 )),
                 Some(source) => {
-                    let resolved = ai_dir.join(source.trim_start_matches("./"));
-                    if !fs.exists(&resolved) {
+                    // Reject parent-dir traversal, absolute roots, and Windows
+                    // drive prefixes before any filesystem read (issue #793
+                    // Finding 2). Reuse the existing rule id; only the message
+                    // text changes.
+                    let trimmed = source.trim_start_matches("./");
+                    if crate::lint::path_guard::is_safe_path(trimmed) {
+                        let resolved = ai_dir.join(trimmed);
+                        if !fs.exists(&resolved) {
+                            diagnostics.push(diag(
+                                mp_path,
+                                &source_type,
+                                format!(
+                                    "plugin '{plugin_name}' source path does not resolve: {source}"
+                                ),
+                            ));
+                        }
+                    } else {
                         diagnostics.push(diag(
                             mp_path,
                             &source_type,
                             format!(
-                                "plugin '{plugin_name}' source path does not resolve: {source}"
+                                "plugin '{plugin_name}' source path '{source}' rejected: parent-dir traversal, absolute paths, and Windows prefixes are not allowed"
                             ),
                         ));
                     }
@@ -267,5 +282,78 @@ mod tests {
         let diags = result.unwrap();
         assert_eq!(diags.len(), 1);
         assert!(diags[0].message.contains("must be a string"));
+    }
+
+    // --- Path-containment guard (issue #793 Finding 2) ---
+    //
+    // Each negative test seeds MockFs so that the path the unfixed code
+    // would build via `ai_dir.join(...)` would also exist. With the guard
+    // in place, the rule emits a 'rejected' diagnostic without ever
+    // calling `fs.exists` on the resolved path.
+
+    #[test]
+    fn parent_dir_traversal_in_source_rejected_before_fs_check() {
+        let mut fs = MockFs::new();
+        fs.add_marketplace_json(r#"{"plugins":[{"name":"evil","source":"../../etc/passwd"}]}"#);
+        // If the guard is missing, the join produces `.ai/../../etc/passwd`,
+        // which we deliberately seed as 'existing' below — so any
+        // diagnostic we get here MUST come from the guard rejection branch,
+        // not from the does-not-resolve branch.
+        fs.add_existing(".ai/../../etc/passwd");
+        let result =
+            SourceResolve.check_file(Path::new(".ai/.claude-plugin/marketplace.json"), &fs);
+        assert!(result.is_ok());
+        let diags = result.unwrap();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].rule_id, "marketplace/source-resolve");
+        assert!(diags[0].message.contains("rejected"));
+        assert!(diags[0].message.contains("../../etc/passwd"));
+    }
+
+    #[test]
+    fn absolute_path_in_source_rejected_before_fs_check() {
+        let mut fs = MockFs::new();
+        fs.add_marketplace_json(r#"{"plugins":[{"name":"evil","source":"/etc/passwd"}]}"#);
+        // ai_dir.join("/etc/passwd") = "/etc/passwd" (Path::join resets on
+        // absolute). Seed it as existing.
+        fs.add_existing("/etc/passwd");
+        let result =
+            SourceResolve.check_file(Path::new(".ai/.claude-plugin/marketplace.json"), &fs);
+        assert!(result.is_ok());
+        let diags = result.unwrap();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].rule_id, "marketplace/source-resolve");
+        assert!(diags[0].message.contains("rejected"));
+        assert!(diags[0].message.contains("/etc/passwd"));
+    }
+
+    #[test]
+    fn dotslash_prefix_with_traversal_still_rejected() {
+        // The leading "./" is stripped by trim_start_matches("./") before
+        // the guard runs — verify the residual "../foo" still trips the
+        // guard.
+        let mut fs = MockFs::new();
+        fs.add_marketplace_json(r#"{"plugins":[{"name":"evil","source":"./../foo"}]}"#);
+        fs.add_existing(".ai/../foo");
+        let result =
+            SourceResolve.check_file(Path::new(".ai/.claude-plugin/marketplace.json"), &fs);
+        assert!(result.is_ok());
+        let diags = result.unwrap();
+        assert_eq!(diags.len(), 1);
+        assert!(diags[0].message.contains("rejected"));
+    }
+
+    #[test]
+    fn middle_segment_traversal_in_source_rejected() {
+        // `foo/../bar` is also a parent-dir component and rejected.
+        let mut fs = MockFs::new();
+        fs.add_marketplace_json(r#"{"plugins":[{"name":"evil","source":"foo/../bar"}]}"#);
+        fs.add_existing(".ai/foo/../bar");
+        let result =
+            SourceResolve.check_file(Path::new(".ai/.claude-plugin/marketplace.json"), &fs);
+        assert!(result.is_ok());
+        let diags = result.unwrap();
+        assert_eq!(diags.len(), 1);
+        assert!(diags[0].message.contains("rejected"));
     }
 }
