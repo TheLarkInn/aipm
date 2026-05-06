@@ -143,6 +143,7 @@ aipm migrate [OPTIONS] [DIR]
 | `--source <SRC>` | Source folder to scan (e.g., `.claude`). Omit to discover recursively |
 | `--max-depth <N>` | Maximum depth for recursive discovery |
 | `--manifest` | Generate `aipm.toml` manifests for migrated plugins |
+| `--no-summary` | Suppress the one-line scan summary printed to stderr (also suppressed when `--log-format=json`) |
 
 **Claude Code (`.claude/`) artifact types:** skills (`SKILL.md`), agents (`agents/*.md`), MCP servers (`.mcp.json`), hooks (`hooks.json`), commands (`commands/*.md`), output styles.
 
@@ -281,6 +282,7 @@ aipm lint [OPTIONS] [DIR]
 | `--reporter <FMT>` | Output format: `human` (default), `json`, `ci-github`, `ci-azure` |
 | `--color <MODE>` | Color output: `auto` (default), `always`, `never` |
 | `--max-depth <N>` | Maximum directory traversal depth |
+| `--no-summary` | Suppress the one-line scan summary printed to stderr (also suppressed when `--log-format=json`) |
 
 Exits with a non-zero status code when violations are found, making it safe to use in CI pipelines. Use `--reporter ci-github` for GitHub Actions annotations or `--reporter ci-azure` for Azure Pipelines.
 
@@ -555,8 +557,8 @@ and emits typed const tables into the build output at compile time.
 | Exported Symbol | Type | Description |
 |-----------------|------|-------------|
 | `ENGINES` | `&[(Engine, EngineSpec)]` | All known engines with their full spec (name, marketplace paths, convention files, size limits, tool calls, hook events, …) |
-| `VALID_TOOLS` | `&[(&str, EngineSet)]` | All tool call names and the set of engines that support each one |
-| `TOOL_COMPATIBILITY` | `&[(&str, EngineSet)]` | Same as `VALID_TOOLS` but scoped for cross-engine compatibility queries |
+| `VALID_TOOLS` | `phf::Set<&'static str>` | All valid tool call names; O(1) perfect-hash lookup used by the `valid-tool-name` lint rule |
+| `TOOL_COMPATIBILITY` | `&[(&str, EngineSet)]` | Tool call names paired with the set of engines that support each one; used for cross-engine compatibility queries |
 | `FEATURES_BY_ENGINE` | `&[(Engine, EngineFeatureSet)]` | Per-engine feature capabilities |
 | `HOOK_EVENTS_BY_ENGINE` | `&[(Engine, &[HookEventStatic])]` | Per-engine hook event names used by `hook/unknown-event` and `hook/legacy-event-name` |
 | `paths` | module | Compile-time path constants (marketplace manifests, settings files, convention directories) |
@@ -612,7 +614,7 @@ crates/
   libaipm-engine-spec/   Engine API schema source-of-truth (canonical types, build-time const tables, tool/hook/path data)
 vscode-aipm/    VS Code extension (lint diagnostics, completions, hover for aipm.toml)
 specs/          Technical design documents
-tests/features/ Cucumber BDD feature files (31 files, 300+ scenarios)
+tests/features/ Cucumber BDD feature files (33 files, 300+ scenarios)
 research/       Competitive analysis and design research
 ```
 
@@ -653,7 +655,7 @@ The following features are defined as BDD scenarios and tracked as open issues. 
 
 ### Quality & Portability
 
-- 🔨 **Guardrails** — `aipm lint` with 18 rules and 4 reporters ships today (see [`docs/guides/lint.md`](docs/guides/lint.md)); auto-fix and quality scoring on publish are not yet implemented ([#13](https://github.com/TheLarkInn/aipm/issues/13))
+- 🔨 **Guardrails** — `aipm lint` with 19 rules and 4 reporters ships today (see [`docs/guides/lint.md`](docs/guides/lint.md)); auto-fix and quality scoring on publish are not yet implemented ([#13](https://github.com/TheLarkInn/aipm/issues/13))
 - 🔨 **Compositional Reuse** — spec, acquirer, and marketplace modules ship; full publish/consume workflow for standalone primitives pending ([#14](https://github.com/TheLarkInn/aipm/issues/14))
 - 🔨 **Cross-Stack** — Claude Code and Copilot CLI adaptors ship today; Cursor and OpenCode adaptors planned ([#15](https://github.com/TheLarkInn/aipm/issues/15))
 
