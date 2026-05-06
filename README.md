@@ -543,12 +543,73 @@ See [Editor schema support](docs/guides/configuring-lint.md#editor-schema-suppor
 
 ---
 
+## `libaipm-engine-spec` — Engine API Schema
+
+Single source of truth for all engine-specific data consumed across the workspace.
+The data file at `crates/libaipm-engine-spec/data/engine-api-schema.json` is the
+canonical record; `build.rs` validates it against `schemas/engine-api.schema.json`
+and emits typed const tables into the build output at compile time.
+
+### Generated Tables
+
+| Exported Symbol | Type | Description |
+|-----------------|------|-------------|
+| `ENGINES` | `&[(Engine, EngineSpec)]` | All known engines with their full spec (name, marketplace paths, convention files, size limits, tool calls, hook events, …) |
+| `VALID_TOOLS` | `&[(&str, EngineSet)]` | All tool call names and the set of engines that support each one |
+| `TOOL_COMPATIBILITY` | `&[(&str, EngineSet)]` | Same as `VALID_TOOLS` but scoped for cross-engine compatibility queries |
+| `FEATURES_BY_ENGINE` | `&[(Engine, EngineFeatureSet)]` | Per-engine feature capabilities |
+| `HOOK_EVENTS_BY_ENGINE` | `&[(Engine, &[HookEventStatic])]` | Per-engine hook event names used by `hook/unknown-event` and `hook/legacy-event-name` |
+| `paths` | module | Compile-time path constants (marketplace manifests, settings files, convention directories) |
+| `constraints` | module | Compile-time numeric limits (max skill size, max instruction length, …) |
+
+### Key Types
+
+| Type | Description |
+|------|-------------|
+| `Engine` | Enum of known engines (`Claude`, `Copilot`); implements `name()` / `from_name()` |
+| `EngineSet` | Bitfield of engines — supports `\|`, `&`, `contains`, `ALL` |
+| `EngineSpec` | Full runtime spec for one engine (tools, events, paths, convention files, limits) |
+| `META_SCHEMA_VERSION` | Semver string that must match `data/engine-api-schema.json`; bumped on breaking schema changes |
+
+### Helper Functions
+
+| Function | Description |
+|----------|-------------|
+| `engine_for_root_dir(path)` | Infer the engine from a source directory path (e.g. `.claude/` → `Claude`) |
+| `marketplace_host_for_root_dir(path)` | Infer the marketplace host (Claude vs. Copilot) from a path |
+| `is_valid_event(engine, event)` | Check whether a hook event name is valid for the given engine |
+| `valid_tool_name_check(engine_set, tool)` | Return `None` if the tool name is valid, or a `ToolNameViolation` describing the conflict |
+| `suggest_canonical(tool)` | Return a canonical tool-name suggestion for a near-miss tool name |
+
+### Schema Export
+
+The JSON Schema at `schemas/engine-api.schema.json` is derived from the Rust types
+via `schemars`. Regenerate it after changing `src/types.rs`:
+
+```bash
+cargo run -p libaipm-engine-spec --bin export-schema
+```
+
+The integration test `tests/schema_export_drift.rs` fails if the committed schema
+diverges from what the types would produce, keeping the two in sync automatically.
+
+### Data Update Cycle
+
+The `reverse-binary-analysis` agentic workflow (weekly) downloads each engine CLI,
+reverse-analyses its plugin API surface, and opens a PR to update
+`data/engine-api-schema.json`. `build.rs` enforces schema version matching
+(`meta_schema_version` in the data file must equal `META_SCHEMA_VERSION`), so
+breaking data-shape changes always require a version bump.
+
+---
+
 ## Project Structure
 
 ```
 crates/
-  aipm/         CLI binary (init, install, update, uninstall, link, unlink, list, lint, migrate, make, pack, lsp)
-  libaipm/      Core library (manifest, validation, migration, scaffolding, lint, install, link, resolve)
+  aipm/                  CLI binary (init, install, update, uninstall, link, unlink, list, lint, migrate, make, pack, lsp)
+  libaipm/               Core library (manifest, validation, migration, scaffolding, lint, install, link, resolve)
+  libaipm-engine-spec/   Engine API schema source-of-truth (canonical types, build-time const tables, tool/hook/path data)
 vscode-aipm/    VS Code extension (lint diagnostics, completions, hover for aipm.toml)
 specs/          Technical design documents
 tests/features/ Cucumber BDD feature files (31 files, 300+ scenarios)
