@@ -1730,4 +1730,26 @@ mod tests {
         assert!(output.contains("  [1] Agents"), "index 1 should not be pre-selected");
         assert!(output.contains(" *[2] MCP"), "index 2 should be pre-selected");
     }
+
+    // =========================================================================
+    // decode_engine_multi_select — defensive branch coverage
+    // =========================================================================
+
+    #[test]
+    fn decode_engine_multi_select_none_returns_empty_set() {
+        // Covers the false branch of `if let Some(PromptAnswer::MultiSelected(...)) = answer`
+        // when `answer` is `None` — the helper must return an empty EngineSet.
+        let result = decode_engine_multi_select(None);
+        assert!(result.is_empty(), "None answer should yield empty EngineSet");
+    }
+
+    #[test]
+    fn decode_engine_multi_select_out_of_range_index_silently_ignored() {
+        // Covers the false branch of `if let Some((_, engine)) = ENGINE_OPTIONS_INIT.get(*idx)`
+        // when an index exceeds the bounds of ENGINE_OPTIONS_INIT.
+        let out_of_range = ENGINE_OPTIONS_INIT.len(); // one past the last valid index
+        let answer = PromptAnswer::MultiSelected(vec![out_of_range]);
+        let result = decode_engine_multi_select(Some(&answer));
+        assert!(result.is_empty(), "out-of-range index should be silently ignored → empty set");
+    }
 }
