@@ -207,6 +207,16 @@ mod tests {
     }
 
     #[test]
+    fn folder_name_fallback_when_path_has_no_file_name() {
+        // "." is a valid validated path (CurDir component only; no traversal,
+        // no root, no null bytes), but `Path::new(".").file_name()` returns
+        // `None` on Unix. This exercises the `unwrap_or("plugin")` fallback
+        // branch in `folder_name()`.
+        let path = ValidatedPath::new(".").unwrap_or_else(|e| panic_free_unreachable(&e));
+        assert_eq!(path.folder_name(), "plugin");
+    }
+
+    #[test]
     fn validate_null_byte_rejected() {
         let result = validate_plugin_path("foo\0bar");
         assert!(matches!(result, Err(PathValidationError::PathTraversal)));

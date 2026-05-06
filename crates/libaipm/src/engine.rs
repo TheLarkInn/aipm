@@ -56,12 +56,14 @@ pub fn all_names() -> Vec<&'static str> {
 /// Format the marker requirement for error messages.
 #[must_use]
 pub fn format_marker_requirement(engine: Engine) -> String {
-    let markers = marker_paths(engine);
+    format_marker_string(marker_paths(engine))
+}
+
+fn format_marker_string(markers: &[&str]) -> String {
     if markers.len() == 1 {
         format!("missing {}", markers.first().copied().unwrap_or(""))
     } else {
-        let names: Vec<&str> = markers.to_vec();
-        format!("expected at least one of: {}", names.join(", "))
+        format!("expected at least one of: {}", markers.join(", "))
     }
 }
 
@@ -324,6 +326,18 @@ mod tests {
         assert!(req.contains("expected at least one of"));
     }
 
+    /// Covers the `markers.len() == 1` branch in `format_marker_string`.
+    ///
+    /// Both built-in engines have multiple marker paths, so this branch is
+    /// dead code through `format_marker_requirement(engine)`.  Testing the
+    /// private helper directly ensures the single-marker message is
+    /// formatted correctly ("missing <path>") and exercises the branch.
+    #[test]
+    fn format_marker_string_single_marker() {
+        let result = format_marker_string(&["single-marker.json"]);
+        assert_eq!(result, "missing single-marker.json");
+    }
+
     #[test]
     fn engine_display() {
         assert_eq!(display_name(Engine::Claude), "Claude");
@@ -369,5 +383,36 @@ mod tests {
     fn marketplace_manifest_path_returns_correct_path() {
         assert_eq!(marketplace_manifest_path(Engine::Claude), ".claude-plugin/marketplace.toml");
         assert_eq!(marketplace_manifest_path(Engine::Copilot), ".github/plugin/marketplace.json");
+    }
+
+    /// Covers the `engines.filter(|s| !s.is_empty())` → `None` branch that
+    /// arises when the manifest has `engines = []` (explicit empty list).
+    ///
+    /// `Option::filter` calls the predicate when the `Option` is `Some`.  An
+    /// explicit `engines = []` in the TOML deserializes to
+    /// `Some(EngineSet::empty())`.  The `!s.is_empty()` guard evaluates to
+    /// `false` for an empty set, so `filter` returns `None` — treating the
+    /// plugin as universal (valid for all engines).  This path is distinct from
+    /// the `engines` field being omitted entirely (`None` → filter bypassed).
+    #[test]
+    fn validate_with_aipm_toml_empty_engines_list_is_universal() {
+        let temp = make_temp();
+        let plugin_dir = temp.path().join("empty-engines-plugin");
+        std::fs::create_dir_all(&plugin_dir).unwrap_or_else(|_| {});
+        // engines = [] → Some(EngineSet::empty()) → filter predicate false → None → universal
+        std::fs::write(
+            plugin_dir.join("aipm.toml"),
+            "[package]\nname = \"test\"\nversion = \"1.0.0\"\nengines = []\n",
+        )
+        .unwrap_or_else(|_| {});
+
+        assert!(
+            validate_plugin(&plugin_dir, Engine::Claude).is_ok(),
+            "empty engines list should allow claude"
+        );
+        assert!(
+            validate_plugin(&plugin_dir, Engine::Copilot).is_ok(),
+            "empty engines list should allow copilot"
+        );
     }
 }
