@@ -91,6 +91,30 @@ mod tests {
         let _ = std::fs::remove_dir_all(path);
     }
 
+    /// Covers the `if tmp.exists()` True branch in `make_temp_dir`: when the
+    /// directory already exists before `make_temp_dir` is called, the helper
+    /// removes the old tree so tests start with a clean slate.
+    #[test]
+    fn make_temp_dir_cleans_up_pre_existing_directory() {
+        let name = "cleanup-existing";
+        let tmp = std::env::temp_dir().join(format!("aipm-test-copilot-{name}"));
+        // Pre-create the directory and a sentinel file so we can verify cleanup.
+        let _ = std::fs::create_dir_all(&tmp);
+        let _ = std::fs::write(tmp.join("sentinel.txt"), b"old content");
+        assert!(tmp.exists(), "pre-condition: directory must exist before make_temp_dir");
+
+        // make_temp_dir must remove the old tree (True branch of `if tmp.exists()`)
+        // and then recreate a fresh directory.
+        let result = make_temp_dir(name);
+        assert!(result.exists(), "make_temp_dir must create the directory");
+        assert!(
+            !result.join("sentinel.txt").exists(),
+            "sentinel file must be removed by make_temp_dir cleanup"
+        );
+
+        cleanup(&result);
+    }
+
     #[test]
     fn adaptor_reports_copilot_engine_and_name() {
         let adaptor = Adaptor;
