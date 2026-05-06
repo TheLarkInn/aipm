@@ -537,6 +537,31 @@ mod tests {
         let _ = outcome.actions;
     }
 
+    /// Covers the `!source_dir.exists()` branch in `enumerate_sources` (line 192):
+    /// when `opts.source` names a directory that does not exist, the migration
+    /// returns an empty outcome rather than an error.
+    #[test]
+    fn unified_migrate_nonexistent_source_returns_empty_outcome() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        init_marketplace(root);
+
+        // ".claude" does not exist under root → enumerate_sources early-returns
+        // Ok(vec![]) and run produces an empty outcome.
+        let opts = Options {
+            dir: root,
+            source: Some(".claude"),
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let ai_dir = root.join(".ai");
+        let outcome = run(&opts, &ai_dir, &Real).expect("migrate succeeds on missing source");
+        assert_eq!(outcome.scan_counts.total(), 0, "no artifacts when source dir is missing");
+        assert!(outcome.actions.is_empty(), "no actions when source dir does not exist");
+    }
+
     #[test]
     fn discover_options_from_options_maps_correctly() {
         let opts = Options {
@@ -892,6 +917,41 @@ mod tests {
             PathBuf::from("/repo/.claude/agents/qux.agent.md"),
             "the first (existing) .agent.md must survive"
         );
+    }
+
+    /// Covers the `artifact.kind != ArtifactKind::Agent` branch in
+    /// `dedup_agent_artifacts` (line 138): non-Agent artifacts in the list are
+    /// skipped and must remain in the output unchanged.
+    #[test]
+    fn dedup_agent_artifacts_skips_non_agent_kinds() {
+        use super::super::ArtifactKind;
+
+        let skill = Artifact {
+            kind: ArtifactKind::Skill,
+            name: "shared-name".into(),
+            source_path: PathBuf::from("/repo/.claude/skills/shared-name/SKILL.md"),
+            files: Vec::new(),
+            referenced_scripts: Vec::new(),
+            metadata: Default::default(),
+        };
+        let agent = Artifact {
+            kind: ArtifactKind::Agent,
+            name: "shared-name".into(),
+            source_path: PathBuf::from("/repo/.claude/agents/shared-name.agent.md"),
+            files: Vec::new(),
+            referenced_scripts: Vec::new(),
+            metadata: Default::default(),
+        };
+        // The Skill must not be touched by the Agent dedup logic.
+        let mut artifacts = vec![skill, agent];
+        dedup_agent_artifacts(&mut artifacts);
+        assert_eq!(
+            artifacts.len(),
+            2,
+            "non-Agent artifacts must be preserved by dedup_agent_artifacts"
+        );
+        assert_eq!(artifacts[0].kind, ArtifactKind::Skill);
+        assert_eq!(artifacts[1].kind, ArtifactKind::Agent);
     }
 
     /// Covers the `!handled_roots.contains(root)` false branch in
