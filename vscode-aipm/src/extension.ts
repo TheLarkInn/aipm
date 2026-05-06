@@ -46,6 +46,8 @@ export function activate(context: ExtensionContext): void {
       { scheme: 'file', pattern: '**/INSTRUCTIONS.md' },
       // Instruction files — *.instructions.md anywhere in the project
       { scheme: 'file', pattern: '**/*.instructions.md' },
+      // GitHub Copilot repository-level instructions (always at .github/copilot-instructions.md)
+      { scheme: 'file', pattern: '**/.github/copilot-instructions.md' },
     ],
     errorHandler: {
       error: () => ({ action: ErrorAction.Continue }),
