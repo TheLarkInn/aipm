@@ -532,24 +532,30 @@ mod tests {
 
     // --- Parent-walk cap (issue #793 Finding 2 / spec G4) ---
 
-    /// Plant `aipm.toml` at an ABOVE-lint-root location with engines = ["claude"].
-    /// The agent file uses a copilot-only tool. With the parent-walk cap in
-    /// place at `lint_dir`, the manifest is invisible — the rule treats the
-    /// workspace as having no declared engines (Severity::Warning, not Error).
+    /// Plant `aipm.toml` at an ABOVE-lint-root location that is on the walk
+    /// path. The agent file uses a copilot-only tool. Without the cap, the
+    /// rule would find the manifest, see `engines = ["claude"]`, and emit
+    /// an Error (declared-but-incompatible). With the cap, the manifest is
+    /// invisible and the rule treats the workspace as having no declared
+    /// engines (Warning, not Error).
     #[test]
     fn parent_walk_stops_at_lint_dir_above_manifest_invisible() {
         let mut fs = MockFs::new();
         // Agent at .ai/p/agents/reviewer.md uses a copilot-only tool.
         add_agent_with_tools(&mut fs, "browser_navigate");
-        // Manifest planted ONE LEVEL ABOVE the lint root. Without the cap,
-        // the parent walk from `.ai/p/agents/reviewer.md` would ascend
-        // through `.ai/p`, `.ai`, `""` (the lint_dir), and then `..` —
-        // ultimately reaching this manifest. The cap stops the walk at
-        // lint_dir.
-        let outside_manifest = PathBuf::from("../aipm.toml");
-        fs.exists.insert(outside_manifest.clone());
+        // Manifest planted ONE LEVEL ABOVE the lint root, AT a directory
+        // the parent walk would otherwise traverse. Walk path from the
+        // agent file is .ai/p/agents -> .ai/p -> .ai -> "". Without the
+        // cap, the walk reaches .ai/aipm.toml and reads engines=["claude"];
+        // copilot-only tool against ["claude"] → Severity::Error. With the
+        // cap at lint_dir = .ai/p, the walk returns None at the boundary
+        // → declared = empty → Severity::Warning. Asserting Warning here
+        // pins the cap behaviour: a regression that lets the walk through
+        // the boundary would flip the severity to Error and fail this test.
+        let above_manifest = PathBuf::from(".ai/aipm.toml");
+        fs.exists.insert(above_manifest.clone());
         fs.files.insert(
-            outside_manifest,
+            above_manifest,
             "[package]\nname = \"p\"\nversion = \"1.0.0\"\nengines = [\"claude\"]\n".to_string(),
         );
         // lint_dir is the .ai/p directory the user ran lint against.
@@ -558,8 +564,37 @@ mod tests {
             ValidToolName.check_file_in(&agent_path(), &lint_dir, &fs).ok().unwrap_or_default();
         assert_eq!(diags.len(), 1, "{diags:?}");
         // No declared engines visible → Warning (not Error from the
-        // declared-but-incompatible branch).
-        assert_eq!(diags[0].severity, Severity::Warning);
+        // declared-but-incompatible branch). This is the assertion that
+        // pins the cap: regressing the cap would flip severity to Error.
+        assert_eq!(
+            diags[0].severity,
+            Severity::Warning,
+            "cap regression: walk reached above-lint-root manifest and \
+             severity became Error. Diagnostic was: {diags:?}"
+        );
+        assert!(diags[0].message.contains("browser_navigate"));
+    }
+
+    /// Companion to the above: WITHOUT the cap (legacy `check_file` path),
+    /// the same fixture should emit an Error because the walk reaches the
+    /// `.ai/aipm.toml` manifest. This pins the inverse behaviour — proves
+    /// the test fixture is non-trivial for the cap-enabled assertion.
+    #[test]
+    fn parent_walk_without_cap_finds_above_lint_root_manifest() {
+        let mut fs = MockFs::new();
+        add_agent_with_tools(&mut fs, "browser_navigate");
+        let above_manifest = PathBuf::from(".ai/aipm.toml");
+        fs.exists.insert(above_manifest.clone());
+        fs.files.insert(
+            above_manifest,
+            "[package]\nname = \"p\"\nversion = \"1.0.0\"\nengines = [\"claude\"]\n".to_string(),
+        );
+        // Legacy entry point — no lint_dir cap.
+        let diags = ValidToolName.check_file(&agent_path(), &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1, "{diags:?}");
+        // Walk reaches the manifest → declared = ["claude"] → copilot-only
+        // tool against ["claude"] → Error.
+        assert_eq!(diags[0].severity, Severity::Error);
         assert!(diags[0].message.contains("browser_navigate"));
     }
 

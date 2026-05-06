@@ -435,7 +435,7 @@ Rollout sequence inside the single PR:
 
 1. **Pre-merge — author tasks** (must complete before "Ready for review"):
    - [ ] Verify NuGet trusted-publisher subject-claim binding in NuGet.org publisher settings (G10). Record actual values in this spec under §10.
-   - [ ] Configure GitHub `nuget-publish` environment with required-reviewer rule and `main`-only deployment branch restriction.
+   - [ ] Configure GitHub `nuget-publish` environment with required-reviewer rule. **Deployment branches and tags policy:** "Selected branches and tags" — must allow tag pattern `aipm-v*` (release-triggered publishes run on `refs/tags/aipm-v*`, NOT `refs/heads/main`; a `main`-only restriction would block every automatic publish). Optionally also allow branch `main` for `workflow_dispatch` runs originating from the default branch.
    - [ ] Confirm `secrets.NUGET_USERNAME` is still populated (used by `NuGet/login@v1`).
 2. **PR contents:**
    - [ ] All Rust source changes (Findings 1 + 2)
@@ -445,7 +445,7 @@ Rollout sequence inside the single PR:
    - [ ] Research document updated `last_updated` and a `last_updated_note` referencing this spec
 3. **CI gates** (per [`CLAUDE.md`](../CLAUDE.md)):
    - [ ] `cargo build --workspace` — clean
-   - [ ] `cargo test --workspace` — all tests pass including new BDD scenarios
+   - [ ] `cargo test --workspace` — all tests pass. Note: the new `tests/features/lint/path-containment.feature` is documentation-form Gherkin (matching the convention of `tests/features/lint/valid-tool-name.feature` and `tests/features/security/path-traversal.feature`) and is NOT wired into the cucumber runner at `crates/libaipm/tests/bdd.rs` (which today filters to `tests/features/manifest/*` only). The behaviours it specifies are exercised by the per-rule Rust unit tests added in §8.3.
    - [ ] `cargo clippy --workspace -- -D warnings` — clean
    - [ ] `cargo fmt --check` — clean
    - [ ] `cargo +nightly llvm-cov` branch coverage ≥ 89%
@@ -539,7 +539,9 @@ Feature: Lint rules contain PR-author-controlled paths
     And no second logging command appears on any subsequent byte until "##[endgroup]"
 ```
 
-Step definitions land in `crates/libaipm/tests/bdd.rs` alongside the existing path-traversal step at [`bdd.rs:360-376`](https://github.com/TheLarkInn/aipm/blob/2defa916bba5e1a654ded2b64d5ab0bd32f746cd/crates/libaipm/tests/bdd.rs#L360-L376).
+**Wiring decision (revised in implementation):** the new feature file is committed as **documentation-form Gherkin only**, matching the convention used by the existing `tests/features/lint/valid-tool-name.feature` and `tests/features/security/path-traversal.feature` — neither of which is wired into the cucumber runner at `crates/libaipm/tests/bdd.rs:984` (the runner today filters to `tests/features/manifest/*` only). No new step definitions are added.
+
+The behaviours specified by these Gherkin scenarios are exercised by the Rust unit tests listed earlier in §8.3 (per-rule `tests` modules in `marketplace_source_resolve.rs`, `marketplace_field_mismatch.rs`, `valid_tool_name.rs`, and `reporter.rs`). Wiring lint/security feature files into the BDD harness would broaden the scope of #793 beyond its remit; a follow-up issue can pick that up if desired.
 
 #### Workflow validation
 

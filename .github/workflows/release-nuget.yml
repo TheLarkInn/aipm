@@ -44,6 +44,11 @@ jobs:
     runs-on: ubuntu-latest
     # Protected environment with required-reviewer approval. Configured in
     # repo Settings -> Environments -> nuget-publish (#793 Finding 3 / G6).
+    # IMPORTANT: GitHub evaluates environment "Deployment branches and tags"
+    # rules against the triggering ref. A `release: published` event runs
+    # on `refs/tags/aipm-v*`, NOT `refs/heads/main` — so the env policy
+    # MUST allow the `aipm-v*` tag pattern; restricting to `main` only
+    # would block every automatic release publish.
     environment: nuget-publish
     permissions:
       contents: read

@@ -16,7 +16,12 @@ Status:         COMPLETE
 - [ ] Configure GitHub repo environment `nuget-publish` (Settings → Environments)
       • Required reviewer: @TheLarkInn (minimum)
       • Wait timer: 0 minutes
-      • Deployment branches: main only
+      • Deployment branches and tags: "Selected branches and tags" — MUST
+        allow tag pattern `aipm-v*`. Release-triggered publishes run on
+        `refs/tags/aipm-v*`, NOT `refs/heads/main`; a `main`-only
+        restriction would block every automatic publish (#793 Copilot
+        review feedback).
+      • Optionally also allow branch `main` for manual workflow_dispatch
       • No environment secrets needed (NUGET_API_KEY removed from workflow)
 
 - [ ] Verify NuGet.org trusted-publisher subject-claim binding for `aipm`
@@ -325,8 +330,12 @@ post-merge `release-nuget.yml` run will block awaiting an environment
 that does not exist:
 
 - [ ] Configure GitHub repo environment `nuget-publish` (Settings > Environments)
-      with required reviewer (@TheLarkInn minimum), wait timer 0,
-      deployment branches: main only.
+      with required reviewer (@TheLarkInn minimum), wait timer 0.
+      Deployment branches and tags policy: "Selected branches and tags" —
+      MUST allow tag pattern `aipm-v*` (release-triggered publishes run
+      on refs/tags/aipm-v*, NOT refs/heads/main; a `main`-only restriction
+      would block every automatic publish). Optionally also allow branch
+      `main` for workflow_dispatch.
 - [ ] Verify NuGet.org trusted-publisher subject-claim binding for `aipm`:
       repository_owner = TheLarkInn, repository = aipm, ref = refs/tags/aipm-v*.
       Record actual values in spec §10 Appendix.
