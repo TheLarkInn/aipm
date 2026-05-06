@@ -69,6 +69,40 @@ All plugin paths are automatically validated for security:
 
 This protection is always active — no configuration needed.
 
+## Registry Package Checksum Verification
+
+When aipm downloads a package from a registry, it verifies the downloaded tarball's
+SHA-512 checksum against the value recorded in the registry index (`cksum` field).
+If the checksums do not match, the install is aborted with a checksum mismatch error.
+
+After installation the SHA-512 digest is recorded in `aipm.lock`:
+
+```toml
+[[package]]
+name = "my-plugin"
+version = "1.2.0"
+source = "registry+https://github.com/org/registry.git"
+checksum = "sha512-3b4c..."
+```
+
+On subsequent `aipm install --locked` runs, the stored checksum is re-verified before
+the cached copy is used, detecting any tampering of the local cache.
+
+> **NuGet-style registries**: The `sha512-` prefix on the `cksum` field in registry
+> index files follows the same convention used by Cargo and NuGet. aipm strips the
+> prefix before comparing the raw 128-character hex digest.
+
+## Lint Path Containment
+
+The lint rules that resolve paths from PR-author-controlled configuration files
+(such as `marketplace.json` source paths and `aipm.toml` imports) validate every
+path before any filesystem read. Paths containing `..`, absolute roots (`/`, `C:\`),
+or Windows drive/UNC prefixes are silently skipped rather than followed, preventing
+a crafted configuration from making `aipm lint` read files outside the workspace.
+
+This is a defense-in-depth layer that operates independently of the plugin-path
+validation above. No configuration is required.
+
 ---
 
 See also: [`aipm install`](../../README.md#aipm-install), [`docs/guides/install-git-plugin.md`](./install-git-plugin.md), [`docs/guides/install-marketplace-plugin.md`](./install-marketplace-plugin.md), [`docs/guides/cache-management.md`](./cache-management.md), [`docs/guides/global-plugins.md`](./global-plugins.md).
