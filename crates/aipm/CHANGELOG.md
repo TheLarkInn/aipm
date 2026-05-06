@@ -1,6 +1,11 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.24.1] - 2026-05-06
+
+### Testing
+- Cover defensive branches in decode_engine_multi_select (2cbb36b)
+
 ## [0.24.0] - 2026-05-05
 
 ### Features

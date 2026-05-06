@@ -1,6 +1,14 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.24.1] - 2026-05-06
+
+### Bug Fixes
+- Address #793 — ADO log-command injection, lint path containment, NuGet hardening ([#804](https://github.com/TheLarkInn/aipm/pull/804)) (fe598f0)
+
+### Testing
+- Cover wrong-filename guard branches in match_marketplace and match_plugin_json (7608d30)
+
 ## [0.24.0] - 2026-05-05
 
 ### Features
