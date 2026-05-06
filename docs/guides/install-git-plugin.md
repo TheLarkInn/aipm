@@ -100,6 +100,10 @@ source = "git+https://github.com/org/repo?path=plugins/foo&ref=main"
 checksum = "sha512-..."
 ```
 
+The `checksum` field is a SHA-512 digest of the plugin content, computed at install time
+and re-verified on every subsequent `aipm install --locked` run. Any tampering with the
+cached plugin directory causes the install to fail with a checksum mismatch error.
+
 ## Examples
 
 ### Public GitHub plugin
