@@ -589,4 +589,46 @@ mod tests {
         let result = store.store_package(pkg_dir.path()).unwrap();
         assert_eq!(result.len(), 1);
     }
+
+    /// Verify that `lock()` returns an error when the store path cannot be
+    /// created because it is already occupied by a regular file.
+    #[cfg(unix)]
+    #[test]
+    fn lock_errors_when_store_path_is_a_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        // Create a regular file at what will be the store path
+        let file_path = tmp.path().join("not-a-directory");
+        std::fs::write(&file_path, b"regular file content").unwrap();
+
+        // `create_dir_all` on an existing regular file fails with ENOTDIR
+        let store = Store::new(file_path);
+        let result = store.lock();
+        assert!(result.is_err(), "expected lock() to fail when store path is a file");
+    }
+
+    /// Verify that `store_file()` returns an error when directory creation
+    /// for the prefix shard fails (e.g., parent path is a file, not a dir).
+    #[cfg(unix)]
+    #[test]
+    fn store_file_errors_when_prefix_dir_creation_fails() {
+        let tmp = tempfile::tempdir().unwrap();
+        // Point store at a valid dir but make the store path a file so prefix
+        // subdirectory creation will fail.
+        let file_path = tmp.path().join("fake-store");
+        std::fs::write(&file_path, b"regular file content").unwrap();
+
+        let store = Store::new(file_path);
+        let result = store.store_file(b"some content");
+        assert!(result.is_err(), "expected store_file() to fail when prefix dir creation fails");
+    }
+
+    /// When `collect_files` cannot read a directory because it does not exist,
+    /// `store_package` should propagate the I/O error.
+    #[test]
+    fn store_package_errors_on_nonexistent_directory() {
+        let (_tmp, store) = make_store();
+        let nonexistent = std::path::Path::new("/nonexistent/aipm-test-coverage-path");
+        let result = store.store_package(nonexistent);
+        assert!(result.is_err(), "expected store_package to fail on missing directory");
+    }
 }
