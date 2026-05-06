@@ -1719,4 +1719,33 @@ mod tests {
             "instructions file in .github/ should not be flagged as misplaced"
         );
     }
+
+    #[test]
+    fn lint_root_level_instruction_with_no_filename_path_is_skipped_gracefully() {
+        // When `opts.dir` is a path whose lexical `file_name()` returns `None`
+        // (e.g. a path ending in `..`), root-level instruction files get a
+        // `source_root` equal to `opts.dir`, so `source_root.file_name()` is
+        // `None`.  The `else { continue }` branch on line 166 must fire for
+        // each such feature, and the lint run must still succeed.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Need a real subdirectory so the `..` component is valid.
+        std::fs::create_dir_all(root.join("sub")).unwrap();
+
+        // A root-level CLAUDE.md is a root-level instruction file; its
+        // discovered `source_root` will be the path we pass as `opts.dir`.
+        std::fs::write(root.join("CLAUDE.md"), "# Instructions\n").unwrap();
+
+        // `root/sub/..` lexically ends with `..`, so `.file_name()` returns
+        // `None`, exercising the `else { continue }` branch at line 166.
+        let opts = Options {
+            dir: root.join("sub").join(".."),
+            source: None,
+            config: config::Config::default(),
+            max_depth: Some(1),
+        };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok(), "lint must succeed even when opts.dir has no file_name");
+    }
 }
