@@ -1732,6 +1732,34 @@ mod tests {
     }
 
     // =========================================================================
+    // format_steps — min_selections branch coverage
+    // =========================================================================
+
+    /// Covers the `if *min_selections > 0` True branch in `format_steps`.
+    ///
+    /// The existing `format_steps_multi_select_shows_markers` test uses
+    /// `min_selections: 0`, exercising only the False branch.  This test
+    /// passes `min_selections: 1` so the "Min selections: N" line is emitted,
+    /// covering the True branch.
+    #[test]
+    fn format_steps_multi_select_shows_min_selections_when_nonzero() {
+        let steps = vec![PromptStep {
+            label: "Choose engines",
+            kind: PromptKind::MultiSelect {
+                options: vec!["Claude", "Copilot"],
+                defaults: vec![true, false],
+                min_selections: 1,
+            },
+            help: None,
+        }];
+        let output = format_steps(&steps);
+        assert!(
+            output.contains("Min selections: 1"),
+            "min_selections > 0 should produce 'Min selections: N' line; got:\n{output}"
+        );
+    }
+
+    // =========================================================================
     // decode_engine_multi_select — defensive branch coverage
     // =========================================================================
 
