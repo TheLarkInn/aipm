@@ -977,16 +977,63 @@ mod tests {
             manifest: false,
         };
         let outcome = migrate(&opts, &crate::fs::Real).expect("ok");
+        // Collect all PluginCreated names without an `if`-guarded `matches!` to avoid
+        // an un-coverable False branch when the outcome contains only one PluginCreated.
+        let created_names: Vec<&str> = outcome
+            .actions
+            .iter()
+            .filter_map(|a| {
+                if let Action::PluginCreated { name, .. } = a {
+                    Some(name.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect();
         assert!(
-            outcome.actions.iter().any(|a| matches!(
-                a,
-                Action::PluginCreated { name, .. } if name == "mypkg"
-            )),
-            "expected PluginCreated with name 'mypkg' for package-scoped migration"
+            created_names.contains(&"mypkg"),
+            "expected PluginCreated with name 'mypkg' for package-scoped migration; got: {created_names:?}"
         );
     }
 
     /// Recursive `.claude/skills/<name>/SKILL.md` + `.claude/README.md`:
+    /// Covers the `e.is_dir == false` branch in `collect_existing_plugin_names`:
+    /// when `.ai/` contains a plain file alongside plugin directories the filter
+    /// must skip the file silently and only return directory names.
+    #[test]
+    fn collect_existing_plugin_names_skips_plain_files_in_ai_dir() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let project_dir = tmp.path();
+        let ai_dir = project_dir.join(".ai");
+        let claude_plugin_dir = ai_dir.join(".claude-plugin");
+        std::fs::create_dir_all(&claude_plugin_dir).expect("create .ai/.claude-plugin");
+        std::fs::write(
+            claude_plugin_dir.join("marketplace.json"),
+            crate::generate::marketplace::create("test-marketplace", &[]),
+        )
+        .expect("write marketplace.json");
+
+        // Plain file directly in `.ai/` — must be silently filtered out.
+        std::fs::write(ai_dir.join("README.md"), "# Ignored").expect("write README.md");
+
+        let opts = Options {
+            dir: project_dir,
+            source: None,
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let outcome = migrate(&opts, &crate::fs::Real)
+            .expect("migrate must succeed even when .ai/ contains a plain file");
+        // No skill was provided, so no plugin should be created — but the
+        // migration must not error due to the plain file in .ai/.
+        assert!(
+            !outcome.actions.iter().any(|a| matches!(a, Action::PluginCreated { .. })),
+            "no PluginCreated expected when no skill dirs exist"
+        );
+    }
+
     /// the reconciler finds README and emits an OtherFileMigrated action
     /// alongside the plugin.
     #[test]
