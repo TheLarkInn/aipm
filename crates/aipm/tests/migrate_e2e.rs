@@ -827,6 +827,27 @@ fn migrate_dry_run_with_other_files() {
 }
 
 // =========================================================================
+// Scenario: --no-summary suppresses the scan summary line
+// =========================================================================
+#[test]
+fn migrate_no_summary_suppresses_stderr_summary() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("project");
+    init_workspace(&dir);
+    create_skill(&dir, "deploy", "---\nname: deploy\ndescription: Deploy app\n---\nDeploy");
+
+    let output =
+        aipm().args(["migrate", "--no-summary", &dir.display().to_string()]).output().unwrap();
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stderr.contains("Scanned"),
+        "--no-summary should suppress the scan summary on stderr; got: {stderr}"
+    );
+    assert!(output.status.success(), "migrate --no-summary should exit 0; stderr: {stderr}");
+}
+
+// =========================================================================
 // Scenario: Migrate with dependency script referenced by skill
 // =========================================================================
 #[test]
