@@ -660,4 +660,28 @@ mod tests {
         let diags = ValidToolName.check_file(&agent_path(), &fs).ok().unwrap_or_default();
         assert!(diags.is_empty(), "{diags:?}");
     }
+
+    /// Exercises the `if i > 0` True branch in `format_engine_list`, which
+    /// inserts a ", " separator between engine names when the list has 2+
+    /// entries. This branch is unreachable through the lint rule in the
+    /// current 2-engine schema (a tool exclusive to 2 engines would be
+    /// universally supported, so no violation is raised), but the helper
+    /// is public within the module and correct formatting must still be
+    /// verified.
+    #[test]
+    fn format_engine_list_multiple_engines_inserts_separator() {
+        let names = ["claude", "copilot"];
+        let formatted = format_engine_list(&names);
+        assert_eq!(formatted, "claude, copilot");
+    }
+
+    /// Exercises `format_toml_string_array` with multiple engine names,
+    /// covering the `if i > 0` True branch that inserts the ", " separator
+    /// between quoted array elements.
+    #[test]
+    fn format_toml_string_array_multiple_engines_inserts_separator() {
+        let names = ["claude", "copilot"];
+        let formatted = format_toml_string_array(&names);
+        assert_eq!(formatted, "[\"claude\", \"copilot\"]");
+    }
 }
