@@ -117,6 +117,7 @@ fail the step. See [Using `aipm lint`](lint.md) for the full reporter reference.
 
 ## See also
 
+- [Installing `aipm` in Azure DevOps via NuGet — Step-by-step](install-aipm-nuget-ado.md) — detailed walkthrough covering version pinning, RID resolution, caching, Artifacts proxy, and troubleshooting
 - [README — Install section](../../README.md#install) — shell and PowerShell installers for
   non-ADO environments
 - [Using `aipm lint`](lint.md) — CI reporters, exit codes, and rule configuration
