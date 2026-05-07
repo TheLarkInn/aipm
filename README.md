@@ -269,8 +269,8 @@ See also: [`docs/guides/local-development.md`](docs/guides/local-development.md)
 Check AI plugin configurations and instruction files for quality issues across all detected
 source directories. `aipm lint` covers `skill/`, `agent/`, `hook/`, `plugin/`,
 `marketplace/`, `instructions/`, and `source/` categories — including checks on
-`CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, and
-`*.instructions.md` files anywhere in the project tree.
+`CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`,
+`*.instructions.md`, and `.github/copilot-instructions.md` files anywhere in the project tree.
 
 ```
 aipm lint [OPTIONS] [DIR]
@@ -355,7 +355,7 @@ The LSP server is launched automatically by the [`vscode-aipm`](docs/guides/vsco
 | `textDocument/completion` | Autocompletes rule IDs and severity values inside `[workspace.lints]` in `aipm.toml` |
 | `textDocument/hover` | Shows rule name, default severity, and help text when hovering a rule ID in `aipm.toml` |
 
-**Supported file patterns** (simplified/relative patterns; see the VS Code extension for the exact document selector globs): `aipm.toml`, `skills/SKILL.md`, `skills/*/SKILL.md`, `agents/*.md`, `hooks/hooks.json`, `.ai/*/aipm.toml`, `.ai/*/.claude-plugin/plugin.json`, `.ai/.claude-plugin/marketplace.json`, `CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, `*.instructions.md`.
+**Supported file patterns** (simplified/relative patterns; see the VS Code extension for the exact document selector globs): `aipm.toml`, `skills/SKILL.md`, `skills/*/SKILL.md`, `agents/*.md`, `hooks/hooks.json`, `.ai/*/aipm.toml`, `.ai/*/.claude-plugin/plugin.json`, `.ai/.claude-plugin/marketplace.json`, `CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, `*.instructions.md`, `.github/copilot-instructions.md`.
 
 **Binary resolution:** the server looks up the `aipm` binary from `AIPM_PATH` (environment variable) or the `aipm.path` VS Code setting (default: `"aipm"`).
 
