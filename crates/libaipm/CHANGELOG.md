@@ -1,6 +1,23 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.24.2] - 2026-05-07
+
+### Documentation
+- Add `libaipm-engine-spec` crate reference to README ([#809](https://github.com/TheLarkInn/aipm/pull/809)) (180fd96)
+- Fix `VALID_TOOLS` type and description in `libaipm-engine-spec` reference table ([#815](https://github.com/TheLarkInn/aipm/pull/815)) (e3508d7)
+
+### Testing
+- Cover format_engine_list/format_toml_string_array multi-engine branches (3411689)
+- Cover make_temp_dir cleanup-existing-dir branch (3bd18e7)
+- Cover all branches in migrate/mod.rs (4daf305)
+- Cover format_marker_string single-marker branch and empty engines list (d6f51d3)
+- Cover I/O error paths in lock(), store_file(), and store_package() (e270bf6)
+- Cover non-Agent dedup skip and missing-source early return (bd3db82)
+- Cover source_root.file_name() == None branch in lint loop (1cc0628)
+- Cover fallback sort_by comparator with 2+ artifacts (ec2be88)
+- Cover read_dir and read_to_string error paths in OutputStyleDetector (a8ae014)
+
 ## [0.24.1] - 2026-05-06
 
 ### Bug Fixes
