@@ -1009,4 +1009,63 @@ mod tests {
             "fallback path must emit a plugin for the nested skill; got: {created_names:?}"
         );
     }
+
+    /// Covers the `sort_by` comparator closure in the fallback loop of
+    /// `build_plugin_plans` (lines 307-309): when two or more adapter artifacts
+    /// share a source_root that is absent from `handled_roots`, the fallback
+    /// sorts them by `(kind, name)` before building plans.  The comparator is
+    /// only invoked when there are ≥ 2 elements, so the single-artifact test
+    /// above leaves that closure body uncovered.
+    #[test]
+    fn unified_migrate_fallback_sort_comparator_invoked_with_multiple_artifacts() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        init_marketplace(root);
+
+        // Two skills inside .ai/<plugin>/.claude/ — discover_source_dirs skips
+        // .ai/ entirely, so this source_root never enters handled_roots and
+        // both artifacts are processed by the fallback loop together.  Having
+        // two elements forces sort_by to invoke its comparator.
+        let base = root.join(".ai/existing-plugin/.claude/skills");
+        for name in ["alpha", "beta"] {
+            let skill_dir = base.join(name);
+            std::fs::create_dir_all(&skill_dir).expect("create skill dir");
+            std::fs::write(
+                skill_dir.join("SKILL.md"),
+                format!("---\nname: {name}\ndescription: Skill {name}\n---\n# {name}\n"),
+            )
+            .expect("write SKILL.md");
+        }
+
+        let opts = Options {
+            dir: root,
+            source: None,
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let ai_dir = root.join(".ai");
+        let outcome = run(&opts, &ai_dir, &Real).expect("migrate succeeds");
+
+        let created_names: Vec<&str> = outcome
+            .actions
+            .iter()
+            .filter_map(|a| {
+                if let Action::PluginCreated { name, .. } = a {
+                    Some(name.as_str())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert!(
+            created_names.contains(&"alpha"),
+            "fallback must emit 'alpha'; got: {created_names:?}"
+        );
+        assert!(
+            created_names.contains(&"beta"),
+            "fallback must emit 'beta'; got: {created_names:?}"
+        );
+    }
 }
