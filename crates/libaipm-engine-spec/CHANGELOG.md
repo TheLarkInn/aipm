@@ -1,6 +1,12 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.24.2] - 2026-05-07
+
+### Documentation
+- Add `libaipm-engine-spec` crate reference to README ([#809](https://github.com/TheLarkInn/aipm/pull/809)) (180fd96)
+- Fix `VALID_TOOLS` type and description in `libaipm-engine-spec` reference table ([#815](https://github.com/TheLarkInn/aipm/pull/815)) (e3508d7)
+
 ## [0.24.1] - 2026-05-06
 
 ## [0.24.0] - 2026-05-05
