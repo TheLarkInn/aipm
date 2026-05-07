@@ -10,6 +10,7 @@ This rule also flags:
 - A missing `plugins` array in `marketplace.json`.
 - Any `source` value that is not a string.
 - Any `source` path that does not exist on disk relative to the `.ai/` directory.
+- Any `source` path containing `..` (parent-dir traversal), an absolute root (`/`), or a Windows drive prefix — these are rejected before any filesystem access to prevent path-traversal attacks.
 
 ## Examples
 
@@ -37,6 +38,23 @@ This rule also flags:
 
 *(where `.ai/nonexistent-plugin/` does not exist)*
 
+### Incorrect — path traversal rejected
+
+```json
+{
+  "name": "local",
+  "plugins": [
+    { "name": "evil", "source": "../../etc/passwd" }
+  ]
+}
+```
+
+Output:
+
+```
+error[marketplace/source-resolve]: plugin 'evil' source path '../../etc/passwd' rejected: parent-dir traversal, absolute paths, and Windows prefixes are not allowed
+```
+
 ### Correct
 
 ```json
@@ -53,6 +71,8 @@ This rule also flags:
 ## How to fix
 
 Ensure the `source` field is present in each plugin entry and points to an existing plugin directory under `.ai/`. Paths are resolved relative to the `.ai/` directory; the leading `./` is optional.
+
+For path traversal errors, use a simple relative path like `./my-plugin` or `my-plugin` — paths containing `..`, starting with `/`, or using Windows drive letters are never valid plugin source paths.
 
 ## See also
 
