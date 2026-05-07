@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [0.24.2] - 2026-05-07
+
+### Documentation
+- Add `libaipm-engine-spec` crate reference to README ([#809](https://github.com/TheLarkInn/aipm/pull/809)) (180fd96)
+- Fix `VALID_TOOLS` type and description in `libaipm-engine-spec` reference table ([#815](https://github.com/TheLarkInn/aipm/pull/815)) (e3508d7)
+
+### Testing
+- Cover migrate --no-summary branch in main.rs (36795b2)
+- Cover format_steps MultiSelect min_selections > 0 branch (fd8f94d)
+
 ## [0.24.1] - 2026-05-06
 
 ### Testing

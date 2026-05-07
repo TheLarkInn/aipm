@@ -30,6 +30,7 @@ How-to guides for common tasks:
 | [Installing via NuGet (Azure DevOps)](guides/install-nuget.md) | Restore `aipm` from nuget.org in Azure DevOps pipelines using `dotnet restore` |
 | [Installing `aipm` in Azure DevOps via NuGet — Step-by-step](guides/install-aipm-nuget-ado.md) | Detailed walkthrough: version pinning, download-only project, RID resolution, caching, Artifacts proxy, and lint integration |
 
+
 ## Lint Rule Reference
 
 Quality rules enforced by `aipm lint`:
