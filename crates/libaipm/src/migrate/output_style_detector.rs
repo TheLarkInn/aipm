@@ -290,4 +290,34 @@ mod tests {
             Some("Detailed output")
         );
     }
+
+    #[test]
+    fn detect_propagates_read_dir_error() {
+        // styles_dir exists but is not in MockFs::dirs, so read_dir returns Err.
+        // This exercises the `?` error propagation at `fs.read_dir(&styles_dir)?`
+        // and the `ok_or_else` closure body in MockFs::read_dir.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/output-styles"));
+        // Deliberately omit a `dirs` entry for "/src/output-styles".
+
+        let detector = OutputStyleDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err(), "expected Err when read_dir fails, got: {result:?}");
+    }
+
+    #[test]
+    fn detect_propagates_read_to_string_error() {
+        // styles_dir exists and read_dir returns a .md entry, but the entry path
+        // is not in MockFs::files so read_to_string returns Err.
+        // This exercises the `?` error propagation at `fs.read_to_string(&style_path)?`
+        // and the `ok_or_else` closure body in MockFs::read_to_string.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/output-styles"));
+        fs.dirs.insert(PathBuf::from("/src/output-styles"), vec![de("missing.md", false)]);
+        // Deliberately omit a `files` entry for "/src/output-styles/missing.md".
+
+        let detector = OutputStyleDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err(), "expected Err when read_to_string fails, got: {result:?}");
+    }
 }
