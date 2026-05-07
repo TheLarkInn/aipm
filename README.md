@@ -555,8 +555,8 @@ and emits typed const tables into the build output at compile time.
 | Exported Symbol | Type | Description |
 |-----------------|------|-------------|
 | `ENGINES` | `&[(Engine, EngineSpec)]` | All known engines with their full spec (name, marketplace paths, convention files, size limits, tool calls, hook events, …) |
-| `VALID_TOOLS` | `&[(&str, EngineSet)]` | All tool call names and the set of engines that support each one |
-| `TOOL_COMPATIBILITY` | `&[(&str, EngineSet)]` | Same as `VALID_TOOLS` but scoped for cross-engine compatibility queries |
+| `VALID_TOOLS` | `phf::Set<&'static str>` | Perfect-hash set of all valid tool call names; supports O(1) `.contains()` lookups with no allocation |
+| `TOOL_COMPATIBILITY` | `&[(&str, EngineSet)]` | Slice of (tool name, `EngineSet`) pairs mapping each tool to the engines that support it; use for cross-engine compatibility queries |
 | `FEATURES_BY_ENGINE` | `&[(Engine, EngineFeatureSet)]` | Per-engine feature capabilities |
 | `HOOK_EVENTS_BY_ENGINE` | `&[(Engine, &[HookEventStatic])]` | Per-engine hook event names used by `hook/unknown-event` and `hook/legacy-event-name` |
 | `paths` | module | Compile-time path constants (marketplace manifests, settings files, convention directories) |
