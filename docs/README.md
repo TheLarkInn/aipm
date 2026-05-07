@@ -28,6 +28,7 @@ How-to guides for common tasks:
 | [Source Security](guides/source-security.md) | Source allowlists and path traversal protection |
 | [VS Code Extension](guides/vscode-extension.md) | Real-time lint diagnostics, completions, and hover in VS Code via `aipm lsp` |
 | [Installing via NuGet (Azure DevOps)](guides/install-nuget.md) | Restore `aipm` from nuget.org in Azure DevOps pipelines using `dotnet restore` |
+| [Installing `aipm` in Azure DevOps via NuGet (detailed)](guides/install-aipm-nuget-ado.md) | Step-by-step guide with Azure Artifacts proxy, caching, RID resolution, and troubleshooting |
 
 ## Lint Rule Reference
 
