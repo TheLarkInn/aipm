@@ -133,6 +133,24 @@ Feature: Workspace initialization
     Then the command succeeds
     And stdout contains "Using existing .ai/ marketplace"
 
+  Scenario: Init writes engine-appropriate marketplace per engine (#850)
+    Given an empty directory "my-project"
+    When the user runs "aipm init --marketplace --engine claude,copilot -y" in "my-project"
+    Then the command succeeds
+    And a file ".ai/.claude-plugin/marketplace.json" exists in "my-project"
+    And a file ".ai/.github/plugin/marketplace.json" exists in "my-project"
+
+  Scenario: Init reports an existing engine marketplace (#850)
+    Given an initialized marketplace in "my-project"
+    When the user runs "aipm init --marketplace --engine claude" in "my-project"
+    Then the command succeeds
+    And stdout contains "Found existing Claude marketplace manifest"
+
+  Scenario: Init surfaces a typed error for malformed existing aipm.toml (#850)
+    Given a directory "broken" containing a malformed "aipm.toml"
+    When the user runs "aipm init --workspace" in "broken"
+    Then the command fails with "existing manifest at"
+
   Scenario: Workspace and marketplace flags compose independently
     Given an empty directory "my-project"
     When the user runs "aipm init --workspace" in "my-project"

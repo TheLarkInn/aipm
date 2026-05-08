@@ -147,6 +147,16 @@ async fn given_dir_with_file(world: &mut AipmWorld, dir: String, file: String) {
     world.active_dir = Some(dir);
 }
 
+#[given(expr = "a directory {string} containing a malformed {string}")]
+async fn given_dir_with_malformed_file(world: &mut AipmWorld, dir: String, file: String) {
+    world.ensure_root();
+    let path = world.root_path().join(&dir);
+    std::fs::create_dir_all(&path).expect("create dir");
+    std::fs::write(path.join(&file), "not = [valid toml syntax").expect("write malformed");
+    world.dirs.insert(dir.clone(), path);
+    world.active_dir = Some(dir);
+}
+
 #[given(expr = "a plugin directory {string} with a valid manifest")]
 async fn given_plugin_dir_valid_manifest(world: &mut AipmWorld, name: String) {
     world.ensure_root();

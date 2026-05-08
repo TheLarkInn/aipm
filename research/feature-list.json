@@ -191,7 +191,7 @@
         "Implement the missing `#[then]` step functions: assert exit code, stdout/stderr substrings, and unchanged-file-bytes invariants per the feature scenarios.",
         "Run `cargo test -p libaipm --test bdd` (the cucumber harness)."
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 13,

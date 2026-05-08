@@ -106,3 +106,23 @@ These seven features are tightly coupled — feature 2 alone deletes Error varia
 **Tests:**
 - `cargo test -p aipm --test init_e2e init_per_engine_marketplace_paths` passes.
 - Full workspace test pass (81/81 BDD scenarios + all unit/integration green).
+
+## Iteration 6 — 2026-05-08
+
+### Feature 12 — BDD scenarios for idempotent init
+
+**Status:** passes:true
+
+**Notes:**
+- 2 of the 5 spec scenarios were added in iteration 2 ("Idempotent workspace initialization when aipm.toml exists" and "Idempotent marketplace initialization when .ai/ already exists"). 3 remained.
+
+**Changes:**
+- `tests/features/manifest/workspace-init.feature` — Added 3 new scenarios:
+  1. "Init writes engine-appropriate marketplace per engine (#850)" — uses existing `#[given] empty directory` and `#[then] a file ... exists in ...` steps.
+  2. "Init reports an existing engine marketplace (#850)" — reuses `given_initialized_marketplace` (which already inits a Claude marketplace) then asserts the second `aipm init` reports "Found existing Claude marketplace manifest".
+  3. "Init surfaces a typed error for malformed existing aipm.toml (#850)" — uses new `given_dir_with_malformed_file` step + existing `then_fails_with`.
+- `crates/libaipm/tests/bdd.rs` — Added new `#[given(expr = "a directory {string} containing a malformed {string}")]` step that writes invalid TOML.
+
+**Tests:**
+- `cargo test -p libaipm --test bdd` — 84 scenarios pass (was 81; +3 new).
+- Full workspace test pass.
