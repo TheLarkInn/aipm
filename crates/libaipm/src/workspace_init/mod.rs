@@ -1952,4 +1952,261 @@ mod tests {
             "single bit → single name"
         );
     }
+
+    // =====================================================================
+    // #850 Feature 10 — idempotent init unit tests
+    // =====================================================================
+
+    /// `.ai/` exists but is empty. Init with `engines_scaffold = CLAUDE`
+    /// must auto-repair the missing `.ai/.claude-plugin/marketplace.json`
+    /// and emit `MarketplaceManifestWritten` for Claude.
+    #[test]
+    fn init_idempotent_writes_missing_engine_marketplace() {
+        let (tmp, _guard) = make_temp_dir("idempotent-writes-missing");
+        std::fs::create_dir_all(tmp.join(".ai")).ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        let claude_path = tmp.join(".ai/.claude-plugin/marketplace.json");
+        assert!(claude_path.exists(), "missing claude marketplace must be auto-written");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(
+            a,
+            InitAction::MarketplaceManifestWritten {
+                engine: libaipm_engine_spec::Engine::Claude,
+                ..
+            }
+        )));
+
+        cleanup(&tmp);
+    }
+
+    /// `.ai/` exists but is empty. Init with both engines must write
+    /// both engines' marketplace manifests.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_idempotent_per_engine_fan_out() {
+        let (tmp, _guard) = make_temp_dir("idempotent-fan-out");
+        std::fs::create_dir_all(tmp.join(".ai")).ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE
+                | libaipm_engine_spec::EngineSet::COPILOT,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        assert!(
+            tmp.join(".ai/.claude-plugin/marketplace.json").exists(),
+            "claude marketplace must be written"
+        );
+        assert!(
+            tmp.join(".ai/.github/plugin/marketplace.json").exists(),
+            "copilot marketplace must be written"
+        );
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        let written_count = actions
+            .iter()
+            .filter(|a| matches!(a, InitAction::MarketplaceManifestWritten { .. }))
+            .count();
+        assert_eq!(written_count, 2, "expected 2 manifest-written actions, got {written_count}");
+
+        // tracing event for the per-engine creation should fire.
+        assert!(logs_contain("created marketplace manifest"));
+
+        cleanup(&tmp);
+    }
+
+    /// Both engine marketplaces pre-exist with valid JSON. Init must
+    /// leave them bytewise unchanged and emit only Found* actions for
+    /// both.
+    #[test]
+    fn init_idempotent_skips_existing_engine_marketplace() {
+        let (tmp, _guard) = make_temp_dir("idempotent-skips-existing");
+        let claude_dir = tmp.join(".ai/.claude-plugin");
+        let copilot_dir = tmp.join(".ai/.github/plugin");
+        std::fs::create_dir_all(&claude_dir).ok();
+        std::fs::create_dir_all(&copilot_dir).ok();
+        // Use the canonical generator so the on-disk files are valid
+        // marketplace.json content (parses cleanly under serde_json).
+        let claude_path = claude_dir.join("marketplace.json");
+        let copilot_path = copilot_dir.join("marketplace.json");
+        let valid = crate::generate::marketplace::create("preexisting", &[]);
+        std::fs::write(&claude_path, &valid).ok();
+        std::fs::write(&copilot_path, &valid).ok();
+        let claude_before = std::fs::read(&claude_path).unwrap_or_default();
+        let copilot_before = std::fs::read(&copilot_path).unwrap_or_default();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE
+                | libaipm_engine_spec::EngineSet::COPILOT,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        assert_eq!(std::fs::read(&claude_path).unwrap_or_default(), claude_before);
+        assert_eq!(std::fs::read(&copilot_path).unwrap_or_default(), copilot_before);
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        let found_count = actions
+            .iter()
+            .filter(|a| matches!(a, InitAction::MarketplaceManifestFoundExisting { .. }))
+            .count();
+        assert_eq!(found_count, 2, "expected 2 found-existing actions, got {found_count}");
+
+        cleanup(&tmp);
+    }
+
+    /// Existing `aipm.toml` declares `engines = ["claude"]` but the
+    /// wizard answer chose Copilot. Init must succeed (idempotent),
+    /// leave the file unchanged, and emit a tracing::warn event naming
+    /// the conflict.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_existing_aipm_toml_warns_on_engine_conflict() {
+        let (tmp, _guard) = make_temp_dir("existing-toml-conflict");
+        // Use the canonical builder so the manifest passes validation.
+        let manifest = crate::manifest::builder::build_workspace_manifest(
+            &crate::manifest::builder::WorkspaceManifestOpts {
+                members: &[".ai/*".to_string()],
+                plugins_dir: Some(".ai"),
+                engines: Some(&["claude"]),
+                header_comments: None,
+                trailing_comments: None,
+            },
+        );
+        std::fs::write(tmp.join("aipm.toml"), &manifest).ok();
+        let original = std::fs::read(tmp.join("aipm.toml")).unwrap_or_default();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::COPILOT,
+            engines_support: Some(libaipm_engine_spec::EngineSet::COPILOT),
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "idempotent init must succeed: {result:?}");
+
+        let after = std::fs::read(tmp.join("aipm.toml")).unwrap_or_default();
+        assert_eq!(original, after, "aipm.toml must be bytewise unchanged");
+
+        // The conflict-warn helper should have fired.
+        assert!(
+            logs_contain("engines field differs from wizard answer"),
+            "expected engines-conflict warn event"
+        );
+
+        cleanup(&tmp);
+    }
+
+    /// Pre-existing `aipm.toml` is malformed TOML. Init must surface a
+    /// typed `ExistingManifestInvalid` error.
+    #[test]
+    fn init_existing_aipm_toml_invalid_returns_typed_error() {
+        let (tmp, _guard) = make_temp_dir("existing-toml-invalid");
+        std::fs::write(tmp.join("aipm.toml"), "not = [valid toml syntax").ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        let err = result.err();
+        assert!(err.is_some(), "init must fail on malformed aipm.toml");
+        let err = err.unwrap_or(Error::Io(std::io::Error::other("unreachable")));
+        match err {
+            Error::ExistingManifestInvalid { path, .. } => {
+                assert!(
+                    path.ends_with("aipm.toml"),
+                    "error path must point at aipm.toml, got {}",
+                    path.display(),
+                );
+            },
+            other => panic!("expected ExistingManifestInvalid, got: {other:?}"),
+        }
+
+        cleanup(&tmp);
+    }
+
+    /// Pre-existing `.ai/.claude-plugin/marketplace.json` is malformed.
+    /// Init must surface a typed `ExistingMarketplaceInvalid` error.
+    #[test]
+    fn init_existing_marketplace_invalid_returns_typed_error() {
+        let (tmp, _guard) = make_temp_dir("existing-marketplace-invalid");
+        let claude_dir = tmp.join(".ai/.claude-plugin");
+        std::fs::create_dir_all(&claude_dir).ok();
+        let claude_path = claude_dir.join("marketplace.json");
+        // Truncated / invalid JSON.
+        std::fs::write(&claude_path, "{not valid json").ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        let err = result.err();
+        assert!(err.is_some(), "init must fail on malformed marketplace.json");
+        let err = err.unwrap_or(Error::Io(std::io::Error::other("unreachable")));
+        match err {
+            Error::ExistingMarketplaceInvalid { path, .. } => {
+                assert!(
+                    path.ends_with("marketplace.json"),
+                    "error path must point at marketplace.json, got {}",
+                    path.display(),
+                );
+            },
+            other => panic!("expected ExistingMarketplaceInvalid, got: {other:?}"),
+        }
+
+        cleanup(&tmp);
+    }
 }

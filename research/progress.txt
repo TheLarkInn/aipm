@@ -68,3 +68,24 @@ These seven features are tightly coupled — feature 2 alone deletes Error varia
 - `cargo build -p libaipm --tests` clean.
 - `cargo clippy --workspace -- -D warnings` clean.
 - No production-code change; nothing to coverage-test yet (feature 10 will exercise it).
+
+## Iteration 4 — 2026-05-08
+
+### Feature 10 — Six new unit tests for idempotent init
+
+**Status:** passes:true
+
+**Changes:**
+- `crates/libaipm/src/workspace_init/mod.rs` — Added 6 unit tests to the existing `mod tests` block. All use the canonical `make_temp_dir` / `cleanup` / `default_adaptors` helpers already in the module.
+
+  1. `init_idempotent_writes_missing_engine_marketplace` — pre-creates empty `.ai/`; init with `EngineSet::CLAUDE`. Asserts auto-repair: `.ai/.claude-plugin/marketplace.json` is created and `MarketplaceManifestWritten { engine: Claude, .. }` is in actions.
+  2. `init_idempotent_per_engine_fan_out` (with `#[tracing_test::traced_test]`) — pre-creates empty `.ai/`; init with `CLAUDE | COPILOT`. Asserts both engine paths exist, exactly 2 `MarketplaceManifestWritten` actions, and `logs_contain("created marketplace manifest")`.
+  3. `init_idempotent_skips_existing_engine_marketplace` — pre-creates valid `marketplace.json` for both engines via `crate::generate::marketplace::create`. Asserts both files bytewise unchanged and exactly 2 `MarketplaceManifestFoundExisting` actions.
+  4. `init_existing_aipm_toml_warns_on_engine_conflict` (with `#[tracing_test::traced_test]`) — pre-creates a valid workspace manifest declaring `engines = ["claude"]` via `crate::manifest::builder::build_workspace_manifest`. Init with `engines_support = Some(COPILOT)`. Asserts `Ok`, file unchanged, and `logs_contain("engines field differs from wizard answer")`.
+  5. `init_existing_aipm_toml_invalid_returns_typed_error` — writes malformed TOML. Asserts `Err(Error::ExistingManifestInvalid { path: <ends_with aipm.toml>, .. })`.
+  6. `init_existing_marketplace_invalid_returns_typed_error` — writes truncated JSON to `.ai/.claude-plugin/marketplace.json`. Asserts `Err(Error::ExistingMarketplaceInvalid { path: <ends_with marketplace.json>, .. })`.
+
+**Tests:**
+- `cargo test -p libaipm workspace_init::` — 81 passing (was 75; +6 new).
+- `cargo clippy --workspace -- -D warnings` clean.
+- Full workspace test pass: 81/81 BDD scenarios + all unit/integration tests green.

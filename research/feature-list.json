@@ -162,7 +162,7 @@
         "Run `cargo test -p libaipm workspace_init` \u2014 all six pass.",
         "Run `cargo +nightly llvm-cov` per CLAUDE.md and verify branch coverage is >= 89%."
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 11,
