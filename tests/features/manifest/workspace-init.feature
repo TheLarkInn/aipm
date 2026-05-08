@@ -110,10 +110,11 @@ Feature: Workspace initialization
     Then a file ".ai/.gitignore" exists in "my-project"
     And the gitignore does not contain ".tool-usage.log"
 
-  Scenario: Reject workspace initialization if aipm.toml already exists
+  Scenario: Idempotent workspace initialization when aipm.toml exists (#850)
     Given a directory "existing" containing an "aipm.toml"
     When the user runs "aipm init --workspace" in "existing"
-    Then the command fails with "already initialized"
+    Then the command succeeds
+    And stdout contains "Using existing aipm.toml"
 
   Scenario: Marketplace without workspace generates only marketplace directory
     Given an empty directory "my-project"
@@ -125,11 +126,12 @@ Feature: Workspace initialization
       | .ai/starter-aipm-plugin/skills/    |
     And there is no file "aipm.toml" in "my-project"
 
-  Scenario: Marketplace skips if .ai directory already exists
+  Scenario: Idempotent marketplace initialization when .ai/ already exists (#850)
     Given an empty directory "my-project"
     And a directory "my-project/.ai" exists
     When the user runs "aipm init --marketplace" in "my-project"
-    Then the command fails with "already exists"
+    Then the command succeeds
+    And stdout contains "Using existing .ai/ marketplace"
 
   Scenario: Workspace and marketplace flags compose independently
     Given an empty directory "my-project"
@@ -156,7 +158,7 @@ Feature: Workspace initialization
 
     Scenario: Marketplace.json is generated with correct structure
       Given an empty directory "my-project"
-      When the user runs "aipm init --marketplace" in "my-project"
+      When the user runs "aipm init --marketplace --engine claude" in "my-project"
       Then a file ".ai/.claude-plugin/marketplace.json" exists in "my-project"
       And the marketplace.json name is "local-repo-plugins"
       And the marketplace.json contains a plugin named "starter-aipm-plugin"
@@ -164,7 +166,7 @@ Feature: Workspace initialization
 
     Scenario: Marketplace.json with --no-starter has empty plugins array
       Given an empty directory "my-project"
-      When the user runs "aipm init --no-starter" in "my-project"
+      When the user runs "aipm init --no-starter --engine claude" in "my-project"
       Then a file ".ai/.claude-plugin/marketplace.json" exists in "my-project"
       And the marketplace.json name is "local-repo-plugins"
       And the marketplace.json plugins array is empty

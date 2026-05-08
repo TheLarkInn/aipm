@@ -20,3 +20,37 @@
 - `cargo test -p libaipm-engine-spec` — 36+0+2+3+5+1+2+0 = all passing
 - `cargo test -p libaipm engine::` — 18 passing including `marketplace_manifest_path_returns_correct_path`
 - `cargo test --workspace` — all `test result: ok` lines show `0 failed`
+
+## Iteration 2 — 2026-05-08
+
+### Features 2, 3, 4, 5, 6, 8, 9 — Idempotent init refactor (bundled)
+
+**Status:** all passes:true
+
+These seven features are tightly coupled — feature 2 alone deletes Error variants used at compile-time in features 4 and 5; feature 3 adds InitAction variants matched in feature 8; feature 9's existing tests assert behavior that features 4/5 invert. Splitting them across iterations would leave the workspace red between commits, breaking the quality gate. Bundled into one atomic refactor.
+
+**Changes:**
+- `crates/libaipm/src/workspace_init/error.rs` — Removed `WorkspaceAlreadyInitialized` and `MarketplaceAlreadyExists`. Added `ExistingManifestInvalid { path, source: manifest::error::Error }` and `ExistingMarketplaceInvalid { path, source: serde_json::Error }`. Note: the spec named `marketplace::Error` as the source for `ExistingMarketplaceInvalid` but the marketplace.json file is JSON (not the TOML format `marketplace::Manifest::parse` expects), so `serde_json::Error` is the correct source.
+- `crates/libaipm/src/workspace_init/mod.rs` —
+  * Added 4 new `InitAction` variants (`WorkspaceFoundExisting`, `MarketplaceFoundExisting`, `MarketplaceManifestWritten`, `MarketplaceManifestFoundExisting`).
+  * Added private `InitWorkspaceOutcome` enum (`Created` | `FoundExisting`).
+  * Derived `Debug` on `InitResult` so `assert!(result.is_ok(), "{result:?}")` compiles in tests.
+  * Rewrote `init_workspace` to branch on existence: parse+validate existing manifest (typed error if malformed), call `compare_and_warn`, emit `tracing::info!`. New `compare_and_warn(parsed, engines_support, manifest_path)` helper emits up to 2 `tracing::warn!` events for engines-field and workspace-presence conflicts; never mutates the file.
+  * Rewrote `scaffold_marketplace` to be idempotent on `.ai/` and to fan out per-engine via `engine::marketplace_manifest_path(engine)` for each engine in `opts.engines_scaffold`. Empty paths skip with `tracing::warn!` (Q9.3). Existing engine marketplaces are validated as JSON (typed error if malformed) and emit `MarketplaceManifestFoundExisting`. Missing ones are written and emit `MarketplaceManifestWritten`.
+  * Extracted helpers `scaffold_engine_marketplaces` and `write_starter_plugin_tree` to satisfy `clippy::too_many_arguments` (was 8) and `clippy::too_many_lines` (was 123). Now scaffold_marketplace takes `&Options<'_>` directly.
+  * `init()` orchestrator now pushes the correct action variant based on outcome and emits a tail `tracing::warn!` summary (G12 / Q9.5) when the run produced only Found* actions.
+  * Renamed/inverted tests `init_workspace_rejects_existing` → `init_workspace_is_idempotent_when_aipm_toml_exists` and `init_marketplace_rejects_existing` → `init_marketplace_is_idempotent_when_ai_exists`. Both now assert `Ok` + bytewise unchanged + Found* action present.
+- `crates/aipm/src/main.rs` — Added 4 new match arms in `cmd_init`'s action printer for the new `InitAction` variants. Uses `libaipm::engine::display_name()` for human-readable engine names.
+
+**Collateral fixes (necessary to keep workspace green):**
+- `crates/libaipm/src/make/discovery.rs` — `find_marketplace` was hardcoded to `.claude-plugin/marketplace.json`. With engine-aware init, a Copilot-only workspace's `.ai/` exists but the Claude marketplace doesn't. Updated to iterate `Engine::ALL` and check each engine's `marketplace_manifest_path`. New private helper `has_any_engine_marketplace`.
+- `crates/aipm/tests/init_e2e.rs` — Renamed/inverted `init_rejects_existing_workspace` and `init_rejects_existing_marketplace` to assert success + "Using existing X" stdout. Added `--engine claude` to four tests that assert on the Claude-specific path (`init_marketplace_json_generated`, `init_marketplace_json_no_starter_empty_plugins`, `scaffold_script_registers_in_marketplace_json`, `scaffold_script_creates_plugin_directory`, `scaffold_script_rejects_existing_plugin`).
+- `crates/aipm/tests/make_e2e.rs` — Updated all `aipm init -y` invocations to pass `--engine claude`. Pre-existing `aipm make plugin` registration step at `make/mod.rs:81` hardcodes `.claude-plugin/marketplace.json`; tests need that file present.
+- `crates/aipm/tests/migrate_e2e.rs` — Same rationale: `aipm migrate` registration uses the Claude marketplace path. Updated the `init_workspace` test helper to pass `--engine claude`.
+
+**Tests:**
+- All workspace tests pass: 178+20+24+9+7+5+33+10+36+20+17+2251+36+0+2+3+5+1+2+1+0 = 2660 passing, 0 failed.
+- `cargo clippy --workspace -- -D warnings` clean.
+
+**Follow-up not in scope for #850 (noted for future tickets):**
+- `aipm make plugin` registration step at `make/mod.rs:81` hardcodes `.claude-plugin/marketplace.json`. Should also be engine-aware. (Same for `migrate` registration code paths.)

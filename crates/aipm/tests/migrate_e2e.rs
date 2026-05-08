@@ -13,8 +13,13 @@ fn aipm() -> assert_cmd::Command {
 }
 
 /// Set up a workspace with marketplace (runs `aipm init`).
+///
+/// Per #850 the marketplace path is engine-aware. `aipm migrate` still
+/// hardcodes `.ai/.claude-plugin/marketplace.json` for plugin
+/// registration, so the helper inits with `--engine claude` to ensure
+/// that file exists.
 fn init_workspace(dir: &std::path::Path) {
-    aipm().args(["init", &dir.display().to_string()]).assert().success();
+    aipm().args(["init", "--engine", "claude", &dir.display().to_string()]).assert().success();
 }
 
 /// Create a skill at `.claude/skills/<name>/SKILL.md`.

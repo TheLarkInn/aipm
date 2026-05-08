@@ -6,14 +6,14 @@
     {
       "id": 1,
       "category": "infra",
-      "description": "Spec G11 — Fix Claude marketplace manifest path in libaipm-engine-spec from `.claude-plugin/marketplace.toml` to `.claude-plugin/marketplace.json` so `engine::marketplace_manifest_path(Engine::Claude)` returns the format Claude actually consumes. Required before any consumer can call the lookup uniformly.",
+      "description": "Spec G11 \u2014 Fix Claude marketplace manifest path in libaipm-engine-spec from `.claude-plugin/marketplace.toml` to `.claude-plugin/marketplace.json` so `engine::marketplace_manifest_path(Engine::Claude)` returns the format Claude actually consumes. Required before any consumer can call the lookup uniformly.",
       "steps": [
         "Edit `crates/libaipm-engine-spec/build.rs:537-543` so `marketplace_manifest_path_for(\"claude\")` returns `.claude-plugin/marketplace.json` (not `.toml`).",
         "Inspect `crates/libaipm-engine-spec/data/engine-api-schema.json` for the Claude `marketplace_manifest_path` field (see lines around 479-483 for `manifest_search_paths`); update the value to `.claude-plugin/marketplace.json` if it appears as a stored field there.",
         "Run `cargo build -p libaipm-engine-spec` to confirm `build.rs` validation accepts the corrected data file. If it rejects the value-only change, bump `META_SCHEMA_VERSION` in `crates/libaipm-engine-spec/src/types.rs` and re-run.",
         "Run `cargo run -p libaipm-engine-spec --bin export-schema` to regenerate `schemas/engine-api.schema.json`.",
         "Update `crates/libaipm/src/engine.rs:384` so the assertion reads `.claude-plugin/marketplace.json` instead of `.claude-plugin/marketplace.toml`.",
-        "Run `cargo test -p libaipm-engine-spec` (covers `tests/schema_export_drift.rs`) — must pass without manual edits.",
+        "Run `cargo test -p libaipm-engine-spec` (covers `tests/schema_export_drift.rs`) \u2014 must pass without manual edits.",
         "Run `cargo test --workspace --test engine` (or equivalent targeted run) to confirm `marketplace_manifest_path_returns_correct_path` passes.",
         "Commit `build.rs`, `data/engine-api-schema.json`, `schemas/engine-api.schema.json`, and `engine.rs` together as one atomic schema correction."
       ],
@@ -22,7 +22,7 @@
     {
       "id": 2,
       "category": "refactor",
-      "description": "Spec § 5.1 — Replace `Error::WorkspaceAlreadyInitialized` and `Error::MarketplaceAlreadyExists` with two new typed errors `ExistingManifestInvalid` and `ExistingMarketplaceInvalid` in `crates/libaipm/src/workspace_init/error.rs`. The old variants become unreachable from `aipm init` once the idempotency rewrite lands; deleting them avoids dead-code lint suppressions banned by CLAUDE.md.",
+      "description": "Spec \u00a7 5.1 \u2014 Replace `Error::WorkspaceAlreadyInitialized` and `Error::MarketplaceAlreadyExists` with two new typed errors `ExistingManifestInvalid` and `ExistingMarketplaceInvalid` in `crates/libaipm/src/workspace_init/error.rs`. The old variants become unreachable from `aipm init` once the idempotency rewrite lands; deleting them avoids dead-code lint suppressions banned by CLAUDE.md.",
       "steps": [
         "Open `crates/libaipm/src/workspace_init/error.rs` (existing 28-line file).",
         "Delete the `WorkspaceAlreadyInitialized(PathBuf)` variant at lines 8-10 and the `MarketplaceAlreadyExists(PathBuf)` variant at lines 12-14.",
@@ -30,15 +30,15 @@
         "Add `ExistingMarketplaceInvalid { path: PathBuf, source: crate::marketplace::Error }` with `#[error(\"existing marketplace manifest at {} is invalid: {source}\", path.display())]`.",
         "Verify `crate::manifest::error::Error` is `'static + Send + Sync` (Spec Q9.6). If not, wrap as `String` instead of `#[source]`.",
         "Verify `crate::marketplace::Error` is `'static + Send + Sync` likewise.",
-        "Run `cargo check -p libaipm` — call sites in `mod.rs:164` and `mod.rs:251` will now fail to compile; that compile failure is the entry signal for feature 4 and feature 5.",
-        "Confirm `crates/aipm/src/error.rs:14-16` still compiles via `#[from]` — no edit required because the source `Error` enum still implements `std::error::Error`."
+        "Run `cargo check -p libaipm` \u2014 call sites in `mod.rs:164` and `mod.rs:251` will now fail to compile; that compile failure is the entry signal for feature 4 and feature 5.",
+        "Confirm `crates/aipm/src/error.rs:14-16` still compiles via `#[from]` \u2014 no edit required because the source `Error` enum still implements `std::error::Error`."
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 3,
       "category": "refactor",
-      "description": "Spec § 5.1 — Extend `InitAction` in `crates/libaipm/src/workspace_init/mod.rs` with four new variants (`WorkspaceFoundExisting`, `MarketplaceFoundExisting`, `MarketplaceManifestWritten { engine, path }`, `MarketplaceManifestFoundExisting { engine, path }`) so `cmd_init` can render `Using existing X` and per-engine `Wrote/Found Y` lines.",
+      "description": "Spec \u00a7 5.1 \u2014 Extend `InitAction` in `crates/libaipm/src/workspace_init/mod.rs` with four new variants (`WorkspaceFoundExisting`, `MarketplaceFoundExisting`, `MarketplaceManifestWritten { engine, path }`, `MarketplaceManifestFoundExisting { engine, path }`) so `cmd_init` can render `Using existing X` and per-engine `Wrote/Found Y` lines.",
       "steps": [
         "Open `crates/libaipm/src/workspace_init/mod.rs` and locate the existing `pub enum InitAction { WorkspaceCreated, MarketplaceCreated, ToolConfigured(String) }`.",
         "Add `WorkspaceFoundExisting`.",
@@ -46,31 +46,31 @@
         "Add `MarketplaceManifestWritten { engine: libaipm_engine_spec::Engine, path: std::path::PathBuf }`.",
         "Add `MarketplaceManifestFoundExisting { engine: libaipm_engine_spec::Engine, path: std::path::PathBuf }`.",
         "Confirm `Engine` is already in scope (it is via `libaipm_engine_spec::Engine` and `libaipm::engine`). No new `use` line required if you fully qualify.",
-        "Run `cargo check -p libaipm` — only `cmd_init`'s match in `crates/aipm/src/main.rs:447-462` will warn about non-exhaustive match; that warning becomes an error for feature 8 to drive the CLI output update.",
+        "Run `cargo check -p libaipm` \u2014 only `cmd_init`'s match in `crates/aipm/src/main.rs:447-462` will warn about non-exhaustive match; that warning becomes an error for feature 8 to drive the CLI output update.",
         "No new `pub` API surface from this step is consumed yet; the variants exist but are unused until features 4-5 push them and feature 8 renders them."
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 4,
       "category": "functional",
-      "description": "Spec § 5.2.1 + Goals G1, G5, G6 — Rewrite `init_workspace` in `crates/libaipm/src/workspace_init/mod.rs:157-177` to be idempotent on a pre-existing `aipm.toml`. When present: parse-validate, emit `tracing::info!(path = %manifest_path.display(), \"using existing aipm.toml file\")`, run conflict-warning helper, return `WorkspaceFoundExisting`. When malformed: return `Error::ExistingManifestInvalid`. Green-field path otherwise gains a `tracing::info!` create event.",
+      "description": "Spec \u00a7 5.2.1 + Goals G1, G5, G6 \u2014 Rewrite `init_workspace` in `crates/libaipm/src/workspace_init/mod.rs:157-177` to be idempotent on a pre-existing `aipm.toml`. When present: parse-validate, emit `tracing::info!(path = %manifest_path.display(), \"using existing aipm.toml file\")`, run conflict-warning helper, return `WorkspaceFoundExisting`. When malformed: return `Error::ExistingManifestInvalid`. Green-field path otherwise gains a `tracing::info!` create event.",
       "steps": [
         "Change `init_workspace` return type from `Result<(), Error>` to `Result<InitWorkspaceOutcome, Error>` where `InitWorkspaceOutcome` is a private enum `Created` | `FoundExisting`.",
         "At the top of the function (after computing `manifest_path` at line 162), branch on `fs.exists(&manifest_path)`.",
         "Existing branch: `fs.read_to_string(&manifest_path)?`, then `crate::manifest::parse_and_validate(&content, None).map_err(|source| Error::ExistingManifestInvalid { path: manifest_path.clone(), source })?`.",
-        "Implement private helper `compare_and_warn(parsed: &Manifest, engines_support: Option<EngineSet>, manifest_path: &Path)` per Spec § 5.2.1's 4-row table — emits one `tracing::warn!` per detected conflict, never modifies the file.",
+        "Implement private helper `compare_and_warn(parsed: &Manifest, engines_support: Option<EngineSet>, manifest_path: &Path)` per Spec \u00a7 5.2.1's 4-row table \u2014 emits one `tracing::warn!` per detected conflict, never modifies the file.",
         "Call `compare_and_warn(...)`, then `tracing::info!(path = %manifest_path.display(), \"using existing aipm.toml file\")`, then return `Ok(InitWorkspaceOutcome::FoundExisting)`.",
         "Green-field branch: keep existing `generate_workspace_manifest` + `parse_and_validate` round-trip + `fs.create_dir_all` + `fs.write_file` calls; append `tracing::info!(path = %manifest_path.display(), \"created aipm.toml\")` immediately before `Ok(InitWorkspaceOutcome::Created)`.",
         "Update the call site in `init()` at line 122-125: change `init_workspace(opts.dir, opts.engines_support, fs)?; actions.push(InitAction::WorkspaceCreated);` to match the outcome and push either `InitAction::WorkspaceCreated` or `InitAction::WorkspaceFoundExisting`.",
         "Run `cargo build -p libaipm` and `cargo clippy -p libaipm -- -D warnings`."
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 5,
       "category": "functional",
-      "description": "Spec § 5.2.2 + Goals G2-G4, G7, G8 + Q9.3 — Rewrite `scaffold_marketplace` in `crates/libaipm/src/workspace_init/mod.rs:241-342` to be idempotent on `.ai/` and to fan out marketplace.json writes per engine in `opts.engines_scaffold`, using `engine::marketplace_manifest_path(engine)` (now correct after feature 1). Empty-path engines emit `tracing::warn!` and are skipped. Existing engine marketplace files are validated and surfaced as `MarketplaceManifestFoundExisting` actions; missing ones are written and surfaced as `MarketplaceManifestWritten`. Starter plugin tree only writes when `.ai/` did NOT pre-exist AND `no_starter` is false.",
+      "description": "Spec \u00a7 5.2.2 + Goals G2-G4, G7, G8 + Q9.3 \u2014 Rewrite `scaffold_marketplace` in `crates/libaipm/src/workspace_init/mod.rs:241-342` to be idempotent on `.ai/` and to fan out marketplace.json writes per engine in `opts.engines_scaffold`, using `engine::marketplace_manifest_path(engine)` (now correct after feature 1). Empty-path engines emit `tracing::warn!` and are skipped. Existing engine marketplace files are validated and surfaced as `MarketplaceManifestFoundExisting` actions; missing ones are written and surfaced as `MarketplaceManifestWritten`. Starter plugin tree only writes when `.ai/` did NOT pre-exist AND `no_starter` is false.",
       "steps": [
         "Change `scaffold_marketplace` signature: take `&mut Vec<InitAction>` (the existing `actions` vec from `init()`) so this function pushes its own action records. The boolean return becomes `Result<(), Error>`.",
         "At the top, compute `let ai_dir = dir.join(\".ai\"); let ai_existed = fs.exists(&ai_dir);`.",
@@ -81,16 +81,16 @@
         "Compute `let manifest_path = ai_dir.join(rel); let parent = manifest_path.parent().unwrap_or(&ai_dir);`.",
         "If `fs.exists(&manifest_path)`: read it, call `crate::marketplace::parse(&content).map_err(|source| Error::ExistingMarketplaceInvalid { path: manifest_path.clone(), source })?`, then emit `tracing::info!(engine = engine.name(), path = %manifest_path.display(), \"found existing marketplace manifest\")` and `actions.push(InitAction::MarketplaceManifestFoundExisting { engine, path: manifest_path });`.",
         "Else: `fs.create_dir_all(parent)?`, build `initial_plugins` (same logic as today's lines 271-278), call `fs.write_file(&manifest_path, crate::generate::marketplace::create(opts.marketplace_name, &initial_plugins).as_bytes())?`, emit `tracing::info!(engine = engine.name(), path = %manifest_path.display(), \"created marketplace manifest\")`, and `actions.push(InitAction::MarketplaceManifestWritten { engine, path: manifest_path });`.",
-        "After the loop: starter plugin tree (today at lines 284-342) runs only when `!opts.no_starter && !ai_existed`. Wrap the existing block in this guard. (Per Spec § 3.2 we explicitly do NOT add plugins to a pre-existing marketplace.)",
+        "After the loop: starter plugin tree (today at lines 284-342) runs only when `!opts.no_starter && !ai_existed`. Wrap the existing block in this guard. (Per Spec \u00a7 3.2 we explicitly do NOT add plugins to a pre-existing marketplace.)",
         "Update the call site in `init()` at lines 127-148: pass `&mut actions` instead of relying on a single push, since `scaffold_marketplace` now pushes per-engine actions itself.",
         "Run `cargo build -p libaipm` and `cargo clippy -p libaipm -- -D warnings`."
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 6,
       "category": "functional",
-      "description": "Spec G12 — When neither `init_workspace` nor `scaffold_marketplace` produced any `*Created` action (i.e. both pre-existed), emit one tail `tracing::warn!` per `init()` invocation summarising the no-op outcome. Implements the Q9.5 decision.",
+      "description": "Spec G12 \u2014 When neither `init_workspace` nor `scaffold_marketplace` produced any `*Created` action (i.e. both pre-existed), emit one tail `tracing::warn!` per `init()` invocation summarising the no-op outcome. Implements the Q9.5 decision.",
       "steps": [
         "In `crates/libaipm/src/workspace_init/mod.rs`, at the end of `init()` (just before `Ok(InitResult { actions })` at line 150), inspect the `actions` vec.",
         "Compute `let any_created = actions.iter().any(|a| matches!(a, InitAction::WorkspaceCreated | InitAction::MarketplaceCreated | InitAction::MarketplaceManifestWritten { .. } | InitAction::ToolConfigured(_)));`.",
@@ -98,12 +98,12 @@
         "The single-warn-per-run guarantee is naturally preserved because there is only one early-exit; no need for a flag.",
         "Run `cargo build -p libaipm`."
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 7,
       "category": "chore",
-      "description": "Spec § 8.3 'Logging-assertion infrastructure' + Q9.1 resolution — Add `tracing-test = \"0.2\"` as a `[dev-dependencies]` entry in `crates/libaipm/Cargo.toml` so unit tests can use `#[traced_test]` and `logs_contain(&str)` to assert info/warn events fired correctly.",
+      "description": "Spec \u00a7 8.3 'Logging-assertion infrastructure' + Q9.1 resolution \u2014 Add `tracing-test = \"0.2\"` as a `[dev-dependencies]` entry in `crates/libaipm/Cargo.toml` so unit tests can use `#[traced_test]` and `logs_contain(&str)` to assert info/warn events fired correctly.",
       "steps": [
         "Open `crates/libaipm/Cargo.toml`.",
         "Locate the `[dev-dependencies]` table (or add it if absent).",
@@ -118,24 +118,24 @@
     {
       "id": 8,
       "category": "functional",
-      "description": "Spec § 5.2.3 — Extend `cmd_init` in `crates/aipm/src/main.rs:445-464` to render the new `InitAction` variants as `writeln!(stdout, …)` lines (`Using existing aipm.toml`, `Using existing .ai/ marketplace`, `Wrote <Engine> marketplace manifest at <path>`, `Found existing <Engine> marketplace manifest at <path>`). Preserves the no-`println!` lint constraint from CLAUDE.md.",
+      "description": "Spec \u00a7 5.2.3 \u2014 Extend `cmd_init` in `crates/aipm/src/main.rs:445-464` to render the new `InitAction` variants as `writeln!(stdout, \u2026)` lines (`Using existing aipm.toml`, `Using existing .ai/ marketplace`, `Wrote <Engine> marketplace manifest at <path>`, `Found existing <Engine> marketplace manifest at <path>`). Preserves the no-`println!` lint constraint from CLAUDE.md.",
       "steps": [
         "Open `crates/aipm/src/main.rs` and locate `cmd_init` at lines 405-466.",
         "In the `match action` block at lines 447-462, add arms for each new `InitAction` variant.",
-        "`InitAction::WorkspaceFoundExisting` → `format!(\"Using existing aipm.toml in {}\", dir.display())`.",
-        "`InitAction::MarketplaceFoundExisting` → `format!(\"Using existing .ai/ marketplace in {}\", dir.display())`.",
-        "`InitAction::MarketplaceManifestWritten { engine, path }` → `format!(\"Wrote {} marketplace manifest at {}\", libaipm::engine::display_name(*engine), path.display())`.",
-        "`InitAction::MarketplaceManifestFoundExisting { engine, path }` → `format!(\"Found existing {} marketplace manifest at {}\", libaipm::engine::display_name(*engine), path.display())`.",
+        "`InitAction::WorkspaceFoundExisting` \u2192 `format!(\"Using existing aipm.toml in {}\", dir.display())`.",
+        "`InitAction::MarketplaceFoundExisting` \u2192 `format!(\"Using existing .ai/ marketplace in {}\", dir.display())`.",
+        "`InitAction::MarketplaceManifestWritten { engine, path }` \u2192 `format!(\"Wrote {} marketplace manifest at {}\", libaipm::engine::display_name(*engine), path.display())`.",
+        "`InitAction::MarketplaceManifestFoundExisting { engine, path }` \u2192 `format!(\"Found existing {} marketplace manifest at {}\", libaipm::engine::display_name(*engine), path.display())`.",
         "Confirm `libaipm::engine::display_name` is exported (it is, per `engine.rs:42-47`); add `use` if not already in scope at the top of `main.rs`.",
         "Confirm `let _ = writeln!(stdout, \"{msg}\");` at line 463 still applies uniformly to all arms.",
         "Run `cargo build -p aipm` and `cargo clippy -p aipm -- -D warnings`."
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 9,
       "category": "test",
-      "description": "Spec § 8.3 'Unit tests' — Rename `init_workspace_rejects_existing` (mod.rs:583) to `init_workspace_is_idempotent_when_aipm_toml_exists` and `init_marketplace_rejects_existing` (mod.rs:607) to `init_marketplace_is_idempotent_when_ai_exists`. Both flip from asserting `Err(...)` to asserting `Ok(...)` plus that the pre-existing file is bytewise unchanged.",
+      "description": "Spec \u00a7 8.3 'Unit tests' \u2014 Rename `init_workspace_rejects_existing` (mod.rs:583) to `init_workspace_is_idempotent_when_aipm_toml_exists` and `init_marketplace_rejects_existing` (mod.rs:607) to `init_marketplace_is_idempotent_when_ai_exists`. Both flip from asserting `Err(...)` to asserting `Ok(...)` plus that the pre-existing file is bytewise unchanged.",
       "steps": [
         "Open `crates/libaipm/src/workspace_init/mod.rs` and locate the test at line 582-604.",
         "Rename `init_workspace_rejects_existing` to `init_workspace_is_idempotent_when_aipm_toml_exists`.",
@@ -146,20 +146,20 @@
         "Repeat for `init_marketplace_rejects_existing` at lines 606-628: rename to `init_marketplace_is_idempotent_when_ai_exists`. Pre-create `.ai/` (already done at line 609); capture a directory-listing snapshot before, assert it equals after, and assert `MarketplaceFoundExisting` is in `actions`.",
         "Run `cargo test -p libaipm workspace_init` and confirm both tests pass."
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 10,
       "category": "test",
-      "description": "Spec § 8.3 'Unit tests' — Add six new unit tests in `crates/libaipm/src/workspace_init/mod.rs` covering: per-engine fan-out, missing-engine-marketplace auto-repair, all-engines-already-present skip, conflict-warn detection, malformed aipm.toml typed error, malformed marketplace.json typed error.",
+      "description": "Spec \u00a7 8.3 'Unit tests' \u2014 Add six new unit tests in `crates/libaipm/src/workspace_init/mod.rs` covering: per-engine fan-out, missing-engine-marketplace auto-repair, all-engines-already-present skip, conflict-warn detection, malformed aipm.toml typed error, malformed marketplace.json typed error.",
       "steps": [
         "Add `init_idempotent_writes_missing_engine_marketplace`: pre-create `.ai/` (no `.claude-plugin/` inside). Run `init` with `engines_scaffold = EngineSet::CLAUDE`. Assert `Ok`, that `.ai/.claude-plugin/marketplace.json` was created, and that `actions` contains `MarketplaceManifestWritten { engine: Engine::Claude, .. }`.",
-        "Add `init_idempotent_per_engine_fan_out` with `#[traced_test]`: pre-create `.ai/` only. Run `init` with `engines_scaffold = EngineSet::CLAUDE | EngineSet::COPILOT`. Assert both `.ai/.claude-plugin/marketplace.json` AND `.ai/.github/plugin/marketplace.json` were created, and `actions` contains exactly two `MarketplaceManifestWritten` entries — one per engine.",
+        "Add `init_idempotent_per_engine_fan_out` with `#[traced_test]`: pre-create `.ai/` only. Run `init` with `engines_scaffold = EngineSet::CLAUDE | EngineSet::COPILOT`. Assert both `.ai/.claude-plugin/marketplace.json` AND `.ai/.github/plugin/marketplace.json` were created, and `actions` contains exactly two `MarketplaceManifestWritten` entries \u2014 one per engine.",
         "Add `init_idempotent_skips_existing_engine_marketplace`: pre-create both engine marketplace files with valid content. Run `init` with `engines_scaffold = EngineSet::CLAUDE | EngineSet::COPILOT`. Assert both files unchanged, and `actions` contains exactly two `MarketplaceManifestFoundExisting` entries.",
         "Add `init_existing_aipm_toml_warns_on_engine_conflict` with `#[traced_test]`: pre-create `aipm.toml` declaring `engines = [\"claude\"]`. Run `init` with `engines_support = Some(EngineSet::COPILOT)`. Assert `Ok`, file unchanged, and `logs_contain(\"engines field differs from wizard answer\")`.",
         "Add `init_existing_aipm_toml_invalid_returns_typed_error`: pre-create `aipm.toml` with malformed TOML (`let _ = std::fs::write(tmp.join(\"aipm.toml\"), \"not = [valid\");`). Run `init` with `opts.workspace = true`. Assert `Err(Error::ExistingManifestInvalid { path, .. })` where `path` ends with `aipm.toml`.",
         "Add `init_existing_marketplace_invalid_returns_typed_error`: pre-create `.ai/.claude-plugin/marketplace.json` with `{`. Run `init` with `engines_scaffold = EngineSet::CLAUDE`. Assert `Err(Error::ExistingMarketplaceInvalid { path, .. })`.",
-        "Run `cargo test -p libaipm workspace_init` — all six pass.",
+        "Run `cargo test -p libaipm workspace_init` \u2014 all six pass.",
         "Run `cargo +nightly llvm-cov` per CLAUDE.md and verify branch coverage is >= 89%."
       ],
       "passes": false
@@ -167,7 +167,7 @@
     {
       "id": 11,
       "category": "test",
-      "description": "Spec § 8.3 'Integration / E2E tests' — Add three new scenarios to `crates/aipm/tests/init_e2e.rs` exercising the real `aipm` binary via `assert_cmd`: idempotent over existing .ai/, idempotent over existing aipm.toml, multi-engine marketplace fan-out.",
+      "description": "Spec \u00a7 8.3 'Integration / E2E tests' \u2014 Add three new scenarios to `crates/aipm/tests/init_e2e.rs` exercising the real `aipm` binary via `assert_cmd`: idempotent over existing .ai/, idempotent over existing aipm.toml, multi-engine marketplace fan-out.",
       "steps": [
         "Open `crates/aipm/tests/init_e2e.rs`.",
         "Add `init_succeeds_with_existing_ai_directory`: create a temp dir, pre-create `.ai/` with a single empty file inside, run `aipm init -y --marketplace`, assert exit 0 and stdout contains `Using existing .ai/ marketplace`.",
@@ -181,10 +181,10 @@
     {
       "id": 12,
       "category": "test",
-      "description": "Spec § 8.3 'BDD' — Add five new Gherkin scenarios to `tests/features/manifest/workspace-init.feature` and the corresponding step definitions in `crates/libaipm/tests/bdd.rs` near the existing init helpers around line 459.",
+      "description": "Spec \u00a7 8.3 'BDD' \u2014 Add five new Gherkin scenarios to `tests/features/manifest/workspace-init.feature` and the corresponding step definitions in `crates/libaipm/tests/bdd.rs` near the existing init helpers around line 459.",
       "steps": [
         "Open `tests/features/manifest/workspace-init.feature`.",
-        "Append the five scenarios from Spec § 8.3 'BDD' verbatim (idempotent .ai/, idempotent aipm.toml, per-engine paths, found-existing marketplace report, malformed-toml typed error).",
+        "Append the five scenarios from Spec \u00a7 8.3 'BDD' verbatim (idempotent .ai/, idempotent aipm.toml, per-engine paths, found-existing marketplace report, malformed-toml typed error).",
         "Open `crates/libaipm/tests/bdd.rs` and locate the init step block near line 459 (helpers `given_initialized_marketplace`, `given_workspace_initialized`).",
         "Verify (Q9.7) that the proposed step phrases `a workspace with a populated \".ai/\" tree`, `a workspace with an existing root \"aipm.toml\"`, `a workspace with \".ai/.claude-plugin/marketplace.json\" already populated`, and `a workspace with a malformed root \"aipm.toml\"` do not collide with existing `#[given]` / `#[when]` / `#[then]` bindings. If a phrase collides, rename in both the feature file and bdd.rs.",
         "Implement the missing `#[given]` step functions: each pre-creates the named artefact via `crate::fs::Real` writes inside the cucumber `World`'s temp dir.",
@@ -196,13 +196,13 @@
     {
       "id": 13,
       "category": "chore",
-      "description": "Spec § 8.1 'Deployment Strategy' — Add CHANGELOG entries describing the breaking change in libaipm and the user-visible behavior change in the aipm CLI. Required because `Error::WorkspaceAlreadyInitialized` and `Error::MarketplaceAlreadyExists` are removed (libaipm pre-1.0 minor bump).",
+      "description": "Spec \u00a7 8.1 'Deployment Strategy' \u2014 Add CHANGELOG entries describing the breaking change in libaipm and the user-visible behavior change in the aipm CLI. Required because `Error::WorkspaceAlreadyInitialized` and `Error::MarketplaceAlreadyExists` are removed (libaipm pre-1.0 minor bump).",
       "steps": [
         "Open `crates/libaipm/CHANGELOG.md` and add an entry under the next pending version: `BREAKING: Removed Error::WorkspaceAlreadyInitialized and Error::MarketplaceAlreadyExists. Added Error::ExistingManifestInvalid and Error::ExistingMarketplaceInvalid. workspace_init::init is now idempotent over pre-existing aipm.toml and .ai/. Closes #850.`",
         "Open `crates/aipm/CHANGELOG.md` and add an entry: `aipm init no longer fails when aipm.toml or .ai/ already exist. New stdout lines (\"Using existing X\", \"Wrote/Found <Engine> marketplace manifest at Y\") describe what was reused vs. created. Closes #850.`",
         "Open `crates/libaipm-engine-spec/CHANGELOG.md` and add an entry: `Schema fix: Claude marketplace manifest path corrected from .claude-plugin/marketplace.toml to .claude-plugin/marketplace.json to match the format Claude actually consumes.`",
         "Confirm the changelog format matches existing entries in each file (read the top 30 lines of each before writing).",
-        "No version-number bumps in these commits — versions are managed separately by the release workflow.",
+        "No version-number bumps in these commits \u2014 versions are managed separately by the release workflow.",
         "Run `cargo build --workspace` to confirm no syntax issues in the markdown weren't accidentally compiled into doc tests."
       ],
       "passes": false
@@ -210,16 +210,16 @@
     {
       "id": 14,
       "category": "test",
-      "description": "CLAUDE.md mandate — Run the full quality gate (`cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check`) and the 89% branch-coverage gate. Add additional tests for any newly uncovered branches surfaced by `cargo +nightly llvm-cov report`.",
+      "description": "CLAUDE.md mandate \u2014 Run the full quality gate (`cargo build --workspace`, `cargo test --workspace`, `cargo clippy --workspace -- -D warnings`, `cargo fmt --check`) and the 89% branch-coverage gate. Add additional tests for any newly uncovered branches surfaced by `cargo +nightly llvm-cov report`.",
       "steps": [
-        "Run `cargo build --workspace` — must pass with zero warnings.",
-        "Run `cargo test --workspace` — all unit, integration, doc, and BDD tests must pass.",
-        "Run `cargo clippy --workspace -- -D warnings` — must pass.",
-        "Run `cargo fmt --check` — must pass.",
+        "Run `cargo build --workspace` \u2014 must pass with zero warnings.",
+        "Run `cargo test --workspace` \u2014 all unit, integration, doc, and BDD tests must pass.",
+        "Run `cargo clippy --workspace -- -D warnings` \u2014 must pass.",
+        "Run `cargo fmt --check` \u2014 must pass.",
         "Run the four-step coverage workflow per CLAUDE.md: `cargo +nightly llvm-cov clean --workspace`, `cargo +nightly llvm-cov --no-report --workspace --branch`, `cargo +nightly llvm-cov --no-report --doc`, `cargo +nightly llvm-cov report --doctests --branch --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\\.rs|lsp\\.rs|libaipm-engine-spec/build\\.rs|libaipm-engine-spec/src/bin)'`.",
         "Verify TOTAL branch column shows >= 89%.",
         "If coverage falls below 89%, identify uncovered new branches in `workspace_init/mod.rs` (likely the empty-marketplace-path skip and the conflict-warn helper rows) and add targeted unit tests until the gate is back above 89%.",
-        "If `error.rs`'s new variants are reported as uncovered, ensure feature 10's `init_existing_aipm_toml_invalid_returns_typed_error` and `init_existing_marketplace_invalid_returns_typed_error` actually traverse them — pattern-match the returned `Err(...)` in those tests.",
+        "If `error.rs`'s new variants are reported as uncovered, ensure feature 10's `init_existing_aipm_toml_invalid_returns_typed_error` and `init_existing_marketplace_invalid_returns_typed_error` actually traverse them \u2014 pattern-match the returned `Err(...)` in those tests.",
         "All gates must be green before opening the PR."
       ],
       "passes": false

@@ -375,6 +375,16 @@ async fn then_fails_with(world: &mut AipmWorld, msg: String) {
     );
 }
 
+#[then(expr = "stdout contains {string}")]
+async fn then_stdout_contains(world: &mut AipmWorld, needle: String) {
+    assert!(
+        world.last_stdout.contains(&needle),
+        "expected stdout to contain '{needle}'\nstdout: {}\nstderr: {}",
+        world.last_stdout,
+        world.last_stderr
+    );
+}
+
 #[then(expr = "no warnings are emitted")]
 async fn then_no_warnings(world: &mut AipmWorld) {
     assert!(
@@ -701,7 +711,11 @@ async fn given_initialized_marketplace(world: &mut AipmWorld, dir: String) {
     std::fs::create_dir_all(&path).expect("create dir");
     world.dirs.insert(dir.clone(), path);
     world.active_dir = Some(dir.clone());
-    run_command(world, "aipm init --marketplace -y", Some(&dir));
+    // Per #850 the marketplace path is engine-aware. Existing scenarios
+    // (plus `aipm make plugin` registration code) expect the Claude
+    // marketplace.json to be present, so init explicitly with
+    // `--engine claude`.
+    run_command(world, "aipm init --marketplace --engine claude -y", Some(&dir));
     assert_eq!(
         world.last_exit_code,
         Some(0),

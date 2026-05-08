@@ -448,6 +448,9 @@ fn cmd_init(
             libaipm::workspace_init::InitAction::WorkspaceCreated => {
                 format!("Initialized workspace in {}", dir.display())
             },
+            libaipm::workspace_init::InitAction::WorkspaceFoundExisting => {
+                format!("Using existing aipm.toml in {}", dir.display())
+            },
             libaipm::workspace_init::InitAction::MarketplaceCreated => {
                 let mkt = &answers.marketplace_name;
                 if answers.no_starter {
@@ -455,6 +458,26 @@ fn cmd_init(
                 } else {
                     format!("Created .ai/ marketplace '{mkt}' with starter plugin")
                 }
+            },
+            libaipm::workspace_init::InitAction::MarketplaceFoundExisting => {
+                format!("Using existing .ai/ marketplace in {}", dir.display())
+            },
+            libaipm::workspace_init::InitAction::MarketplaceManifestWritten { engine, path } => {
+                format!(
+                    "Wrote {} marketplace manifest at {}",
+                    libaipm::engine::display_name(*engine),
+                    path.display()
+                )
+            },
+            libaipm::workspace_init::InitAction::MarketplaceManifestFoundExisting {
+                engine,
+                path,
+            } => {
+                format!(
+                    "Found existing {} marketplace manifest at {}",
+                    libaipm::engine::display_name(*engine),
+                    path.display()
+                )
             },
             libaipm::workspace_init::InitAction::ToolConfigured(name) => {
                 format!("Configured {name} settings")
