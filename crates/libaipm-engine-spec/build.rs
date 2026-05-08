@@ -533,10 +533,11 @@ fn marker_paths_for(engine_name: &str) -> &'static [&'static str] {
 ///
 /// Per Q2b "schema wins": copilot's path is `.json` (not `.toml` as the
 /// previous hand-written libaipm `engine.rs` had) because that's what the
-/// schema's `manifest_search_paths` reports.
+/// schema's `manifest_search_paths` reports. Claude's path is also `.json`
+/// — the runtime format Claude consumes — fixed in #850.
 fn marketplace_manifest_path_for(engine_name: &str) -> &'static str {
     match engine_name {
-        "claude" => ".claude-plugin/marketplace.toml",
+        "claude" => ".claude-plugin/marketplace.json",
         "copilot" => ".github/plugin/marketplace.json",
         _ => "",
     }

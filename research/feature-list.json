@@ -17,7 +17,7 @@
         "Run `cargo test --workspace --test engine` (or equivalent targeted run) to confirm `marketplace_manifest_path_returns_correct_path` passes.",
         "Commit `build.rs`, `data/engine-api-schema.json`, `schemas/engine-api.schema.json`, and `engine.rs` together as one atomic schema correction."
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 2,

@@ -1,0 +1,22 @@
+## Iteration 1 — 2026-05-08
+
+### Feature 1 — Schema fix for Claude marketplace path (G11)
+
+**Status:** passes:true
+
+**Changes:**
+- `crates/libaipm-engine-spec/build.rs:537-543` — `marketplace_manifest_path_for("claude")` now returns `.claude-plugin/marketplace.json` (was `.toml`). Doc comment updated.
+- `crates/libaipm-engine-spec/src/lib.rs:69-81` — `engines_const_marketplace_paths_match_schema_wins_decision` test assertion updated to `.json` for Claude.
+- `crates/libaipm/src/engine.rs:382-386` — `marketplace_manifest_path_returns_correct_path` test assertion updated to `.json` for Claude.
+
+**Notes:**
+- `crates/libaipm-engine-spec/data/engine-api-schema.json` already lists `.claude-plugin/marketplace.json` (line 483 in `manifest_search_paths`). No data file change needed; the drift was purely in `build.rs`.
+- `cargo run -p libaipm-engine-spec --bin export-schema` ran clean — no diff to `schemas/engine-api.schema.json` because that JSON Schema describes structure, not values.
+- `META_SCHEMA_VERSION` bump NOT required — value-only change accepted by build.rs validator.
+- Pre-existing `docs/guides/install-marketplace-plugin.md` mentions of `marketplace.toml` are user-facing docs about marketplace-repo packaging (a distinct concept from the in-workspace `.ai/.claude-plugin/marketplace.json` manifest). NOT updated in this feature; broader documentation alignment is out of scope for #850.
+
+**Tests:**
+- `cargo build --workspace` — clean
+- `cargo test -p libaipm-engine-spec` — 36+0+2+3+5+1+2+0 = all passing
+- `cargo test -p libaipm engine::` — 18 passing including `marketplace_manifest_path_returns_correct_path`
+- `cargo test --workspace` — all `test result: ok` lines show `0 failed`
