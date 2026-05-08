@@ -1,6 +1,17 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+
+## [Unreleased]
+
+### Features
+- `aipm init` no longer fails when `aipm.toml` or `.ai/` already exist. The wizard now reuses them and continues — surfacing `Using existing aipm.toml in <dir>` and `Using existing .ai/ marketplace in <dir>` on stdout. With `--engine claude,copilot`, init writes the engine-appropriate `marketplace.json` for every selected engine and prints `Wrote <Engine> marketplace manifest at <path>` per engine ([#850](https://github.com/TheLarkInn/aipm/issues/850)).
+- `cmd_init` gains four new stdout messages for the new `InitAction` variants: `Using existing aipm.toml`, `Using existing .ai/ marketplace`, `Wrote <Engine> marketplace manifest at <path>`, and `Found existing <Engine> marketplace manifest at <path>` ([#850](https://github.com/TheLarkInn/aipm/issues/850)).
+
+### Breaking Changes
+- `aipm init` over a directory that already contains `aipm.toml` or `.ai/` previously exited non-zero. It now exits zero. Scripts using `aipm init || ...` to detect prior initialisation must inspect stdout for the `Using existing X` messages instead ([#850](https://github.com/TheLarkInn/aipm/issues/850)).
+- A pre-existing `aipm.toml` that fails to parse or validate now produces a typed `existing manifest at <path> is invalid: <reason>` error (previously a generic "already initialized" message).
+
 ## [0.24.2] - 2026-05-07
 
 ### Documentation

@@ -205,7 +205,7 @@
         "No version-number bumps in these commits \u2014 versions are managed separately by the release workflow.",
         "Run `cargo build --workspace` to confirm no syntax issues in the markdown weren't accidentally compiled into doc tests."
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 14,

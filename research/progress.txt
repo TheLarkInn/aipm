@@ -126,3 +126,19 @@ These seven features are tightly coupled — feature 2 alone deletes Error varia
 **Tests:**
 - `cargo test -p libaipm --test bdd` — 84 scenarios pass (was 81; +3 new).
 - Full workspace test pass.
+
+## Iteration 7 — 2026-05-08
+
+### Feature 13 — CHANGELOG entries
+
+**Status:** passes:true
+
+**Changes:**
+- `crates/libaipm/CHANGELOG.md` — Added `## [Unreleased]` section with Features (idempotent init, engine-aware fan-out) and Breaking Changes (removed Error variants, new typed errors, find_marketplace engine-aware).
+- `crates/aipm/CHANGELOG.md` — Added `## [Unreleased]` section with the user-visible CLI behavior change (no longer fails on existing artifacts) and Breaking Changes (exit-code semantics).
+- `crates/libaipm-engine-spec/CHANGELOG.md` — Added `## [Unreleased]` section with the Claude marketplace path schema fix (`.toml` → `.json`).
+
+Format follows the existing `## [version] - date` convention. Release tooling typically renames `[Unreleased]` to the new version on cut.
+
+**Tests:**
+- `cargo build --workspace` — no markdown affects build, clean.

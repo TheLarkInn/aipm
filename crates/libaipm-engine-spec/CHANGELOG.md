@@ -1,6 +1,12 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+
+## [Unreleased]
+
+### Bug Fixes
+- Schema fix: Claude marketplace manifest path corrected from `.claude-plugin/marketplace.toml` to `.claude-plugin/marketplace.json` to match the format Claude actually consumes. `engine::marketplace_manifest_path(Engine::Claude)` now returns `.json` (was `.toml`); the data file in `data/engine-api-schema.json` already declared `.json` in `manifest_search_paths`, only the `marketplace_manifest_path_for("claude")` builder lookup was out of step ([#850](https://github.com/TheLarkInn/aipm/issues/850)).
+
 ## [0.24.2] - 2026-05-07
 
 ### Documentation

@@ -1,6 +1,16 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+
+## [Unreleased]
+
+### Features
+- `aipm init` is now idempotent over pre-existing `aipm.toml` and `.ai/` artifacts. Both are reused with `tracing::info!` events instead of returning a hard error. Engine-aware fan-out: `scaffold_marketplace` writes the engine-appropriate `marketplace.json` (e.g. `.claude-plugin/marketplace.json` for Claude, `.github/plugin/marketplace.json` for Copilot) for every engine in `opts.engines_scaffold` ([#850](https://github.com/TheLarkInn/aipm/issues/850)).
+
+### Breaking Changes
+- Removed `workspace_init::Error::WorkspaceAlreadyInitialized` and `workspace_init::Error::MarketplaceAlreadyExists`. Added `workspace_init::Error::ExistingManifestInvalid { path, source }` and `workspace_init::Error::ExistingMarketplaceInvalid { path, source }` for the only remaining hard-fail paths (malformed pre-existing files). `workspace_init::InitAction` gains four variants: `WorkspaceFoundExisting`, `MarketplaceFoundExisting`, `MarketplaceManifestWritten { engine, path }`, `MarketplaceManifestFoundExisting { engine, path }` ([#850](https://github.com/TheLarkInn/aipm/issues/850)).
+- `make/discovery.rs::find_marketplace` now iterates `Engine::ALL` and accepts a marketplace under any engine's path. Previously only `.claude-plugin/marketplace.json` was recognised ([#850](https://github.com/TheLarkInn/aipm/issues/850)).
+
 ## [0.24.2] - 2026-05-07
 
 ### Documentation
