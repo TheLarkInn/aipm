@@ -227,6 +227,7 @@ Violations appear as collapsible per-file groups with `##vso[task.logissue]` ann
 
 ## See also
 
+- [Installing via NuGet (Azure DevOps)](install-nuget.md) — concise reference and quick-start example
 - [NuGet package on nuget.org](https://www.nuget.org/packages/aipm)
 - [Using `aipm lint`](lint.md) — lint flags, reporters, and CI integration
 - [RELEASING.md](../../RELEASING.md) — release and rollback runbook including NuGet unlist procedure
