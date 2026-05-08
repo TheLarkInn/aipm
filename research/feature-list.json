@@ -113,7 +113,7 @@
         "Verify no `Cargo.lock` churn outside of `tracing-test` and its sub-deps.",
         "If feature 1 has not yet bumped `Cargo.lock`, this commit can ship the `Cargo.lock` change atomically with the Cargo.toml edit. Otherwise commit them together."
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 8,

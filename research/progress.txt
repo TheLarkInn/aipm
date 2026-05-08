@@ -54,3 +54,17 @@ These seven features are tightly coupled — feature 2 alone deletes Error varia
 
 **Follow-up not in scope for #850 (noted for future tickets):**
 - `aipm make plugin` registration step at `make/mod.rs:81` hardcodes `.claude-plugin/marketplace.json`. Should also be engine-aware. (Same for `migrate` registration code paths.)
+
+## Iteration 3 — 2026-05-08
+
+### Feature 7 — tracing-test dev-dep
+
+**Status:** passes:true
+
+**Changes:**
+- `crates/libaipm/Cargo.toml` — Added `tracing-test = "0.2"` under `[dev-dependencies]`. Direct version pin (not workspace-managed) since it's a one-off used only by upcoming Feature 10 unit tests for log-event assertions.
+
+**Tests:**
+- `cargo build -p libaipm --tests` clean.
+- `cargo clippy --workspace -- -D warnings` clean.
+- No production-code change; nothing to coverage-test yet (feature 10 will exercise it).
