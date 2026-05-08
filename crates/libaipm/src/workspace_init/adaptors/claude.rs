@@ -433,4 +433,18 @@ mod tests {
         );
         cleanup(&tmp);
     }
+
+    #[test]
+    fn claude_settings_non_object_json_returns_json_parse_error() {
+        // Covers the `if !settings.is_object()` branch in apply().
+        // settings.json exists and contains valid JSON (an array), but the root
+        // value is not an object — apply() must reject it with Error::JsonParse.
+        let fs = TestFs { read: || Ok("[]".to_string()), write: || Ok(()) };
+        let adaptor = Adaptor;
+        let result = adaptor.apply(Path::new("/tmp"), false, "test", &fs);
+        assert!(
+            result.is_err_and(|e| matches!(e, Error::JsonParse { .. })),
+            "non-object JSON in settings.json should produce Error::JsonParse"
+        );
+    }
 }
