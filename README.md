@@ -36,7 +36,7 @@ For Azure DevOps pipelines that prefer NuGet over `curl | sh`, restore `aipm` fr
 
 ```yaml
 variables:
-  AIPM_VERSION: '0.22.5'
+  AIPM_VERSION: '0.24.2'
   NUGET_PACKAGES: $(Pipeline.Workspace)/.nuget/packages
 
 steps:
@@ -70,7 +70,7 @@ steps:
   - script: aipm --version
 ```
 
-Public nuget.org needs no service connection or `NuGetAuthenticate@1`. The package ships binaries for `win-x64`, `linux-x64`, `osx-x64`, `osx-arm64`. See [`docs/guides/install-nuget.md`](docs/guides/install-nuget.md) for the full consumer walkthrough including caching and linting integration.
+Public nuget.org needs no service connection or `NuGetAuthenticate@1`. The package ships binaries for `win-x64`, `linux-x64`, `osx-x64`, `osx-arm64`. See [`docs/guides/install-nuget.md`](docs/guides/install-nuget.md) for a concise reference or [`docs/guides/install-aipm-nuget-ado.md`](docs/guides/install-aipm-nuget-ado.md) for a detailed walkthrough covering version pinning, RID resolution, caching, Artifacts proxy, and lint integration.
 
 ### Build from Source
 
