@@ -1416,6 +1416,22 @@ mod tests {
     }
 
     #[test]
+    fn from_str_empty_identifier_returns_error() {
+        // Parsing a source-prefixed spec with no identifier after ':' should
+        // hit the `rest.is_empty()` branch and return EmptyIdentifier.
+        for prefix in &["local", "git", "github", "market", "marketplace", "mp"] {
+            let input = format!("{prefix}:");
+            let result = input.parse::<Spec>();
+            assert!(result.is_err(), "expected error for empty identifier: {input}");
+            let err = result.unwrap_err();
+            assert!(
+                matches!(err, Error::EmptyIdentifier(_)),
+                "expected EmptyIdentifier but got: {err}"
+            );
+        }
+    }
+
+    #[test]
     fn serde_deserialize_invalid() {
         // Exercise serde deserialize error path
         let result: Result<Spec, _> = serde_json::from_str("\"\"");
