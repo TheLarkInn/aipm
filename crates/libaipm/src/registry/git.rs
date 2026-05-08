@@ -555,6 +555,50 @@ mod tests {
         assert!(result.is_err(), "expected Err when source is not a git repo: {result:?}");
     }
 
+    /// Covers line 87 (`Ok(())`) in `clone_index`: when a valid local git repository is
+    /// cloned successfully, `clone_index` returns `Ok(())`.
+    ///
+    /// A minimal git repo (one empty-tree commit) is initialised locally and used as the
+    /// "remote" index URL (`file://…`).  `Git::new()` starts with `synced = false` and no
+    /// `.git` directory in the cache, so `ensure_index` takes the clone path.  After the
+    /// successful clone, `get_metadata` fails because the cloned repo has no index files —
+    /// that error is expected; the goal is coverage of line 87.
+    #[test]
+    fn clone_index_success_path_covered_with_valid_repo() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+
+        // Build a minimal local git repo to serve as the remote index.
+        let remote_dir = tmp.path().join("remote");
+        std::fs::create_dir_all(&remote_dir).expect("create remote dir");
+        let repo = git2::Repository::init(&remote_dir).expect("git init");
+
+        // Commit an empty initial tree so the repo has a valid HEAD.
+        let sig = git2::Signature::now("Test", "test@test.invalid").expect("signature");
+        let mut idx = repo.index().expect("repo index");
+        let tree_id = idx.write_tree().expect("write_tree");
+        let tree = repo.find_tree(tree_id).expect("find_tree");
+        repo.commit(Some("HEAD"), &sig, &sig, "init", &tree, &[]).expect("initial commit");
+
+        let url = format!("file://{}", remote_dir.display());
+        let cache_root = tmp.path().join("cache");
+
+        // Git::new() with synced=false; cache_dir has no .git → clone path taken.
+        let git = Git::new(&url, &cache_root).expect("Git::new");
+
+        // Triggers: ensure_index → synced=false → git_dir.exists()=false →
+        //           clone_index → git2::Repository::clone succeeds → Ok(()) at line 87.
+        // Afterwards, read_package fails (no index files) — that is expected.
+        let result = git.get_metadata("any-package");
+        assert!(result.is_err(), "expected Err (no index files in cloned repo), got: {result:?}");
+
+        // Verify the clone itself succeeded — the error must not be about cloning.
+        let err_str = result.unwrap_err().to_string();
+        assert!(
+            !err_str.contains("failed to clone registry index"),
+            "clone should have succeeded but got: {err_str}"
+        );
+    }
+
     /// Covers: `synced=false` + `git_dir.exists()=true` → fetch path in `ensure_index`.
     ///
     /// A minimal local git repository is initialised and cloned into the exact cache
