@@ -142,3 +142,50 @@ Format follows the existing `## [version] - date` convention. Release tooling ty
 
 **Tests:**
 - `cargo build --workspace` — no markdown affects build, clean.
+
+## Iteration 8 — 2026-05-08
+
+### Feature 14 — Final quality gate verification
+
+**Status:** passes:true
+
+**Result:** All four gates pass on the final commit.
+
+```
+CARGO_VERIFIER_REPORT
+build: PASS
+test: PASS
+clippy: PASS
+fmt: PASS
+coverage: PASS (90.52% / required 89%)
+overall: PASS
+```
+
+## ALL 14 FEATURES COMPLETE — #850 ready for PR
+
+| # | Feature | Iteration | Commit |
+|---|---|---|---|
+| 1 | Schema fix (Claude marketplace path .toml → .json) | 1 | bc9ac2c |
+| 2 | Replace error variants | 2 | f1f2add |
+| 3 | Extend InitAction with 4 new variants | 2 | f1f2add |
+| 4 | Idempotent init_workspace | 2 | f1f2add |
+| 5 | Engine-aware scaffold_marketplace | 2 | f1f2add |
+| 6 | Tail summary warn (G12) | 2 | f1f2add |
+| 7 | tracing-test dev-dep | 3 | c12e0ec |
+| 8 | cmd_init match arms | 2 | f1f2add |
+| 9 | Rename/invert existing tests | 2 | f1f2add |
+| 10 | 6 new unit tests | 4 | 036c856 |
+| 11 | Per-engine E2E scenario | 5 | 61c8c42 |
+| 12 | 3 BDD scenarios + malformed-toml step | 6 | 3650696 |
+| 13 | CHANGELOG entries (3 crates) | 7 | 0598d7b |
+| 14 | Final quality gate | 8 | (this iteration) |
+
+**Branch:** feat/0850-init-wizard-idempotent (8 commits ahead of main)
+**Final coverage:** 90.52% branch (>= 89%)
+**Total tests:** 84/84 BDD scenarios + ~2,660 unit/integration/doc tests
+
+**Pre-existing follow-ups noted (out of scope for #850):**
+- `crates/libaipm/src/make/mod.rs:81` — `aipm make plugin` registration step still hardcodes `.claude-plugin/marketplace.json`. Should also be engine-aware.
+- `crates/libaipm/src/migrate/` — Same hardcoded Claude marketplace registration in migration code.
+- `docs/guides/install-marketplace-plugin.md` — User-facing docs reference `marketplace.toml` (a distinct concept from the in-workspace JSON file). May warrant separate documentation alignment.
+- Schema/spec divergence note in spec § 9.4 was resolved by fixing `build.rs` (not the `data/engine-api-schema.json` data file, which already had `.json`). `META_SCHEMA_VERSION` was NOT bumped because the change is value-only on a single function output.

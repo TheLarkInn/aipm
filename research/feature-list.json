@@ -222,7 +222,7 @@
         "If `error.rs`'s new variants are reported as uncovered, ensure feature 10's `init_existing_aipm_toml_invalid_returns_typed_error` and `init_existing_marketplace_invalid_returns_typed_error` actually traverse them \u2014 pattern-match the returned `Err(...)` in those tests.",
         "All gates must be green before opening the PR."
       ],
-      "passes": false
+      "passes": true
     }
   ]
 }
