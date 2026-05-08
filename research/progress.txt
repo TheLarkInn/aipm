@@ -89,3 +89,20 @@ These seven features are tightly coupled — feature 2 alone deletes Error varia
 - `cargo test -p libaipm workspace_init::` — 81 passing (was 75; +6 new).
 - `cargo clippy --workspace -- -D warnings` clean.
 - Full workspace test pass: 81/81 BDD scenarios + all unit/integration tests green.
+
+## Iteration 5 — 2026-05-08
+
+### Feature 11 — E2E scenarios for idempotent init
+
+**Status:** passes:true
+
+**Notes:**
+- The first two spec scenarios (idempotent over existing aipm.toml, idempotent over existing .ai/) were already added in iteration 2 with semantically equivalent names: `init_is_idempotent_with_existing_workspace` (init_e2e.rs:85) and `init_is_idempotent_with_existing_marketplace` (line 112). Both assert exit 0 and the expected "Using existing X" stdout line.
+- Only the per-engine fan-out scenario was missing.
+
+**Changes:**
+- `crates/aipm/tests/init_e2e.rs` — Added `init_per_engine_marketplace_paths`. Runs `aipm init -y --marketplace --engine claude,copilot` against an empty temp dir and asserts both `.ai/.claude-plugin/marketplace.json` and `.ai/.github/plugin/marketplace.json` exist on disk.
+
+**Tests:**
+- `cargo test -p aipm --test init_e2e init_per_engine_marketplace_paths` passes.
+- Full workspace test pass (81/81 BDD scenarios + all unit/integration green).

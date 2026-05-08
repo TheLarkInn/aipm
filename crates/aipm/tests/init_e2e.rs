@@ -122,6 +122,36 @@ fn init_is_idempotent_with_existing_marketplace() {
 }
 
 // =========================================================================
+// Scenario: Per-engine marketplace fan-out (#850)
+// =========================================================================
+#[test]
+fn init_per_engine_marketplace_paths() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("multi-engine");
+
+    aipm()
+        .args([
+            "init",
+            "-y",
+            "--marketplace",
+            "--engine",
+            "claude,copilot",
+            &dir.display().to_string(),
+        ])
+        .assert()
+        .success();
+
+    assert!(
+        dir.join(".ai/.claude-plugin/marketplace.json").exists(),
+        "claude marketplace must exist"
+    );
+    assert!(
+        dir.join(".ai/.github/plugin/marketplace.json").exists(),
+        "copilot marketplace must exist"
+    );
+}
+
+// =========================================================================
 // Scenario: Help shows usage
 // =========================================================================
 #[test]

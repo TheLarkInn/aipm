@@ -176,7 +176,7 @@
         "Confirm `init_engine_e2e.rs` does not assert on the old hardcoded single-engine path; if it does, update those scenarios to expect the new per-engine fan-out behavior.",
         "Run `cargo test -p aipm --test init_e2e` and `cargo test -p aipm --test init_engine_e2e`."
       ],
-      "passes": false
+      "passes": true
     },
     {
       "id": 12,
