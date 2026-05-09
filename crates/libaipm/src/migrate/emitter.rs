@@ -1560,6 +1560,41 @@ mod tests {
     }
 
     #[test]
+    fn emit_command_with_existing_frontmatter_injects_disable_model_invocation() {
+        // Covers the `content.trim_start().starts_with("---")` True branch in
+        // `emit_command_as_skill` (line 178): when the command source file already
+        // has YAML frontmatter, the function must inject `disable-model-invocation: true`
+        // into the existing block rather than wrapping the content in new frontmatter.
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/src/commands/review.md"),
+            "---\nname: review\ndescription: Code review helper\n---\nReview the code carefully"
+                .to_string(),
+        );
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let artifact = make_command_artifact();
+        let _result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+
+        let skill_content = fs.get_written(Path::new("/ai/review/skills/review/SKILL.md"));
+        assert!(
+            skill_content.as_ref().is_some_and(|c| c.contains("disable-model-invocation: true")),
+            "expected disable-model-invocation injected into existing frontmatter"
+        );
+        // The original frontmatter fields must be preserved
+        assert!(
+            skill_content.as_ref().is_some_and(|c| c.contains("name: review")),
+            "original frontmatter name field must be preserved"
+        );
+        // The body content must remain
+        assert!(
+            skill_content.as_ref().is_some_and(|c| c.contains("Review the code carefully")),
+            "command body must be preserved after frontmatter injection"
+        );
+    }
+
+    #[test]
     fn resolve_name_no_conflict() {
         let existing = HashSet::new();
         let mut counter = 0;
