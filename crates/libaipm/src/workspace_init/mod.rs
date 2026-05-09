@@ -101,14 +101,18 @@ pub enum InitAction {
     MarketplaceManifestWritten {
         /// Engine the manifest was scaffolded for.
         engine: libaipm_engine_spec::Engine,
-        /// Absolute path of the written manifest.
+        /// Path of the written manifest. Resolved relative to
+        /// `Options.dir`, so it is absolute only when the caller
+        /// passed an absolute `dir`.
         path: std::path::PathBuf,
     },
     /// A pre-existing engine-appropriate marketplace manifest was reused.
     MarketplaceManifestFoundExisting {
         /// Engine the manifest belongs to.
         engine: libaipm_engine_spec::Engine,
-        /// Absolute path of the existing manifest.
+        /// Path of the existing manifest. Resolved relative to
+        /// `Options.dir`, so it is absolute only when the caller
+        /// passed an absolute `dir`.
         path: std::path::PathBuf,
     },
     /// A tool-specific configuration was written or merged.
@@ -202,9 +206,9 @@ pub fn init(
         )
     });
     if !any_created && any_found {
-        tracing::warn!(
-            "aipm init found nothing to do; both root manifest and .ai/ marketplace already exist"
-        );
+        // Phrased to be accurate regardless of which phases the user
+        // requested — `--workspace` only, `--marketplace` only, or both.
+        tracing::warn!("aipm init found nothing to do; all requested artifacts already exist",);
     }
 
     Ok(InitResult { actions })
