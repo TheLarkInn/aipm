@@ -579,9 +579,9 @@ and emits typed const tables into the build output at compile time.
 |----------|-------------|
 | `engine_for_root_dir(path)` | Infer the engine from a source directory path (e.g. `.claude/` → `Claude`) |
 | `marketplace_host_for_root_dir(path)` | Infer the marketplace host (Claude vs. Copilot) from a path |
-| `is_valid_event(engine, event)` | Check whether a hook event name is valid for the given engine |
-| `valid_tool_name_check(engine_set, tool)` | Return `None` if the tool name is valid, or a `ToolNameViolation` describing the conflict |
-| `suggest_canonical(tool)` | Return a canonical tool-name suggestion for a near-miss tool name |
+| `is_valid_event(event, engine)` | Check whether a hook event name is valid for the given engine |
+| `valid_tool_name_check(tool, declared)` | Return `Ok(())` if the tool name is valid for the declared engine set, or `Err(ToolNameViolation)` describing the conflict |
+| `suggest_canonical(event, engine)` | Return the canonical hook event name when `event` is a legacy alias; returns `None` if already canonical or unknown |
 
 ### Schema Export
 
