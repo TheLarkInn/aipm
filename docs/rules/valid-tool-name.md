@@ -3,7 +3,9 @@
 **Severity:** warning (no declared engines) / error (declared engines incompatible)
 **Fixable:** No
 
-Checks that every tool name listed in an agent, skill, or hook `tools` frontmatter field is compatible with the plugin's declared engines. Some tools are exclusive to a single AI engine; referencing them in a plugin that targets a different engine means the tool will be silently unavailable at runtime.
+Checks that every tool name listed in an agent or skill `tools` frontmatter field is compatible with the plugin's declared engines. Some tools are exclusive to a single AI engine; referencing them in a plugin that targets a different engine means the tool will be silently unavailable at runtime.
+
+> **Note:** Hook configurations use `hooks.json` (JSON format) rather than Markdown frontmatter, so this rule does not apply to hook files.
 
 This rule consults the schema-driven tool-compatibility tables generated from `crates/libaipm-engine-spec/data/engine-api-schema.json`, which is updated weekly by the `reverse-binary-analysis` workflow.
 
