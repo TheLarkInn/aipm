@@ -4211,4 +4211,33 @@ mod tests {
             "script should have been copied to the plugin scripts dir"
         );
     }
+
+    #[test]
+    fn emit_plugin_with_name_rejects_unsafe_plugin_name() {
+        // Covers the True branch of `if !is_safe_path_segment(plugin_name)` in
+        // `emit_plugin_with_name`: when the plugin name contains path separators or
+        // reserved segments, the function returns a Skipped action without writing files.
+        let fs = MockFs::new();
+        let artifact = make_skill_artifact();
+        let result = emit_plugin_with_name(&artifact, "..", Path::new("/ai"), true, &fs)
+            .ok()
+            .unwrap_or_default();
+        assert!(result.iter().any(|a| matches!(a, Action::Skipped { .. })));
+        assert!(fs.get_written(Path::new("/ai/../aipm.toml")).is_none());
+    }
+
+    #[test]
+    fn emit_plugin_with_name_rejects_unsafe_artifact_name() {
+        // Covers the True branch of `if !is_safe_path_segment(&artifact.name)` in
+        // `emit_plugin_with_name`: when the artifact name contains path separators,
+        // the function returns a Skipped action without writing files.
+        let fs = MockFs::new();
+        let mut artifact = make_skill_artifact();
+        artifact.name = "a/b".to_string();
+        let result = emit_plugin_with_name(&artifact, "safe-plugin", Path::new("/ai"), true, &fs)
+            .ok()
+            .unwrap_or_default();
+        assert!(result.iter().any(|a| matches!(a, Action::Skipped { .. })));
+        assert!(fs.get_written(Path::new("/ai/safe-plugin/aipm.toml")).is_none());
+    }
 }
