@@ -1887,4 +1887,27 @@ mod tests {
         // so nothing is added to the result set.
         assert!(result.is_empty(), "non-UTF-8 components must be silently skipped");
     }
+
+    /// `derive_summary_sources` with an absolute path exercises two previously
+    /// uncovered branches:
+    ///
+    /// 1. `if let Component::Normal(os) = component` **False** branch — an
+    ///    absolute path's first component is `Component::RootDir` (`/`), which
+    ///    is not `Normal` and must be silently skipped.
+    /// 2. `if let Some(seg) = os.to_str()` **True** branch — subsequent
+    ///    `Normal` components have valid UTF-8 names and the binding succeeds.
+    ///
+    /// The path `/project/.github` contains both a `RootDir` component (skipped)
+    /// and a `.github` `Normal` component (matched), so the function must return
+    /// `[".github"]`.
+    #[test]
+    fn derive_summary_sources_absolute_path_skips_root_component() {
+        let dirs = vec![PathBuf::from("/project/.github/workflows")];
+        let result = derive_summary_sources(None, &dirs);
+        assert_eq!(
+            result,
+            vec![libaipm::paths::GITHUB_DOT.to_string()],
+            "absolute path should yield the known root segment"
+        );
+    }
 }
