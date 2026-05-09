@@ -1164,4 +1164,30 @@ mod tests {
             "fallback must emit 'beta'; got: {created_names:?}"
         );
     }
+
+    /// Covers the "else" arm of `else if let Some(artifact) = plan.artifacts.first()`
+    /// (line 373 in `emit_and_register`): when a `PluginPlan` has
+    /// `is_package_scoped = false` and an empty `artifacts` vec, neither
+    /// emit branch fires and the plan is silently skipped.
+    #[test]
+    fn unified_emit_and_register_skips_plan_with_empty_artifacts() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        init_marketplace(root);
+
+        let ai_dir = root.join(".ai");
+        let plan = PluginPlan {
+            name: "ghost-plan".to_string(),
+            artifacts: vec![],
+            is_package_scoped: false,
+            source_dir: root.to_path_buf(),
+            other_files: vec![],
+        };
+        let discovered = crate::discovery::DiscoveredSet::default();
+        let outcome = emit_and_register(vec![plan], &ai_dir, false, &discovered, &Real)
+            .expect("empty-artifact plan must not cause an error");
+        let created =
+            outcome.actions.iter().filter(|a| matches!(a, Action::PluginCreated { .. })).count();
+        assert_eq!(created, 0, "no plugin should be created for an empty-artifact plan");
+    }
 }
