@@ -1867,4 +1867,24 @@ mod tests {
         let result = cmd_lint(tmp.path().to_path_buf(), None, "human", "always", None, None, false);
         assert!(result.is_ok(), "color=always should succeed on a clean dir: {result:?}");
     }
+
+    /// `derive_summary_sources` silently skips path components that cannot be
+    /// decoded as UTF-8, exercising the `None` branch of `os.to_str()` in the
+    /// inner loop.  On Unix, `OsStr::from_bytes` lets us construct a path
+    /// component with arbitrary bytes — `to_str()` returns `None` for invalid
+    /// UTF-8, so the component is ignored and the result is empty.
+    #[test]
+    #[cfg(unix)]
+    fn derive_summary_sources_non_utf8_component_is_skipped() {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt as _;
+
+        // A single-component path whose bytes are not valid UTF-8.
+        let non_utf8: &OsStr = OsStr::from_bytes(b"\xff\xfe");
+        let path = PathBuf::from(non_utf8);
+        let result = derive_summary_sources(None, &[path]);
+        // The non-UTF-8 component cannot match any known root name,
+        // so nothing is added to the result set.
+        assert!(result.is_empty(), "non-UTF-8 components must be silently skipped");
+    }
 }
