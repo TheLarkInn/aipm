@@ -97,8 +97,18 @@ the cached copy is used, detecting any tampering of the local cache.
 The lint rules that resolve paths from PR-author-controlled configuration files
 (such as `marketplace.json` source paths and `aipm.toml` imports) validate every
 path before any filesystem read. Paths containing `..`, absolute roots (`/`, `C:\`),
-or Windows drive/UNC prefixes are silently skipped rather than followed, preventing
-a crafted configuration from making `aipm lint` read files outside the workspace.
+or Windows drive/UNC prefixes are never followed. The exact response depends on the
+rule:
+
+- **[`marketplace/source-resolve`](../rules/marketplace/source-resolve.md)** reports
+  an **error diagnostic** for each unsafe `source` path in `marketplace.json`,
+  surfacing the violation directly to the developer.
+- **[`marketplace/plugin-field-mismatch`](../rules/marketplace/plugin-field-mismatch.md)**,
+  **[`plugin/broken-paths`](../rules/plugin/broken-paths.md)**, and
+  **[`instructions/oversized`](../rules/instructions/oversized.md)** (via import
+  resolution) **silently skip** entries with unsafe paths — field reconciliation and
+  size counting are impossible without a valid path, so those rules defer to
+  `marketplace/source-resolve` to surface the underlying problem.
 
 This is a defense-in-depth layer that operates independently of the plugin-path
 validation above. No configuration is required.

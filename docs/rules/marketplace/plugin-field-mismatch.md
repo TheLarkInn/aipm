@@ -5,6 +5,12 @@
 
 Validates that the `name` and `description` fields in each plugin entry in `marketplace.json` match the corresponding values in that plugin's own `.claude-plugin/plugin.json`. Stale copies in the marketplace registry cause confusing behaviour when users install or list plugins — the registry metadata and the plugin's self-description diverge.
 
+This rule **silently skips** any plugin entry whose `source` path contains `..`, an
+absolute root (`/`, `C:\`), or a Windows drive/UNC prefix. Field reconciliation
+requires reading `plugin.json` from the path, which is impossible for an unsafe
+reference. The [`marketplace/source-resolve`](source-resolve.md) rule is responsible
+for surfacing those unsafe paths as errors.
+
 ## Examples
 
 ### Incorrect
