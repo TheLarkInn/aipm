@@ -1560,6 +1560,41 @@ mod tests {
     }
 
     #[test]
+    fn emit_command_with_existing_frontmatter_injects_disable_model_invocation() {
+        // Covers the `content.trim_start().starts_with("---")` True branch in
+        // `emit_command_as_skill` (line 178): when the command source file already
+        // has YAML frontmatter, the function must inject `disable-model-invocation: true`
+        // into the existing block rather than wrapping the content in new frontmatter.
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/src/commands/review.md"),
+            "---\nname: review\ndescription: Code review helper\n---\nReview the code carefully"
+                .to_string(),
+        );
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let artifact = make_command_artifact();
+        let _result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+
+        let skill_content = fs.get_written(Path::new("/ai/review/skills/review/SKILL.md"));
+        assert!(
+            skill_content.as_ref().is_some_and(|c| c.contains("disable-model-invocation: true")),
+            "expected disable-model-invocation injected into existing frontmatter"
+        );
+        // The original frontmatter fields must be preserved
+        assert!(
+            skill_content.as_ref().is_some_and(|c| c.contains("name: review")),
+            "original frontmatter name field must be preserved"
+        );
+        // The body content must remain
+        assert!(
+            skill_content.as_ref().is_some_and(|c| c.contains("Review the code carefully")),
+            "command body must be preserved after frontmatter injection"
+        );
+    }
+
+    #[test]
     fn resolve_name_no_conflict() {
         let existing = HashSet::new();
         let mut counter = 0;
@@ -4210,5 +4245,34 @@ mod tests {
             fs.get_written(Path::new("/ai/shallow-hook/scripts/run.sh")).is_some(),
             "script should have been copied to the plugin scripts dir"
         );
+    }
+
+    #[test]
+    fn emit_plugin_with_name_rejects_unsafe_plugin_name() {
+        // Covers the True branch of `if !is_safe_path_segment(plugin_name)` in
+        // `emit_plugin_with_name`: when the plugin name contains path separators or
+        // reserved segments, the function returns a Skipped action without writing files.
+        let fs = MockFs::new();
+        let artifact = make_skill_artifact();
+        let result = emit_plugin_with_name(&artifact, "..", Path::new("/ai"), true, &fs)
+            .ok()
+            .unwrap_or_default();
+        assert!(result.iter().any(|a| matches!(a, Action::Skipped { .. })));
+        assert!(fs.get_written(Path::new("/ai/../aipm.toml")).is_none());
+    }
+
+    #[test]
+    fn emit_plugin_with_name_rejects_unsafe_artifact_name() {
+        // Covers the True branch of `if !is_safe_path_segment(&artifact.name)` in
+        // `emit_plugin_with_name`: when the artifact name contains path separators,
+        // the function returns a Skipped action without writing files.
+        let fs = MockFs::new();
+        let mut artifact = make_skill_artifact();
+        artifact.name = "a/b".to_string();
+        let result = emit_plugin_with_name(&artifact, "safe-plugin", Path::new("/ai"), true, &fs)
+            .ok()
+            .unwrap_or_default();
+        assert!(result.iter().any(|a| matches!(a, Action::Skipped { .. })));
+        assert!(fs.get_written(Path::new("/ai/safe-plugin/aipm.toml")).is_none());
     }
 }

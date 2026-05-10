@@ -1890,4 +1890,82 @@ mod tests {
         let result = cmd_lint(tmp.path().to_path_buf(), None, "human", "always", None, None, false);
         assert!(result.is_ok(), "color=always should succeed on a clean dir: {result:?}");
     }
+
+    /// `derive_summary_sources` silently skips path components that cannot be
+    /// decoded as UTF-8, exercising the `None` branch of `os.to_str()` in the
+    /// inner loop.  On Unix, `OsStr::from_bytes` lets us construct a path
+    /// component with arbitrary bytes — `to_str()` returns `None` for invalid
+    /// UTF-8, so the component is ignored and the result is empty.
+    #[test]
+    #[cfg(unix)]
+    fn derive_summary_sources_non_utf8_component_is_skipped() {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt as _;
+
+        // A single-component path whose bytes are not valid UTF-8.
+        let non_utf8: &OsStr = OsStr::from_bytes(b"\xff\xfe");
+        let path = PathBuf::from(non_utf8);
+        let result = derive_summary_sources(None, &[path]);
+        // The non-UTF-8 component cannot match any known root name,
+        // so nothing is added to the result set.
+        assert!(result.is_empty(), "non-UTF-8 components must be silently skipped");
+    }
+
+    /// `derive_summary_sources` with an absolute path exercises two previously
+    /// uncovered branches:
+    ///
+    /// 1. `if let Component::Normal(os) = component` **False** branch — an
+    ///    absolute path's first component is `Component::RootDir` (`/`), which
+    ///    is not `Normal` and must be silently skipped.
+    /// 2. `if let Some(seg) = os.to_str()` **True** branch — subsequent
+    ///    `Normal` components have valid UTF-8 names and the binding succeeds.
+    ///
+    /// The path `/project/.github` contains both a `RootDir` component (skipped)
+    /// and a `.github` `Normal` component (matched), so the function must return
+    /// `[".github"]`.
+    #[test]
+    fn derive_summary_sources_absolute_path_skips_root_component() {
+        let dirs = vec![PathBuf::from("/project/.github/workflows")];
+        let result = derive_summary_sources(None, &dirs);
+        assert_eq!(
+            result,
+            vec![libaipm::paths::GITHUB_DOT.to_string()],
+            "absolute path should yield the known root segment"
+        );
+    }
+
+    /// When an explicit `--source` string is provided, `derive_summary_sources`
+    /// returns it directly without inspecting `scanned_dirs`.
+    /// This covers the `if let Some(s) = source` **True** branch.
+    #[test]
+    fn derive_summary_sources_explicit_source_returned_directly() {
+        let result = derive_summary_sources(Some("my-source"), &[]);
+        assert_eq!(result, vec!["my-source".to_string()]);
+    }
+
+    /// A scanned dir whose first known root segment is `.claude` is detected.
+    /// This covers the `seg == CLAUDE_DOT` **True** branch in the inner loop.
+    #[test]
+    fn derive_summary_sources_claude_dir_is_detected() {
+        let dirs = vec![PathBuf::from(".claude/settings.json")];
+        let result = derive_summary_sources(None, &dirs);
+        assert_eq!(
+            result,
+            vec![libaipm::paths::CLAUDE_DOT.to_string()],
+            ".claude segment should be recognised"
+        );
+    }
+
+    /// A scanned dir whose first known root segment is `.ai` is detected.
+    /// This covers the `seg == AI_DOT` **True** branch in the inner loop.
+    #[test]
+    fn derive_summary_sources_ai_dir_is_detected() {
+        let dirs = vec![PathBuf::from(".ai/plugin/skills")];
+        let result = derive_summary_sources(None, &dirs);
+        assert_eq!(
+            result,
+            vec![libaipm::paths::AI_DOT.to_string()],
+            ".ai segment should be recognised"
+        );
+    }
 }

@@ -36,7 +36,7 @@ For Azure DevOps pipelines that prefer NuGet over `curl | sh`, restore `aipm` fr
 
 ```yaml
 variables:
-  AIPM_VERSION: '0.22.5'
+  AIPM_VERSION: '0.24.2'
   NUGET_PACKAGES: $(Pipeline.Workspace)/.nuget/packages
 
 steps:
@@ -70,7 +70,7 @@ steps:
   - script: aipm --version
 ```
 
-Public nuget.org needs no service connection or `NuGetAuthenticate@1`. The package ships binaries for `win-x64`, `linux-x64`, `osx-x64`, `osx-arm64`. See [`docs/guides/install-nuget.md`](docs/guides/install-nuget.md) for the full consumer walkthrough including caching and linting integration.
+Public nuget.org needs no service connection or `NuGetAuthenticate@1`. The package ships binaries for `win-x64`, `linux-x64`, `osx-x64`, `osx-arm64`. See [`docs/guides/install-nuget.md`](docs/guides/install-nuget.md) for a concise reference or [`docs/guides/install-aipm-nuget-ado.md`](docs/guides/install-aipm-nuget-ado.md) for a detailed walkthrough covering version pinning, RID resolution, caching, Artifacts proxy, and lint integration.
 
 ### Build from Source
 
@@ -579,9 +579,9 @@ and emits typed const tables into the build output at compile time.
 |----------|-------------|
 | `engine_for_root_dir(path)` | Infer the engine from a source directory path (e.g. `.claude/` → `Claude`) |
 | `marketplace_host_for_root_dir(path)` | Infer the marketplace host (Claude vs. Copilot) from a path |
-| `is_valid_event(engine, event)` | Check whether a hook event name is valid for the given engine |
-| `valid_tool_name_check(engine_set, tool)` | Return `None` if the tool name is valid, or a `ToolNameViolation` describing the conflict |
-| `suggest_canonical(tool)` | Return a canonical tool-name suggestion for a near-miss tool name |
+| `is_valid_event(event, engine)` | Check whether a hook event name is valid for the given engine |
+| `valid_tool_name_check(tool, declared)` | Return `Ok(())` if the tool name is valid for the declared engine set, or `Err(ToolNameViolation)` describing the conflict |
+| `suggest_canonical(event, engine)` | Return the canonical hook event name when `event` is a legacy alias; returns `None` if already canonical or unknown |
 
 ### Schema Export
 

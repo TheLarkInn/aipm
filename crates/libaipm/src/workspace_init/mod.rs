@@ -2213,4 +2213,50 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+
+    /// Covers the `adaptor.apply() == false` branch in `init()` (line 144).
+    ///
+    /// When `.github/copilot-instructions.md` already exists the Copilot
+    /// adaptor returns `Ok(false)`, signalling that no change was made.
+    /// `init` must NOT push a `ToolConfigured` action in that case.
+    #[test]
+    fn init_adaptor_apply_false_does_not_add_tool_configured_action() {
+        let (tmp, _guard) = make_temp_dir("adaptor-apply-false");
+
+        // Pre-create the file the Copilot adaptor would write, so that
+        // `apply` detects it already exists and returns `Ok(false)`.
+        let github_dir = tmp.join(".github");
+        std::fs::create_dir_all(&github_dir).ok();
+        std::fs::write(github_dir.join("copilot-instructions.md"), b"# existing").ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            // Only the Copilot engine so we exercise just the Copilot adaptor.
+            engines_scaffold: libaipm_engine_spec::EngineSet::COPILOT,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init should succeed");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+
+        // MarketplaceCreated is always emitted when opts.marketplace is true.
+        assert!(
+            actions.contains(&InitAction::MarketplaceCreated),
+            "expected MarketplaceCreated action"
+        );
+        // ToolConfigured must NOT appear because apply() returned false.
+        assert!(
+            !actions.iter().any(|a| matches!(a, InitAction::ToolConfigured(_))),
+            "expected no ToolConfigured action when adaptor.apply() returns false: {actions:?}"
+        );
+
+        cleanup(&tmp);
+    }
 }

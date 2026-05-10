@@ -1010,6 +1010,102 @@ mod tests {
         );
     }
 
+    /// Covers the error-propagation branch of `emit_plugin_with_name()?`
+    /// (line 372 in `emit_and_register`): when the `.ai/` directory is
+    /// read-only the function can read existing state (marketplace.json) but
+    /// cannot create new plugin directories, so the IO error is returned
+    /// through the `?` operator and propagated to the caller.
+    ///
+    /// Only compiled on Unix because the test relies on POSIX directory
+    /// permissions.
+    #[cfg(unix)]
+    #[test]
+    fn unified_migrate_root_level_emit_error_propagated_when_ai_dir_is_read_only() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        init_marketplace(root);
+
+        // Root-level skill — non-package-scoped → goes through emit_plugin_with_name
+        let skill_dir = root.join(".github/copilot/skills/my-skill");
+        std::fs::create_dir_all(&skill_dir).expect("create skill dir");
+        std::fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: my-skill\ndescription: My Skill\n---\n# My Skill\n",
+        )
+        .expect("write SKILL.md");
+
+        let ai_dir = root.join(".ai");
+        let orig_perms = std::fs::metadata(&ai_dir).expect("metadata").permissions();
+        // Remove write permission so create_dir_all inside emit_plugin_with_name fails
+        std::fs::set_permissions(&ai_dir, std::fs::Permissions::from_mode(0o555))
+            .expect("set read-only");
+
+        let opts = Options {
+            dir: root,
+            source: None,
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let result = run(&opts, &ai_dir, &Real);
+
+        // Restore permissions before the tempdir is dropped so cleanup succeeds
+        std::fs::set_permissions(&ai_dir, orig_perms).expect("restore permissions");
+
+        assert!(result.is_err(), "expected IO error when .ai dir is read-only");
+    }
+
+    /// Covers the error-propagation branch of `emit_package_plugin()?`
+    /// (line 368 in `emit_and_register`): same mechanism as the root-level
+    /// test but uses a package-scoped source (`auth/.claude/`) so the plan
+    /// has `is_package_scoped = true` and `emit_package_plugin` is called
+    /// instead of `emit_plugin_with_name`.
+    ///
+    /// Only compiled on Unix because the test relies on POSIX directory
+    /// permissions.
+    #[cfg(unix)]
+    #[test]
+    fn unified_migrate_package_scoped_emit_error_propagated_when_ai_dir_is_read_only() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        init_marketplace(root);
+
+        // Package-scoped skill: auth/.claude/ → is_package_scoped = true
+        let skill_dir = root.join("auth/.claude/skills/deploy");
+        std::fs::create_dir_all(&skill_dir).expect("create skill dir");
+        std::fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: deploy\ndescription: Deploy\n---\nDeploy\n",
+        )
+        .expect("write SKILL.md");
+
+        let ai_dir = root.join(".ai");
+        let orig_perms = std::fs::metadata(&ai_dir).expect("metadata").permissions();
+        // Remove write permission so create_dir_all inside emit_package_plugin fails
+        std::fs::set_permissions(&ai_dir, std::fs::Permissions::from_mode(0o555))
+            .expect("set read-only");
+
+        let opts = Options {
+            dir: root,
+            source: None,
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let result = run(&opts, &ai_dir, &Real);
+
+        // Restore permissions before the tempdir is dropped so cleanup succeeds
+        std::fs::set_permissions(&ai_dir, orig_perms).expect("restore permissions");
+
+        assert!(result.is_err(), "expected IO error when .ai dir is read-only");
+    }
+
     /// Covers the `sort_by` comparator closure in the fallback loop of
     /// `build_plugin_plans` (lines 307-309): when two or more adapter artifacts
     /// share a source_root that is absent from `handled_roots`, the fallback
@@ -1067,5 +1163,31 @@ mod tests {
             created_names.contains(&"beta"),
             "fallback must emit 'beta'; got: {created_names:?}"
         );
+    }
+
+    /// Covers the "else" arm of `else if let Some(artifact) = plan.artifacts.first()`
+    /// (line 373 in `emit_and_register`): when a `PluginPlan` has
+    /// `is_package_scoped = false` and an empty `artifacts` vec, neither
+    /// emit branch fires and the plan is silently skipped.
+    #[test]
+    fn unified_emit_and_register_skips_plan_with_empty_artifacts() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        init_marketplace(root);
+
+        let ai_dir = root.join(".ai");
+        let plan = PluginPlan {
+            name: "ghost-plan".to_string(),
+            artifacts: vec![],
+            is_package_scoped: false,
+            source_dir: root.to_path_buf(),
+            other_files: vec![],
+        };
+        let discovered = crate::discovery::DiscoveredSet::default();
+        let outcome = emit_and_register(vec![plan], &ai_dir, false, &discovered, &Real)
+            .expect("empty-artifact plan must not cause an error");
+        let created =
+            outcome.actions.iter().filter(|a| matches!(a, Action::PluginCreated { .. })).count();
+        assert_eq!(created, 0, "no plugin should be created for an empty-artifact plan");
     }
 }
