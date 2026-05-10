@@ -473,13 +473,12 @@ mod tests {
     /// the raw HTTP response, then close the connection.
     fn serve_one(listener: std::net::TcpListener, response_bytes: &'static [u8]) {
         std::thread::spawn(move || {
-            if let Ok((mut stream, _)) = listener.accept() {
-                use std::io::{Read, Write};
-                let mut buf = [0u8; 4096];
-                // Drain the request so the client does not get a broken-pipe
-                let _ = stream.read(&mut buf);
-                let _ = stream.write_all(response_bytes);
-            }
+            let (mut stream, _) = listener.accept().unwrap();
+            use std::io::{Read, Write};
+            let mut buf = [0u8; 4096];
+            // Drain the request so the client does not get a broken-pipe
+            let _ = stream.read(&mut buf);
+            let _ = stream.write_all(response_bytes);
         });
     }
 
@@ -792,6 +791,42 @@ mod tests {
         assert!(
             result.unwrap_err().to_string().contains("checksum mismatch"),
             "expected a checksum-mismatch error"
+        );
+    }
+
+    /// Covers the `or_else(|_| repo.remote_anonymous(url))` branch in `fetch_and_reset`.
+    ///
+    /// A freshly `git init`'d repo has no remotes at all, so `find_remote("origin")` fails
+    /// and the code falls through to `remote_anonymous(url)`.  An empty (no-commit) remote
+    /// repo is supplied so that after the anonymous fetch there is no FETCH_HEAD, causing
+    /// `fetch_and_reset` to return `Err` for a reason unrelated to remote lookup.
+    #[test]
+    fn fetch_and_reset_uses_anonymous_remote_when_no_origin() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+
+        // An empty local repo (no commits, no refs) acts as the remote.  The fetch itself
+        // succeeds but produces no FETCH_HEAD, so the function ultimately returns Err.
+        let remote_dir = tmp.path().join("remote");
+        std::fs::create_dir_all(&remote_dir).expect("create remote dir");
+        git2::Repository::init(&remote_dir).expect("git init remote");
+
+        let url = format!("file://{}", remote_dir.display());
+
+        // Create a fresh local repo with NO remotes — find_remote("origin") will fail,
+        // forcing the code to take the remote_anonymous(url) branch.
+        let local_dir = tmp.path().join("local");
+        std::fs::create_dir_all(&local_dir).expect("create local dir");
+        let local_repo = git2::Repository::init(&local_dir).expect("git init local");
+
+        // The function must fail somewhere after the remote lookup step (no FETCH_HEAD),
+        // but the error must not be "failed to find remote" — that would mean the
+        // anonymous-remote fallback itself failed.
+        let result = fetch_and_reset(&local_repo, &url);
+        assert!(result.is_err(), "expected Err since the empty remote has no refs");
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            !err_msg.contains("failed to find remote"),
+            "anonymous-remote branch should succeed before any later error: {err_msg}"
         );
     }
 }
