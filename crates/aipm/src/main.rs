@@ -1910,4 +1910,39 @@ mod tests {
             "absolute path should yield the known root segment"
         );
     }
+
+    /// When an explicit `--source` string is provided, `derive_summary_sources`
+    /// returns it directly without inspecting `scanned_dirs`.
+    /// This covers the `if let Some(s) = source` **True** branch.
+    #[test]
+    fn derive_summary_sources_explicit_source_returned_directly() {
+        let result = derive_summary_sources(Some("my-source"), &[]);
+        assert_eq!(result, vec!["my-source".to_string()]);
+    }
+
+    /// A scanned dir whose first known root segment is `.claude` is detected.
+    /// This covers the `seg == CLAUDE_DOT` **True** branch in the inner loop.
+    #[test]
+    fn derive_summary_sources_claude_dir_is_detected() {
+        let dirs = vec![PathBuf::from(".claude/settings.json")];
+        let result = derive_summary_sources(None, &dirs);
+        assert_eq!(
+            result,
+            vec![libaipm::paths::CLAUDE_DOT.to_string()],
+            ".claude segment should be recognised"
+        );
+    }
+
+    /// A scanned dir whose first known root segment is `.ai` is detected.
+    /// This covers the `seg == AI_DOT` **True** branch in the inner loop.
+    #[test]
+    fn derive_summary_sources_ai_dir_is_detected() {
+        let dirs = vec![PathBuf::from(".ai/plugin/skills")];
+        let result = derive_summary_sources(None, &dirs);
+        assert_eq!(
+            result,
+            vec![libaipm::paths::AI_DOT.to_string()],
+            ".ai segment should be recognised"
+        );
+    }
 }
