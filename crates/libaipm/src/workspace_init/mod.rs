@@ -2214,7 +2214,6 @@ mod tests {
         cleanup(&tmp);
     }
 
-
     /// Covers the `adaptor.apply() == false` branch in `init()` (line 144).
     ///
     /// When `.github/copilot-instructions.md` already exists the Copilot
