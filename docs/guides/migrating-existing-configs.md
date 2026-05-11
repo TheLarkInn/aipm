@@ -63,6 +63,25 @@ aipm migrate [OPTIONS] [DIR]
 | `--source <SRC>` | Limit to a specific source directory (e.g., `.claude`) |
 | `--max-depth <N>` | Maximum depth for recursive source discovery |
 | `--manifest` | Generate `aipm.toml` plugin manifests for each migrated plugin |
+| `--no-summary` | Suppress the default scan summary line printed to stderr |
+
+### Scan summary
+
+After every run, `aipm migrate` prints a one-line summary to **stderr** describing what
+the discovery walker found before writing any files:
+
+```
+Scanned 5 directories in [.github, .claude]; matched 3 skills, 2 agents, 1 hook
+```
+
+Categories with zero matches are omitted. If nothing was discovered the summary reads:
+
+```
+Scanned 2 directories in [.claude]; matched 0 features
+```
+
+Suppress the summary with `--no-summary`. It is also auto-suppressed when using
+`--log-format=json`.
 
 ## Recursive discovery
 

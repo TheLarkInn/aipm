@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-05-11
+
 ### Fixed
 
 - **`aipm migrate` and `aipm lint` now detect skills under `.github/copilot/skills/<name>/SKILL.md`** — closes issue [#725](https://github.com/TheLarkInn/aipm/issues/725). The customer's nested layout (where `.github/copilot/` contains a `skills/` subdirectory) was previously invisible to the migrate detector. The unified discovery pipeline now finds skills at all three Copilot layouts: `.github/skills/<name>/`, `.github/copilot/<name>/`, and `.github/copilot/skills/<name>/`.
