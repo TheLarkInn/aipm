@@ -252,6 +252,38 @@ mod tests {
         assert_eq!(s, "plugins/auth");
     }
 
+    #[test]
+    fn plugin_path_new_empty_returns_error() {
+        // Exercises the EmptyPath branch through the public `ValidatedPath::new` API.
+        let result = ValidatedPath::new("");
+        assert!(matches!(result, Err(PathValidationError::EmptyPath)));
+    }
+
+    #[test]
+    fn plugin_path_new_null_byte_returns_error() {
+        // Exercises the null-byte PathTraversal branch through `ValidatedPath::new`.
+        let result = ValidatedPath::new("foo\0bar");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
+    #[test]
+    fn plugin_path_new_raw_double_dot_returns_error() {
+        // "foo..bar" passes the component check (single Normal component) but
+        // is caught by the raw-string `..` scan.  Exercises that branch via
+        // `ValidatedPath::new`.
+        let result = ValidatedPath::new("foo..bar");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
+    #[test]
+    fn plugin_path_new_url_encoded_traversal_returns_error() {
+        // "%2e%2e" passes the component check but is caught by the
+        // `lower.contains("%2e%2e")` condition.  Exercises that sub-branch
+        // through `ValidatedPath::new`.
+        let result = ValidatedPath::new("foo/%2e%2e/bar");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
     /// Test helper that converts a validation error to a string and then
     /// creates a dummy [`ValidatedPath`] — used in place of `.unwrap()` which
     /// is denied by the workspace lint configuration.
