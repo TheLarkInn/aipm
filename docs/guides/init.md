@@ -18,8 +18,10 @@ aipm init --yes
 aipm init --workspace --marketplace
 ```
 
-Run `aipm init` once per repository. Re-running in an already-initialized directory
-fails with `already initialized` to protect existing configuration.
+**`aipm init` is idempotent.** Re-running it in an already-initialized directory is safe —
+pre-existing artifacts (`aipm.toml`, `.ai/`, marketplace manifests) are detected and
+reused rather than overwritten, and the command reports what it found. Only new files
+that are missing from a previous partial run are created.
 
 ## What gets created
 
@@ -198,6 +200,34 @@ setting it to `[]`) means "all engines". The same field is available on
 `[package]` for per-plugin declarations. See
 [Engine and Platform Compatibility](engine-platform-compatibility.md).
 
+## Re-running on an existing repository
+
+`aipm init` is **idempotent**. You can safely run it again after a partial setup,
+after cloning a repository, or after manually adding a missing piece:
+
+```bash
+# Add a workspace manifest to a repo that only has a marketplace
+aipm init --workspace
+
+# Retrofit Claude Code support to a Copilot-only workspace
+aipm init --marketplace --engine claude
+
+# Re-run with all options — aipm skips what already exists
+aipm init --yes --workspace --marketplace --engine claude,copilot
+```
+
+For each artifact, the command prints what happened:
+
+```
+Using existing aipm.toml in .
+Using existing .ai/ marketplace in .
+Found existing Claude Code marketplace manifest at .ai/.claude-plugin/marketplace.json
+Configured Copilot CLI settings
+```
+
+When every requested artifact was already present, a warning is emitted and the
+command exits successfully without creating any files.
+
 ## Non-interactive usage
 
 When `--yes` is passed (or when stdin is not a TTY), all interactive prompts are
@@ -274,8 +304,14 @@ discoverable. An existing `copilot-instructions.md` is never modified.
 
 | Error message | Cause | Fix |
 |---|---|---|
-| `already initialized` | `aipm.toml` already exists in the target directory | Remove the manifest or choose a different directory |
-| `already exists` | `.ai/` directory already exists | Use `--no-starter` to extend a bare `.ai/`, or run `aipm migrate` to populate an existing one |
+| `existing manifest at <path> is invalid: …` | `aipm.toml` exists but contains a TOML syntax error or missing required fields | Fix or remove the malformed `aipm.toml` before re-running |
+| `existing marketplace manifest at <path> is invalid: …` | A marketplace manifest (e.g. `.ai/.claude-plugin/marketplace.json`) exists but cannot be parsed as JSON | Fix or remove the malformed manifest before re-running |
+
+> **No action needed when artifacts already exist.** If every artifact you
+> asked for (`--workspace`, `--marketplace`) was already present, `aipm init`
+> succeeds silently (a warning is emitted) and exits without creating any new
+> files. Use `--workspace` or `--marketplace` flags to target only the missing
+> piece, or inspect the existing files with `aipm lint`.
 
 ## Next steps
 
