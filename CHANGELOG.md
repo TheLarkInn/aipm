@@ -4,13 +4,41 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed
+## [0.24.2] - 2026-05-07
 
-- **`aipm migrate` and `aipm lint` now detect skills under `.github/copilot/skills/<name>/SKILL.md`** — closes issue [#725](https://github.com/TheLarkInn/aipm/issues/725). The customer's nested layout (where `.github/copilot/` contains a `skills/` subdirectory) was previously invisible to the migrate detector. The unified discovery pipeline now finds skills at all three Copilot layouts: `.github/skills/<name>/`, `.github/copilot/<name>/`, and `.github/copilot/skills/<name>/`.
+### Documentation
+
+- Added `libaipm-engine-spec` crate reference to README — documents all public types (`Engine`, `EngineSet`), constants (`ENGINES`, `VALID_TOOLS`, `TOOL_COMPATIBILITY`, `FEATURES_BY_ENGINE`, `HOOK_EVENTS_BY_ENGINE`), path helpers, and the `valid_tool_name_check` function ([#809](https://github.com/TheLarkInn/aipm/pull/809)).
+- Fixed `VALID_TOOLS` type and description in the `libaipm-engine-spec` reference table ([#815](https://github.com/TheLarkInn/aipm/pull/815)).
+
+## [0.24.1] - 2026-05-06
+
+### Security / Bug Fixes
+
+- **Address #793 — ADO log-command injection, lint path containment, NuGet hardening** ([#804](https://github.com/TheLarkInn/aipm/pull/804)):
+  - `ci-azure` reporter now escapes the `##[group]` header line that previously interpolated raw file paths, preventing PR-author-controlled paths with `\r`/`\n` from injecting Azure DevOps logging commands.
+  - Lint rules (`marketplace/source-resolve`, `marketplace/plugin-field-mismatch`, `valid-tool-name`) now apply `..`/absolute-path containment checks before any filesystem access; paths that escape the `.ai/` root are reported as errors or silently skipped — see [`docs/guides/source-security.md`](docs/guides/source-security.md) for details.
+  - `valid-tool-name` caps its parent-walk at `lint::Options::dir` to prevent escaping the project root.
+  - NuGet publish workflow: removes long-lived `NUGET_API_KEY` fallback, binds `workflow_dispatch` to a protected environment with required reviewers, adds SLSA v1 build provenance via `actions/attest-build-provenance`.
+
+## [0.24.0] - 2026-05-05
+
+### Features
+
+- **`libaipm-engine-spec` crate — engine API schema source-of-truth** ([#771](https://github.com/TheLarkInn/aipm/pull/771)) — new `crates/libaipm-engine-spec/` crate whose hand-written Rust types are the canonical shape for the engine API schema. `schemars` derives `schemas/engine-api.schema.json`; `build.rs` validates `data/engine-api-schema.json` against that schema on every build and emits typed `&'static` const tables (`ENGINES`, `VALID_TOOLS`, `TOOL_COMPATIBILITY`, `FEATURES_BY_ENGINE`, `HOOK_EVENTS_BY_ENGINE`). All consumer subsystems collapse onto generated tables, eliminating silent drift between binary reality and Rust constants. See [`specs/2026-05-04-engine-api-schema-source-of-truth.md`](specs/2026-05-04-engine-api-schema-source-of-truth.md).
+- **`valid-tool-name` lint rule** (rule 19) — warns or errors when a tool in an agent, skill, or hook `tools` frontmatter field is exclusive to an AI engine not declared in `aipm.toml`. Severity escalates from `warning` (no engines declared) to `error` (declared engines don't support the tool). Powered by `TOOL_COMPATIBILITY` from `libaipm-engine-spec`. See [`docs/rules/valid-tool-name.md`](docs/rules/valid-tool-name.md).
+
+## [0.23.1] - 2026-05-04
 
 ### Removed
 
-- **`aipm lint` no longer classifies `claude-instructions.md`, `agents-instructions.md`, or `gemini-instructions.md` as instruction files** — engine-documentation verification (Anthropic Claude Code, Google Gemini CLI, AGENTS.md spec) confirmed no engine reads files with these names. See [`specs/2026-05-02-engine-instructions-md-pattern-removal.md`](specs/2026-05-02-engine-instructions-md-pattern-removal.md). The `copilot-instructions.md` filename **is preserved** in `INSTRUCTION_FILENAMES` because GitHub Copilot does read it at `.github/copilot-instructions.md`. Files matched by the `INSTRUCTION_FILENAMES` table (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `COPILOT.md`, `INSTRUCTIONS.md`, `copilot-instructions.md`) and the `*.instructions.md` suffix continue to classify normally.
+- **`aipm lint` no longer classifies `claude-instructions.md`, `agents-instructions.md`, or `gemini-instructions.md` as instruction files** — engine-documentation verification (Anthropic Claude Code, Google Gemini CLI, AGENTS.md spec) confirmed no engine reads files with these names. See [`specs/2026-05-02-engine-instructions-md-pattern-removal.md`](specs/2026-05-02-engine-instructions-md-pattern-removal.md). The `copilot-instructions.md` filename **is preserved** because GitHub Copilot reads it at `.github/copilot-instructions.md`. Files matched by `INSTRUCTION_FILENAMES` (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `COPILOT.md`, `INSTRUCTIONS.md`, `copilot-instructions.md`) and the `*.instructions.md` suffix continue to classify normally.
+
+## [0.23.0] - 2026-05-01
+
+### Fixed
+
+- **`aipm migrate` and `aipm lint` now detect skills under `.github/copilot/skills/<name>/SKILL.md`** — closes issue [#725](https://github.com/TheLarkInn/aipm/issues/725). The customer's nested layout (where `.github/copilot/` contains a `skills/` subdirectory) was previously invisible to the migrate detector. The unified discovery pipeline now finds skills at all three Copilot layouts: `.github/skills/<name>/`, `.github/copilot/<name>/`, and `.github/copilot/skills/<name>/`.
 
 ### Added
 
