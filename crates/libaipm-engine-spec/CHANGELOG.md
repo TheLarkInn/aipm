@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-05-11
+
+### Documentation
+- Add `.github/copilot-instructions.md` to README `aipm lint` and `aipm lsp` file pattern lists ([#835](https://github.com/TheLarkInn/aipm/pull/835)) (c98c68d)
+- Fix Copilot skill layouts in README and rule count in configuring-lint ([#836](https://github.com/TheLarkInn/aipm/pull/836)) (a495874)
+- Fix `libaipm-engine-spec` helper function signatures in README ([#846](https://github.com/TheLarkInn/aipm/pull/846)) (39a75aa)
+
+### Features
+- Make aipm init idempotent over existing artifacts ([#850](https://github.com/TheLarkInn/aipm/pull/850)) ([#861](https://github.com/TheLarkInn/aipm/pull/861)) (4987783)
+
 ### Bug Fixes
 - Schema fix: Claude marketplace manifest path corrected from `.claude-plugin/marketplace.toml` to `.claude-plugin/marketplace.json` to match the format Claude actually consumes. `engine::marketplace_manifest_path(Engine::Claude)` now returns `.json` (was `.toml`); the data file in `data/engine-api-schema.json` already declared `.json` in `manifest_search_paths`, only the `marketplace_manifest_path_for("claude")` builder lookup was out of step ([#850](https://github.com/TheLarkInn/aipm/issues/850)).
 

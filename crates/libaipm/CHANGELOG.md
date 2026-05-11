@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-05-11
+
+### Documentation
+- Add `.github/copilot-instructions.md` to README `aipm lint` and `aipm lsp` file pattern lists ([#835](https://github.com/TheLarkInn/aipm/pull/835)) (c98c68d)
+- Fix Copilot skill layouts in README and rule count in configuring-lint ([#836](https://github.com/TheLarkInn/aipm/pull/836)) (a495874)
+- Fix `libaipm-engine-spec` helper function signatures in README ([#846](https://github.com/TheLarkInn/aipm/pull/846)) (39a75aa)
+
+### Features
+- Make aipm init idempotent over existing artifacts ([#850](https://github.com/TheLarkInn/aipm/pull/850)) ([#861](https://github.com/TheLarkInn/aipm/pull/861)) (4987783)
+
+### Testing
+- Cover clone_index success path (line 87) (da6294d)
+- Cover non-object JSON branch in claude adaptor (3acf253)
+- Cover EmptyIdentifier branch in Spec::from_str (06868c7)
+- Cover emit error-propagation paths in unified migrate (cae0110)
+- Cover empty-artifacts non-package-scoped branch (7df87a4)
+- Cover unsafe name checks in emit_plugin_with_name (1be2f26)
+- Cover adaptor.apply() == false branch in init() (6e900fc)
+- Cover anonymous-remote branch and fix serve_one branch (1693526)
+- Cover ValidatedPath::new error paths via public API (1103216)
+
 ### Features
 - `aipm init` is now idempotent over pre-existing `aipm.toml` and `.ai/` artifacts. Both are reused with `tracing::info!` events instead of returning a hard error. Engine-aware fan-out: `scaffold_marketplace` writes the engine-appropriate `marketplace.json` (e.g. `.claude-plugin/marketplace.json` for Claude, `.github/plugin/marketplace.json` for Copilot) for every engine in `opts.engines_scaffold` ([#850](https://github.com/TheLarkInn/aipm/issues/850)).
 

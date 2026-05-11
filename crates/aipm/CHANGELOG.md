@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-05-11
+
+### Documentation
+- Add `.github/copilot-instructions.md` to README `aipm lint` and `aipm lsp` file pattern lists ([#835](https://github.com/TheLarkInn/aipm/pull/835)) (c98c68d)
+- Fix Copilot skill layouts in README and rule count in configuring-lint ([#836](https://github.com/TheLarkInn/aipm/pull/836)) (a495874)
+- Fix `libaipm-engine-spec` helper function signatures in README ([#846](https://github.com/TheLarkInn/aipm/pull/846)) (39a75aa)
+
+### Features
+- Make aipm init idempotent over existing artifacts ([#850](https://github.com/TheLarkInn/aipm/pull/850)) ([#861](https://github.com/TheLarkInn/aipm/pull/861)) (4987783)
+
+### Testing
+- Cover non-UTF-8 path component branch in derive_summary_sources (2001835)
+- Cover non-Normal path component branch in derive_summary_sources (f04c869)
+- Cover derive_summary_sources uncovered branches (4e7a027)
+
 ### Features
 - `aipm init` no longer fails when `aipm.toml` or `.ai/` already exist. The wizard now reuses them and continues — surfacing `Using existing aipm.toml in <dir>` and `Using existing .ai/ marketplace in <dir>` on stdout. With `--engine claude,copilot`, init writes the engine-appropriate `marketplace.json` for every selected engine and prints `Wrote <Engine> marketplace manifest at <path>` per engine ([#850](https://github.com/TheLarkInn/aipm/issues/850)).
 - `cmd_init` gains four new stdout messages for the new `InitAction` variants: `Using existing aipm.toml`, `Using existing .ai/ marketplace`, `Wrote <Engine> marketplace manifest at <path>`, and `Found existing <Engine> marketplace manifest at <path>` ([#850](https://github.com/TheLarkInn/aipm/issues/850)).
