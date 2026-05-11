@@ -3320,6 +3320,41 @@ mod tests {
     }
 
     #[test]
+    fn emit_other_file_collision_avoidance_via_fs_exists() {
+        // Covers the True branch of `fs.exists(&plugin_dir.join(&final_name))` in the
+        // collision-avoidance while loop (line 800). A file already exists at the target
+        // path in the filesystem (put there by some other mechanism), so the name must be
+        // suffixed with a counter even though `used_names` does not yet contain it.
+        let mut fs = MockFs::new();
+        // Source file to migrate
+        fs.exists.insert(PathBuf::from("/src/README.md"));
+        fs.files.insert(PathBuf::from("/src/README.md"), "# Source".to_string());
+        // Pre-existing file at the target location in the plugin directory
+        fs.exists.insert(PathBuf::from("/ai/plugin/README.md"));
+
+        let other_files = vec![OtherFile {
+            path: PathBuf::from("/src/README.md"),
+            relative_path: PathBuf::from("README.md"),
+            associated_artifact: None,
+            is_external: false,
+        }];
+
+        let result = emit_other_files(&other_files, Path::new("/ai/plugin"), &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert_eq!(actions.len(), 1);
+        // The file must be renamed because README.md already exists in the plugin dir
+        let dests: Vec<_> = actions
+            .iter()
+            .filter_map(|a| match a {
+                Action::OtherFileMigrated { destination, .. } => Some(destination.clone()),
+                _ => None,
+            })
+            .collect();
+        assert!(dests.contains(&PathBuf::from("/ai/plugin/README-1.md")));
+    }
+
+    #[test]
     fn emit_external_without_association_no_action() {
         // External file with no associated artifact — no ExternalReferenceDetected action
         let fs = MockFs::new();
@@ -4274,5 +4309,54 @@ mod tests {
             .unwrap_or_default();
         assert!(result.iter().any(|a| matches!(a, Action::Skipped { .. })));
         assert!(fs.get_written(Path::new("/ai/safe-plugin/aipm.toml")).is_none());
+    }
+
+    #[test]
+    fn emit_skill_files_copies_non_referenced_scripts_file() {
+        // Covers the False branch of `referenced.contains(file.as_path())` in
+        // `emit_skill_files` (line 135). A file whose path begins with `scripts/`
+        // but is NOT in `referenced_scripts` must NOT be skipped — it should be
+        // copied into the skill directory alongside other skill files.
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/src/skills/deploy/SKILL.md"),
+            "---\nname: deploy\ndescription: Deploy\n---\nContent".to_string(),
+        );
+        fs.files.insert(
+            PathBuf::from("/src/skills/deploy/scripts/helper.sh"),
+            "#!/bin/bash\necho helper".to_string(),
+        );
+
+        let artifact = Artifact {
+            kind: ArtifactKind::Skill,
+            name: "deploy".to_string(),
+            source_path: PathBuf::from("/src/skills/deploy"),
+            // scripts/helper.sh is under scripts/ but NOT in referenced_scripts
+            files: vec![PathBuf::from("SKILL.md"), PathBuf::from("scripts/helper.sh")],
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata {
+                name: Some("deploy".to_string()),
+                description: Some("Deploy".to_string()),
+                ..ArtifactMetadata::default()
+            },
+        };
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok());
+        // scripts/helper.sh is in scripts/ but not referenced → it must be copied
+        assert!(fs.get_written(Path::new("/ai/deploy/skills/deploy/scripts/helper.sh")).is_some());
+    }
+
+    #[test]
+    fn rewrite_single_command_with_dot_slash_prefix() {
+        // Covers the False branch of `!script.starts_with("./")` in
+        // `rewrite_single_command` (line 999). When the script starts with "./"
+        // the early-return is NOT taken and the path is rewritten to absolute.
+        let result = rewrite_single_command("./run.sh --verbose", Path::new("/project"));
+        assert!(!result.starts_with("./"));
+        assert!(result.contains("run.sh"));
+        assert!(result.contains("--verbose"));
     }
 }
