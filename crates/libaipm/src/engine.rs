@@ -381,7 +381,7 @@ mod tests {
 
     #[test]
     fn marketplace_manifest_path_returns_correct_path() {
-        assert_eq!(marketplace_manifest_path(Engine::Claude), ".claude-plugin/marketplace.toml");
+        assert_eq!(marketplace_manifest_path(Engine::Claude), ".claude-plugin/marketplace.json");
         assert_eq!(marketplace_manifest_path(Engine::Copilot), ".github/plugin/marketplace.json");
     }
 

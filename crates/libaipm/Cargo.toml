@@ -49,6 +49,10 @@ cucumber = { workspace = true }
 futures = { workspace = true }
 assert_cmd = { workspace = true }
 insta = { workspace = true }
+# Used by unit tests that assert on `tracing::info!` / `tracing::warn!` events
+# emitted by `workspace_init::init` (#850). Provides `#[traced_test]` and
+# `logs_contain(...)`.
+tracing-test = "0.2"
 
 [[test]]
 name = "bdd"

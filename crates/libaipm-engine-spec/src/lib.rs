@@ -72,7 +72,7 @@ mod smoke_tests {
         let copilot = ENGINES.iter().find(|(e, _)| *e == Engine::Copilot).map(|(_, s)| s);
         assert_eq!(
             claude.map(|s| s.marketplace_manifest_path),
-            Some(".claude-plugin/marketplace.toml")
+            Some(".claude-plugin/marketplace.json")
         );
         assert_eq!(
             copilot.map(|s| s.marketplace_manifest_path),

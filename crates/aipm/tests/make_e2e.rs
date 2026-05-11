@@ -24,7 +24,10 @@ fn make_plugin_skill_claude() {
     let dir = tmp.path().join("skill-claude");
 
     // Initialise workspace first
-    aipm().args(["init", "-y", &dir.display().to_string()]).assert().success();
+    aipm()
+        .args(["init", "-y", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
 
     // Create plugin
     aipm()
@@ -72,7 +75,10 @@ fn make_plugin_composite() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("composite");
 
-    aipm().args(["init", "-y", &dir.display().to_string()]).assert().success();
+    aipm()
+        .args(["init", "-y", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
 
     aipm()
         .args([
@@ -117,7 +123,10 @@ fn make_plugin_copilot() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("copilot");
 
-    aipm().args(["init", "-y", &dir.display().to_string()]).assert().success();
+    aipm()
+        .args(["init", "-y", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
 
     aipm()
         .args([
@@ -148,7 +157,10 @@ fn make_plugin_idempotent() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("idempotent");
 
-    aipm().args(["init", "-y", &dir.display().to_string()]).assert().success();
+    aipm()
+        .args(["init", "-y", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
 
     let make_args = [
         "make",
@@ -183,7 +195,10 @@ fn make_plugin_missing_name() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("no-name");
 
-    aipm().args(["init", "-y", &dir.display().to_string()]).assert().success();
+    aipm()
+        .args(["init", "-y", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
 
     aipm()
         .args([
@@ -210,7 +225,10 @@ fn make_plugin_missing_feature() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("no-feature");
 
-    aipm().args(["init", "-y", &dir.display().to_string()]).assert().success();
+    aipm()
+        .args(["init", "-y", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
 
     aipm()
         .args([
@@ -264,7 +282,10 @@ fn make_plugin_invalid_engine() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("bad-engine");
 
-    aipm().args(["init", "-y", &dir.display().to_string()]).assert().success();
+    aipm()
+        .args(["init", "-y", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
 
     aipm()
         .args([
@@ -301,7 +322,10 @@ fn make_plugin_without_yes_flag_succeeds_in_non_tty() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("no-yes-flag");
 
-    aipm().args(["init", "-y", &dir.display().to_string()]).assert().success();
+    aipm()
+        .args(["init", "-y", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
 
     // No `-y`/`--yes` flag — exercises the `!yes = true` branch in main.rs.
     aipm()
@@ -330,7 +354,10 @@ fn make_plugin_invalid_feature_for_engine() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("bad-feature");
 
-    aipm().args(["init", "-y", &dir.display().to_string()]).assert().success();
+    aipm()
+        .args(["init", "-y", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
 
     // lsp is not supported by claude engine
     aipm()

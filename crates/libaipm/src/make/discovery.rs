@@ -8,11 +8,13 @@ use super::error::Error;
 
 /// Walk up from `start_dir` to find the nearest `.ai/` marketplace.
 ///
-/// At each directory level, checks for `.ai/.claude-plugin/marketplace.json`.
-/// If found, returns the path to the `.ai/` directory.
+/// At each directory level, checks every engine's
+/// [`crate::engine::marketplace_manifest_path`] under `.ai/`. If any
+/// engine's marketplace manifest exists, returns the path to the `.ai/`
+/// directory.
 ///
-/// Directories that contain `.ai/` but lack the marketplace.json marker are
-/// skipped — they may be incomplete or unrelated.
+/// Directories that contain `.ai/` but lack a marketplace.json marker for
+/// any known engine are skipped — they may be incomplete or unrelated.
 ///
 /// Returns [`Error::MarketplaceNotFound`] if no valid marketplace is found
 /// before reaching the filesystem root.
@@ -21,9 +23,7 @@ pub fn find_marketplace(start_dir: &Path, fs: &dyn Fs) -> Result<PathBuf, Error>
 
     loop {
         let ai_dir = current.join(".ai");
-        let marker = ai_dir.join(".claude-plugin").join("marketplace.json");
-
-        if fs.exists(&marker) {
+        if has_any_engine_marketplace(&ai_dir, fs) {
             return Ok(ai_dir);
         }
 
@@ -35,6 +35,19 @@ pub fn find_marketplace(start_dir: &Path, fs: &dyn Fs) -> Result<PathBuf, Error>
             _ => return Err(Error::MarketplaceNotFound),
         }
     }
+}
+
+/// Returns true if any engine's marketplace manifest exists under
+/// `ai_dir`. Iterates [`libaipm_engine_spec::Engine::ALL`] so the check
+/// stays in sync with the engine spec.
+fn has_any_engine_marketplace(ai_dir: &Path, fs: &dyn Fs) -> bool {
+    libaipm_engine_spec::Engine::ALL.iter().copied().any(|engine| {
+        let rel = crate::engine::marketplace_manifest_path(engine);
+        if rel.is_empty() {
+            return false;
+        }
+        fs.exists(&ai_dir.join(rel))
+    })
 }
 
 #[cfg(test)]

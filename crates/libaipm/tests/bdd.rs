@@ -147,6 +147,16 @@ async fn given_dir_with_file(world: &mut AipmWorld, dir: String, file: String) {
     world.active_dir = Some(dir);
 }
 
+#[given(expr = "a directory {string} containing a malformed {string}")]
+async fn given_dir_with_malformed_file(world: &mut AipmWorld, dir: String, file: String) {
+    world.ensure_root();
+    let path = world.root_path().join(&dir);
+    std::fs::create_dir_all(&path).expect("create dir");
+    std::fs::write(path.join(&file), "not = [valid toml syntax").expect("write malformed");
+    world.dirs.insert(dir.clone(), path);
+    world.active_dir = Some(dir);
+}
+
 #[given(expr = "a plugin directory {string} with a valid manifest")]
 async fn given_plugin_dir_valid_manifest(world: &mut AipmWorld, name: String) {
     world.ensure_root();
@@ -370,6 +380,16 @@ async fn then_fails_with(world: &mut AipmWorld, msg: String) {
     assert!(
         combined.contains(&msg),
         "expected '{msg}' in output\nstdout: {}\nstderr: {}",
+        world.last_stdout,
+        world.last_stderr
+    );
+}
+
+#[then(expr = "stdout contains {string}")]
+async fn then_stdout_contains(world: &mut AipmWorld, needle: String) {
+    assert!(
+        world.last_stdout.contains(&needle),
+        "expected stdout to contain '{needle}'\nstdout: {}\nstderr: {}",
         world.last_stdout,
         world.last_stderr
     );
@@ -701,7 +721,11 @@ async fn given_initialized_marketplace(world: &mut AipmWorld, dir: String) {
     std::fs::create_dir_all(&path).expect("create dir");
     world.dirs.insert(dir.clone(), path);
     world.active_dir = Some(dir.clone());
-    run_command(world, "aipm init --marketplace -y", Some(&dir));
+    // Per #850 the marketplace path is engine-aware. Existing scenarios
+    // (plus `aipm make plugin` registration code) expect the Claude
+    // marketplace.json to be present, so init explicitly with
+    // `--engine claude`.
+    run_command(world, "aipm init --marketplace --engine claude -y", Some(&dir));
     assert_eq!(
         world.last_exit_code,
         Some(0),

@@ -79,27 +79,37 @@ fn init_marketplace_only() {
 }
 
 // =========================================================================
-// Scenario: Reject if aipm.toml already exists
+// Scenario: Idempotent over an existing aipm.toml (#850)
 // =========================================================================
 #[test]
-fn init_rejects_existing_workspace() {
+fn init_is_idempotent_with_existing_workspace() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("existing-ws");
     std::fs::create_dir_all(&dir).ok();
-    std::fs::write(dir.join("aipm.toml"), "[package]\n").ok();
+    // Pre-create a parse-and-validate-able workspace manifest. Init's
+    // idempotent path treats it as reusable rather than rejecting it.
+    std::fs::write(
+        dir.join("aipm.toml"),
+        "[workspace]\nmembers = [\".ai/*\"]\nplugins_dir = \".ai\"\n",
+    )
+    .ok();
+    let original = std::fs::read(dir.join("aipm.toml")).unwrap();
 
     aipm()
         .args(["init", "--workspace", &dir.display().to_string()])
         .assert()
-        .failure()
-        .stderr(predicate::str::contains("already initialized"));
+        .success()
+        .stdout(predicate::str::contains("Using existing aipm.toml"));
+
+    let after = std::fs::read(dir.join("aipm.toml")).unwrap();
+    assert_eq!(original, after, "aipm.toml must be unchanged");
 }
 
 // =========================================================================
-// Scenario: Reject if .ai/ already exists
+// Scenario: Idempotent over an existing .ai/ (#850)
 // =========================================================================
 #[test]
-fn init_rejects_existing_marketplace() {
+fn init_is_idempotent_with_existing_marketplace() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("existing-mp");
     std::fs::create_dir_all(dir.join(".ai")).ok();
@@ -107,8 +117,38 @@ fn init_rejects_existing_marketplace() {
     aipm()
         .args(["init", "--marketplace", &dir.display().to_string()])
         .assert()
-        .failure()
-        .stderr(predicate::str::contains("already exists"));
+        .success()
+        .stdout(predicate::str::contains("Using existing .ai/ marketplace"));
+}
+
+// =========================================================================
+// Scenario: Per-engine marketplace fan-out (#850)
+// =========================================================================
+#[test]
+fn init_per_engine_marketplace_paths() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("multi-engine");
+
+    aipm()
+        .args([
+            "init",
+            "-y",
+            "--marketplace",
+            "--engine",
+            "claude,copilot",
+            &dir.display().to_string(),
+        ])
+        .assert()
+        .success();
+
+    assert!(
+        dir.join(".ai/.claude-plugin/marketplace.json").exists(),
+        "claude marketplace must exist"
+    );
+    assert!(
+        dir.join(".ai/.github/plugin/marketplace.json").exists(),
+        "copilot marketplace must exist"
+    );
 }
 
 // =========================================================================
@@ -177,7 +217,13 @@ fn init_marketplace_json_generated() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("mp-json");
 
-    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
+    // Per #850 the marketplace path is now engine-aware. Pass --engine claude
+    // explicitly so we get the .claude-plugin/marketplace.json layout the
+    // assertions below expect (the non-interactive default is Copilot).
+    aipm()
+        .args(["init", "--marketplace", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
 
     let content = std::fs::read_to_string(dir.join(".ai/.claude-plugin/marketplace.json")).unwrap();
     let v: serde_json::Value = serde_json::from_str(&content).unwrap();
@@ -196,7 +242,10 @@ fn init_marketplace_json_no_starter_empty_plugins() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("mp-json-nostarter");
 
-    aipm().args(["init", "--no-starter", &dir.display().to_string()]).assert().success();
+    aipm()
+        .args(["init", "--no-starter", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
 
     let content = std::fs::read_to_string(dir.join(".ai/.claude-plugin/marketplace.json")).unwrap();
     let v: serde_json::Value = serde_json::from_str(&content).unwrap();
@@ -286,7 +335,10 @@ fn scaffold_script_registers_in_marketplace_json() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("scaffold-mp");
 
-    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
+    aipm()
+        .args(["init", "--marketplace", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
 
     let output = run_scaffold(&dir, "my-new-plugin");
     assert!(
@@ -337,7 +389,10 @@ fn scaffold_script_creates_plugin_directory() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("scaffold-dir");
 
-    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
+    aipm()
+        .args(["init", "--marketplace", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
 
     let output = run_scaffold(&dir, "my-new-plugin");
     assert!(
@@ -388,7 +443,10 @@ fn scaffold_script_rejects_existing_plugin() {
     let tmp = tempfile::TempDir::new().unwrap();
     let dir = tmp.path().join("scaffold-dup");
 
-    aipm().args(["init", "--marketplace", &dir.display().to_string()]).assert().success();
+    aipm()
+        .args(["init", "--marketplace", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
 
     let out1 = run_scaffold(&dir, "my-plugin");
     assert!(out1.status.success(), "first scaffold: {}", String::from_utf8_lossy(&out1.stderr));

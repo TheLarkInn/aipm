@@ -85,22 +85,57 @@ pub struct Options<'a> {
 
 /// Actions taken during initialization — used for user feedback.
 ///
-/// Each variant represents a file or directory that was created.
+/// Each variant represents either a file/directory that was created or
+/// a pre-existing artifact that was reused (#850 idempotency).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InitAction {
     /// The workspace manifest (`aipm.toml`) was created.
     WorkspaceCreated,
+    /// A pre-existing workspace manifest (`aipm.toml`) was reused.
+    WorkspaceFoundExisting,
     /// The `.ai/` marketplace directory was scaffolded.
     MarketplaceCreated,
+    /// A pre-existing `.ai/` marketplace directory was reused.
+    MarketplaceFoundExisting,
+    /// An engine-appropriate marketplace manifest was created.
+    MarketplaceManifestWritten {
+        /// Engine the manifest was scaffolded for.
+        engine: libaipm_engine_spec::Engine,
+        /// Path of the written manifest. Resolved relative to
+        /// `Options.dir`, so it is absolute only when the caller
+        /// passed an absolute `dir`.
+        path: std::path::PathBuf,
+    },
+    /// A pre-existing engine-appropriate marketplace manifest was reused.
+    MarketplaceManifestFoundExisting {
+        /// Engine the manifest belongs to.
+        engine: libaipm_engine_spec::Engine,
+        /// Path of the existing manifest. Resolved relative to
+        /// `Options.dir`, so it is absolute only when the caller
+        /// passed an absolute `dir`.
+        path: std::path::PathBuf,
+    },
     /// A tool-specific configuration was written or merged.
     /// The string is the human-readable tool name (e.g., "Claude Code").
     ToolConfigured(String),
 }
 
 /// Result of workspace initialization — list of actions taken.
+#[derive(Debug)]
 pub struct InitResult {
     /// Actions that were performed.
     pub actions: Vec<InitAction>,
+}
+
+/// Outcome of [`init_workspace`] — whether the manifest was newly created
+/// or a pre-existing one was reused.
+///
+/// Private to the module; consumed by [`init`] to choose which
+/// [`InitAction`] to record.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InitWorkspaceOutcome {
+    Created,
+    FoundExisting,
 }
 
 /// Initialize workspace and/or marketplace.
@@ -108,10 +143,15 @@ pub struct InitResult {
 /// Tool-specific settings are applied by the provided adaptors after
 /// marketplace scaffolding.
 ///
+/// As of #850, this function is **idempotent** with respect to
+/// pre-existing `aipm.toml` and `.ai/` artifacts: their presence is
+/// surfaced via `*FoundExisting` actions and `tracing::info!` events
+/// rather than returning an error.
+///
 /// # Errors
 ///
-/// Returns `Error` if the workspace manifest or `.ai/` directory already
-/// exists, or if I/O operations fail.
+/// Returns `Error` if a pre-existing `aipm.toml` or marketplace manifest
+/// is malformed (parse/validate failure), or if I/O operations fail.
 pub fn init(
     opts: &Options<'_>,
     adaptors: &[Box<dyn ToolAdaptor>],
@@ -120,20 +160,17 @@ pub fn init(
     let mut actions = Vec::new();
 
     if opts.workspace {
-        init_workspace(opts.dir, opts.engines_support, fs)?;
-        actions.push(InitAction::WorkspaceCreated);
+        let outcome = init_workspace(opts.dir, opts.engines_support, fs)?;
+        match outcome {
+            InitWorkspaceOutcome::Created => actions.push(InitAction::WorkspaceCreated),
+            InitWorkspaceOutcome::FoundExisting => {
+                actions.push(InitAction::WorkspaceFoundExisting);
+            },
+        }
     }
 
     if opts.marketplace {
-        scaffold_marketplace(
-            opts.dir,
-            opts.no_starter,
-            opts.manifest,
-            opts.marketplace_name,
-            opts.engines_support,
-            fs,
-        )?;
-        actions.push(InitAction::MarketplaceCreated);
+        scaffold_marketplace(opts, fs, &mut actions)?;
 
         for adaptor in adaptors {
             // Spec G3 / Feature 9: skip adaptors whose engine is not in
@@ -147,6 +184,33 @@ pub fn init(
         }
     }
 
+    // #850 Spec G12 / Q9.5: emit a single tail warn when init produced
+    // only Found* actions (i.e. nothing was created). Distinct from a
+    // no-op run with all flags disabled — the user explicitly asked to
+    // do something, but everything they asked for already existed.
+    let any_created = actions.iter().any(|a| {
+        matches!(
+            a,
+            InitAction::WorkspaceCreated
+                | InitAction::MarketplaceCreated
+                | InitAction::MarketplaceManifestWritten { .. }
+                | InitAction::ToolConfigured(_)
+        )
+    });
+    let any_found = actions.iter().any(|a| {
+        matches!(
+            a,
+            InitAction::WorkspaceFoundExisting
+                | InitAction::MarketplaceFoundExisting
+                | InitAction::MarketplaceManifestFoundExisting { .. }
+        )
+    });
+    if !any_created && any_found {
+        // Phrased to be accurate regardless of which phases the user
+        // requested — `--workspace` only, `--marketplace` only, or both.
+        tracing::warn!("aipm init found nothing to do; all requested artifacts already exist",);
+    }
+
     Ok(InitResult { actions })
 }
 
@@ -158,10 +222,24 @@ fn init_workspace(
     dir: &Path,
     engines_support: Option<libaipm_engine_spec::EngineSet>,
     fs: &dyn Fs,
-) -> Result<(), Error> {
+) -> Result<InitWorkspaceOutcome, Error> {
     let manifest_path = dir.join("aipm.toml");
+
+    // #850 Spec § 5.2.1: idempotent on pre-existing aipm.toml. Parse and
+    // validate the existing manifest, surface `ExistingManifestInvalid`
+    // if malformed, otherwise compare against wizard answers and emit
+    // warn events for conflicts.
     if fs.exists(&manifest_path) {
-        return Err(Error::WorkspaceAlreadyInitialized(dir.to_path_buf()));
+        let content = fs.read_to_string(&manifest_path)?;
+        let parsed = crate::manifest::parse_and_validate(&content, None).map_err(|source| {
+            Error::ExistingManifestInvalid { path: manifest_path.clone(), source }
+        })?;
+        compare_and_warn(&parsed, engines_support, &manifest_path);
+        tracing::info!(
+            path = %manifest_path.display(),
+            "using existing aipm.toml file",
+        );
+        return Ok(InitWorkspaceOutcome::FoundExisting);
     }
 
     let content = generate_workspace_manifest(engines_support);
@@ -172,8 +250,54 @@ fn init_workspace(
 
     fs.create_dir_all(dir)?;
     fs.write_file(&manifest_path, content.as_bytes())?;
+    tracing::info!(path = %manifest_path.display(), "created aipm.toml");
 
-    Ok(())
+    Ok(InitWorkspaceOutcome::Created)
+}
+
+/// Compare a pre-existing parsed manifest against wizard answers and
+/// emit `tracing::warn!` for each conflict.
+///
+/// Per #850 spec § 5.2.1, the on-disk file is never modified — these
+/// warnings are advisory only and init continues regardless.
+fn compare_and_warn(
+    parsed: &crate::manifest::types::Manifest,
+    engines_support: Option<libaipm_engine_spec::EngineSet>,
+    manifest_path: &Path,
+) {
+    // Workspace presence mismatch: wizard requested a workspace but the
+    // on-disk manifest is package-only (no `[workspace]` table).
+    if parsed.workspace.is_none() {
+        tracing::warn!(
+            path = %manifest_path.display(),
+            "wizard requested workspace but on-disk manifest is package-only",
+        );
+    }
+
+    // Engines field comparison. The wizard may have selected a specific
+    // engine set; the on-disk manifest may have its own. Three cases:
+    let wizard_engines = engines_support.filter(|s| !s.is_empty());
+    let disk_engines = parsed.workspace.as_ref().and_then(|w| w.engines).filter(|s| !s.is_empty());
+
+    match (wizard_engines, disk_engines) {
+        (Some(w), Some(d)) if w != d => {
+            tracing::warn!(
+                wizard = ?w,
+                on_disk = ?d,
+                "engines field differs from wizard answer; on-disk value preserved",
+            );
+        },
+        (Some(w), None) => {
+            tracing::warn!(
+                wizard = ?w,
+                "wizard selected engines but on-disk manifest does not declare them; on-disk preserved",
+            );
+        },
+        // (None, Some(_)): user said "no preference"; on-disk wins silently.
+        // (Some(w), Some(d)) where w == d: identical; no warning.
+        // (None, None): nothing to compare.
+        _ => {},
+    }
 }
 
 fn generate_workspace_manifest(engines_support: Option<libaipm_engine_spec::EngineSet>) -> String {
@@ -239,36 +363,60 @@ fn engine_set_to_canonical_names(
 }
 
 fn scaffold_marketplace(
-    dir: &Path,
-    no_starter: bool,
-    manifest: bool,
-    marketplace_name: &str,
-    engines_support: Option<libaipm_engine_spec::EngineSet>,
+    opts: &Options<'_>,
     fs: &dyn Fs,
+    actions: &mut Vec<InitAction>,
 ) -> Result<(), Error> {
-    let ai_dir = dir.join(".ai");
-    if fs.exists(&ai_dir) {
-        return Err(Error::MarketplaceAlreadyExists(dir.to_path_buf()));
+    let ai_dir = opts.dir.join(".ai");
+    let ai_existed = fs.exists(&ai_dir);
+
+    // #850 Spec § 5.2.2: idempotent on pre-existing .ai/. We do not
+    // touch the directory itself or its starter plugin tree; we only
+    // scaffold the engine-appropriate marketplace manifests below.
+    if ai_existed {
+        tracing::info!(path = %ai_dir.display(), "found existing .ai/ marketplace");
+        actions.push(InitAction::MarketplaceFoundExisting);
+    } else {
+        fs.create_dir_all(&ai_dir)?;
+        let gitignore_header = concat!(
+            "# Managed by aipm — registry-installed plugins are symlinked here.\n",
+            "# Do not edit the section between the markers.\n",
+            "# === aipm managed start ===\n",
+        );
+        let gitignore_footer = "# === aipm managed end ===\n";
+        let gitignore_content = if opts.no_starter {
+            format!("{gitignore_header}{gitignore_footer}")
+        } else {
+            format!("{gitignore_header}.tool-usage.log\n{gitignore_footer}")
+        };
+        fs.write_file(&ai_dir.join(".gitignore"), gitignore_content.as_bytes())?;
+        actions.push(InitAction::MarketplaceCreated);
     }
 
-    // Always create .ai/ and .gitignore
-    fs.create_dir_all(&ai_dir)?;
-    let gitignore_header = concat!(
-        "# Managed by aipm — registry-installed plugins are symlinked here.\n",
-        "# Do not edit the section between the markers.\n",
-        "# === aipm managed start ===\n",
-    );
-    let gitignore_footer = "# === aipm managed end ===\n";
-    let gitignore_content = if no_starter {
-        format!("{gitignore_header}{gitignore_footer}")
-    } else {
-        format!("{gitignore_header}.tool-usage.log\n{gitignore_footer}")
-    };
-    fs.write_file(&ai_dir.join(".gitignore"), gitignore_content.as_bytes())?;
+    // Engine-aware marketplace.json fan-out — write/validate one manifest
+    // per engine in `engines_scaffold` (#850 G3, G7, G8).
+    scaffold_engine_marketplaces(opts, &ai_dir, fs, actions)?;
 
-    // Create marketplace.json in .ai/.claude-plugin/
-    fs.create_dir_all(&ai_dir.join(".claude-plugin"))?;
-    let initial_plugins = if no_starter {
+    // Starter plugin tree only writes on green-field .ai/. We do not
+    // attempt to merge starter content into a pre-existing .ai/ tree
+    // (Spec § 3.2 non-goal: "merging plugin entries").
+    if opts.no_starter || ai_existed {
+        return Ok(());
+    }
+
+    write_starter_plugin_tree(opts, &ai_dir, fs)
+}
+
+/// Per-engine marketplace.json fan-out. Writes the engine-appropriate
+/// manifest at `.ai/<engine_path>/marketplace.json` for each engine in
+/// `opts.engines_scaffold`.
+fn scaffold_engine_marketplaces(
+    opts: &Options<'_>,
+    ai_dir: &Path,
+    fs: &dyn Fs,
+    actions: &mut Vec<InitAction>,
+) -> Result<(), Error> {
+    let initial_plugins = if opts.no_starter {
         Vec::new()
     } else {
         vec![crate::generate::marketplace::Entry {
@@ -276,15 +424,61 @@ fn scaffold_marketplace(
             description: "Default starter plugin \u{2014} scaffold new plugins, scan your marketplace, and log tool usage",
         }]
     };
-    fs.write_file(
-        &ai_dir.join(".claude-plugin").join("marketplace.json"),
-        crate::generate::marketplace::create(marketplace_name, &initial_plugins).as_bytes(),
-    )?;
 
-    if no_starter {
-        return Ok(());
+    for engine in libaipm_engine_spec::Engine::ALL
+        .iter()
+        .copied()
+        .filter(|e| opts.engines_scaffold.contains(e.as_set()))
+    {
+        let rel = crate::engine::marketplace_manifest_path(engine);
+        if rel.is_empty() {
+            // #850 Q9.3: skip-with-warn when an engine has no marketplace
+            // path declared in the spec.
+            tracing::warn!(
+                engine = engine.name(),
+                "engine has no marketplace manifest path; skipping",
+            );
+            continue;
+        }
+        let manifest_path = ai_dir.join(rel);
+
+        if fs.exists(&manifest_path) {
+            // Validate the existing manifest. JSON, regardless of engine.
+            let content = fs.read_to_string(&manifest_path)?;
+            let _parsed: serde_json::Value = serde_json::from_str(&content).map_err(|source| {
+                Error::ExistingMarketplaceInvalid { path: manifest_path.clone(), source }
+            })?;
+            tracing::info!(
+                engine = engine.name(),
+                path = %manifest_path.display(),
+                "found existing marketplace manifest",
+            );
+            actions
+                .push(InitAction::MarketplaceManifestFoundExisting { engine, path: manifest_path });
+        } else {
+            let parent = manifest_path.parent().unwrap_or(ai_dir);
+            fs.create_dir_all(parent)?;
+            fs.write_file(
+                &manifest_path,
+                crate::generate::marketplace::create(opts.marketplace_name, &initial_plugins)
+                    .as_bytes(),
+            )?;
+            tracing::info!(
+                engine = engine.name(),
+                path = %manifest_path.display(),
+                "created marketplace manifest",
+            );
+            actions.push(InitAction::MarketplaceManifestWritten { engine, path: manifest_path });
+        }
     }
 
+    Ok(())
+}
+
+/// Write the starter-aipm-plugin tree into a green-field `.ai/`
+/// directory. Caller is responsible for ensuring `.ai/` did not
+/// pre-exist (the starter is not merged into existing trees).
+fn write_starter_plugin_tree(opts: &Options<'_>, ai_dir: &Path, fs: &dyn Fs) -> Result<(), Error> {
     let starter = ai_dir.join("starter-aipm-plugin");
 
     // Create directory tree
@@ -310,8 +504,8 @@ fn scaffold_marketplace(
     fs.write_file(&starter.join("hooks").join("hooks.json"), generate_hook_template().as_bytes())?;
 
     // .ai/starter-aipm-plugin/aipm.toml (only when --manifest is requested)
-    if manifest {
-        let starter_manifest = generate_starter_manifest(engines_support);
+    if opts.manifest {
+        let starter_manifest = generate_starter_manifest(opts.engines_support);
         fs.write_file(&starter.join("aipm.toml"), starter_manifest.as_bytes())?;
 
         // Validate starter manifest round-trips (with base_dir so component paths are checked)
@@ -580,9 +774,15 @@ mod tests {
     }
 
     #[test]
-    fn init_workspace_rejects_existing() {
-        let (tmp, _guard) = make_temp_dir("ws-exists");
-        std::fs::File::create(tmp.join("aipm.toml")).ok();
+    fn init_workspace_is_idempotent_when_aipm_toml_exists() {
+        let (tmp, _guard) = make_temp_dir("ws-idempotent");
+
+        // Pre-create a valid aipm.toml. We use a minimal but parse-and-
+        // validate-able workspace manifest so the idempotent path treats
+        // it as reusable (not as malformed input).
+        let existing = generate_workspace_manifest(None);
+        std::fs::write(tmp.join("aipm.toml"), &existing).ok();
+        let original = std::fs::read(tmp.join("aipm.toml")).unwrap_or_default();
 
         let adaptors = default_adaptors();
         let opts = Options {
@@ -596,16 +796,20 @@ mod tests {
             engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
-        assert!(result.is_err());
-        let err = result.err();
-        assert!(err.is_some_and(|e| e.to_string().contains("already initialized")));
+        assert!(result.is_ok(), "idempotent init must succeed: {result:?}");
+
+        let after = std::fs::read(tmp.join("aipm.toml")).unwrap_or_default();
+        assert_eq!(original, after, "aipm.toml must be unchanged");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
 
         cleanup(&tmp);
     }
 
     #[test]
-    fn init_marketplace_rejects_existing() {
-        let (tmp, _guard) = make_temp_dir("mp-exists");
+    fn init_marketplace_is_idempotent_when_ai_exists() {
+        let (tmp, _guard) = make_temp_dir("mp-idempotent");
         std::fs::create_dir_all(tmp.join(".ai")).ok();
 
         let adaptors = default_adaptors();
@@ -613,16 +817,20 @@ mod tests {
             dir: &tmp,
             workspace: false,
             marketplace: true,
-            no_starter: false,
-            manifest: true,
+            no_starter: true,
+            manifest: false,
             marketplace_name: "local-repo-plugins",
             engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
             engines_support: None,
         };
         let result = init(&opts, &adaptors, &crate::fs::Real);
-        assert!(result.is_err());
-        let err = result.err();
-        assert!(err.is_some_and(|e| e.to_string().contains("already exists")));
+        assert!(result.is_ok(), "idempotent init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)));
+        // The engine-aware fan-out should still write a missing
+        // marketplace.json into the empty .ai/ tree.
+        assert!(tmp.join(".ai/.claude-plugin/marketplace.json").exists());
 
         cleanup(&tmp);
     }
@@ -1747,6 +1955,263 @@ mod tests {
             Some(vec!["copilot".to_string()]),
             "single bit → single name"
         );
+    }
+
+    // =====================================================================
+    // #850 Feature 10 — idempotent init unit tests
+    // =====================================================================
+
+    /// `.ai/` exists but is empty. Init with `engines_scaffold = CLAUDE`
+    /// must auto-repair the missing `.ai/.claude-plugin/marketplace.json`
+    /// and emit `MarketplaceManifestWritten` for Claude.
+    #[test]
+    fn init_idempotent_writes_missing_engine_marketplace() {
+        let (tmp, _guard) = make_temp_dir("idempotent-writes-missing");
+        std::fs::create_dir_all(tmp.join(".ai")).ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        let claude_path = tmp.join(".ai/.claude-plugin/marketplace.json");
+        assert!(claude_path.exists(), "missing claude marketplace must be auto-written");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(
+            a,
+            InitAction::MarketplaceManifestWritten {
+                engine: libaipm_engine_spec::Engine::Claude,
+                ..
+            }
+        )));
+
+        cleanup(&tmp);
+    }
+
+    /// `.ai/` exists but is empty. Init with both engines must write
+    /// both engines' marketplace manifests.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_idempotent_per_engine_fan_out() {
+        let (tmp, _guard) = make_temp_dir("idempotent-fan-out");
+        std::fs::create_dir_all(tmp.join(".ai")).ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE
+                | libaipm_engine_spec::EngineSet::COPILOT,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        assert!(
+            tmp.join(".ai/.claude-plugin/marketplace.json").exists(),
+            "claude marketplace must be written"
+        );
+        assert!(
+            tmp.join(".ai/.github/plugin/marketplace.json").exists(),
+            "copilot marketplace must be written"
+        );
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        let written_count = actions
+            .iter()
+            .filter(|a| matches!(a, InitAction::MarketplaceManifestWritten { .. }))
+            .count();
+        assert_eq!(written_count, 2, "expected 2 manifest-written actions, got {written_count}");
+
+        // tracing event for the per-engine creation should fire.
+        assert!(logs_contain("created marketplace manifest"));
+
+        cleanup(&tmp);
+    }
+
+    /// Both engine marketplaces pre-exist with valid JSON. Init must
+    /// leave them bytewise unchanged and emit only Found* actions for
+    /// both.
+    #[test]
+    fn init_idempotent_skips_existing_engine_marketplace() {
+        let (tmp, _guard) = make_temp_dir("idempotent-skips-existing");
+        let claude_dir = tmp.join(".ai/.claude-plugin");
+        let copilot_dir = tmp.join(".ai/.github/plugin");
+        std::fs::create_dir_all(&claude_dir).ok();
+        std::fs::create_dir_all(&copilot_dir).ok();
+        // Use the canonical generator so the on-disk files are valid
+        // marketplace.json content (parses cleanly under serde_json).
+        let claude_path = claude_dir.join("marketplace.json");
+        let copilot_path = copilot_dir.join("marketplace.json");
+        let valid = crate::generate::marketplace::create("preexisting", &[]);
+        std::fs::write(&claude_path, &valid).ok();
+        std::fs::write(&copilot_path, &valid).ok();
+        let claude_before = std::fs::read(&claude_path).unwrap_or_default();
+        let copilot_before = std::fs::read(&copilot_path).unwrap_or_default();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE
+                | libaipm_engine_spec::EngineSet::COPILOT,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        assert_eq!(std::fs::read(&claude_path).unwrap_or_default(), claude_before);
+        assert_eq!(std::fs::read(&copilot_path).unwrap_or_default(), copilot_before);
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        let found_count = actions
+            .iter()
+            .filter(|a| matches!(a, InitAction::MarketplaceManifestFoundExisting { .. }))
+            .count();
+        assert_eq!(found_count, 2, "expected 2 found-existing actions, got {found_count}");
+
+        cleanup(&tmp);
+    }
+
+    /// Existing `aipm.toml` declares `engines = ["claude"]` but the
+    /// wizard answer chose Copilot. Init must succeed (idempotent),
+    /// leave the file unchanged, and emit a tracing::warn event naming
+    /// the conflict.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_existing_aipm_toml_warns_on_engine_conflict() {
+        let (tmp, _guard) = make_temp_dir("existing-toml-conflict");
+        // Use the canonical builder so the manifest passes validation.
+        let manifest = crate::manifest::builder::build_workspace_manifest(
+            &crate::manifest::builder::WorkspaceManifestOpts {
+                members: &[".ai/*".to_string()],
+                plugins_dir: Some(".ai"),
+                engines: Some(&["claude"]),
+                header_comments: None,
+                trailing_comments: None,
+            },
+        );
+        std::fs::write(tmp.join("aipm.toml"), &manifest).ok();
+        let original = std::fs::read(tmp.join("aipm.toml")).unwrap_or_default();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::COPILOT,
+            engines_support: Some(libaipm_engine_spec::EngineSet::COPILOT),
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "idempotent init must succeed: {result:?}");
+
+        let after = std::fs::read(tmp.join("aipm.toml")).unwrap_or_default();
+        assert_eq!(original, after, "aipm.toml must be bytewise unchanged");
+
+        // The conflict-warn helper should have fired.
+        assert!(
+            logs_contain("engines field differs from wizard answer"),
+            "expected engines-conflict warn event"
+        );
+
+        cleanup(&tmp);
+    }
+
+    /// Pre-existing `aipm.toml` is malformed TOML. Init must surface a
+    /// typed `ExistingManifestInvalid` error.
+    #[test]
+    fn init_existing_aipm_toml_invalid_returns_typed_error() {
+        let (tmp, _guard) = make_temp_dir("existing-toml-invalid");
+        std::fs::write(tmp.join("aipm.toml"), "not = [valid toml syntax").ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        let err = result.err();
+        assert!(err.is_some(), "init must fail on malformed aipm.toml");
+        let err = err.unwrap_or(Error::Io(std::io::Error::other("unreachable")));
+        match err {
+            Error::ExistingManifestInvalid { path, .. } => {
+                assert!(
+                    path.ends_with("aipm.toml"),
+                    "error path must point at aipm.toml, got {}",
+                    path.display(),
+                );
+            },
+            other => panic!("expected ExistingManifestInvalid, got: {other:?}"),
+        }
+
+        cleanup(&tmp);
+    }
+
+    /// Pre-existing `.ai/.claude-plugin/marketplace.json` is malformed.
+    /// Init must surface a typed `ExistingMarketplaceInvalid` error.
+    #[test]
+    fn init_existing_marketplace_invalid_returns_typed_error() {
+        let (tmp, _guard) = make_temp_dir("existing-marketplace-invalid");
+        let claude_dir = tmp.join(".ai/.claude-plugin");
+        std::fs::create_dir_all(&claude_dir).ok();
+        let claude_path = claude_dir.join("marketplace.json");
+        // Truncated / invalid JSON.
+        std::fs::write(&claude_path, "{not valid json").ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        let err = result.err();
+        assert!(err.is_some(), "init must fail on malformed marketplace.json");
+        let err = err.unwrap_or(Error::Io(std::io::Error::other("unreachable")));
+        match err {
+            Error::ExistingMarketplaceInvalid { path, .. } => {
+                assert!(
+                    path.ends_with("marketplace.json"),
+                    "error path must point at marketplace.json, got {}",
+                    path.display(),
+                );
+            },
+            other => panic!("expected ExistingMarketplaceInvalid, got: {other:?}"),
+        }
+
+        cleanup(&tmp);
     }
 
     /// Covers the `adaptor.apply() == false` branch in `init()` (line 144).
