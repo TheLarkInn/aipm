@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-05-11
+
+### Features
+
+- **`aipm init` is now idempotent** ([#850](https://github.com/TheLarkInn/aipm/pull/850), [#861](https://github.com/TheLarkInn/aipm/pull/861)) — re-running `aipm init` in an already-initialized directory no longer fails. Pre-existing `aipm.toml`, `.ai/` marketplaces, and marketplace manifests are detected and reused; only missing artifacts are created. Stdout reports what was found vs. created (`Using existing aipm.toml in <dir>`, `Found existing <Engine> marketplace manifest at <path>`, etc.). **Breaking change:** `aipm init` now exits zero when all requested artifacts already exist (previously exited non-zero); scripts using `aipm init || …` to detect prior initialization should inspect stdout for `Using existing` messages instead.
+
+### Documentation
+
+- Add `.github/copilot-instructions.md` to README `aipm lint` and `aipm lsp` file-pattern lists ([#835](https://github.com/TheLarkInn/aipm/pull/835)).
+- Fix Copilot skill layout descriptions in README and rule count in `configuring-lint.md` ([#836](https://github.com/TheLarkInn/aipm/pull/836)).
+- Fix `libaipm-engine-spec` helper function parameter names in README (`path` → `name` for `engine_for_root_dir` and `marketplace_host_for_root_dir`) ([#846](https://github.com/TheLarkInn/aipm/pull/846)).
+
 ## [0.24.2] - 2026-05-07
 
 ### Documentation
