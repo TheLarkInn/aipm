@@ -341,7 +341,7 @@ All available rules, grouped by category:
 
 | Rule | Severity | Description |
 |------|----------|-------------|
-| [`instructions/oversized`](../rules/instructions/oversized.md) | warning | Instruction file (`CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, `*.instructions.md`, `.github/copilot-instructions.md`) exceeds the configured line or character limit |
+| [`instructions/oversized`](../rules/instructions/oversized.md) | warning | Instruction file (`CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, `copilot-instructions.md`, `*.instructions.md`) exceeds the configured line or character limit |
 
 ### `source/`
 
@@ -386,7 +386,7 @@ File types that receive diagnostics and completions:
 | `**/GEMINI.md` | Gemini instruction file |
 | `**/INSTRUCTIONS.md` | Generic instruction file |
 | `**/*.instructions.md` | Scoped instruction files (e.g. `frontend.instructions.md`) |
-| `.github/copilot-instructions.md` | GitHub Copilot repository-level instructions |
+| `**/.github/copilot-instructions.md` | GitHub Copilot repository-level instructions |
 
 ### Configuration
 
