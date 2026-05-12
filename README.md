@@ -117,6 +117,8 @@ aipm init [OPTIONS] [DIR]
 | `--name <NAME>` | Custom marketplace name (default: `local-repo-plugins`) |
 | `--engine <LIST>` | Engines to scaffold for: `claude`, `copilot`, or `claude,copilot`. Defaults to `copilot` with `--yes`. |
 
+**`aipm init` is idempotent** — re-running it on an existing directory is safe. Pre-existing artifacts (`aipm.toml`, `.ai/`, marketplace manifests) are detected and reused; only missing pieces are created. Use `aipm init || …` patterns with caution: the command exits zero even when all artifacts already exist (inspect stdout for `Using existing …` messages to detect a no-op run).
+
 When run on a TTY without `--yes`, launches an interactive wizard that includes an engine-selection step.
 
 **What it creates (varies by `--engine`):**
@@ -577,8 +579,8 @@ and emits typed const tables into the build output at compile time.
 
 | Function | Description |
 |----------|-------------|
-| `engine_for_root_dir(path)` | Infer the engine from a source directory path (e.g. `.claude/` → `Claude`) |
-| `marketplace_host_for_root_dir(path)` | Infer the marketplace host (Claude vs. Copilot) from a path |
+| `engine_for_root_dir(name)` | Infer the engine from a source directory component name (e.g. `.claude` → `Claude`, `.github` → `Copilot`) |
+| `marketplace_host_for_root_dir(name)` | Infer the marketplace host from a directory component name (e.g. `.ai` → `Ai`) |
 | `is_valid_event(event, engine)` | Check whether a hook event name is valid for the given engine |
 | `valid_tool_name_check(tool, declared)` | Return `Ok(())` if the tool name is valid for the declared engine set, or `Err(ToolNameViolation)` describing the conflict |
 | `suggest_canonical(event, engine)` | Return the canonical hook event name when `event` is a legacy alias; returns `None` if already canonical or unknown |
