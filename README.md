@@ -632,7 +632,7 @@ The following features are defined as BDD scenarios and tracked as open issues. 
 
 ### Dependencies
 
-- 🔨 **Resolution** — library complete (69 resolver tests, backtracking, overrides); not yet fully exposed through `aipm install` ([#1](https://github.com/TheLarkInn/aipm/issues/1))
+- 🔨 **Resolution** — library complete (76 resolver tests, backtracking, overrides); not yet fully exposed through `aipm install` ([#1](https://github.com/TheLarkInn/aipm/issues/1))
 - 🔨 **Lockfile** — library complete (31 tests); `--locked` CI mode works in `aipm install`; full drift-detection UI pending ([#2](https://github.com/TheLarkInn/aipm/issues/2))
 - 🔨 **Features** — library complete (default features, additive unification in resolver); not yet wired to CLI ([#3](https://github.com/TheLarkInn/aipm/issues/3))
 - 📋 **Patching** — `aipm patch` workflow for editing transitive deps without forking ([#4](https://github.com/TheLarkInn/aipm/issues/4))
