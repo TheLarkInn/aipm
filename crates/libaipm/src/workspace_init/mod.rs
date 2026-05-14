@@ -2258,4 +2258,49 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    /// Covers the `(Some(w), Some(d)) if w != d` guard branch in
+    /// `compare_and_warn` where wizard engines **equal** the on-disk engines
+    /// (the guard is false → the catch-all `_ => {}` arm fires silently).
+    ///
+    /// Also covers the `!any_created && any_found` warn path in `init`:
+    /// the manifest was found-existing (not created), so `any_found = true`
+    /// and `any_created = false`, triggering the tail warn.
+    #[test]
+    fn compare_and_warn_matching_engines_is_silent() {
+        let (tmp, _guard) = make_temp_dir("compare-warn-match");
+
+        // Pre-create an aipm.toml that already declares `engines = ["claude"]`.
+        let existing_toml =
+            generate_workspace_manifest(Some(libaipm_engine_spec::EngineSet::CLAUDE));
+        std::fs::write(tmp.join("aipm.toml"), &existing_toml).ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            // wizard selected the same engine set that is already on disk
+            engines_support: Some(libaipm_engine_spec::EngineSet::CLAUDE),
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init with matching engines must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        // Nothing was created — the existing manifest was found as-is.
+        assert!(
+            actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)),
+            "expected WorkspaceFoundExisting action"
+        );
+        assert!(
+            !actions.iter().any(|a| matches!(a, InitAction::WorkspaceCreated)),
+            "expected no WorkspaceCreated action when manifest already exists"
+        );
+
+        cleanup(&tmp);
+    }
 }
