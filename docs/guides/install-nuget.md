@@ -23,7 +23,7 @@ single job:
 
 ```yaml
 variables:
-  AIPM_VERSION: '0.24.2'
+  AIPM_VERSION: '0.25.0'
   NUGET_PACKAGES: $(Pipeline.Workspace)/.nuget/packages
 
 steps:
@@ -98,7 +98,7 @@ Add a `Cache@2` step before the restore step to avoid re-downloading `aipm` on e
 
 ## Pinning vs Floating Versions
 
-`<PackageDownload>` requires an **exact version** in brackets — `Version="[0.24.2]"`. Floating
+`<PackageDownload>` requires an **exact version** in brackets — `Version="[0.25.0]"`. Floating
 ranges (e.g., `[0.22,)`) are not supported. Update `AIPM_VERSION` in your pipeline variables to
 upgrade.
 
