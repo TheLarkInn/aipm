@@ -2300,4 +2300,54 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    /// Covers the `ai_existed = true` branch of the `||` in
+    /// `scaffold_marketplace` (line 403, col 27):
+    ///
+    /// ```text
+    /// if opts.no_starter || ai_existed {
+    ///                     ^^
+    ///                  col 27 — right side only evaluated when no_starter=false
+    /// ```
+    ///
+    /// All existing idempotent tests use `no_starter: true`, which causes
+    /// the `||` to short-circuit before evaluating `ai_existed`. This test
+    /// uses `no_starter: false` so the right side is reached and, since
+    /// `.ai/` was pre-created, the overall condition is `true` → early return
+    /// without writing the starter plugin tree.
+    #[test]
+    fn scaffold_marketplace_ai_existed_with_no_starter_false_skips_starter_tree() {
+        let (tmp, _guard) = make_temp_dir("ai-existed-no-starter-false");
+        // Pre-create .ai/ so that ai_existed = true inside scaffold_marketplace.
+        std::fs::create_dir_all(tmp.join(".ai")).ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: false, // ensures the || evaluates the right side (ai_existed)
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed when .ai/ already exists: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        // .ai/ was found existing — MarketplaceFoundExisting must be present.
+        assert!(
+            actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)),
+            "expected MarketplaceFoundExisting but got: {actions:?}"
+        );
+        // The starter plugin tree must NOT be written because ai_existed = true
+        // triggers the early return at line 404, skipping write_starter_plugin_tree.
+        assert!(
+            !tmp.join(".ai/starter-aipm-plugin").exists(),
+            "starter-aipm-plugin must not be written when .ai/ already existed"
+        );
+
+        cleanup(&tmp);
+    }
 }
