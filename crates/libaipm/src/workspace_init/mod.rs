@@ -2258,4 +2258,46 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    /// Covers the `if parsed.workspace.is_none()` True branch in `compare_and_warn`:
+    /// when a package-only `aipm.toml` (no `[workspace]` section) already exists but
+    /// `init` is called with `workspace: true`, `compare_and_warn` warns about the
+    /// workspace-presence mismatch and `init` returns `FoundExisting` without
+    /// overwriting the file.
+    #[test]
+    fn init_workspace_idempotent_with_package_only_manifest() {
+        let (tmp, _guard) = make_temp_dir("ws-pkg-only");
+
+        // Pre-create a package-only aipm.toml (no [workspace] section).
+        let package_only = "[package]\nname = \"my-plugin\"\nversion = \"1.0.0\"\n";
+        std::fs::write(tmp.join("aipm.toml"), package_only).ok();
+        let original = std::fs::read(tmp.join("aipm.toml")).unwrap_or_default();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        // init must succeed and treat the package-only manifest as existing.
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed with package-only aipm.toml: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(
+            actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)),
+            "expected WorkspaceFoundExisting when a pre-existing aipm.toml is present"
+        );
+
+        // The file must not have been modified.
+        let after = std::fs::read(tmp.join("aipm.toml")).unwrap_or_default();
+        assert_eq!(original, after, "package-only aipm.toml must not be overwritten");
+
+        cleanup(&tmp);
+    }
 }
