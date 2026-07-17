@@ -2138,6 +2138,53 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Existing `aipm.toml` already declares `engines = ["claude"]` and the
+    /// wizard answer also selects Claude. The engines match, so `compare_and_warn`
+    /// falls through to the `_` arm (no-op) — covering the branch where the
+    /// `(Some(w), Some(d)) if w != d` guard evaluates to `false`.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_existing_aipm_toml_matching_engines_no_conflict_warn() {
+        let (tmp, _guard) = make_temp_dir("existing-toml-match-engines");
+        let manifest = crate::manifest::builder::build_workspace_manifest(
+            &crate::manifest::builder::WorkspaceManifestOpts {
+                members: &[".ai/*".to_string()],
+                plugins_dir: Some(".ai"),
+                engines: Some(&["claude"]),
+                header_comments: None,
+                trailing_comments: None,
+            },
+        );
+        std::fs::write(tmp.join("aipm.toml"), &manifest).ok();
+        let original = std::fs::read(tmp.join("aipm.toml")).unwrap_or_default();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            // Same as on-disk: wizard chose Claude, disk declares Claude → no conflict
+            engines_support: Some(libaipm_engine_spec::EngineSet::CLAUDE),
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "idempotent init must succeed when engines match: {result:?}");
+
+        let after = std::fs::read(tmp.join("aipm.toml")).unwrap_or_default();
+        assert_eq!(original, after, "aipm.toml must be bytewise unchanged");
+
+        // No conflict warning should have been emitted because wizard == disk.
+        assert!(
+            !logs_contain("engines field differs from wizard answer"),
+            "no engines-conflict warn expected when wizard and disk engines match"
+        );
+
+        cleanup(&tmp);
+    }
+
     /// Pre-existing `aipm.toml` is malformed TOML. Init must surface a
     /// typed `ExistingManifestInvalid` error.
     #[test]
