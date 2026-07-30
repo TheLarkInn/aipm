@@ -51,5 +51,6 @@ Remove any characters that are not alphanumeric, dots, underscores, hyphens, or 
 
 - [skill/missing-name](missing-name.md) — validates that a `name` field is present
 - [skill/name-too-long](name-too-long.md) — validates the name length limit
+- [skill/name-not-kebab-case](name-not-kebab-case.md) — validates that the name is lowercase kebab-case
 - [Creating a plugin](../../guides/creating-a-plugin.md) — how to scaffold a new plugin with correct naming
 - [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system

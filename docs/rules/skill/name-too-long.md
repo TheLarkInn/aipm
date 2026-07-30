@@ -30,6 +30,7 @@ Shorten the name to 64 characters or fewer. Use a concise, descriptive identifie
 
 - [skill/missing-name](missing-name.md) — validates that a `name` field is present
 - [skill/name-invalid-chars](name-invalid-chars.md) — validates that the name uses allowed characters
+- [skill/name-not-kebab-case](name-not-kebab-case.md) — validates that the name is lowercase kebab-case
 - [skill/description-too-long](description-too-long.md) — validates the description length limit
 - [Creating a plugin](../../guides/creating-a-plugin.md) — how to scaffold a new plugin with correct naming
 - [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system

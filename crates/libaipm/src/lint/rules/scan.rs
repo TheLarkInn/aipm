@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use libaipm_engine_spec::paths;
 
-use crate::frontmatter::Frontmatter;
+use crate::frontmatter::{strict, Frontmatter};
 use crate::fs::Fs;
 
 /// A skill found during scanning.
@@ -16,8 +16,25 @@ pub struct FoundSkill {
     pub path: PathBuf,
     /// Parsed frontmatter (if any).
     pub frontmatter: Option<Frontmatter>,
+    /// Strictly validated YAML frontmatter, or the reason validation failed.
+    pub strict: Result<strict::Document, strict::Error>,
     /// Raw content of the file.
     pub content: String,
+}
+
+impl FoundSkill {
+    /// Read a frontmatter field as a string.
+    ///
+    /// Prefers the strictly parsed YAML value, so folded/literal block scalars
+    /// are measured after parsing. Falls back to the lenient line scanner when
+    /// the block failed strict validation, keeping the value-shape rules useful
+    /// on files that `skill/invalid-frontmatter` already flags.
+    pub fn field(&self, key: &str) -> Option<&str> {
+        self.strict.as_ref().map_or_else(
+            |_| self.frontmatter.as_ref().and_then(|fm| fm.fields.get(key)).map(String::as_str),
+            |doc| doc.string(key),
+        )
+    }
 }
 
 /// An agent found during scanning.
@@ -62,7 +79,8 @@ pub fn read_skill(path: &Path, fs: &dyn Fs) -> Option<FoundSkill> {
         },
     };
     let frontmatter = crate::frontmatter::parse(&content).ok().flatten();
-    Some(FoundSkill { path: path.to_path_buf(), frontmatter, content })
+    let strict = strict::parse(&content);
+    Some(FoundSkill { path: path.to_path_buf(), frontmatter, strict, content })
 }
 
 /// Read and parse a single agent `.md` file by absolute path.

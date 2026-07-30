@@ -199,7 +199,11 @@ fn format_toml_string_array(names: &[&'static str]) -> String {
 /// Returns [`EngineSet::empty()`] when no manifest is found, the manifest
 /// cannot be read or parsed, or the resolved engines are `None` /
 /// `Some(EngineSet::empty())`.
-fn nearest_declared_engines(file_path: &Path, lint_dir: &Path, fs: &dyn Fs) -> EngineSet {
+pub(crate) fn nearest_declared_engines(
+    file_path: &Path,
+    lint_dir: &Path,
+    fs: &dyn Fs,
+) -> EngineSet {
     let Some(manifest_path) = find_nearest_manifest(file_path, lint_dir, fs) else {
         return EngineSet::empty();
     };

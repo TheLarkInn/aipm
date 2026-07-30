@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Features
+- Add strict YAML validation of skill frontmatter: new `skill/invalid-frontmatter` (exact `---` delimiters, valid YAML, mapping root, string `name`/`description`), `skill/name-not-kebab-case`, and Copilot-scoped `skill/description-invalid-chars` (`<`/`>`) lint rules. `skill/description-too-long` and `skill/name-too-long` now count Unicode code points after YAML parsing (so folded/literal scalars are measured correctly), and `skill/missing-description` now reports empty descriptions. LF and CRLF line endings are both supported.
+
 ## [0.25.0] - 2026-05-11
 
 ### Documentation

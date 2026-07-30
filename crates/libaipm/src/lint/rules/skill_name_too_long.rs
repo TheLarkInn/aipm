@@ -44,23 +44,22 @@ impl Rule for NameTooLong {
         let Some((source_type, skill)) = super::read_skill_preamble(file_path, fs) else {
             return Ok(vec![]);
         };
-        let Some(ref fm) = skill.frontmatter else { return Ok(vec![]) };
-        let Some(name) = fm.fields.get("name") else { return Ok(vec![]) };
-        if name.len() <= MAX_SKILL_NAME_LENGTH {
+        let Some(name) = skill.field("name") else { return Ok(vec![]) };
+        let length = name.chars().count();
+        if length <= MAX_SKILL_NAME_LENGTH {
             return Ok(vec![]);
         }
-        let name_line = fm.field_lines.get("name").copied();
+        let name_line =
+            skill.frontmatter.as_ref().and_then(|fm| fm.field_lines.get("name").copied());
         let (col, end_col) = name_line
-            .and_then(|n| skill.content.lines().nth(n - 1))
+            .and_then(|n| skill.content.lines().nth(n.saturating_sub(1)))
             .and_then(|line| crate::frontmatter::field_value_range(line, "name"))
             .unzip();
         Ok(vec![Diagnostic {
             rule_id: self.id().to_string(),
             severity: self.default_severity(),
             message: format!(
-                "skill name exceeds {} characters ({} chars, Copilot CLI limit)",
-                MAX_SKILL_NAME_LENGTH,
-                name.len()
+                "skill name exceeds {MAX_SKILL_NAME_LENGTH} characters ({length} chars, Copilot CLI limit)"
             ),
             file_path: skill.path,
             line: name_line,

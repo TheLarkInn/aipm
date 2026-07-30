@@ -35,6 +35,7 @@ You need the Even Better TOML extension + the bundled schema to see them.
 
 ### `invalid-chars/SKILL.md`
 - **`skill/name-invalid-chars`** (Warning): `name: has@invalid#chars!` — `@`, `#`, `!` are not in `[a-zA-Z0-9._- ]`.
+- **`skill/name-not-kebab-case`** (Warning): the same `name` is not lowercase kebab-case.
 
 ### `desc-too-long/SKILL.md`
 - **`skill/description-too-long`** (Warning): `description` is 1025 chars, limit is 1024.
@@ -91,7 +92,7 @@ You need the Even Better TOML extension + the bundled schema to see them.
 
 ---
 
-## Summary: All 17 Rule IDs That Should Fire
+## Summary: All 18 Rule IDs That Should Fire
 
 | Rule ID | Severity | File |
 |---------|----------|------|
@@ -100,6 +101,7 @@ You need the Even Better TOML extension + the bundled schema to see them.
 | `skill/oversized` | Warning | `broken-skills/skills/oversized/SKILL.md` |
 | `skill/name-too-long` | Warning | `broken-skills/skills/name-too-long/SKILL.md` |
 | `skill/name-invalid-chars` | Warning | `broken-skills/skills/invalid-chars/SKILL.md` |
+| `skill/name-not-kebab-case` | Warning | `broken-skills/skills/invalid-chars/SKILL.md` |
 | `skill/description-too-long` | Warning | `broken-skills/skills/desc-too-long/SKILL.md` |
 | `skill/invalid-shell` | Error | `broken-skills/skills/invalid-shell/SKILL.md` |
 | `plugin/broken-paths` | Error | `broken-skills/skills/broken-ref/SKILL.md` |

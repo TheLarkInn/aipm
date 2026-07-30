@@ -46,23 +46,24 @@ impl Rule for DescriptionTooLong {
         let Some((source_type, skill)) = super::read_skill_preamble(file_path, fs) else {
             return Ok(vec![]);
         };
-        let Some(ref fm) = skill.frontmatter else { return Ok(vec![]) };
-        let Some(desc) = fm.fields.get("description") else { return Ok(vec![]) };
-        if desc.len() <= MAX_DESCRIPTION_LENGTH {
+        let Some(desc) = skill.field("description") else { return Ok(vec![]) };
+        // Copilot's `z.string().max(1024)` counts Unicode code points, not bytes,
+        // and the value is measured after folded/literal scalars are parsed.
+        let length = desc.chars().count();
+        if length <= MAX_DESCRIPTION_LENGTH {
             return Ok(vec![]);
         }
-        let desc_line = fm.field_lines.get("description").copied();
+        let desc_line =
+            skill.frontmatter.as_ref().and_then(|fm| fm.field_lines.get("description").copied());
         let (col, end_col) = desc_line
-            .and_then(|n| skill.content.lines().nth(n - 1))
+            .and_then(|n| skill.content.lines().nth(n.saturating_sub(1)))
             .and_then(|line| crate::frontmatter::field_value_range(line, "description"))
             .unzip();
         Ok(vec![Diagnostic {
             rule_id: self.id().to_string(),
             severity: self.default_severity(),
             message: format!(
-                "skill description exceeds {} characters ({} chars, Copilot CLI limit)",
-                MAX_DESCRIPTION_LENGTH,
-                desc.len()
+                "skill description exceeds {MAX_DESCRIPTION_LENGTH} characters ({length} chars, Copilot CLI limit)"
             ),
             file_path: skill.path,
             line: desc_line,

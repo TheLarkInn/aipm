@@ -17,11 +17,14 @@ pub mod plugin_missing_manifest;
 pub mod plugin_missing_registration;
 pub mod plugin_required_fields;
 pub(crate) mod scan;
+pub mod skill_desc_invalid_chars;
 pub mod skill_desc_too_long;
+pub mod skill_invalid_frontmatter;
 pub mod skill_invalid_shell;
 pub mod skill_missing_desc;
 pub mod skill_missing_name;
 pub mod skill_name_invalid;
+pub mod skill_name_not_kebab;
 pub mod skill_name_too_long;
 pub mod skill_oversized;
 #[cfg(test)]
@@ -124,12 +127,15 @@ pub(crate) fn read_hook_preamble(file_path: &Path, fs: &dyn Fs) -> Option<(Strin
 pub(crate) fn quality_rules_for_kind(kind: &FeatureKind, config: &Config) -> Vec<Box<dyn Rule>> {
     match kind {
         FeatureKind::Skill => vec![
+            Box::new(skill_invalid_frontmatter::InvalidFrontmatter),
             Box::new(skill_missing_name::MissingName),
             Box::new(skill_missing_desc::MissingDescription),
             Box::new(skill_oversized::Oversized),
             Box::new(skill_name_too_long::NameTooLong),
             Box::new(skill_name_invalid::NameInvalidChars),
+            Box::new(skill_name_not_kebab::NameNotKebabCase),
             Box::new(skill_desc_too_long::DescriptionTooLong),
+            Box::new(skill_desc_invalid_chars::DescriptionInvalidChars),
             Box::new(skill_invalid_shell::InvalidShell),
             Box::new(broken_paths::BrokenPaths),
             Box::new(valid_tool_name::ValidToolName),
@@ -182,12 +188,15 @@ pub(crate) fn quality_rules_for_kind(kind: &FeatureKind, config: &Config) -> Vec
 /// present) — users seeing this in the LSP almost certainly have `.ai/`.
 pub fn catalog() -> Vec<Box<dyn Rule>> {
     vec![
+        Box::new(skill_invalid_frontmatter::InvalidFrontmatter),
         Box::new(skill_missing_name::MissingName),
         Box::new(skill_missing_desc::MissingDescription),
         Box::new(skill_oversized::Oversized),
         Box::new(skill_name_too_long::NameTooLong),
         Box::new(skill_name_invalid::NameInvalidChars),
+        Box::new(skill_name_not_kebab::NameNotKebabCase),
         Box::new(skill_desc_too_long::DescriptionTooLong),
+        Box::new(skill_desc_invalid_chars::DescriptionInvalidChars),
         Box::new(skill_invalid_shell::InvalidShell),
         Box::new(broken_paths::BrokenPaths),
         Box::new(agent_missing_tools::MissingTools),
