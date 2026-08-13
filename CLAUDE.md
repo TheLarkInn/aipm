@@ -88,7 +88,7 @@ The repository uses [GitHub Agentic Workflows](https://githubnext.com/projects/a
 
 ### Not an agentic workflow: `research-codebase.yml`
 
-`.github/workflows/research-codebase.yml` is **hand-written and deliberately not managed by `gh aw compile`.** It replaced a compiled gh-aw workflow in [#97](https://github.com/TheLarkInn/aipm/pull/97) (1180 lines / 5 jobs → 158 lines / 1 job). There is intentionally no `research-codebase.md` and no `research-codebase.lock.yml`.
+`.github/workflows/research-codebase.yml` is **hand-written and deliberately not managed by `gh aw compile`.** It replaced a compiled gh-aw workflow in [#97](https://github.com/TheLarkInn/aipm/pull/97). There is intentionally no `research-codebase.md` and no `research-codebase.lock.yml`.
 
 Do not re-add them. `gh aw compile` would emit a second workflow also named `Research Codebase`, and both would fire on the same `research` label. Edit the `.yml` directly.
 
