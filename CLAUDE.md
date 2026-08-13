@@ -101,6 +101,24 @@ gh aw compile <name>   # e.g. gh aw compile improve-coverage
 
 Commit both the `.md` source and the regenerated `.lock.yml` together. The compiled lock file is the canonical version GitHub Actions runs.
 
+#### Keep every lock file on the same compiler version
+
+**All lock files must be compiled with the same `gh aw` version.** The repository is currently on **`v0.85.4`**; check yours with `gh aw version` and upgrade with `gh extension upgrade gh-aw` before recompiling.
+
+Recompiling a single workflow with a newer extension than the others introduces *compiler version skew*. Each lock file embeds a pinned [`gh-aw-firewall`](https://github.com/githubnext/gh-aw-firewall) (AWF) release, so a skewed lock ends up on a different AWF pin than its siblings. Upstream deletes old AWF releases, and when that happens the `Install AWF binary` step dies with `curl: (22) ... 404` and the workflow fails 100% of the time — which is exactly how `reverse-binary-analysis` (pinned to the deleted `v0.25.28`) silently failed every week for over two months ([#1388](https://github.com/TheLarkInn/aipm/issues/1388)).
+
+When upgrading the extension, run a bare `gh aw compile` to recompile **all** workflows at once, and confirm the pins agree before committing:
+
+```bash
+grep -ho 'install_awf_binary\.sh" v[0-9.]*' .github/workflows/*.lock.yml | awk '{print $2}' | sort -u
+```
+
+That must print exactly one version, and it must resolve upstream:
+
+```bash
+gh api repos/githubnext/gh-aw-firewall/releases/tags/<version> --jq .tag_name
+```
+
 ## Project Structure
 
 - `Cargo.toml` — workspace root, lint configuration
