@@ -113,7 +113,7 @@ For each unresolved review comment that requests a code change:
    cargo +nightly llvm-cov --no-report --workspace --branch
    cargo +nightly llvm-cov --no-report --doc
    cargo +nightly llvm-cov report --doctests --branch \
-     --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs)'
+     --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs|lsp\.rs|libaipm-engine-spec/build\.rs|libaipm-engine-spec/src/bin)'
    ```
 
 5. Use the `push-to-pull-request-branch` safe output to push the updated code
@@ -146,7 +146,7 @@ cargo +nightly llvm-cov --no-report --doc
 
 ```bash
 cargo +nightly llvm-cov report --doctests --branch \
-  --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs)'
+  --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs|lsp\.rs|libaipm-engine-spec/build\.rs|libaipm-engine-spec/src/bin)'
 ```
 
 Save the full output. Note the overall branch percentage.
@@ -157,7 +157,7 @@ Run the HTML or text report to locate files with uncovered branches:
 
 ```bash
 cargo +nightly llvm-cov report --doctests --branch \
-  --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs)' \
+  --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs|lsp\.rs|libaipm-engine-spec/build\.rs|libaipm-engine-spec/src/bin)' \
   --html --output-dir /tmp/gh-aw/agent/cov-html
 ```
 
@@ -190,7 +190,7 @@ cargo +nightly llvm-cov clean --workspace
 cargo +nightly llvm-cov --no-report --workspace --branch
 cargo +nightly llvm-cov --no-report --doc
 cargo +nightly llvm-cov report --doctests --branch \
-  --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs)'
+  --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs|lsp\.rs|libaipm-engine-spec/build\.rs|libaipm-engine-spec/src/bin)'
 ```
 
 Compare the before/after branch percentages.

@@ -104,6 +104,10 @@ jobs:
     env:
       CARGO_INCREMENTAL: 0
       CARGO_TERM_COLOR: always
+      # Single source of truth for both the lcov report and the gate below, so
+      # they cannot drift apart. Must stay in sync with the coverage command
+      # documented in CLAUDE.md, or local runs and CI measure different code.
+      COV_IGNORE_REGEX: '(tests/|research/|specs/|wizard_tty\.rs|lsp\.rs|libaipm-engine-spec/build\.rs|libaipm-engine-spec/src/bin)'
     steps:
       - uses: actions/checkout@v4
 
@@ -137,13 +141,13 @@ jobs:
       - name: Generate lcov report
         run: >
           cargo llvm-cov report --doctests --branch
-          --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs|lsp\.rs)'
+          --ignore-filename-regex "$COV_IGNORE_REGEX"
           --lcov --output-path lcov.info
 
       - name: Enforce 89% branch coverage (strict — never lower this threshold)
         run: |
           OUTPUT=$(cargo llvm-cov report --doctests --branch \
-            --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs|lsp\.rs)' 2>&1)
+            --ignore-filename-regex "$COV_IGNORE_REGEX" 2>&1)
           echo "$OUTPUT"
           BRANCH_PCT=$(echo "$OUTPUT" | grep '^TOTAL' | awk '{print $NF}' | tr -d '%')
           if [ -z "$BRANCH_PCT" ]; then
