@@ -1,5 +1,12 @@
 # Research Codebase — lean single-job workflow
 #
+# NOTE: This workflow is intentionally hand-written and is NOT managed by
+# `gh aw compile`. It replaced a compiled gh-aw workflow in #97. There is
+# deliberately no `research-codebase.md` source and no
+# `research-codebase.lock.yml`. Do not re-add them: `gh aw compile` would emit
+# a second workflow also named "Research Codebase", and both would fire on the
+# same `research` label. Edit this file directly.
+#
 # Triggers when the "research" label is applied to an issue.
 # Runs Copilot CLI to research the codebase, writes findings to research/docs/,
 # then posts the generated file as the issue body and relabels with "spec review".
