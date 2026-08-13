@@ -81,7 +81,7 @@ The repository uses [GitHub Agentic Workflows](https://githubnext.com/projects/a
 | `update-docs.md` | 45 min | On push to `main` | Updates docs on every merge |
 | `build-timings.md` | 45 min | Weekdays daily | Analyzes compilation bottlenecks |
 | `reverse-binary-analysis.md` | 120 min | Weekly | Downloads AI engine CLIs, extracts plugin API surface, updates `crates/libaipm-engine-spec/data/engine-api-schema.json`, opens PR when schema changes |
-| `research-codebase.md` | 30 min | On `research` label applied to issue | Runs Copilot CLI to research the codebase, posts findings as the issue body, and relabels with `spec review` |
+| `research-codebase.yml` *(hand-written)* | 30 min | On `research` label applied to issue | Runs Copilot CLI to research the codebase, posts findings as the issue body, and relabels with `spec review` |
 
 ### Why different timeouts?
 
@@ -100,6 +100,8 @@ gh aw compile <name>   # e.g. gh aw compile improve-coverage
 ```
 
 Commit both the `.md` source and the regenerated `.lock.yml` together. The compiled lock file is the canonical version GitHub Actions runs.
+
+> **Exception — `research-codebase.yml`**: This workflow is intentionally hand-written and is **not** managed by `gh aw compile`. It replaced a compiled gh-aw workflow in PR #97. There is deliberately **no** `research-codebase.md` source file and **no** `research-codebase.lock.yml`. Do **not** re-add them: `gh aw compile` would emit a second workflow also named "Research Codebase", causing both to fire on the same `research` label. Edit `research-codebase.yml` directly when changes are needed.
 
 ## Project Structure
 
