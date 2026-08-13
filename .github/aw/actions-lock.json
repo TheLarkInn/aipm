@@ -1,5 +1,10 @@
 {
   "entries": {
+    "Swatinem/rust-cache@v2": {
+      "repo": "Swatinem/rust-cache",
+      "version": "v2",
+      "sha": "6323deb102c322ba6fcbdcafc7e3dddab59af2b6"
+    },
     "actions/github-script@v8": {
       "repo": "actions/github-script",
       "version": "v8",
@@ -9,6 +14,21 @@
       "repo": "actions/github-script",
       "version": "v9",
       "sha": "3a2844b7e9c422d3c10d287c895573f7108da1b3"
+    },
+    "github/gh-aw-actions/setup-cli@v0.85.4": {
+      "repo": "github/gh-aw-actions/setup-cli",
+      "version": "v0.85.4",
+      "sha": "2709137ea6c5b0e19aa621454dc643ea8dc526b1"
+    },
+    "github/gh-aw-actions/setup@v0.85.4": {
+      "repo": "github/gh-aw-actions/setup",
+      "version": "v0.85.4",
+      "sha": "2709137ea6c5b0e19aa621454dc643ea8dc526b1"
+    },
+    "taiki-e/install-action@cargo-llvm-cov": {
+      "repo": "taiki-e/install-action",
+      "version": "cargo-llvm-cov",
+      "sha": "71129a29ff93836eb7a34fef63f19e3944f54953"
     }
   }
 }
