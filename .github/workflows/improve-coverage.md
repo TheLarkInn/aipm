@@ -43,6 +43,13 @@ safe-outputs:
     target: "*"
     required-title-prefix: "[coverage-improver]"
     if-no-changes: ignore
+  # Lets the workflow retire a coverage PR that can never merge (conflicting,
+  # or stuck with no checks) instead of no-op looping on it forever. Scoped by
+  # title prefix so it can only ever close this workflow's own PRs.
+  close-pull-request:
+    target: "*"
+    required-title-prefix: "[coverage-improver]"
+    max: 1
   noop:
     report-as-issue: false
 ---
@@ -76,8 +83,47 @@ Key rules:
 
 Search for an open pull request whose title contains `[coverage-improver]`.
 
-- If **an open PR is found**, go to **Step 2** (handle review comments).
+- If **an open PR is found**, go to **Step 1a** (check it can still merge).
 - If **no open PR is found**, go to **Step 5** (create a new PR).
+
+### 1a — Check the existing PR is still mergeable
+
+An open PR only justifies pausing new coverage work if it is actually
+capable of merging. Inspect it before doing anything else:
+
+```bash
+gh pr view <N> --json mergeable,mergeStateStatus,statusCheckRollup,updatedAt,url
+```
+
+Decide as follows, in order:
+
+1. **`mergeable` is `CONFLICTING`** (or `mergeStateStatus` is `DIRTY`) — the PR
+   can never auto-merge. Rebase the branch onto the current `main` and resolve
+   the conflicts, re-running the build, tests and clippy afterwards, then push
+   with `push-to-pull-request-branch`. If the branch it covers has since been
+   covered by another merged PR, or the conflicts are not worth resolving,
+   close it with the `close-pull-request` safe output and continue to
+   **Step 5** to open a fresh one. Do **not** call `noop`.
+
+2. **Checks are failing** (`statusCheckRollup` contains a `FAILURE`) and there
+   are no review comments explaining them — fix the failures and push. Do
+   **not** call `noop`.
+
+3. **There are no checks at all** and `updatedAt` is more than 24 hours ago —
+   treat the PR as stuck. Close it with the `close-pull-request` safe output
+   and continue to **Step 5**. Do **not** call `noop`.
+
+4. **`updatedAt` is more than 7 days ago** with no progress — close it with the
+   `close-pull-request` safe output and continue to **Step 5**.
+
+5. **Otherwise** the PR is healthy — go to **Step 2** (handle review comments).
+
+> **Why this step exists.** PR #887 sat `CONFLICTING` with auto-merge enabled
+> and zero checks from 2026-05-12 onward. Every scheduled run found it, saw no
+> review comments, emitted "Auto-merge will trigger once all checks pass", and
+> stopped — for weeks. Auto-merge could never trigger. Because a run that emits
+> only `noop` is classified as success, nothing ever alerted. Never `noop` on a
+> PR that cannot merge.
 
 ### 2 — Inspect for Copilot review comments
 
@@ -124,13 +170,25 @@ re-review if needed. The next scheduled run will pick up any new comments.
 
 ### 4 — Confirm the PR is ready
 
-If there are no actionable review comments on the existing PR:
+Only reach this step for a PR that passed the mergeability checks in **Step 1a**
+— that is, one that is not conflicting, has checks, and is not stale.
 
-1. Call the `noop` safe output with a message such as:
-   > "No outstanding review comments found on PR #N. Auto-merge will trigger once
-   > all checks pass."
+1. Re-confirm the PR is still mergeable and its checks are pending or passing,
+   not failing.
+2. Call the `noop` safe output with a message such as:
+   > "No outstanding review comments found on PR #N (mergeable, checks pending).
+   > Auto-merge will trigger once all checks pass."
+
+If the PR is *not* mergeable, do not `noop` — return to **Step 1a** and take the
+corrective action described there.
 
 **Stop** — do not run coverage analysis or create a new PR.
+
+> **Note on repeated no-ops.** A run that produces only `noop` is reported as a
+> success, so consecutive no-ops are invisible on the Actions dashboard. If you
+> observe that the same PR has been no-op'd repeatedly without its state
+> changing, treat that as a stuck PR and apply the **Step 1a** rules rather than
+> emitting another `noop`.
 
 ### 5 — Collect branch-level coverage
 
