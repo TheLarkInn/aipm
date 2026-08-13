@@ -13,6 +13,9 @@ env:
   CARGO_NET_RETRY: 10
   RUST_BACKTRACE: short
   LIBGIT2_SYS_USE_PKG_CONFIG: "1"
+  # Pinned so CI does not float to the latest gh-aw release. Bumping this is a
+  # deliberate change: update it, run `gh aw compile`, and commit the locks.
+  GH_AW_VERSION: v0.85.4
 
 jobs:
   ci:
@@ -47,6 +50,53 @@ jobs:
 
       - name: Format
         run: cargo fmt --check
+
+  aw-lock-drift:
+    name: Agentic workflow lock drift
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install gh-aw (pinned)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh extension install github/gh-aw --pin "$GH_AW_VERSION"
+
+      - name: Recompile agentic workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh aw compile
+
+      - name: Fail if lock files are out of date
+        run: |
+          if ! git diff --exit-code -- .github/workflows .github/aw .gitattributes; then
+            echo "::error::Agentic workflow lock files are out of date. Run 'gh aw compile' with gh-aw ${GH_AW_VERSION} and commit the result."
+            exit 1
+          fi
+
+      - name: Fail if compile produced untracked files
+        run: |
+          UNTRACKED=$(git ls-files --others --exclude-standard -- .github/workflows .github/aw)
+          if [ -n "$UNTRACKED" ]; then
+            echo "::error::'gh aw compile' produced untracked files. Either commit them or remove the orphaned source."
+            echo "$UNTRACKED"
+            exit 1
+          fi
+
+      - name: Fail if lock files disagree on compiler version
+        run: |
+          # head -qn1 reads the first line of *each* file; `sed -n '1p'` would
+          # treat them as one concatenated stream and only inspect the first.
+          VERSIONS=$(head -qn1 .github/workflows/*.lock.yml \
+            | grep -o '"compiler_version":"[^"]*"' \
+            | sort -u)
+          echo "$VERSIONS"
+          if [ "$(echo "$VERSIONS" | wc -l)" -ne 1 ]; then
+            echo "::error::Lock files were compiled with different gh-aw versions. Recompile them all with ${GH_AW_VERSION}."
+            exit 1
+          fi
 
   coverage:
     name: Coverage (89% branch gate)
