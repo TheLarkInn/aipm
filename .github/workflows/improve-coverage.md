@@ -46,7 +46,7 @@ safe-outputs:
     github-token: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN }}
   push-to-pull-request-branch:
     target: "*"
-    title-prefix: "[coverage-improver]"
+    required-title-prefix: "[coverage-improver]"
     if-no-changes: ignore
   noop:
     report-as-issue: false
@@ -163,8 +163,11 @@ Run the HTML or text report to locate files with uncovered branches:
 ```bash
 cargo +nightly llvm-cov report --doctests --branch \
   --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs)' \
-  --html --output-dir /tmp/cov-html
+  --html --output-dir /tmp/gh-aw/agent/cov-html
 ```
+
+Write the report under `/tmp/gh-aw/agent/` so it is uploaded
+as a run artifact and survives runner teardown.
 
 Pick **one** file and **one** uncovered branch. Prefer branches that are
 straightforward to test (e.g., error-handling paths, edge cases, boundary

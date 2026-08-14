@@ -36,7 +36,7 @@ safe-outputs:
       - "crates/libaipm-engine-spec/data/**"
   push-to-pull-request-branch:
     target: "*"
-    title-prefix: "[reverse-binary-analysis]"
+    required-title-prefix: "[reverse-binary-analysis]"
     if-no-changes: ignore
   noop:
     report-as-issue: false
@@ -106,23 +106,25 @@ meta-schema using a relative path (currently `../../../schemas/engine-api.schema
 
 ### 2 — Download each engine CLI
 
-For each engine in the configuration, install the package into a temporary directory:
+For each engine in the configuration, install the package into a temporary directory
+under `/tmp/gh-aw/agent/` so the intermediate output is uploaded as a run artifact
+and survives runner teardown:
 
 ```bash
-mkdir -p /tmp/rba-engines
-cd /tmp/rba-engines
+mkdir -p /tmp/gh-aw/agent/rba-engines
+cd /tmp/gh-aw/agent/rba-engines
 ```
 
 **npm engines** — install without running postinstall scripts to keep the sandbox clean:
 
 ```bash
-npm install --prefix /tmp/rba-engines/<engine-name> --ignore-scripts <npm-package>@latest
+npm install --prefix /tmp/gh-aw/agent/rba-engines/<engine-name> --ignore-scripts <npm-package>@latest
 ```
 
 After installation, capture the installed version:
 
 ```bash
-npm list --prefix /tmp/rba-engines/<engine-name> --depth 0 --json 2>/dev/null \
+npm list --prefix /tmp/gh-aw/agent/rba-engines/<engine-name> --depth 0 --json 2>/dev/null \
   | jq -r '.dependencies | to_entries[0].value.version'
 ```
 
@@ -133,7 +135,7 @@ If a download fails, log the error in the changelog and skip that engine for thi
 For each installed package, find the main entry file and any bundled/minified JS files:
 
 ```bash
-find /tmp/rba-engines/<engine-name>/node_modules/<package-path> \
+find /tmp/gh-aw/agent/rba-engines/<engine-name>/node_modules/<package-path> \
   -name "*.js" -not -path "*/node_modules/*/node_modules/*" \
   | head -50
 ```
