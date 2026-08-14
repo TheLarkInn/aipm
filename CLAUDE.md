@@ -109,7 +109,7 @@ Commit both the `.md` source and the regenerated `.lock.yml` together. The compi
 
 #### Keep every lock file on the same compiler version
 
-**All lock files must be compiled with the same `gh aw` version.** The repository is currently on **`v0.85.4`**; check yours with `gh aw version` and upgrade with `gh extension upgrade gh-aw` before recompiling.
+**All lock files must be compiled with the same `gh aw` version.** The repository is currently on **`v0.86.2`**; check yours with `gh aw version` and upgrade with `gh extension upgrade gh-aw` before recompiling.
 
 Recompiling a single workflow with a newer extension than the others introduces *compiler version skew*. Each lock file embeds a pinned [`gh-aw-firewall`](https://github.com/githubnext/gh-aw-firewall) (AWF) release, so a skewed lock ends up on a different AWF pin than its siblings. Upstream deletes old AWF releases, and when that happens the `Install AWF binary` step dies with `curl: (22) ... 404` and the workflow fails 100% of the time — which is exactly how `reverse-binary-analysis` (pinned to the deleted `v0.25.28`) silently failed every week for over two months ([#1388](https://github.com/TheLarkInn/aipm/issues/1388)).
 
