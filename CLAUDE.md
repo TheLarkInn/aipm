@@ -125,6 +125,15 @@ That must print exactly one version, and it must resolve upstream:
 gh api repos/githubnext/gh-aw-firewall/releases/tags/<version> --jq .tag_name
 ```
 
+#### Compiler-emitted repo files: `.gitattributes` and `agentics-maintenance.yml`
+
+Recompiling also rewrites two repo-level files. Both states below are **deliberate** (decided in [#1392](https://github.com/TheLarkInn/aipm/issues/1392), landed in [#1427](https://github.com/TheLarkInn/aipm/pull/1427)) — do not "fix" them:
+
+- **`.gitattributes`** marks `.github/workflows/*.lock.yml` as `linguist-generated=true` and deliberately **does not** use `merge=ours`. Silently resolving lock conflicts to the local side is exactly how locks rot out of sync with their `.md` sources; conflicts must stay loud and be resolved by recompiling. (`merge=ours` also no-ops unless every contributor configures the `ours` driver locally.) The compiler rewrites this file — if a recompile drops `merge=ours` again, that is expected; keep it dropped.
+- **`.github/workflows/agentics-maintenance.yml`** is a compiler-generated maintenance workflow (daily at 00:37 UTC plus `workflow_dispatch`) that closes expired safe-output issues/PRs, cleans cache memories, and applies maintenance operations. Top-level `permissions: {}` with least-privilege per-job writes (`issues`, `pull-requests`, `actions`, `contents`), default `GITHUB_TOKEN` only, pinned action SHAs, and every scheduled job is fork-guarded. It must stay committed — if it is missing, `gh aw compile` emits it as an untracked file. To suppress generation, set `{"maintenance": false}` in `.github/workflows/aw.json`.
+
+A bare `gh aw compile` on a clean tree must produce **no** diff and **no** untracked files; if it does, either commit the regenerated files or treat it as drift to investigate.
+
 ## Project Structure
 
 - `Cargo.toml` — workspace root, lint configuration
