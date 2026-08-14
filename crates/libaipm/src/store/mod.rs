@@ -507,6 +507,40 @@ mod tests {
         }
     }
 
+    /// Covers the error-propagation branch of `collect_files`'s recursive
+    /// call (line 235's `?`): when a nested subdirectory becomes unreadable,
+    /// `store_package` must propagate the I/O error raised deep in the
+    /// recursion instead of silently succeeding.
+    #[cfg(unix)]
+    #[test]
+    fn store_package_errors_when_nested_dir_is_unreadable() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let (_tmp, store) = make_store();
+        let pkg_dir = tempfile::tempdir().unwrap();
+
+        let nested = pkg_dir.path().join("locked");
+        std::fs::create_dir_all(&nested).unwrap();
+        std::fs::write(nested.join("inner.txt"), b"inner file").unwrap();
+
+        // Strip read+execute permissions so `read_dir` on the nested
+        // directory fails during the recursive `collect_files` call.
+        let mut perms = std::fs::metadata(&nested).unwrap().permissions();
+        perms.set_mode(0o000);
+        std::fs::set_permissions(&nested, perms.clone()).unwrap();
+
+        let result = store.store_package(pkg_dir.path());
+
+        // Restore permissions so the tempdir can be cleaned up.
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&nested, perms).unwrap();
+
+        assert!(
+            result.is_err(),
+            "expected store_package to propagate the recursive read_dir error"
+        );
+    }
+
     #[test]
     fn is_cross_device_false_for_regular_error() {
         // A regular permission denied error is not a cross-device error
