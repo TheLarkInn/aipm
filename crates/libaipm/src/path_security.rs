@@ -131,6 +131,12 @@ mod tests {
     }
 
     #[test]
+    fn validate_path_null_byte() {
+        let result = validate_plugin_path("foo/bar\0baz");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
+    #[test]
     fn validate_path_traversal_encoded() {
         let result = validate_plugin_path("foo/%2e%2e/bar");
         assert!(matches!(result, Err(PathValidationError::PathTraversal)));
