@@ -149,4 +149,19 @@ mod tests {
         let result = find_marketplace(Path::new("/"), &fs);
         assert!(result.is_err());
     }
+
+    /// Exercises the `MockFs` trait methods not touched by
+    /// `find_marketplace` itself (which only calls `exists`). Covers the
+    /// stub branches for `create_dir_all`, `write_file`, `read_to_string`,
+    /// and `read_dir`.
+    #[test]
+    fn mock_fs_stub_methods_behave_as_documented() {
+        let fs = MockFs::new();
+        let dir = Path::new("/project/.ai");
+
+        assert!(fs.create_dir_all(dir).is_ok());
+        assert!(fs.write_file(&dir.join("marketplace.json"), b"{}").is_ok());
+        assert!(fs.read_to_string(&dir.join("marketplace.json")).is_err());
+        assert!(fs.read_dir(dir).unwrap_or_default().is_empty());
+    }
 }
