@@ -39,6 +39,11 @@ safe-outputs:
     max: 1
     draft: false
     auto-merge: true
+    # Use the PAT (not the default GITHUB_TOKEN) to create the PR and enable
+    # auto-merge, so the resulting merge commit on main emits a real `push`
+    # event and triggers CI / Update Docs. Merges made with GITHUB_TOKEN have
+    # their events suppressed by GitHub.
+    github-token: ${{ secrets.GH_AW_CI_TRIGGER_TOKEN }}
   push-to-pull-request-branch:
     target: "*"
     title-prefix: "[coverage-improver]"
