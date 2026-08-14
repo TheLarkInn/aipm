@@ -174,6 +174,41 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unreadable_manifest() {
+        // Exercises the `Err(e)` branch of `fs.read_to_string()` in
+        // `find_workspace_root` (lines 52-58): the manifest path exists
+        // (per `fs.exists`) but reading it fails. This is distinct from
+        // `find_root_skips_invalid_toml`, which covers the *parse* failure
+        // branch (a readable-but-malformed manifest).
+        struct ExistsButUnreadableFs;
+
+        impl crate::fs::Fs for ExistsButUnreadableFs {
+            fn exists(&self, _: &Path) -> bool {
+                true
+            }
+
+            fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+                Ok(())
+            }
+
+            fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+                Ok(())
+            }
+
+            fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+                Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"))
+            }
+
+            fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+                Ok(Vec::new())
+            }
+        }
+
+        let result = find_workspace_root(&ExistsButUnreadableFs, Path::new("/"));
+        assert!(result.is_none(), "unreadable manifest should be skipped, got: {result:?}");
+    }
+
+    #[test]
     fn find_root_from_root_itself() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
