@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.25.1] - 2026-08-14
+
+### Documentation
+- Update CHANGELOG and README for v0.25.0 ([#884](https://github.com/TheLarkInn/aipm/pull/884)) (80bd042)
+
 ## [0.25.0] - 2026-05-11
 
 ### Documentation

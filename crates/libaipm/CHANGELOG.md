@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.25.1] - 2026-08-14
+
+### Documentation
+- Update CHANGELOG and README for v0.25.0 ([#884](https://github.com/TheLarkInn/aipm/pull/884)) (80bd042)
+
+### Testing
+- Cover package-only manifest in compare_and_warn (e865eab)
+- Cover scaffold_marketplace ai_existed=true with no_starter=false branch (4809d41)
+- Cover compare_and_warn matching-engines guard branch (3a3d6d3)
+
 ## [0.25.0] - 2026-05-11
 
 ### Documentation
