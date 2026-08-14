@@ -9,6 +9,8 @@
 
 use std::collections::BTreeMap;
 
+pub mod strict;
+
 /// Parsed frontmatter from a markdown file.
 #[derive(Debug, Clone, Default)]
 pub struct Frontmatter {

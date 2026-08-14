@@ -490,8 +490,11 @@ mod tests {
         assert!(index.contains_key("source/misplaced-features"));
         assert!(index.contains_key("instructions/oversized"));
         assert!(index.contains_key("valid-tool-name"));
-        // 19 rules total (18 quality rules + source/misplaced-features)
-        assert_eq!(index.len(), 19);
+        assert!(index.contains_key("skill/invalid-frontmatter"));
+        assert!(index.contains_key("skill/name-not-kebab-case"));
+        assert!(index.contains_key("skill/description-invalid-chars"));
+        // 22 rules total (21 quality rules + source/misplaced-features)
+        assert_eq!(index.len(), 22);
     }
 
     #[test]

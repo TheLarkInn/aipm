@@ -39,11 +39,14 @@ Quality rules enforced by `aipm lint`:
 
 | Rule | Default | Description |
 |------|---------|-------------|
+| [invalid-frontmatter](rules/skill/invalid-frontmatter.md) | error | Frontmatter delimiters, YAML syntax, root shape, or field types are invalid |
 | [missing-name](rules/skill/missing-name.md) | warn | Skill has no `name` in frontmatter |
-| [missing-description](rules/skill/missing-description.md) | warn | Skill has no `description` in frontmatter |
+| [missing-description](rules/skill/missing-description.md) | warn | Skill has no `description` in frontmatter, or it is empty |
 | [name-invalid-chars](rules/skill/name-invalid-chars.md) | warn | Skill name contains disallowed characters |
+| [name-not-kebab-case](rules/skill/name-not-kebab-case.md) | warn | Skill name is not lowercase kebab-case |
 | [name-too-long](rules/skill/name-too-long.md) | warn | Skill name exceeds the maximum length |
 | [description-too-long](rules/skill/description-too-long.md) | warn | Skill description exceeds the maximum length |
+| [description-invalid-chars](rules/skill/description-invalid-chars.md) | warn | Skill description contains `<` or `>` (Copilot only) |
 | [invalid-shell](rules/skill/invalid-shell.md) | error | Skill references an unrecognized shell |
 | [oversized](rules/skill/oversized.md) | warn | Skill file exceeds the recommended size |
 

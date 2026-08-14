@@ -657,7 +657,7 @@ The following features are defined as BDD scenarios and tracked as open issues. 
 
 ### Quality & Portability
 
-- 🔨 **Guardrails** — `aipm lint` with 19 rules and 4 reporters ships today (see [`docs/guides/lint.md`](docs/guides/lint.md)); auto-fix and quality scoring on publish are not yet implemented ([#13](https://github.com/TheLarkInn/aipm/issues/13))
+- 🔨 **Guardrails** — `aipm lint` with 22 rules and 4 reporters ships today (see [`docs/guides/lint.md`](docs/guides/lint.md)); auto-fix and quality scoring on publish are not yet implemented ([#13](https://github.com/TheLarkInn/aipm/issues/13))
 - 🔨 **Compositional Reuse** — spec, acquirer, and marketplace modules ship; full publish/consume workflow for standalone primitives pending ([#14](https://github.com/TheLarkInn/aipm/issues/14))
 - 🔨 **Cross-Stack** — Claude Code and Copilot CLI adaptors ship today; Cursor and OpenCode adaptors planned ([#15](https://github.com/TheLarkInn/aipm/issues/15))
 

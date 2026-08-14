@@ -5,6 +5,8 @@
 
 Checks that the `description` field in SKILL.md frontmatter is no longer than 1 024 characters. This limit is derived from the Copilot CLI Zod schema (`z.string().max(1024)`). Very long descriptions are truncated in `aipm list` output and plugin marketplace listings.
 
+The limit counts **Unicode code points**, not bytes, and the value is measured **after** YAML parsing — a folded (`>`) or literal (`|`) block scalar is measured by the string the engine actually receives, not by its source text.
+
 ## Examples
 
 ### Incorrect
@@ -29,6 +31,7 @@ Shorten the description to 1 024 characters or fewer. Keep it to one or two sent
 ## See also
 
 - [skill/missing-description](missing-description.md) — validates that a `description` field is present
+- [skill/description-invalid-chars](description-invalid-chars.md) — rejects `<` and `>` in Copilot-targeted descriptions
 - [skill/name-too-long](name-too-long.md) — validates the name length limit
 - [Creating a plugin](../../guides/creating-a-plugin.md) — how to scaffold a new plugin with all required frontmatter
 - [Using `aipm lint`](../../guides/lint.md) — CLI reference for running the lint system

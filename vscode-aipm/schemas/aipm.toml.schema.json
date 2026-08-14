@@ -36,7 +36,7 @@
             }
           },
           "patternProperties": {
-            "^(skill/missing-name|skill/missing-description|skill/oversized|skill/name-too-long|skill/name-invalid-chars|skill/description-too-long|skill/invalid-shell|plugin/broken-paths|agent/missing-tools|hook/unknown-event|hook/legacy-event-name|source/misplaced-features|marketplace/source-resolve|marketplace/plugin-field-mismatch|plugin/missing-registration|plugin/missing-manifest|plugin/required-fields)$": {
+            "^(skill/missing-name|skill/missing-description|skill/oversized|skill/name-too-long|skill/name-invalid-chars|skill/name-not-kebab-case|skill/description-too-long|skill/description-invalid-chars|skill/invalid-frontmatter|skill/invalid-shell|plugin/broken-paths|agent/missing-tools|hook/unknown-event|hook/legacy-event-name|source/misplaced-features|marketplace/source-resolve|marketplace/plugin-field-mismatch|plugin/missing-registration|plugin/missing-manifest|plugin/required-fields)$": {
               "description": "Override the severity of a lint rule, or suppress it entirely.",
               "oneOf": [
                 {

@@ -42,6 +42,9 @@ serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 toml = "0.8"
 toml_edit = "0.22"
+# YAML — pure-Rust parser (no `unsafe` C bindings) used to strictly validate
+# markdown frontmatter blocks.
+yaml-rust2 = "0.11"
 
 # Semver
 semver = { version = "1", features = ["serde"] }

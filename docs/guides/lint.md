@@ -329,11 +329,14 @@ All available rules, grouped by category:
 
 | Rule | Severity | Description |
 |------|----------|-------------|
+| [`skill/description-invalid-chars`](../rules/skill/description-invalid-chars.md) | warning | `description` contains `<` or `>` (Copilot-targeted skills only) |
 | [`skill/description-too-long`](../rules/skill/description-too-long.md) | warning | `description` frontmatter value exceeds the length limit |
+| [`skill/invalid-frontmatter`](../rules/skill/invalid-frontmatter.md) | error | Frontmatter delimiters, YAML syntax, root shape, or `name`/`description` types are invalid |
 | [`skill/invalid-shell`](../rules/skill/invalid-shell.md) | error | `shell` frontmatter value is not a recognised shell |
-| [`skill/missing-description`](../rules/skill/missing-description.md) | warning | SKILL.md is missing a `description` field in frontmatter |
+| [`skill/missing-description`](../rules/skill/missing-description.md) | warning | SKILL.md is missing a `description` field in frontmatter, or it is empty |
 | [`skill/missing-name`](../rules/skill/missing-name.md) | warning | SKILL.md is missing a `name` field in frontmatter |
 | [`skill/name-invalid-chars`](../rules/skill/name-invalid-chars.md) | warning | Skill `name` contains characters that are not allowed |
+| [`skill/name-not-kebab-case`](../rules/skill/name-not-kebab-case.md) | warning | Skill `name` is not lowercase kebab-case |
 | [`skill/name-too-long`](../rules/skill/name-too-long.md) | warning | Skill `name` exceeds the maximum length |
 | [`skill/oversized`](../rules/skill/oversized.md) | warning | SKILL.md file exceeds the recommended size limit |
 

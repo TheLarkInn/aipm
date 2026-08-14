@@ -36,7 +36,27 @@ impl Rule for MissingDescription {
             return Ok(vec![]);
         };
         let diag = match skill.frontmatter {
-            Some(ref fm) if fm.fields.contains_key("description") => return Ok(vec![]),
+            Some(ref fm) if fm.fields.contains_key("description") => {
+                // Present but blank is as useless to the engine as absent: the
+                // description is what drives skill selection.
+                if skill.field("description").is_some_and(|d| d.trim().is_empty()) {
+                    let line = fm.field_lines.get("description").copied().unwrap_or(fm.start_line);
+                    return Ok(vec![Diagnostic {
+                        rule_id: self.id().to_string(),
+                        severity: self.default_severity(),
+                        message: "SKILL.md field \"description\" is empty".to_string(),
+                        file_path: skill.path,
+                        line: Some(line),
+                        col: Some(1),
+                        end_line: Some(line),
+                        end_col: Some(12),
+                        source_type,
+                        help_text: None,
+                        help_url: None,
+                    }]);
+                }
+                return Ok(vec![]);
+            },
             Some(ref fm) => Diagnostic {
                 rule_id: self.id().to_string(),
                 severity: self.default_severity(),
