@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Automation
+
+- **Stale bot-PR policy** — new scheduled `stale-bot-prs` workflow closes bot-authored PRs (coverage-improver, docs-updater) that sit idle: warned and labeled `stale` after 14 days of inactivity, auto-closed 7 days later unless there is new activity. Apply the `keep-open` label to exempt a PR. Implements the policy decision from [#1396](https://github.com/TheLarkInn/aipm/issues/1396).
+
+### Documentation
+
+- Document `aipm migrate --no-summary` and the default stderr scan summary in `docs/guides/migrating-existing-configs.md`, and add the v0.25.0 note on the withdrawn `<engine>-instructions.md` classifier to `docs/guides/lint.md` (ported from the stale bot PR [#882](https://github.com/TheLarkInn/aipm/pull/882)).
+- Fix `instructions/oversized` docs to describe filename-only classification of `copilot-instructions.md` (the rule is not limited to `.github/`) in `docs/guides/lint.md` and `docs/rules/instructions/oversized.md` (ported from the stale bot PR [#891](https://github.com/TheLarkInn/aipm/pull/891)).
+
 ## [0.25.0] - 2026-05-11
 
 ### Features
