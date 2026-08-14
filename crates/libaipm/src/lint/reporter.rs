@@ -681,6 +681,24 @@ mod tests {
     }
 
     #[test]
+    fn json_reporter_multiple_sources_scanned_joins_with_comma() {
+        // With more than one entry in `sources_scanned`, the `i > 0` branch
+        // must be true at least once so subsequent entries are joined with
+        // ", " instead of being written bare.
+        let outcome = Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![".claude".to_string(), ".ai".to_string(), "custom".to_string()],
+            ..Outcome::default()
+        };
+        let mut buf = Vec::new();
+        Json.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("\"sources_scanned\": [\".claude\", \".ai\", \"custom\"]"));
+    }
+
+    #[test]
     fn json_reporter_empty() {
         let outcome = Outcome {
             diagnostics: vec![],
