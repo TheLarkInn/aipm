@@ -232,6 +232,20 @@ mod tests {
     }
 
     #[test]
+    fn read_error_propagates_as_io_error() {
+        // lsp.json exists (per fs.exists) but is absent from fs.files, so
+        // MockFs::read_to_string returns an I/O `NotFound` error which must
+        // propagate through the `?` operator in `detect`.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.github/lsp.json"));
+
+        let detector = CopilotLspDetector;
+        let result = detector.detect(Path::new("/project/.github"), &fs);
+        assert!(result.is_err());
+        assert!(result.err().is_some_and(|e| matches!(e, Error::Io(_))));
+    }
+
+    #[test]
     fn multiple_lsp_servers_counted() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.github/lsp.json"));
