@@ -169,6 +169,21 @@ mod tests {
     }
 
     #[test]
+    fn open_fails_when_parent_creation_errors() {
+        // Create a regular file, then try to open a "nested" path underneath
+        // it. `create_dir_all` cannot create a directory where a file already
+        // exists, so it returns an I/O error — exercising the mkdir error
+        // branch in `LockedFile::open`.
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let blocker = temp.path().join("blocker");
+        std::fs::write(&blocker, b"not a dir").unwrap_or_else(|_| {});
+
+        let nested = blocker.join("child").join("data.json");
+        let result = LockedFile::open(&nested);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn open_path_with_no_parent_skips_mkdir_and_fails() {
         // Path::new("/").parent() returns None, so the `if let Some(parent)` branch
         // is skipped entirely.  Opening "/" as a regular file then fails because it
