@@ -393,7 +393,7 @@ File types that receive diagnostics and completions:
 | `**/GEMINI.md` | Gemini instruction file |
 | `**/INSTRUCTIONS.md` | Generic instruction file |
 | `**/*.instructions.md` | Scoped instruction files (e.g. `frontend.instructions.md`) |
-| `**/copilot-instructions.md` | GitHub Copilot repository-level instructions |
+| `**/.github/copilot-instructions.md` | GitHub Copilot repository-level instructions |
 
 ### Configuration
 
