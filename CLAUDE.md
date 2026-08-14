@@ -91,6 +91,12 @@ Most maintenance workflows are capped at **45 minutes**: the full agent cycle (n
 
 **Do not lower these timeouts.** If a workflow still times out, investigate the agent logic — do not reduce the limit.
 
+### Bot merges and push events
+
+`improve-coverage` enables auto-merge on its PRs using the `GH_AW_CI_TRIGGER_TOKEN` PAT (via `safe-outputs.create-pull-request.github-token`), so merge commits on `main` are attributed to a real user and emit `push` events that trigger `ci.yml` and `update-docs`. Merges made with the default `GITHUB_TOKEN` have their events suppressed by GitHub — this silently disabled post-merge CI for ~3 months ([#1387](https://github.com/TheLarkInn/aipm/issues/1387)).
+
+The manual `ci: trigger checks` empty-commit workaround is **obsolete** — do not push empty commits to trigger CI on `main`. If post-merge CI stops running again, check which token enabled auto-merge on the merged PR.
+
 ### Modifying workflow files
 
 After editing any `.github/workflows/<name>.md`, recompile its lock file:
