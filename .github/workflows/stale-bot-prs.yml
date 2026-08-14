@@ -1,0 +1,86 @@
+name: Stale bot PRs
+
+# Stale-PR policy for bot-authored PRs, adopted per #1396.
+#
+# Open PRs authored by automation (agentic workflow output from coverage-improver,
+# docs-updater, update-docs, etc.) are closed after 30 days of inactivity, with a
+# comment stating the reason. Human-authored PRs are never touched.
+#
+# Rationale: four bot PRs sat open for ~3 months and one of them (#887) livelocked
+# the Coverage Improver (#1386) while every no-op run reported success. Closing stale
+# bot PRs keeps the queue actionable; the originating workflow can always open a
+# fresh PR against current main.
+#
+# This is deliberately a plain deterministic workflow (gh CLI only, no external
+# action pins) rather than an agentic gh-aw workflow: closing stale PRs needs no
+# model judgment, and external pins rot (see #1388).
+
+on:
+  schedule:
+    - cron: "23 5 * * *" # daily
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Report stale bot PRs without closing them"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  pull-requests: write
+  issues: write # PR comments use the issues API
+
+env:
+  STALE_DAYS: 30
+
+jobs:
+  close-stale-bot-prs:
+    name: Close stale bot-authored PRs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment on and close stale bot PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ github.event.inputs.dry-run || 'false' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          cutoff=$(date -u -d "-${STALE_DAYS} days" +%Y-%m-%dT%H:%M:%SZ)
+          echo "Inactivity cutoff (updatedAt older than): $cutoff"
+          echo "Dry run: $DRY_RUN"
+
+          # gh reports App-authored actors as "app/<slug>"; match both forms.
+          stale=$(gh pr list --repo "${{ github.repository }}" --state open --limit 200 \
+            --json number,title,updatedAt,author \
+            --jq ".[] | select(.author.login == \"app/github-actions\" or .author.login == \"github-actions[bot]\" or .author.login == \"app/copilot-swe-agent\" or .author.login == \"copilot[bot]\") | select(.updatedAt < \"$cutoff\") | .number")
+
+          if [ -z "$stale" ]; then
+            echo "No stale bot-authored PRs found."
+            echo "No stale bot-authored PRs found." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          for n in $stale; do
+            echo "::group::PR #$n"
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "Would close PR #$n (dry run)"
+            else
+              comment=$(printf 'Closing as stale, per the stale-PR policy for bot-authored PRs adopted in #1396: bot-authored PRs with no activity for %s days are closed automatically (%s).\n\nIf this change is still relevant, rebase the branch onto `main` and reopen, or let the originating workflow open a fresh PR against current `main`.' "$STALE_DAYS" "$RUN_URL")
+              gh pr close "$n" --comment "$comment"
+              echo "Closed PR #$n"
+            fi
+            echo "::endgroup::"
+          done
+
+          {
+            echo "## Stale bot PRs"
+            echo
+            for n in $stale; do
+              if [ "$DRY_RUN" = "true" ]; then
+                echo "- #$n — would close (dry run)"
+              else
+                echo "- #$n — closed"
+              fi
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
