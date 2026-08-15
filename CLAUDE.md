@@ -125,6 +125,13 @@ That must print exactly one version, and it must resolve upstream:
 gh api repos/githubnext/gh-aw-firewall/releases/tags/<version> --jq .tag_name
 ```
 
+#### Compiler-managed side files
+
+`gh aw compile` also rewrites two files beyond the `*.lock.yml` outputs. Both states below are **deliberate decisions** ([#1392](https://github.com/TheLarkInn/aipm/issues/1392)) — do not "fix" them:
+
+- **`.gitattributes` contains only `linguist-generated=true` — no `merge=ours`.** The v0.86.x compiler drops the `merge=ours` driver when it rewrites the file, and we accept that removal: `merge=ours` on generated files silently resolves lock-file merge conflicts to the local side instead of forcing a recompile, which is exactly how locks rot out of sync with their `.md` sources. It also does nothing unless every contributor configures the `ours` merge driver locally. There is no supported pin to make the compiler preserve it, so restoring it would re-break on every compile.
+- **`agentics-maintenance.yml` is adopted, not hand-written and not suppressed.** The compiler emits it unconditionally in v0.86.x. Reviewed posture: top-level `permissions: {}` (deny-all default), per-job least-privilege writes, `!fork` guards, `ubuntu-slim` runners, default `GITHUB_TOKEN` only (no PATs/secrets). Its daily schedule (`37 0 * * *`) only closes *expired* safe outputs — a no-op until a workflow uses `expires:` — and its `workflow_dispatch` operations (`validate`, `forecast`, `activity_report`, `safe_outputs` replay, …) are the supported maintenance tooling. To suppress it, set `{"maintenance": false}` in `.github/workflows/aw.json` — but then you lose the manual ops, so don't.
+
 ## Project Structure
 
 - `Cargo.toml` — workspace root, lint configuration
