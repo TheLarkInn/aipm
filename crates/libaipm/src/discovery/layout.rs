@@ -560,6 +560,17 @@ mod tests {
         assert!(match_hook(&path, DiscoverySource::CLAUDE, &root).is_none());
     }
 
+    #[test]
+    fn hook_root_named_hooks_both_conditions_true() {
+        // Exercises the case where `parent_is_root` and `parent_is_hooks` are
+        // BOTH true: the source_root itself happens to be named "hooks", so
+        // hooks.json's parent is simultaneously the root and named "hooks".
+        let root = PathBuf::from("/repo/hooks");
+        let path = PathBuf::from("/repo/hooks/hooks.json");
+        let feat = match_hook(&path, DiscoverySource::CLAUDE, &root).expect("should match");
+        assert_eq!(feat.kind, FeatureKind::Hook);
+    }
+
     // --- match_plugin (aipm.toml) ---
 
     #[test]
