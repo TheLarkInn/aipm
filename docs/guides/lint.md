@@ -341,7 +341,14 @@ All available rules, grouped by category:
 
 | Rule | Severity | Description |
 |------|----------|-------------|
-| [`instructions/oversized`](../rules/instructions/oversized.md) | warning | Instruction file (`CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, `*.instructions.md`, `.github/copilot-instructions.md`) exceeds the configured line or character limit |
+| [`instructions/oversized`](../rules/instructions/oversized.md) | warning | Instruction file (`CLAUDE.md`, `AGENTS.md`, `COPILOT.md`, `GEMINI.md`, `INSTRUCTIONS.md`, `copilot-instructions.md`, `*.instructions.md`) exceeds the configured line or character limit |
+
+> **Note (v0.25.0+):** Files named `claude-instructions.md`, `agents-instructions.md`, or
+> `gemini-instructions.md` are **no longer classified** as instruction files. Engine
+> documentation verification confirmed that no AI runtime reads files with those names
+> (the lone real name `copilot-instructions.md` is preserved). If you were relying on the
+> old pattern, rename the file to use the canonical name (`CLAUDE.md`, `AGENTS.md`, etc.)
+> or the `*.instructions.md` suffix.
 
 ### `source/`
 
@@ -386,7 +393,7 @@ File types that receive diagnostics and completions:
 | `**/GEMINI.md` | Gemini instruction file |
 | `**/INSTRUCTIONS.md` | Generic instruction file |
 | `**/*.instructions.md` | Scoped instruction files (e.g. `frontend.instructions.md`) |
-| `.github/copilot-instructions.md` | GitHub Copilot repository-level instructions |
+| `**/copilot-instructions.md` | GitHub Copilot repository-level instructions |
 
 ### Configuration
 

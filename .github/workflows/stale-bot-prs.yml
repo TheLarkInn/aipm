@@ -1,0 +1,105 @@
+name: Stale Bot PRs
+
+# Auto-closes bot-authored PRs (coverage-improver, docs-updater, update-docs,
+# Copilot agent output, etc.) that sit inactive, so they cannot accumulate or
+# livelock the workflows that own them — four bot PRs sat open for ~3 months
+# and one of them (#887) livelocked the Coverage Improver (#1386).
+# See https://github.com/TheLarkInn/aipm/issues/1396.
+#
+# Policy:
+#   - A bot PR idle for STALE_DAYS is labeled `stale` and warned via comment.
+#   - If no activity happens within CLOSE_AFTER_STALE_DAYS of that warning,
+#     the PR is closed (it can always be reopened, or the originating
+#     workflow can open a fresh PR against current `main`).
+#   - Any human activity (comment, push, review) resets the idle clock.
+#   - PRs labeled `keep-open` are exempt.
+#
+# This is deliberately a plain deterministic workflow (gh CLI only, no
+# external action pins) rather than an agentic gh-aw workflow: closing stale
+# PRs needs no model judgment, and external pins rot (see #1388).
+
+on:
+  schedule:
+    - cron: "17 4 * * *" # daily at 04:17 UTC
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Report stale bot PRs without labeling, commenting, or closing"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  issues: write # PR comments go through the issues API
+  pull-requests: write
+
+env:
+  STALE_DAYS: "14"
+  CLOSE_AFTER_STALE_DAYS: "7"
+  STALE_LABEL: "stale"
+  EXEMPT_LABEL: "keep-open"
+
+jobs:
+  sweep:
+    name: Close stale bot-authored PRs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Mark and close stale bot PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRY_RUN: ${{ github.event.inputs.dry-run || 'false' }}
+        run: |
+          set -euo pipefail
+
+          if [ "$DRY_RUN" != "true" ]; then
+            gh label create "$STALE_LABEL" --repo "$GITHUB_REPOSITORY" \
+              --description "Inactive bot-authored PR; will be auto-closed without activity" \
+              --color ededed --force
+          fi
+
+          now=$(date +%s)
+
+          # gh reports App-authored actors as "app/<slug>"; cover the GitHub
+          # Actions app plus Copilot agent identities.
+          gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 200 \
+            --json number,title,updatedAt,labels,author \
+            --jq '.[] | select(.author.login == "app/github-actions" or .author.login == "github-actions[bot]" or .author.login == "app/copilot-swe-agent" or .author.login == "copilot[bot]")' |
+            jq -c '.' |
+            while read -r pr; do
+              number=$(jq -r '.number' <<<"$pr")
+              title=$(jq -r '.title' <<<"$pr")
+              updated=$(date -d "$(jq -r '.updatedAt' <<<"$pr")" +%s)
+              idle_days=$(( (now - updated) / 86400 ))
+              labels=$(jq -r '[.labels[].name] | join(",")' <<<"$pr")
+
+              if [[ ",$labels," == *",$EXEMPT_LABEL,"* ]]; then
+                echo "PR #$number ($title): exempt via '$EXEMPT_LABEL' label — skipping"
+                continue
+              fi
+
+              if [[ ",$labels," == *",$STALE_LABEL,"* ]]; then
+                if (( idle_days >= CLOSE_AFTER_STALE_DAYS )); then
+                  if [ "$DRY_RUN" = "true" ]; then
+                    echo "PR #$number ($title): would close (marked stale ${idle_days}d ago, dry run)"
+                  else
+                    echo "PR #$number ($title): no activity for ${idle_days}d since stale warning — closing"
+                    gh pr close "$number" --repo "$GITHUB_REPOSITORY" \
+                      --comment "Auto-closed: this bot-authored PR was marked stale ${CLOSE_AFTER_STALE_DAYS}+ days ago and saw no activity since. If the change is still needed, the owning workflow will open a fresh PR; otherwise reopen with a comment explaining why. See https://github.com/TheLarkInn/aipm/issues/1396 for the policy."
+                  fi
+                else
+                  echo "PR #$number ($title): marked stale, last activity ${idle_days}d ago — grace period"
+                fi
+              elif (( idle_days >= STALE_DAYS )); then
+                if [ "$DRY_RUN" = "true" ]; then
+                  echo "PR #$number ($title): would mark stale (idle ${idle_days}d, dry run)"
+                else
+                  echo "PR #$number ($title): idle for ${idle_days}d — marking stale"
+                  gh pr edit "$number" --repo "$GITHUB_REPOSITORY" --add-label "$STALE_LABEL"
+                  gh pr comment "$number" --repo "$GITHUB_REPOSITORY" \
+                    --body "This bot-authored PR has had no activity for ${STALE_DAYS}+ days and has been marked \`stale\`. It will be auto-closed in ${CLOSE_AFTER_STALE_DAYS} days unless there is new activity. Maintainers: comment, push, or apply the \`${EXEMPT_LABEL}\` label to keep it open. See https://github.com/TheLarkInn/aipm/issues/1396 for the policy."
+                fi
+              else
+                echo "PR #$number ($title): idle ${idle_days}d (< ${STALE_DAYS}d) — active"
+              fi
+            done
