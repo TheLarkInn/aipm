@@ -125,6 +125,15 @@ That must print exactly one version, and it must resolve upstream:
 gh api repos/githubnext/gh-aw-firewall/releases/tags/<version> --jq .tag_name
 ```
 
+#### Compiler-managed side files
+
+`gh aw compile` also rewrites files outside the locks. Two deliberate decisions (see [#1392](https://github.com/TheLarkInn/aipm/issues/1392)):
+
+- **`.gitattributes` has no `merge=ours` on `*.lock.yml`.** Earlier compilers emitted `linguist-generated=true merge=ours`; v0.86.x keeps only `linguist-generated=true`, and the removal is *accepted*, not restored. `merge=ours` on generated files silently resolves merge conflicts to the local side instead of forcing a recompile — exactly how locks rot out of sync with their `.md` sources — and it does nothing unless every contributor configures the `ours` merge driver locally. Do not hand-edit `.gitattributes` to re-add it; regenerate locks when they conflict.
+- **`agentics-maintenance.yml` is adopted and tracked.** Newer compilers generate this workflow (daily `37 0 * * *` cleanup of expired safe-output discussions/issues/PRs and cache memories, plus `workflow_dispatch`/`workflow_call` maintenance operations). Reviewed: top-level `permissions: {}` with least-privilege per-job grants, all actions SHA-pinned, every job fork-guarded. It is compiler-generated (`DO NOT EDIT`) — regenerate via `gh aw compile`, never hand-edit; suppress only via `{"maintenance": false}` in `.github/workflows/aw.json` if ever unwanted.
+
+A bare `gh aw compile` on a clean tree must produce **no** diff and **no** untracked files. If it does, commit the result (after review) or the locks are skewed.
+
 ## Project Structure
 
 - `Cargo.toml` — workspace root, lint configuration
