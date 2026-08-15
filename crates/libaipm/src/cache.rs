@@ -239,7 +239,7 @@ impl Cache {
 
         // Clean up old directory outside the lock
         if let Some(ref old_name) = old_dir_name {
-            if *old_name != dir_name {
+            if should_remove_old_entry_dir(old_name, &dir_name) {
                 let old_dir = self.entries_dir().join(old_name);
                 if old_dir.exists() {
                     let _ = std::fs::remove_dir_all(&old_dir);
@@ -456,6 +456,17 @@ fn now_secs() -> u64 {
     SystemTime::UNIX_EPOCH.elapsed().unwrap_or_default().as_secs()
 }
 
+/// Returns `true` if the previous cache entry's directory (`old_name`)
+/// should be removed after `put()` replaces it with `new_name`.
+///
+/// The only case where removal must be skipped is the (astronomically
+/// unlikely, but generator-independent) case where the newly generated
+/// directory name happens to match the old one — removing it would
+/// delete the freshly written entry we just created.
+fn should_remove_old_entry_dir(old_name: &str, new_name: &str) -> bool {
+    old_name != new_name
+}
+
 /// Generate a unique directory name using random hex bytes.
 fn new_entry_dir_name() -> String {
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -514,6 +525,22 @@ fn copy_dir_contents(src: &Path, dst: &Path) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Covers the `should_remove_old_entry_dir` False branch: when the
+    /// newly generated directory name happens to equal the old one, the
+    /// old directory must NOT be scheduled for removal (doing so would
+    /// delete the entry `put()` just created).
+    #[test]
+    fn should_remove_old_entry_dir_false_when_names_match() {
+        assert!(!should_remove_old_entry_dir("same-name", "same-name"));
+    }
+
+    /// Covers the `should_remove_old_entry_dir` True branch: a differing
+    /// new name means the old entry directory is stale and safe to remove.
+    #[test]
+    fn should_remove_old_entry_dir_true_when_names_differ() {
+        assert!(should_remove_old_entry_dir("old-name", "new-name"));
+    }
 
     fn make_temp() -> tempfile::TempDir {
         match tempfile::tempdir() {
