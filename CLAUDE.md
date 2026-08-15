@@ -125,6 +125,16 @@ That must print exactly one version, and it must resolve upstream:
 gh api repos/githubnext/gh-aw-firewall/releases/tags/<version> --jq .tag_name
 ```
 
+#### `.gitattributes` deliberately has no `merge=ours` on lock files
+
+`.gitattributes` marks `.github/workflows/*.lock.yml` as `linguist-generated=true` and **intentionally nothing else** (decision: [#1392](https://github.com/TheLarkInn/aipm/issues/1392)). The gh-aw compiler dropped `merge=ours` during the v0.86.2 recompile and the removal was accepted: on generated files, `merge=ours` silently resolves conflicts to the stale local side instead of regenerating — the same lock-drift failure mode as [#1388](https://github.com/TheLarkInn/aipm/issues/1388) — and it is a no-op unless every contributor configures the `ours` merge driver locally. Do not restore it. If a lock file conflicts, resolve by recompiling (`gh aw compile`), never by hand-merging.
+
+#### `agentics-maintenance.yml` is generated infrastructure — adopted, not hand-written
+
+`.github/workflows/agentics-maintenance.yml` is emitted automatically by `gh aw compile` (v0.86.x+) and is **committed on purpose** (decision: [#1392](https://github.com/TheLarkInn/aipm/issues/1392)). It runs daily (`cron: 37 0 * * *`) to close expired safe-output issues/PRs/discussions and clean cache-memory, and exposes manually dispatched maintenance operations (`update`, `upgrade`, `validate`, …). Reviewed posture: top-level `permissions: {}`, least-privilege per-job permissions, all actions SHA-pinned, `persist-credentials: false`, a fork guard on every job, and an admin/maintainer check before any privileged manual operation.
+
+Do **not** delete it or hand-edit it — the next `gh aw compile` regenerates it and the file shows up as unexpected untracked output. To suppress it instead, set `{"maintenance": false}` in `.github/workflows/aw.json` and recompile; treat that as a deliberate decision requiring the same review.
+
 ## Project Structure
 
 - `Cargo.toml` — workspace root, lint configuration
