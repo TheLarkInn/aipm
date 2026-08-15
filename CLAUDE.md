@@ -125,6 +125,20 @@ That must print exactly one version, and it must resolve upstream:
 gh api repos/githubnext/gh-aw-firewall/releases/tags/<version> --jq .tag_name
 ```
 
+#### Lock files do not use `merge=ours`
+
+`.gitattributes` deliberately marks `.github/workflows/*.lock.yml` as `linguist-generated=true` **without** `merge=ours`. The compiler dropped the attribute when the locks were unified ([#1427](https://github.com/TheLarkInn/aipm/pull/1427)) and the removal was accepted: `merge=ours` on generated files silently resolves lock conflicts to the local side instead of forcing a recompile, which is exactly how locks rot out of sync with their `.md` sources — and it silently does nothing for contributors who never configured the `ours` merge driver locally. If a lock file conflicts on merge, check out either side and regenerate with `gh aw compile`; never hand-resolve a lock. Do not re-add `merge=ours` to `.gitattributes`.
+
+#### `agentics-maintenance.yml` is adopted
+
+`gh aw compile` (≥ v0.86.2) emits `.github/workflows/agentics-maintenance.yml` because our workflows use expiring safe outputs. It is **adopted and committed** — review it when the compiler version changes, but do not delete or hand-edit it:
+
+- **Schedule:** daily at 00:37 UTC (derived from the shortest safe-output `expires`, currently 7 days), plus `workflow_dispatch`/`workflow_call` for manual operations (`disable`, `enable`, `upgrade`, `safe_outputs`, `activity_report`, …).
+- **Permissions:** top-level `permissions: {}` with least-privilege per-job grants. Scheduled runs only close expired discussions/issues/PRs (`discussions`/`issues`/`pull-requests: write`) and clean cache memory (`actions: write`); the broader permission sets apply solely to manually dispatched operations.
+- **Token surface:** it uses the default `GITHUB_TOKEN` and emits no `push` events, so it cannot trigger or suppress CI.
+
+To suppress its generation (not recommended — expired safe outputs would never be cleaned up), create `.github/workflows/aw.json` with `{"maintenance": false}` and recompile.
+
 ## Project Structure
 
 - `Cargo.toml` — workspace root, lint configuration
