@@ -14,6 +14,9 @@ permissions:
   contents: read
   issues: read
   pull-requests: read
+  # Needed so the agent can list recent runs and read their safe-output logs
+  # when detecting repeated no-op livelocks (Step 4).
+  actions: read
 timeout-minutes: 45
 tools:
   github:
@@ -48,6 +51,19 @@ safe-outputs:
     target: "*"
     required-title-prefix: "[coverage-improver]"
     if-no-changes: ignore
+  # Lets the workflow retire a coverage PR that can never merge (conflicting,
+  # or stuck with no checks) instead of no-op looping on it forever. Scoped by
+  # title prefix so it can only ever close this workflow's own PRs.
+  close-pull-request:
+    target: "*"
+    required-title-prefix: "[coverage-improver]"
+    max: 1
+  # Escalation channel for the repeated-no-op livelock guard (Step 4): when the
+  # workflow detects it has no-op'd on the same PR repeatedly, it files an
+  # issue instead of staying silently "green".
+  create-issue:
+    max: 1
+    labels: [coverage-improver]
   noop:
     report-as-issue: false
 ---
@@ -81,8 +97,49 @@ Key rules:
 
 Search for an open pull request whose title contains `[coverage-improver]`.
 
-- If **an open PR is found**, go to **Step 2** (handle review comments).
+- If **an open PR is found**, go to **Step 1a** (check it can still merge).
 - If **no open PR is found**, go to **Step 5** (create a new PR).
+
+### 1a — Check the existing PR is still mergeable
+
+An open PR only justifies pausing new coverage work if it is actually
+capable of merging. Inspect it before doing anything else:
+
+```bash
+gh pr view <N> --json mergeable,mergeStateStatus,statusCheckRollup,updatedAt,url
+```
+
+Decide as follows, in order:
+
+1. **`mergeable` is `CONFLICTING`** (or `mergeStateStatus` is `DIRTY`) — the PR
+   can never auto-merge. Rebase the branch onto the current `main` and resolve
+   the conflicts, re-running the build, tests and clippy afterwards, then push
+   with `push-to-pull-request-branch`. If the branch it covers has since been
+   covered by another merged PR, or the conflicts are not worth resolving,
+   close it with the `close-pull-request` safe output and continue to
+   **Step 5** to open a fresh one. Do **not** call `noop`.
+
+2. **Checks are failing** (`statusCheckRollup` contains a `FAILURE`) and there
+   are no review comments explaining them — fix the failures and push. Do
+   **not** call `noop`.
+
+3. **There are no checks at all** and `updatedAt` is more than 24 hours ago —
+   treat the PR as stuck. Close it with the `close-pull-request` safe output
+   and continue to **Step 5**. Do **not** call `noop`.
+
+4. **`updatedAt` is more than 48 hours ago** with no progress — the PR is
+   stale; a healthy auto-merge PR lands well within this window. Close it as
+   superseded with the `close-pull-request` safe output and continue to
+   **Step 5** to start fresh.
+
+5. **Otherwise** the PR is healthy — go to **Step 2** (handle review comments).
+
+> **Why this step exists.** PR #887 sat `CONFLICTING` with auto-merge enabled
+> and zero checks from 2026-05-12 onward. Every scheduled run found it, saw no
+> review comments, emitted "Auto-merge will trigger once all checks pass", and
+> stopped — for weeks. Auto-merge could never trigger. Because a run that emits
+> only `noop` is classified as success, nothing ever alerted. Never `noop` on a
+> PR that cannot merge.
 
 ### 2 — Inspect for Copilot review comments
 
@@ -127,13 +184,48 @@ For each unresolved review comment that requests a code change:
 After pushing, **stop** — the CI pipeline will re-run and Copilot will
 re-review if needed. The next scheduled run will pick up any new comments.
 
-### 4 — Confirm the PR is ready
+### 4 — Confirm the PR is ready (with repeated-no-op livelock guard)
 
-If there are no actionable review comments on the existing PR:
+Only reach this step for a PR that passed the mergeability checks in **Step 1a**
+— that is, one that is not conflicting, has checks, and is not stale.
 
-1. Call the `noop` safe output with a message such as:
-   > "No outstanding review comments found on PR #N. Auto-merge will trigger once
-   > all checks pass."
+A run that produces only `noop` is classified as **success**, so consecutive
+no-ops are invisible on the Actions dashboard. Before calling `noop`, check
+whether recent runs already no-op'd on this same PR:
+
+1. List the most recent completed runs of this workflow:
+
+   ```bash
+   gh run list --workflow improve-coverage.lock.yml --limit 8 \
+     --json databaseId,conclusion,createdAt
+   ```
+
+2. For each recent successful run, inspect the `Process Safe Outputs` job log
+   for a `noop` entry referencing this PR number:
+
+   ```bash
+   gh run view <run-id> --log | grep -i "noop" | grep "#<N>"
+   ```
+
+3. If the same PR has been no-op'd **3 or more consecutive times** without its
+   state changing (`updatedAt` unchanged), do **not** call `noop` again.
+   Instead:
+   - Re-apply the **Step 1a** rules — a PR no-op'd this many times is in
+     practice stale or unmergeable, so close it and continue to **Step 5**; and
+   - Emit the `create-issue` safe output titled
+     `[coverage-improver] Livelock suspected on PR #<N>` describing the stuck
+     state (how many consecutive no-ops, the PR's mergeability and check
+     status), so a human is alerted. Silence must not be indistinguishable
+     from success.
+
+4. Otherwise (fewer than 3 consecutive no-ops), re-confirm the PR is still
+   mergeable and its checks are pending or passing — not failing — then call
+   the `noop` safe output with a message such as:
+   > "No outstanding review comments found on PR #N (mergeable, checks pending).
+   > Auto-merge will trigger once all checks pass."
+
+   If the PR is *not* mergeable, do not `noop` — return to **Step 1a** and take
+   the corrective action described there.
 
 **Stop** — do not run coverage analysis or create a new PR.
 
