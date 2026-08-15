@@ -125,6 +125,13 @@ That must print exactly one version, and it must resolve upstream:
 gh api repos/githubnext/gh-aw-firewall/releases/tags/<version> --jq .tag_name
 ```
 
+#### Compiler-managed side files
+
+`gh aw compile` also owns two files outside `*.lock.yml`. Both states below are **deliberate** — do not "fix" them by hand:
+
+- **`.gitattributes`** carries only `linguist-generated=true` for `.github/workflows/*.lock.yml`. The pre-`v0.86.2` `merge=ours` attribute was **dropped on purpose**: `merge=ours` makes git silently resolve lock-file conflicts to the local side instead of regenerating the lock, which lets locks rot out of sync with their `.md` sources — and it only works if every contributor has the `ours` merge driver configured locally. When a lock file conflicts, re-run `gh aw compile` instead of merging. The compiler rewrites `.gitattributes` on every compile; any hand-added attributes will be clobbered.
+- **`.github/workflows/agentics-maintenance.yml`** is compiler-emitted and **adopted** (since [#1427](https://github.com/TheLarkInn/aipm/pull/1427)). It runs scheduled cleanup of expiring safe outputs (daily cron) plus manual maintenance operations via `workflow_dispatch`. Reviewed surface: top-level `permissions: {}`, per-job least-privilege writes (`issues`, `pull-requests`, `discussions`, `actions` only where the operation needs them), and every job guarded with `!(github.event.repository.fork)`. Upgrade note: when a future gh-aw version changes this file, review the schedule and permissions diff before committing.
+
 ## Project Structure
 
 - `Cargo.toml` — workspace root, lint configuration
