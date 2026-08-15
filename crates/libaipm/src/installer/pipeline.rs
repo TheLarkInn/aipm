@@ -2464,6 +2464,23 @@ b = "^2.0"
     }
 
     #[test]
+    fn resolve_error_link_override_unknown_member() {
+        // A name present in `link_overrides` but absent from `members` must hit the
+        // `ok_or_else` branch inside the link-override arm and report which members
+        // are actually available.
+        let members = BTreeMap::new();
+        let ws_deps = vec!["nonexistent".to_string()];
+        let mut overrides = BTreeSet::new();
+        overrides.insert("nonexistent".to_string());
+
+        let result = resolve_workspace_deps(&ws_deps, &members, &overrides);
+        assert!(result.is_err());
+        let err = format!("{}", result.err().unwrap());
+        assert!(err.contains("aipm link override"));
+        assert!(err.contains("available members"));
+    }
+
+    #[test]
     fn resolve_circular_deps() {
         let mut members = BTreeMap::new();
         let a =
