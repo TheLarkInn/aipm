@@ -48,7 +48,9 @@ jobs:
       - name: Mark and close stale bot PRs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DRY_RUN: ${{ github.event.inputs.dry-run || 'false' }}
+          # Dashed input keys need bracket notation; github.event.inputs is
+          # null on schedule runs, which the || 'false' fallback covers.
+          DRY_RUN: ${{ github.event.inputs['dry-run'] || 'false' }}
         run: |
           set -euo pipefail
 
@@ -81,11 +83,11 @@ jobs:
               if [[ ",$labels," == *",$STALE_LABEL,"* ]]; then
                 if (( idle_days >= CLOSE_AFTER_STALE_DAYS )); then
                   if [ "$DRY_RUN" = "true" ]; then
-                    echo "PR #$number ($title): would close (marked stale ${idle_days}d ago, dry run)"
+                    echo "PR #$number ($title): would close (no activity for ${idle_days}d while labeled '$STALE_LABEL', dry run)"
                   else
-                    echo "PR #$number ($title): no activity for ${idle_days}d since stale warning — closing"
+                    echo "PR #$number ($title): no activity for ${idle_days}d while labeled '$STALE_LABEL' — closing"
                     gh pr close "$number" --repo "$GITHUB_REPOSITORY" \
-                      --comment "Auto-closed: this bot-authored PR was marked stale ${CLOSE_AFTER_STALE_DAYS}+ days ago and saw no activity since. If the change is still needed, the owning workflow will open a fresh PR; otherwise reopen with a comment explaining why. See https://github.com/TheLarkInn/aipm/issues/1396 for the policy."
+                      --comment "Auto-closed: this bot-authored PR is labeled \`${STALE_LABEL}\` and had no activity for ${CLOSE_AFTER_STALE_DAYS}+ days. If the change is still needed, the owning workflow will open a fresh PR; otherwise reopen with a comment explaining why. See https://github.com/TheLarkInn/aipm/issues/1396 for the policy."
                   fi
                 else
                   echo "PR #$number ($title): marked stale, last activity ${idle_days}d ago — grace period"
