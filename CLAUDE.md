@@ -125,6 +125,13 @@ That must print exactly one version, and it must resolve upstream:
 gh api repos/githubnext/gh-aw-firewall/releases/tags/<version> --jq .tag_name
 ```
 
+#### Compiler-managed files beyond the locks
+
+`gh aw compile` also writes files outside `*.lock.yml`. Both decisions below were made deliberately ([#1392](https://github.com/TheLarkInn/aipm/issues/1392)):
+
+- **`.gitattributes`**: the compiler emits `.github/workflows/*.lock.yml linguist-generated=true` and drops the old `merge=ours` driver. That removal is **accepted, not restored** — `merge=ours` silently resolved lock-file merge conflicts to the local side instead of forcing a recompile, which is exactly how locks rot out of sync with their `.md` sources, and it only worked for contributors who had the `ours` driver configured locally. Do not re-add `merge=ours`; resolve lock conflicts by rerunning `gh aw compile`.
+- **`agentics-maintenance.yml`**: a scheduled safe-output cleanup workflow the compiler generates automatically. It is **adopted, not suppressed** — commit it like a lock file, never hand-edit it, and expect it to appear/change whenever the compiler version changes.
+
 ## Project Structure
 
 - `Cargo.toml` — workspace root, lint configuration
