@@ -125,6 +125,24 @@ That must print exactly one version, and it must resolve upstream:
 gh api repos/githubnext/gh-aw-firewall/releases/tags/<version> --jq .tag_name
 ```
 
+#### `.gitattributes` for lock files
+
+`.github/workflows/*.lock.yml` carries **`linguist-generated=true` only** — the `merge=ours` driver was deliberately dropped ([#1392](https://github.com/TheLarkInn/aipm/issues/1392)). Rationale:
+
+- `merge=ours` silently resolves lock-file merge conflicts to the local side instead of forcing a recompile from the `.md` source — the same lock/source skew mechanism behind [#1388](https://github.com/TheLarkInn/aipm/issues/1388).
+- The `ours` driver is not built into git; it does nothing unless every contributor configures `merge.ours.driver` locally, which a committed `.gitattributes` cannot enforce. It was inert in practice.
+- The compiler rewrites `.gitattributes` without `merge=ours` on every compile and there is no supported pin to preserve custom attributes, so restoring it would mean manually reverting the compiler on every recompile.
+
+Without `merge=ours`, lock conflicts surface as ordinary git conflicts — resolve them by recompiling, never by hand-editing. Do not re-add `merge=ours`. The file must end with a trailing newline (verified to survive `gh aw compile` on v0.86.2).
+
+#### `agentics-maintenance.yml` is generated — adopt, don't hand-edit
+
+`gh aw compile` (v0.86.x) also emits `.github/workflows/agentics-maintenance.yml`, a generated maintenance workflow ([#1392](https://github.com/TheLarkInn/aipm/issues/1392)). It is **adopted** and committed. Reviewed surface:
+
+- **Schedule:** daily `37 0 * * *` plus `workflow_dispatch`/`workflow_call` with an explicit `operation` input. The scheduled run closes expired safe-output discussions/issues/PRs and cleans cache memories; all other operations (disable/enable workflows, validate, forecast, activity report, …) are manual-only.
+- **Permissions:** top-level `permissions: {}` (deny-all); each job grants least privilege (`discussions: write`, `issues: write`, `pull-requests: write`, `actions: write` at most) on `ubuntu-slim`, fork-guarded, with every action pinned by SHA. Only `secrets.GITHUB_TOKEN` is used — no PATs.
+- **Suppression:** if the repo ever wants it gone, set `{"maintenance": false}` in `.github/workflows/aw.json` and recompile — do not delete the file by hand, or the next compile recreates it as untracked output.
+
 ## Project Structure
 
 - `Cargo.toml` — workspace root, lint configuration
