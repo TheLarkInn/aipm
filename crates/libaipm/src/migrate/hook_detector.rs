@@ -422,6 +422,10 @@ mod tests {
         assert!(!has_windows_drive_prefix(""));
         assert!(!has_windows_drive_prefix("C:"));
         assert!(!has_windows_drive_prefix("CC:\\bad"));
+        // Drive letter + colon present, but the third byte is neither `\` nor
+        // `/` — exercises the all-false arm of the final `||` in
+        // `has_windows_drive_prefix` (bytes.get(2) matches neither separator).
+        assert!(!has_windows_drive_prefix("C:xbad"));
     }
 
     #[test]
