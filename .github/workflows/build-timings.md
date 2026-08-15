@@ -24,9 +24,7 @@ steps:
 safe-outputs:
   create-issue:
     max: 1
-  add-labels:
-    allowed: [build-timings]
-    max: 1
+    labels: [build-timings]
   noop:
 ---
 
@@ -180,7 +178,9 @@ Use the `create-issue` safe output to open an issue with the following format:
    - New dependencies added
    - Dependencies removed
 
-Then use the `add-labels` safe output to add the `build-timings` label.
+The created issue automatically receives the `build-timings` label via the
+`create-issue` `labels` configuration — do not call `add-labels` (there is no
+triggering issue or PR on scheduled runs for it to attach to).
 
 ### 9 — Nothing noteworthy?
 
