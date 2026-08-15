@@ -125,6 +125,20 @@ That must print exactly one version, and it must resolve upstream:
 gh api repos/githubnext/gh-aw-firewall/releases/tags/<version> --jq .tag_name
 ```
 
+#### `.gitattributes`: lock files deliberately have no `merge=ours`
+
+`.github/workflows/*.lock.yml` carries only `linguist-generated=true` — the `merge=ours` driver was **deliberately dropped** (decision: [#1392](https://github.com/TheLarkInn/aipm/issues/1392)). On generated files, `merge=ours` silently resolves merge conflicts to the local copy instead of forcing a recompile, which is exactly how locks rot out of sync with their `.md` sources; it also did nothing unless every contributor configured the `ours` merge driver locally. If a lock file conflicts, regenerate it with `gh aw compile` — never hand-merge it.
+
+#### `agentics-maintenance.yml` is generated — adopt it, don't delete it
+
+gh-aw ≥ v0.86 emits `.github/workflows/agentics-maintenance.yml` on every `gh aw compile`. It is **adopted** (decision: [#1392](https://github.com/TheLarkInn/aipm/issues/1392)) with reviewed schedule and permissions:
+
+- **Schedule:** daily at 00:37 UTC — closes *expired safe-output* items (discussions, issues, PRs) and cleans stale cache-memory entries. This does not overlap `stale-bot-prs.yml`, which closes *idle bot-authored PRs* on a separate time-based heuristic.
+- **Manual operations** via `workflow_dispatch`: `update`, `upgrade`, `validate`, `activity_report`, `safe_outputs` replay, and friends.
+- **Token surface:** top-level `permissions: {}` with per-job least privilege (`issues`/`pull-requests`/`discussions`/`actions: write` only on the jobs that need them), `GITHUB_TOKEN` only (no PAT), every job fork-guarded, all action references SHA-pinned.
+
+Treat it like a lock file: never hand-edit, and commit it alongside the `*.lock.yml` files whenever it regenerates. To suppress generation entirely, create `.github/workflows/aw.json` containing `{"maintenance": false}`.
+
 ## Project Structure
 
 - `Cargo.toml` — workspace root, lint configuration
