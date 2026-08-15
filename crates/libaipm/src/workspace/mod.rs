@@ -303,6 +303,46 @@ mod tests {
         assert!(result.is_none(), "should skip invalid TOML, got: {result:?}");
     }
 
+    /// An [`Fs`](crate::fs::Fs) mock whose `exists` always reports `true` but
+    /// whose `read_to_string` always fails, so `find_workspace_root` reaches
+    /// the `Err(e)` arm of the `fs.read_to_string` match (the "could not
+    /// read manifest during workspace discovery" branch).
+    struct UnreadableFs;
+
+    impl crate::fs::Fs for UnreadableFs {
+        fn exists(&self, _path: &Path) -> bool {
+            true
+        }
+
+        fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _path: &Path, _content: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _path: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::other("simulated read failure"))
+        }
+
+        fn read_dir(&self, _path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn find_root_skips_unreadable_manifest() {
+        // `exists` reports true but `read_to_string` always errors, so
+        // `find_workspace_root` must log and continue walking up rather than
+        // panicking or stopping — exercising the `Err(e)` branch on the
+        // outer `fs.read_to_string` match. Since `exists` always returns
+        // true, the walk continues until it reaches the filesystem root,
+        // where `current.pop()` fails and `None` is returned.
+        let result = find_workspace_root(&UnreadableFs, Path::new("/some/deep/start"));
+        assert!(result.is_none(), "should skip unreadable manifest, got: {result:?}");
+    }
+
     #[test]
     fn discover_members_skips_non_directory_match() {
         let tmp = tempfile::tempdir().unwrap();
