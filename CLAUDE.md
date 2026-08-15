@@ -125,6 +125,29 @@ That must print exactly one version, and it must resolve upstream:
 gh api repos/githubnext/gh-aw-firewall/releases/tags/<version> --jq .tag_name
 ```
 
+#### `.gitattributes` for lock files — no `merge=ours`, deliberately
+
+`.gitattributes` carries exactly one line for generated locks, and the trailing newline is required:
+
+```gitattributes
+.github/workflows/*.lock.yml linguist-generated=true
+```
+
+The compiler rewrites this file and drops any `merge=ours` driver. We **accept that removal on purpose** ([#1392](https://github.com/TheLarkInn/aipm/issues/1392)): `merge=ours` on generated files silently resolves merge conflicts to the local side instead of forcing a recompile, which is exactly how lock files rot out of sync with their `.md` sources. It also does nothing unless every contributor configures the `ours` merge driver locally. Conflicts in a `.lock.yml` should be loud — resolve them by re-running `gh aw compile`, never by hand-editing.
+
+#### `agentics-maintenance.yml` — adopted
+
+`gh aw compile` (≥ v0.86.2) emits `.github/workflows/agentics-maintenance.yml`, a generated scheduled workflow. It is **adopted and committed deliberately** ([#1392](https://github.com/TheLarkInn/aipm/issues/1392)):
+
+- **Why it exists:** `daily-qa.md` uses a `create_discussion` safe output with `expires: 168` (7 days). The maintenance workflow's daily cron (`37 0 * * *`) is what closes those expired discussions (and any expired issues/PRs future workflows emit). Without it, expiring safe outputs never get cleaned up.
+- **Token surface (reviewed):** top-level `permissions: {}` with per-job minimal grants (`discussions: write`, `issues: write`, `pull-requests: write`, `actions: write`) using only the default `GITHUB_TOKEN`. Manual `workflow_dispatch` operations (`disable`, `upgrade`, `safe_outputs`, …) are gated behind an admin/maintainer team check.
+- It never runs on forks (`if: !(github.event.repository.fork)`).
+- To suppress it instead, set `{"maintenance": false}` in `.github/workflows/aw.json` — do not hand-delete the file, or the next compile re-creates it as an untracked file.
+
+#### `gh aw compile` must leave a clean tree
+
+After any compile on a clean checkout, `git status --porcelain` must be empty. Every file the compiler emits — including new ones like `agentics-maintenance.yml` — is either committed deliberately or suppressed via `aw.json`. Never commit a generated file without reviewing its schedule, permissions, and token usage first.
+
 ## Project Structure
 
 - `Cargo.toml` — workspace root, lint configuration
