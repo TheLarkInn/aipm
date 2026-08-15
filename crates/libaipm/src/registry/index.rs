@@ -173,6 +173,14 @@ mod tests {
     }
 
     #[test]
+    fn index_path_scoped_single_char_scope() {
+        // A 1-char scope means `scope.get(..2)` returns None, exercising the
+        // `map_or_else` fallback branch that formats the scope as-is.
+        let path = package_path("@a/tool").unwrap();
+        assert_eq!(path, PathBuf::from("@a/@a/tool"));
+    }
+
+    #[test]
     fn index_path_scoped_no_slash_errors() {
         // A scoped name without a '/' (e.g. "@noslash") has no separator,
         // so split_once('/') returns None and the ok_or_else error path fires.
