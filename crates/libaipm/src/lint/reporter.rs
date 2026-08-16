@@ -2054,4 +2054,39 @@ mod tests {
         let group_line = output.lines().find(|l| l.starts_with("##[group]")).unwrap_or_default();
         assert!(group_line.contains("%0A##vso[task.setvariable"));
     }
+
+    /// Covers the `starts_with("::error ")` True branch in the
+    /// `ci_github_reporter_*` tests' filter closures: all other tests in
+    /// this module use `Severity::Warning`, so the right-hand side of the
+    /// `||` never evaluated to `true` before. An `Error`-severity
+    /// diagnostic emits `::error ...` and exercises that branch.
+    #[test]
+    fn ci_github_reporter_emits_error_severity_command() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "skill/missing-description".to_string(),
+                severity: Severity::Error,
+                message: "missing description".to_string(),
+                file_path: PathBuf::from(".ai/skill/SKILL.md"),
+                line: Some(1),
+                col: Some(1),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".to_string(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 1,
+            warning_count: 0,
+            sources_scanned: vec![],
+            ..Outcome::default()
+        };
+        let output = render_ci_github(&outcome);
+        let cmd_lines: Vec<&str> = output
+            .lines()
+            .filter(|l| l.starts_with("::warning ") || l.starts_with("::error "))
+            .collect();
+        assert_eq!(cmd_lines.len(), 1);
+        assert!(cmd_lines[0].starts_with("::error "));
+    }
 }
