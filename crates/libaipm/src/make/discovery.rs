@@ -149,4 +149,20 @@ mod tests {
         let result = find_marketplace(Path::new("/"), &fs);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn mock_fs_unused_trait_methods_return_expected_defaults() {
+        // Exercises the `Fs` trait methods on `MockFs` that are not otherwise
+        // called by `find_marketplace`, covering their bodies directly.
+        let fs = MockFs::new();
+
+        assert!(fs.create_dir_all(Path::new("/anything")).is_ok());
+        assert!(fs.write_file(Path::new("/anything"), b"data").is_ok());
+
+        let read_err = fs.read_to_string(Path::new("/anything"));
+        assert!(read_err.is_err());
+
+        let entries = fs.read_dir(Path::new("/anything"));
+        assert_eq!(entries.unwrap_or_default().len(), 0);
+    }
 }
