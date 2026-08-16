@@ -149,4 +149,20 @@ mod tests {
         let result = find_marketplace(Path::new("/"), &fs);
         assert!(result.is_err());
     }
+
+    /// `MockFs` implements the full `Fs` trait so it can stand in for
+    /// `find_marketplace`'s `&dyn Fs` parameter, but only `exists` is
+    /// exercised via `find_marketplace` itself. This test drives the
+    /// remaining trait methods directly so their branches are covered.
+    #[test]
+    fn mock_fs_unused_trait_methods_behave_as_stubbed() {
+        let fs = MockFs::new();
+
+        assert!(fs.create_dir_all(Path::new("/anywhere")).is_ok());
+        assert!(fs.write_file(Path::new("/anywhere/file"), b"data").is_ok());
+        assert!(fs.read_to_string(Path::new("/anywhere/file")).is_err());
+        let entries = fs.read_dir(Path::new("/anywhere"));
+        assert!(entries.is_ok());
+        assert!(entries.unwrap_or_default().is_empty());
+    }
 }
