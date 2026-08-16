@@ -861,6 +861,33 @@ mod tests {
     }
 
     #[test]
+    fn init_with_both_phases_disabled_emits_no_warning() {
+        // When both `workspace` and `marketplace` are false, `actions` stays
+        // empty, so `any_created` and `any_found` are both false — this
+        // exercises the `!any_created && any_found` branch's false-any_found
+        // arm (short-circuit never reaches a Found* action) distinct from
+        // the idempotent tests above where `any_found` is true.
+        let (tmp, _guard) = make_temp_dir("both-disabled");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init with both phases disabled must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "no actions should be recorded when both phases are disabled");
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_with_no_adaptors() {
         let (tmp, _guard) = make_temp_dir("no-adaptors");
         let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
