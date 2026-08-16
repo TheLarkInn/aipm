@@ -221,6 +221,18 @@ mod tests {
     }
 
     #[test]
+    fn detect_empty_source_dir_returns_none_parent_empty_vec() {
+        // `Path::new("").parent()` returns `None` (unlike `Path::new("/")`, which
+        // returns `Some("")`), exercising the `let Some(project_root) = ... else`
+        // `None` branch and its early `Ok(Vec::new())` return.
+        let fs = MockFs::new();
+        let detector = McpDetector;
+        let result = detector.detect(Path::new(""), &fs);
+        assert!(result.is_ok());
+        assert!(result.unwrap_or_default().is_empty());
+    }
+
+    #[test]
     fn detect_io_error_on_read() {
         // .mcp.json exists according to fs.exists but has no content in fs.files,
         // so read_to_string returns an IO error — covers the `?` error branch on
