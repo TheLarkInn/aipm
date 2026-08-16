@@ -51,6 +51,8 @@ cargo +nightly llvm-cov report --doctests --branch \
   --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs|lsp\.rs|libaipm-engine-spec/build\.rs|libaipm-engine-spec/src/bin)'
 ```
 
+> Keep this `--ignore-filename-regex` in sync with `COVERAGE_IGNORE_REGEX` in `.github/workflows/ci.yml`. Both must match.
+
 Verify the TOTAL branch column shows ≥ 89%. For HTML or lcov output, append `--html --open` or `--lcov --output-path lcov.info` to the report command.
 
 ## Copilot Coding Agent Setup
@@ -59,11 +61,14 @@ The file `.github/workflows/copilot-setup-steps.yml` defines the pre-build envir
 
 | Step | Purpose |
 |---|---|
+| `actions/checkout@v4` | Checks out the repository |
 | `dtolnay/rust-toolchain@stable` | Installs `clippy` and `rustfmt` |
 | `dtolnay/rust-toolchain@nightly` | Installs `llvm-tools-preview` for coverage |
-| `apt-get install libgit2-dev libssl-dev pkg-config` | Native system libraries required by `git2` and OpenSSL crates |
+| `apt-get install libgit2-dev libssl-dev pkg-config` | Native system libraries required by `git2` and OpenSSL crates (with 3 retries, 15 s backoff) |
 | `Swatinem/rust-cache@v2` | Caches the Cargo registry and build artefacts across runs |
 | `cargo fetch --locked` | **Pre-fetches all Cargo dependencies** so they are available in the offline sandbox environment |
+
+Environment variables: `CARGO_NET_RETRY=10`, `LIBGIT2_SYS_USE_PKG_CONFIG=1`.
 
 > **Why `cargo fetch --locked`?** The Copilot agent sandbox has restricted network access after the setup phase. Without this step the build fails because crates cannot be downloaded during `cargo build`. Pre-fetching under `--locked` also guarantees the exact dependency graph recorded in `Cargo.lock` is used — no accidental updates. This step was added to fix the [#700](https://github.com/TheLarkInn/aipm/pull/700) sandbox build failures.
 
@@ -81,7 +86,12 @@ The repository uses [GitHub Agentic Workflows](https://githubnext.com/projects/a
 | `update-docs.md` | 45 min | On push to `main` | Updates docs on every merge |
 | `build-timings.md` | 45 min | Weekdays daily | Analyzes compilation bottlenecks |
 | `reverse-binary-analysis.md` | 120 min | Weekly | Downloads AI engine CLIs, extracts plugin API surface, updates `crates/libaipm-engine-spec/data/engine-api-schema.json`, opens PR when schema changes |
-| `research-codebase.md` | 30 min | On `research` label applied to issue | Runs Copilot CLI to research the codebase, posts findings as the issue body, and relabels with `spec review` |
+
+### `research-codebase.yml` — hand-written, NOT managed by `gh aw compile`
+
+`.github/workflows/research-codebase.yml` is a **deliberately hand-written** workflow (30 min timeout, triggered by the `research` label on an issue or `workflow_dispatch`). It runs Copilot CLI to research the codebase, writes findings to `research/docs/`, posts the file as the issue body, and relabels the issue with `spec review`.
+
+It replaced a compiled gh-aw workflow in [#97](https://github.com/TheLarkInn/aipm/issues/97); the orphaned `research-codebase.md` source was removed in [#1397](https://github.com/TheLarkInn/aipm/issues/1397). **Do not add a `research-codebase.md` back** — this workflow is intentionally outside `gh aw compile`.
 
 ### Why different timeouts?
 
@@ -97,6 +107,14 @@ Most maintenance workflows are capped at **45 minutes**: the full agent cycle (n
 
 The manual `ci: trigger checks` empty-commit workaround is **obsolete** — do not push empty commits to trigger CI on `main`. If post-merge CI stops running again, check which token enabled auto-merge on the merged PR.
 
+### A `noop`-only gh-aw workflow still exits `success`
+
+A gh-aw workflow that emits only `noop` (no issues, PRs, discussions, or comments) still concludes `success`. On the Actions dashboard a livelocked or no-op workflow looks perfectly healthy. When triaging, **check what the workflow actually did** (its logs and safe outputs), not just the green checkmark.
+
+### External pins rot
+
+Lock files pin external artefacts (e.g. the [`gh-aw-firewall`](https://github.com/githubnext/gh-aw-firewall) release). Upstream deletes old releases, and when a pinned release disappears the `Install AWF binary` step dies with `curl: (22) ... 404` — the workflow fails 100% of the time with no alert. `reverse-binary-analysis` silently failed every week for over two months this way ([#1388](https://github.com/TheLarkInn/aipm/issues/1388)). Keep all lock files on the same compiler version (see below) so a single `gh aw compile` upgrades every pin at once.
+
 ### Modifying workflow files
 
 After editing any `.github/workflows/<name>.md`, recompile its lock file:
@@ -109,7 +127,7 @@ Commit both the `.md` source and the regenerated `.lock.yml` together. The compi
 
 #### Keep every lock file on the same compiler version
 
-**All lock files must be compiled with the same `gh aw` version.** The repository is currently on **`v0.86.2`**; check yours with `gh aw version` and upgrade with `gh extension upgrade gh-aw` before recompiling.
+**All lock files must be compiled with the same `gh aw` version.** The pinned version is **`v0.86.2`** — it is recorded in the header comment of every `.lock.yml` (`# This file was automatically generated by gh-aw (v0.86.2)`) and in `agentics-maintenance.yml`. Check yours with `gh aw version` and upgrade with `gh extension upgrade gh-aw` before recompiling.
 
 Recompiling a single workflow with a newer extension than the others introduces *compiler version skew*. Each lock file embeds a pinned [`gh-aw-firewall`](https://github.com/githubnext/gh-aw-firewall) (AWF) release, so a skewed lock ends up on a different AWF pin than its siblings. Upstream deletes old AWF releases, and when that happens the `Install AWF binary` step dies with `curl: (22) ... 404` and the workflow fails 100% of the time — which is exactly how `reverse-binary-analysis` (pinned to the deleted `v0.25.28`) silently failed every week for over two months ([#1388](https://github.com/TheLarkInn/aipm/issues/1388)).
 
