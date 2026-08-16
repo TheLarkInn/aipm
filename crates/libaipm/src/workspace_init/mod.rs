@@ -2397,4 +2397,69 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    /// Covers the `!any_created && any_found` True branch (line 208) in
+    /// `init()`: when every requested artifact (workspace, marketplace,
+    /// per-engine manifest, tool config) already exists, `init` must emit
+    /// only `*FoundExisting` actions — no `*Created`/`ToolConfigured` — and
+    /// the tail `tracing::warn!` path is exercised.
+    #[test]
+    fn init_warns_when_nothing_created_and_something_found() {
+        let (tmp, _guard) = make_temp_dir("all-found-existing");
+
+        // Pre-create the workspace manifest so `init_workspace` reports
+        // `FoundExisting` rather than `Created`.
+        let existing = generate_workspace_manifest(None);
+        std::fs::write(tmp.join("aipm.toml"), &existing).ok();
+
+        // Pre-create `.ai/` and the Copilot marketplace manifest so
+        // `scaffold_marketplace`/`scaffold_engine_marketplaces` also report
+        // `FoundExisting` rather than `Created`.
+        let manifest_dir = tmp.join(".ai/.github/plugin");
+        std::fs::create_dir_all(&manifest_dir).ok();
+        std::fs::write(manifest_dir.join("marketplace.json"), "{\"plugins\":[]}").ok();
+
+        // Pre-create the Copilot adaptor's target file so `apply()` returns
+        // `Ok(false)` and no `ToolConfigured` action is pushed.
+        let github_dir = tmp.join(".github");
+        std::fs::create_dir_all(&github_dir).ok();
+        std::fs::write(github_dir.join("copilot-instructions.md"), b"# existing").ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::COPILOT,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed when everything already exists: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(
+            !actions.iter().any(|a| matches!(
+                a,
+                InitAction::WorkspaceCreated
+                    | InitAction::MarketplaceCreated
+                    | InitAction::MarketplaceManifestWritten { .. }
+                    | InitAction::ToolConfigured(_)
+            )),
+            "expected no *Created/ToolConfigured actions, got: {actions:?}"
+        );
+        assert!(
+            actions.iter().any(|a| matches!(
+                a,
+                InitAction::WorkspaceFoundExisting
+                    | InitAction::MarketplaceFoundExisting
+                    | InitAction::MarketplaceManifestFoundExisting { .. }
+            )),
+            "expected at least one *FoundExisting action, got: {actions:?}"
+        );
+
+        cleanup(&tmp);
+    }
 }
