@@ -1781,6 +1781,17 @@ mod tests {
     }
 
     #[test]
+    fn convert_hooks_yaml_multiple_continuation_lines() {
+        // Three indented lines under one key: the first sets the value, and
+        // BOTH subsequent lines must exercise the "append to existing value"
+        // branch (current_key is Some and current_value is already Some).
+        let result =
+            convert_hooks_yaml_to_json("PreToolUse:\n  line_one\n  line_two\n  line_three");
+        assert!(result.contains("PreToolUse"));
+        assert!(result.contains("line_one line_two line_three"));
+    }
+
+    #[test]
     fn convert_hooks_yaml_no_colon() {
         let result = convert_hooks_yaml_to_json("no-colon-here");
         assert_eq!(result, "{}");
