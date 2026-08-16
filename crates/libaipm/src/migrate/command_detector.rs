@@ -265,4 +265,35 @@ mod tests {
             Some("Review code")
         );
     }
+
+    #[test]
+    fn detect_command_read_to_string_error_propagates() {
+        // `read_dir` lists the .md file but `read_to_string` has no seeded
+        // content for it, so it returns an I/O error. Exercises the `?`
+        // error branch on the `fs.read_to_string` call inside `detect`.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/commands"));
+        fs.dirs.insert(PathBuf::from("/src/commands"), vec![de("review.md", false)]);
+        // Intentionally NOT seeding fs.files for review.md
+
+        let detector = CommandDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+        assert!(result.err().is_some_and(|e| matches!(e, Error::Io(_))));
+    }
+
+    #[test]
+    fn detect_command_read_dir_error_propagates() {
+        // commands dir exists but `read_dir` has no seeded entries, so it
+        // returns an I/O error. Exercises the `?` error branch on the
+        // `fs.read_dir` call inside `detect`.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/commands"));
+        // Intentionally NOT seeding fs.dirs for /src/commands
+
+        let detector = CommandDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+        assert!(result.err().is_some_and(|e| matches!(e, Error::Io(_))));
+    }
 }
