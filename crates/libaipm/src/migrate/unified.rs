@@ -562,6 +562,37 @@ mod tests {
         assert!(outcome.actions.is_empty(), "no actions when source dir does not exist");
     }
 
+    /// Covers the `!source_dir.exists()` False branch in `enumerate_sources`
+    /// (line 192): when `opts.source` names a directory that DOES exist, the
+    /// single literal source directory is returned and its artifacts are
+    /// migrated (rather than early-returning an empty outcome).
+    #[test]
+    fn unified_migrate_existing_source_scans_that_dir_only() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        init_marketplace(root);
+
+        let skill_dir = root.join(".github/copilot/skills/skill-alpha");
+        std::fs::create_dir_all(&skill_dir).expect("create skill dir");
+        std::fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: skill-alpha\ndescription: Alpha\n---\n# alpha\n",
+        )
+        .expect("write SKILL.md");
+
+        let opts = Options {
+            dir: root,
+            source: Some(".github"),
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let ai_dir = root.join(".ai");
+        let outcome = run(&opts, &ai_dir, &Real).expect("migrate succeeds when source dir exists");
+        assert_eq!(outcome.scan_counts.skills, 1, "should scan the single existing source dir");
+    }
+
     #[test]
     fn discover_options_from_options_maps_correctly() {
         let opts = Options {
