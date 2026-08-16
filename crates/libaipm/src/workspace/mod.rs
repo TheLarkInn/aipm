@@ -174,6 +174,28 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_manifest_that_fails_to_read_and_continues_up() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Root has a valid workspace manifest.
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+
+        // An intermediate directory has an `aipm.toml` that is actually a
+        // directory, so `fs.exists` reports true but `read_to_string` fails
+        // with an I/O error. Exercises the `Err(e)` branch of the outer
+        // `read_to_string` match (as opposed to the TOML-parse error branch).
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(subdir.join("aipm.toml")).unwrap();
+
+        let start = subdir.join("deeper");
+        std::fs::create_dir_all(&start).unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &start);
+        assert_eq!(result.as_deref(), Some(root));
+    }
+
+    #[test]
     fn find_root_from_root_itself() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
