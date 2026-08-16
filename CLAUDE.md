@@ -46,12 +46,14 @@ All four must pass with zero warnings before any commit.
 ```bash
 cargo +nightly llvm-cov clean --workspace
 cargo +nightly llvm-cov --no-report --workspace --branch
-cargo +nightly llvm-cov --no-report --doc
+cargo +nightly llvm-cov --no-report --doc --branch
 cargo +nightly llvm-cov report --doctests --branch \
   --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs|lsp\.rs|libaipm-engine-spec/build\.rs|libaipm-engine-spec/src/bin)'
 ```
 
 Verify the TOTAL branch column shows ≥ 89%. For HTML or lcov output, append `--html --open` or `--lcov --output-path lcov.info` to the report command.
+
+Keep the ignore regex in sync with `COVERAGE_IGNORE_REGEX` in `.github/workflows/ci.yml` — that single env var feeds every coverage step in CI, so the value here must match it exactly (change both together).
 
 ## Copilot Coding Agent Setup
 
@@ -81,7 +83,9 @@ The repository uses [GitHub Agentic Workflows](https://githubnext.com/projects/a
 | `update-docs.md` | 45 min | On push to `main` | Updates docs on every merge |
 | `build-timings.md` | 45 min | Weekdays daily | Analyzes compilation bottlenecks |
 | `reverse-binary-analysis.md` | 120 min | Weekly | Downloads AI engine CLIs, extracts plugin API surface, updates `crates/libaipm-engine-spec/data/engine-api-schema.json`, opens PR when schema changes |
-| `research-codebase.md` | 30 min | On `research` label applied to issue | Runs Copilot CLI to research the codebase, posts findings as the issue body, and relabels with `spec review` |
+| `research-codebase.yml` ⚠ **hand-written** | 30 min | On `research` label applied to issue | Runs Copilot CLI to research the codebase, posts findings as the issue body, and relabels with `spec review` |
+
+> **`research-codebase.yml` is intentionally hand-written** and is *not* managed by `gh aw compile`. It replaced a compiled gh-aw workflow in [#97](https://github.com/TheLarkInn/aipm/pull/97), and the orphaned `research-codebase.md` source was removed in [#1385](https://github.com/TheLarkInn/aipm/issues/1385). There is deliberately no `.md` source and no `research-codebase.lock.yml` — do **not** re-add them, or `gh aw compile` would emit a second workflow also named "Research Codebase" and both would fire on the same `research` label. Edit the `.yml` directly.
 
 ### Why different timeouts?
 
@@ -97,6 +101,15 @@ Most maintenance workflows are capped at **45 minutes**: the full agent cycle (n
 
 The manual `ci: trigger checks` empty-commit workaround is **obsolete** — do not push empty commits to trigger CI on `main`. If post-merge CI stops running again, check which token enabled auto-merge on the merged PR.
 
+### Operational gotchas
+
+Hard-won lessons from past workflow failures — check these before assuming a workflow is healthy:
+
+- **Bot merges via `GITHUB_TOKEN` do not emit `push` events** — anything relying on `on: push: [main]` needs a different trigger (see "Bot merges and push events" above). This silently disabled CI and Update Docs for ~3 months ([#1387](https://github.com/TheLarkInn/aipm/issues/1387)).
+- **A workflow that emits only `noop` exits `success`** — a livelocked workflow looks perfectly healthy on the dashboard. Check what a workflow *did* (its safe outputs), not just its conclusion.
+- **External pins rot.** The AWF firewall binary release referenced by a lock file was deleted upstream, breaking `reverse-binary-analysis` for 10+ weeks with no alert ([#1388](https://github.com/TheLarkInn/aipm/issues/1388)). Periodically verify the pin resolves using the `gh api` check in "Keep every lock file on the same compiler version" below.
+- **Lock files are generated** — never hand-edit a `.lock.yml`. Edit the `.md` source, recompile, and commit both together.
+
 ### Modifying workflow files
 
 After editing any `.github/workflows/<name>.md`, recompile its lock file:
@@ -104,6 +117,8 @@ After editing any `.github/workflows/<name>.md`, recompile its lock file:
 ```bash
 gh aw compile <name>   # e.g. gh aw compile improve-coverage
 ```
+
+**Compile with the repository's pinned gh-aw version — currently `v0.86.2`.** Check yours with `gh aw version` and upgrade with `gh extension upgrade gh-aw` before compiling. The pin is recorded in every `.lock.yml`'s `# gh-aw-metadata:` header as `compiler_version`, and the per-workflow setup action pin (`github/gh-aw-actions/setup`) must match it. Compiling with any other version rewrites the pins and reintroduces the compiler skew described below.
 
 Commit both the `.md` source and the regenerated `.lock.yml` together. The compiled lock file is the canonical version GitHub Actions runs.
 
