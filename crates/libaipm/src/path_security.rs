@@ -229,6 +229,15 @@ mod tests {
         assert!(matches!(result, Err(PathValidationError::PathTraversal)));
     }
 
+    #[test]
+    fn validate_url_encoded_traversal_without_literal_dots_rejected() {
+        // "%2e%2e" is present but the literal ".." substring is not, so this
+        // exercises the right-hand side of the `||` short-circuit on its own
+        // (the left-hand `contains("..")` check evaluates to false here).
+        let result = validate_plugin_path("foo/%2e%2e_bar");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
     #[cfg(windows)]
     #[test]
     fn validate_windows_absolute_path() {
