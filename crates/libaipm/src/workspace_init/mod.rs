@@ -807,6 +807,80 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// #850 Q9.5: when a second `init` run finds every requested artifact
+    /// (workspace manifest, `.ai/` marketplace, and all engine manifests)
+    /// already present, `any_created` is false and `any_found` is true, so
+    /// the tail warn fires (line covered via `tracing::warn!` executing
+    /// without panicking).
+    #[test]
+    fn init_second_full_run_finds_everything_and_creates_nothing() {
+        let (tmp, _guard) = make_temp_dir("full-idempotent");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+
+        let first = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(first.is_ok(), "first init must succeed: {first:?}");
+
+        let second = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(second.is_ok(), "second init must succeed: {second:?}");
+
+        let actions = second.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+        assert!(actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)));
+        assert!(actions
+            .iter()
+            .any(|a| matches!(a, InitAction::MarketplaceManifestFoundExisting { .. })));
+        assert!(!actions.iter().any(|a| matches!(
+            a,
+            InitAction::WorkspaceCreated
+                | InitAction::MarketplaceCreated
+                | InitAction::MarketplaceManifestWritten { .. }
+                | InitAction::ToolConfigured(_)
+        )));
+
+        cleanup(&tmp);
+    }
+
+    /// #850 Q9.5: when neither `--workspace` nor `--marketplace` is
+    /// requested, `actions` stays empty, so both `any_created` and
+    /// `any_found` are false — the tail warn's `&&` short-circuits on
+    /// `!any_created` (true) but then evaluates `any_found` as false,
+    /// covering the branch where nothing was created *and* nothing was
+    /// found either.
+    #[test]
+    fn init_with_no_phases_requested_creates_and_finds_nothing() {
+        let (tmp, _guard) = make_temp_dir("no-phases");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "no-op init must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "no phases requested means no actions recorded");
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_marketplace_is_idempotent_when_ai_exists() {
         let (tmp, _guard) = make_temp_dir("mp-idempotent");
