@@ -247,6 +247,34 @@ mod tests {
     }
 
     #[test]
+    fn conflict_detail_display_propagates_write_error() {
+        // A `Write` sink that always fails, forcing the `?` after the first
+        // `write!` in `ConflictDetail::fmt` to return early with an `Err`.
+        // Exercises the otherwise-uncovered error branch of that `?`.
+        struct FailingWriter;
+        impl std::fmt::Write for FailingWriter {
+            fn write_str(&mut self, _s: &str) -> std::fmt::Result {
+                Err(std::fmt::Error)
+            }
+        }
+
+        let detail = ConflictDetail {
+            name: "pkg".to_string(),
+            existing_req: "1.0.0".to_string(),
+            existing_source: "src-a".to_string(),
+            new_req: "2.0.0".to_string(),
+            new_source: "src-b".to_string(),
+            existing_chain: vec!["root".to_string()],
+            new_chain: vec![],
+        };
+
+        use std::fmt::Write as _;
+        let mut writer = FailingWriter;
+        let result = write!(writer, "{detail}");
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn format_chain_single_element() {
         // Single-element chain should not include " -> " separators
         let err = Error::Conflict(Box::new(ConflictDetail {
