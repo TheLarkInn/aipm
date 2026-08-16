@@ -136,6 +136,17 @@ mod tests {
         assert!(matches!(result, Err(PathValidationError::PathTraversal)));
     }
 
+    /// Covers the `lower.contains("..")` sub-branch on its own (line 104,
+    /// first operand of the `||`). `"foo..bar"` is a single `Normal` path
+    /// component — it never triggers `Component::ParentDir` in the loop
+    /// above, so this input reaches the raw-string check and is caught
+    /// solely by `contains("..")`, independent of `contains("%2e%2e")`.
+    #[test]
+    fn validate_path_traversal_dotdot_within_component() {
+        let result = validate_plugin_path("foo..bar");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
     #[test]
     fn validate_absolute_path_unix() {
         let result = validate_plugin_path("/etc/passwd");
