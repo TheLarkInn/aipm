@@ -155,6 +155,26 @@ mod tests {
     }
 
     #[test]
+    fn conflict_error_with_only_new_chain() {
+        // Exercises the `if !self.new_chain.is_empty()` branch on its own,
+        // with `existing_chain` empty (so line 63's inner block is skipped
+        // but line 68's is entered).
+        let err = Error::Conflict(Box::new(ConflictDetail {
+            name: "common-util".to_string(),
+            existing_req: "1.0.0".to_string(),
+            existing_source: "skill-a".to_string(),
+            new_req: "=2.0.0".to_string(),
+            new_source: "skill-b".to_string(),
+            existing_chain: vec![],
+            new_chain: vec!["root".to_string(), "skill-b".to_string()],
+        }));
+
+        let msg = err.to_string();
+        assert!(msg.contains("dependency chains:"));
+        assert!(msg.contains("root -> skill-b -> common-util"));
+    }
+
+    #[test]
     fn build_chain_simple() {
         let mut source_map = std::collections::BTreeMap::new();
         source_map.insert("skill-a".to_string(), "root".to_string());
