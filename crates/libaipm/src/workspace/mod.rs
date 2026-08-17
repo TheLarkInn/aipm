@@ -173,6 +173,65 @@ mod tests {
         assert!(result.is_none(), "should not match non-workspace manifest, got: {result:?}");
     }
 
+    /// Fs stub whose `exists` always reports true but whose `read_to_string`
+    /// always errors, exercising the "manifest exists but can't be read"
+    /// branch of [`find_workspace_root`] (e.g. permission-denied files).
+    struct UnreadableFs;
+
+    impl crate::fs::Fs for UnreadableFs {
+        fn exists(&self, _path: &Path) -> bool {
+            true
+        }
+
+        fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _path: &Path, _content: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _path: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::other("permission denied"))
+        }
+
+        fn read_dir(&self, _path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn find_root_skips_unreadable_manifest() {
+        // aipm.toml "exists" at every level but can never be read, so the
+        // loop must skip it (log-and-continue), pop up to root, and
+        // eventually return None instead of erroring.
+        let result = find_workspace_root(&UnreadableFs, Path::new("/a/b/c"));
+        assert!(result.is_none(), "should skip unreadable manifest, got: {result:?}");
+    }
+
+    #[test]
+    fn find_root_skips_unparseable_manifest() {
+        // A manifest that fails to parse as TOML should be skipped (logged
+        // and treated as "no workspace here"), continuing the walk-up rather
+        // than erroring out.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Real workspace two levels up.
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+
+        let sub = root.join("sub");
+        std::fs::create_dir_all(&sub).unwrap();
+        // Unparseable TOML at the intermediate level.
+        std::fs::write(sub.join("aipm.toml"), "this is not valid toml [[[").unwrap();
+
+        let leaf = sub.join("leaf");
+        std::fs::create_dir_all(&leaf).unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &leaf);
+        assert_eq!(result.as_deref(), Some(root));
+    }
+
     #[test]
     fn find_root_from_root_itself() {
         let tmp = tempfile::tempdir().unwrap();
