@@ -294,4 +294,15 @@ mod tests {
         let _ = err;
         ValidatedPath(String::new())
     }
+
+    #[test]
+    fn panic_free_unreachable_returns_empty_validated_path() {
+        // Directly exercises the fallback helper's body (rather than only
+        // via the `Ok` branch of `.unwrap_or_else` in other tests), so the
+        // `let _ = err;` / construction branch is covered even though callers
+        // in practice never reach it on the happy path.
+        let err = PathValidationError::EmptyPath;
+        let path = panic_free_unreachable(&err);
+        assert_eq!(path.as_str(), "");
+    }
 }
