@@ -150,6 +150,13 @@ mod tests {
     }
 
     #[test]
+    fn agent_detector_name_is_agent() {
+        // Exercises the `Detector::name` impl, which is otherwise never
+        // called by the `detect`-focused tests in this module.
+        assert_eq!(AgentDetector.name(), "agent");
+    }
+
+    #[test]
     fn detect_agent_no_agents_dir() {
         let fs = MockFs::new();
         let detector = AgentDetector;
