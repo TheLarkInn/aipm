@@ -67,15 +67,24 @@ impl<'de> Deserialize<'de> for Platform {
 // Platform detection
 // ---------------------------------------------------------------------------
 
-/// Return the [`Platform`] identifier for the current runtime OS.
-pub fn current_platforms() -> Vec<Platform> {
-    let os = std::env::consts::OS;
+/// Map an OS identifier string (as returned by `std::env::consts::OS`) to
+/// its corresponding [`Platform`] list.
+///
+/// Extracted from [`current_platforms`] so every branch — including OS
+/// values that differ from the OS actually running the tests — can be
+/// exercised directly in unit tests.
+fn platforms_for_os(os: &str) -> Vec<Platform> {
     match os {
         "windows" => vec![Platform::Windows],
         "linux" => vec![Platform::Linux],
         "macos" => vec![Platform::MacOs],
         _ => vec![],
     }
+}
+
+/// Return the [`Platform`] identifier for the current runtime OS.
+pub fn current_platforms() -> Vec<Platform> {
+    platforms_for_os(std::env::consts::OS)
 }
 
 // ---------------------------------------------------------------------------
@@ -122,6 +131,14 @@ pub fn check_platform_compatibility(platforms: Option<&[Platform]>) -> Compatibi
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn platforms_for_os_covers_every_known_and_unknown_value() {
+        assert_eq!(platforms_for_os("windows"), vec![Platform::Windows]);
+        assert_eq!(platforms_for_os("linux"), vec![Platform::Linux]);
+        assert_eq!(platforms_for_os("macos"), vec![Platform::MacOs]);
+        assert_eq!(platforms_for_os("freebsd"), Vec::<Platform>::new());
+    }
 
     #[test]
     fn current_platforms_includes_known_os() {
