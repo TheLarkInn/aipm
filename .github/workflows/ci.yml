@@ -13,6 +13,10 @@ env:
   CARGO_NET_RETRY: 10
   RUST_BACKTRACE: short
   LIBGIT2_SYS_USE_PKG_CONFIG: "1"
+  # Pinned gh-aw compiler version. Every .github/workflows/*.lock.yml must be
+  # compiled with exactly this version — enforced by the aw-lock-drift job.
+  # When bumping, run a bare `gh aw compile` and commit all regenerated locks.
+  GH_AW_VERSION: v0.86.2
 
 jobs:
   ci:
@@ -116,3 +120,44 @@ jobs:
         with:
           files: lcov.info
           fail_ci_if_error: false
+
+  aw-lock-drift:
+    name: Agentic workflow lock drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install gh-aw (pinned)
+        run: gh extension install github/gh-aw --pin "$GH_AW_VERSION"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Compile agentic workflows
+        run: gh aw compile
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Fail on lock-file drift
+        run: |
+          if ! git diff --exit-code -- .github/workflows .github/aw; then
+            echo "::error::Lock files are out of date. Run 'gh aw compile' with gh-aw $GH_AW_VERSION and commit the result."
+            exit 1
+          fi
+          if [ -n "$(git status --porcelain --untracked-files=all -- .github/workflows .github/aw)" ]; then
+            echo "::error::'gh aw compile' produced untracked files. Commit them or remove the orphaned .md source."
+            git status --porcelain --untracked-files=all -- .github/workflows .github/aw
+            exit 1
+          fi
+
+      - name: Assert single pinned compiler version
+        run: |
+          VERSIONS=$(grep -ho '"compiler_version":"[^"]*"' .github/workflows/*.lock.yml | sort -u)
+          if [ "$(echo "$VERSIONS" | wc -l)" -ne 1 ]; then
+            echo "::error::Lock files were compiled with different gh-aw versions:"
+            echo "$VERSIONS"
+            exit 1
+          fi
+          if [ "$VERSIONS" != "\"compiler_version\":\"$GH_AW_VERSION\"" ]; then
+            echo "::error::Lock files report $VERSIONS but ci.yml pins GH_AW_VERSION=$GH_AW_VERSION. Recompile all workflows with the pinned version, or bump the pin and recompile."
+            exit 1
+          fi
