@@ -388,4 +388,21 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Directly invoke `engine_set_serde::deserialize` with a non-null JSON
+    /// array through the *same* `serde_json::Value` deserializer
+    /// monomorphization used by [`engine_set_serde_null_returns_none`]. That
+    /// test only ever drives the `raw` = `None` arm (line 346's `else`
+    /// branch) for this instantiation; without a companion `Some` case the
+    /// `raw` = `Some(names)` arm of the same monomorphized function is
+    /// never exercised, leaving the branch only half-covered.
+    #[test]
+    fn engine_set_serde_json_value_some_returns_set() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value = serde_json::json!(["claude"]);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_ok(), "deserializing a known engine name should succeed: {result:?}");
+        let result: Result<Option<EngineSet>, _> = result;
+        assert_eq!(result.unwrap(), Some(EngineSet::CLAUDE));
+    }
 }
