@@ -75,7 +75,7 @@ The repository uses [GitHub Agentic Workflows](https://githubnext.com/projects/a
 
 | Workflow file | Timeout | Schedule | Purpose |
 |---|---|---|---|
-| `improve-coverage.md` | 45 min | Every 15 min | Finds uncovered branches, writes tests, opens PRs |
+| `improve-coverage.md` | 45 min | Every 15 min | Finds uncovered branches, writes tests, opens PRs; guards open coverage PRs against conflicts/staleness and escalates repeated no-ops |
 | `daily-qa.md` | 45 min | Every 3 h | Validates build, tests, and documentation health |
 | `docs-updater.md` | 45 min | Weekdays daily | Syncs docs with recent code changes |
 | `update-docs.md` | 45 min | On push to `main` | Updates docs on every merge |
