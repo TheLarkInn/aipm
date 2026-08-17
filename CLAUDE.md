@@ -53,6 +53,8 @@ cargo +nightly llvm-cov report --doctests --branch \
 
 Verify the TOTAL branch column shows ≥ 89%. For HTML or lcov output, append `--html --open` or `--lcov --output-path lcov.info` to the report command.
 
+The `--ignore-filename-regex` pattern is duplicated in `ci.yml` as the `COVERAGE_IGNORE_REGEX` env var — when changing either one, keep the two in sync.
+
 ## Copilot Coding Agent Setup
 
 The file `.github/workflows/copilot-setup-steps.yml` defines the pre-build environment for the [GitHub Copilot coding agent](https://docs.github.com/en/copilot/using-github-copilot/using-claude-sonnet-in-github-copilot). It runs before every agent task and installs all toolchain prerequisites so the sandbox does not need network access during the actual build:
@@ -71,7 +73,7 @@ Do **not** remove or weaken `CARGO_NET_RETRY` (currently `10`) or the `--locked`
 
 ## Agentic Workflows
 
-The repository uses [GitHub Agentic Workflows](https://githubnext.com/projects/agentics) (`.github/workflows/*.md` compiled via `gh aw compile`) for automated maintenance tasks.
+The repository uses [GitHub Agentic Workflows](https://githubnext.com/projects/agentics) (`.github/workflows/*.md` compiled via `gh aw compile`) for automated maintenance tasks. One exception: `research-codebase.yml` is intentionally hand-written — see the note below the table.
 
 | Workflow file | Timeout | Schedule | Purpose |
 |---|---|---|---|
@@ -81,7 +83,9 @@ The repository uses [GitHub Agentic Workflows](https://githubnext.com/projects/a
 | `update-docs.md` | 45 min | On push to `main` | Updates docs on every merge |
 | `build-timings.md` | 45 min | Weekdays daily | Analyzes compilation bottlenecks |
 | `reverse-binary-analysis.md` | 120 min | Weekly | Downloads AI engine CLIs, extracts plugin API surface, updates `crates/libaipm-engine-spec/data/engine-api-schema.json`, opens PR when schema changes |
-| `research-codebase.md` | 30 min | On `research` label applied to issue | Runs Copilot CLI to research the codebase, posts findings as the issue body, and relabels with `spec review` |
+| `research-codebase.yml` † | 30 min | On `research` label applied to issue | Runs Copilot CLI to research the codebase, writes findings to `research/docs/`, posts the generated file as the issue body, and relabels with `spec review` |
+
+† **`research-codebase.yml` is intentionally hand-written and is NOT managed by `gh aw compile`.** It replaced a compiled gh-aw workflow in [#97](https://github.com/TheLarkInn/aipm/pull/97). There is deliberately no `research-codebase.md` source and no `research-codebase.lock.yml` — do not re-add them: `gh aw compile` would emit a second workflow also named "Research Codebase", and both would fire on the same `research` label. Edit the `.yml` directly.
 
 ### Why different timeouts?
 
@@ -97,6 +101,10 @@ Most maintenance workflows are capped at **45 minutes**: the full agent cycle (n
 
 The manual `ci: trigger checks` empty-commit workaround is **obsolete** — do not push empty commits to trigger CI on `main`. If post-merge CI stops running again, check which token enabled auto-merge on the merged PR.
 
+### A green run is not a healthy run
+
+A gh-aw workflow that emits only `noop` outputs still exits `success` — the run log literally says "Agent succeeded with only noop outputs - this is not a failure". A workflow can therefore be livelocked while the dashboard shows green for weeks: `improve-coverage` parked indefinitely on an unmergeable PR exactly this way ([#1391](https://github.com/TheLarkInn/aipm/issues/1391)). When auditing a workflow, check what it *did* — issues/PRs created, comments posted — not just its conclusion, and treat repeated identical `noop` cycles as a failure signal.
+
 ### Modifying workflow files
 
 After editing any `.github/workflows/<name>.md`, recompile its lock file:
@@ -105,11 +113,11 @@ After editing any `.github/workflows/<name>.md`, recompile its lock file:
 gh aw compile <name>   # e.g. gh aw compile improve-coverage
 ```
 
-Commit both the `.md` source and the regenerated `.lock.yml` together. The compiled lock file is the canonical version GitHub Actions runs.
+Never hand-edit a `.lock.yml`: commit both the `.md` source and the regenerated `.lock.yml` together. The compiled lock file is the canonical version GitHub Actions runs.
 
 #### Keep every lock file on the same compiler version
 
-**All lock files must be compiled with the same `gh aw` version.** The repository is currently on **`v0.86.2`**; check yours with `gh aw version` and upgrade with `gh extension upgrade gh-aw` before recompiling.
+**All lock files must be compiled with the same `gh aw` version.** The repository is currently on **`v0.86.2`**. The pin is recorded in every lock file's `# gh-aw-metadata:` header as `compiler_version` — there is no separate pin file; the locks themselves are the record. Check yours with `gh aw version` and upgrade with `gh extension upgrade gh-aw` before recompiling.
 
 Recompiling a single workflow with a newer extension than the others introduces *compiler version skew*. Each lock file embeds a pinned [`gh-aw-firewall`](https://github.com/githubnext/gh-aw-firewall) (AWF) release, so a skewed lock ends up on a different AWF pin than its siblings. Upstream deletes old AWF releases, and when that happens the `Install AWF binary` step dies with `curl: (22) ... 404` and the workflow fails 100% of the time — which is exactly how `reverse-binary-analysis` (pinned to the deleted `v0.25.28`) silently failed every week for over two months ([#1388](https://github.com/TheLarkInn/aipm/issues/1388)).
 
