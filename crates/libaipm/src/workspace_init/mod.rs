@@ -836,6 +836,43 @@ mod tests {
     }
 
     #[test]
+    fn init_both_idempotent_emits_no_created_actions() {
+        // Covers the `true` branch of `if !any_created && any_found` (#850 G12/Q9.5):
+        // when both --workspace and --marketplace target pre-existing artifacts,
+        // init produces only Found* actions and no Created* action, so the tail
+        // warning path is exercised (verified indirectly via the resulting actions
+        // list, since tracing output is not captured here).
+        let (tmp, _guard) = make_temp_dir("both-idempotent");
+
+        let existing = generate_workspace_manifest(None);
+        std::fs::write(tmp.join("aipm.toml"), &existing).ok();
+        std::fs::create_dir_all(tmp.join(".ai")).ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "idempotent init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+        assert!(actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)));
+        assert!(!actions
+            .iter()
+            .any(|a| matches!(a, InitAction::WorkspaceCreated | InitAction::MarketplaceCreated)));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_both_creates_everything() {
         let (tmp, _guard) = make_temp_dir("both");
         let adaptors = default_adaptors();
