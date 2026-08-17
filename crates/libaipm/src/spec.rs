@@ -1212,6 +1212,24 @@ mod tests {
     }
 
     #[test]
+    fn marketplace_location_github_short_format_parses() {
+        // Exercise the success branch of the owner/repo GitHub short format
+        // check in parse_market_location (owner and repo both non-empty and
+        // repo has no further '/').
+        let spec = parse("market:hello@owner/repo");
+        match spec {
+            Spec::Marketplace(MarketplaceSource { market_location, .. }) => match market_location {
+                MarketLocation::GitHub { owner, repo } => {
+                    assert_eq!(owner, "owner");
+                    assert_eq!(repo, "repo");
+                },
+                other => panic!("expected GitHub location, got {other:?}"),
+            },
+            other => panic!("expected marketplace spec, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn is_local_path_parent_dir() {
         // Exercise the ../ branch (line 430)
         let spec = parse("market:my-plugin@../my-marketplace");
