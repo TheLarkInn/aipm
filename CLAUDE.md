@@ -117,6 +117,15 @@ gh aw compile <name>   # e.g. gh aw compile improve-coverage
 
 Never hand-edit a `.lock.yml`: commit both the `.md` source and the regenerated `.lock.yml` together. The compiled lock file is the canonical version GitHub Actions runs.
 
+#### `.gitattributes` and compiler-generated side files
+
+`.gitattributes` carries a single line for lock files — `.github/workflows/*.lock.yml linguist-generated=true` — and that state is deliberate ([#1392](https://github.com/TheLarkInn/aipm/issues/1392)):
+
+- **No `merge=ours` driver.** On a generated file, `merge=ours` silently resolves merge conflicts to the local side instead of forcing a recompile, which is exactly how locks rot out of sync with their `.md` sources. Resolve lock-file conflicts by rerunning `gh aw compile`, never by hand-merging.
+- The file ends with a trailing newline; the compiler does not rewrite `.gitattributes`, so the newline is stable.
+
+`gh aw compile` also emits **`.github/workflows/agentics-maintenance.yml`** — a generated daily workflow (top-level `permissions: {}`, per-job least privilege, `secrets.GITHUB_TOKEN` only, fork-guarded jobs) that closes expiring safe outputs such as Daily QA discussions (compiler-default `expires: 168`) and exposes manual maintenance operations via `workflow_dispatch`. It is tracked and expected — do not delete it, or the next compile recreates it as an untracked file. To opt out entirely, set `{"maintenance": false}` in `.github/workflows/aw.json`.
+
 #### Keep every lock file on the same compiler version
 
 **All lock files must be compiled with the same `gh aw` version.** The repository is currently on **`v0.86.2`**. The pin is recorded in every lock file's `# gh-aw-metadata:` header as `compiler_version` — there is no separate pin file; the locks themselves are the record. Check yours with `gh aw version` and upgrade with `gh extension upgrade gh-aw` before recompiling.
