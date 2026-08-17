@@ -697,6 +697,21 @@ mod tests {
     }
 
     #[test]
+    fn json_reporter_multiple_sources_scanned() {
+        let outcome = Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![".ai".to_string(), ".claude".to_string()],
+            ..Outcome::default()
+        };
+        let mut buf = Vec::new();
+        Json.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("\"sources_scanned\": [\".ai\", \".claude\"]"));
+    }
+
+    #[test]
     fn text_reporter_file_path_and_line() {
         let outcome = sample_outcome();
         let mut buf = Vec::new();
