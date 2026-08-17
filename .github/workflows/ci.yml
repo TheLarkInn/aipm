@@ -13,6 +13,8 @@ env:
   CARGO_NET_RETRY: 10
   RUST_BACKTRACE: short
   LIBGIT2_SYS_USE_PKG_CONFIG: "1"
+  # Single source of truth for the pinned gh-aw compiler version (referenced by CLAUDE.md).
+  GH_AW_VERSION: v0.86.2
 
 jobs:
   ci:
@@ -116,3 +118,49 @@ jobs:
         with:
           files: lcov.info
           fail_ci_if_error: false
+
+  aw-lock-drift:
+    name: Agentic workflow lock drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pinned gh-aw extension
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh extension install github/gh-aw --pin "$GH_AW_VERSION"
+
+      - name: Recompile agentic workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh aw compile
+
+      - name: Fail on lock-file drift
+        run: |
+          if ! git diff --exit-code -- .github/workflows .github/aw; then
+            echo "::error::Lock files are out of date. Run 'gh aw compile' with gh-aw $GH_AW_VERSION and commit the regenerated files."
+            exit 1
+          fi
+
+      - name: Fail on untracked generated files
+        run: |
+          UNTRACKED="$(git status --porcelain --untracked-files=all -- .github/workflows .github/aw | grep '^??' || true)"
+          if [ -n "$UNTRACKED" ]; then
+            echo "::error::gh aw compile produced untracked files. Commit them or remove the orphaned source:"
+            echo "$UNTRACKED"
+            exit 1
+          fi
+
+      - name: Fail on compiler-version skew
+        run: |
+          SKEWED=0
+          for LOCK in .github/workflows/*.lock.yml; do
+            if ! head -1 "$LOCK" | grep -q "\"compiler_version\":\"$GH_AW_VERSION\""; then
+              echo "::error::$LOCK was not compiled with gh-aw $GH_AW_VERSION"
+              SKEWED=1
+            fi
+          done
+          if [ "$SKEWED" -ne 0 ]; then
+            echo "Recompile every workflow with gh-aw $GH_AW_VERSION ('gh aw compile') and commit the results."
+            exit 1
+          fi
