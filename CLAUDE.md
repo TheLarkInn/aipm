@@ -46,7 +46,7 @@ All four must pass with zero warnings before any commit.
 ```bash
 cargo +nightly llvm-cov clean --workspace
 cargo +nightly llvm-cov --no-report --workspace --branch
-cargo +nightly llvm-cov --no-report --doc
+cargo +nightly llvm-cov --no-report --doc --branch
 cargo +nightly llvm-cov report --doctests --branch \
   --ignore-filename-regex '(tests/|research/|specs/|wizard_tty\.rs|lsp\.rs|libaipm-engine-spec/build\.rs|libaipm-engine-spec/src/bin)'
 ```
@@ -86,6 +86,8 @@ The repository uses [GitHub Agentic Workflows](https://githubnext.com/projects/a
 | `research-codebase.yml` † | 30 min | On `research` label applied to issue | Runs Copilot CLI to research the codebase, writes findings to `research/docs/`, posts the generated file as the issue body, and relabels with `spec review` |
 
 † **`research-codebase.yml` is intentionally hand-written and is NOT managed by `gh aw compile`.** It replaced a compiled gh-aw workflow in [#97](https://github.com/TheLarkInn/aipm/pull/97). There is deliberately no `research-codebase.md` source and no `research-codebase.lock.yml` — do not re-add them: `gh aw compile` would emit a second workflow also named "Research Codebase", and both would fire on the same `research` label. Edit the `.yml` directly.
+
+Every workflow in the table also supports manual runs via `workflow_dispatch` (`research-codebase.yml` requires an `issue_number` input when dispatched manually).
 
 ### Why different timeouts?
 
