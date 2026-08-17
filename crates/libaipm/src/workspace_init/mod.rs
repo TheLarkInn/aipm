@@ -743,6 +743,37 @@ mod tests {
     }
 
     #[test]
+    fn init_no_phases_requested_produces_no_actions_and_no_warning() {
+        // Covers the False branch of `any_found` in `init` (L208): when
+        // neither `workspace` nor `marketplace` is requested, `actions`
+        // stays empty, so `any_found` (an `.any()` over an empty iterator)
+        // is `false` and the "found nothing to do" tail warning must not
+        // fire. Distinct from the idempotent-Found* scenarios covered by
+        // `init_workspace_is_idempotent_when_aipm_toml_exists` and
+        // `init_marketplace_is_idempotent_when_ai_exists`, which produce a
+        // non-empty `actions` list with `any_found == true`.
+        let (tmp, _guard) = make_temp_dir("no-phases");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+        assert!(!tmp.join("aipm.toml").exists());
+        assert!(!tmp.join(".ai").exists());
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_marketplace_creates_tree() {
         let (tmp, _guard) = make_temp_dir("mp-create");
         let adaptors = default_adaptors();
