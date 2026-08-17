@@ -99,7 +99,7 @@ The manual `ci: trigger checks` empty-commit workaround is **obsolete** — do n
 
 ### Modifying workflow files
 
-After editing any `.github/workflows/<name>.md`, recompile its lock file:
+After editing any `.github/workflows/<name>.md`, recompile its lock file with the pinned gh-aw version (see below):
 
 ```bash
 gh aw compile <name>   # e.g. gh aw compile improve-coverage
@@ -109,7 +109,9 @@ Commit both the `.md` source and the regenerated `.lock.yml` together. The compi
 
 #### Keep every lock file on the same compiler version
 
-**All lock files must be compiled with the same `gh aw` version.** The repository is currently on **`v0.86.2`**; check yours with `gh aw version` and upgrade with `gh extension upgrade gh-aw` before recompiling.
+**All lock files must be compiled with the same `gh aw` version.** The pinned version is the `GH_AW_VERSION` env var at the top of `.github/workflows/ci.yml` (currently **`v0.86.2`**) — that is the single source of truth. Check yours with `gh aw version` and install the pinned release with `gh extension install github/gh-aw --pin <version>` (or `gh extension upgrade gh-aw --pin <version>` if already installed) before recompiling.
+
+The `aw-lock-drift` job in `ci.yml` enforces all of this: it recompiles every workflow with the pinned gh-aw and fails the build if `gh aw compile` produces any diff or untracked file under `.github/workflows` / `.github/aw`, or if any lock's embedded `compiler_version` does not match the pin. When bumping the pin, update `GH_AW_VERSION`, recompile everything, and commit it all in one PR.
 
 Recompiling a single workflow with a newer extension than the others introduces *compiler version skew*. Each lock file embeds a pinned [`gh-aw-firewall`](https://github.com/githubnext/gh-aw-firewall) (AWF) release, so a skewed lock ends up on a different AWF pin than its siblings. Upstream deletes old AWF releases, and when that happens the `Install AWF binary` step dies with `curl: (22) ... 404` and the workflow fails 100% of the time — which is exactly how `reverse-binary-analysis` (pinned to the deleted `v0.25.28`) silently failed every week for over two months ([#1388](https://github.com/TheLarkInn/aipm/issues/1388)).
 
