@@ -185,6 +185,25 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unparseable_manifest() {
+        // Covers the `Err(e)` branch of `toml::from_str` in
+        // `find_workspace_root`: an `aipm.toml` with invalid TOML syntax at
+        // the start directory is skipped, and discovery continues walking
+        // up to find a valid workspace manifest in a parent directory.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(&subdir).unwrap();
+        // Malformed TOML — not parseable.
+        std::fs::write(subdir.join("aipm.toml"), "this is not valid toml [[[").unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
+        assert_eq!(result.as_deref(), Some(root));
+    }
+
+    #[test]
     fn discover_members_single_glob() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
