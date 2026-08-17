@@ -2091,6 +2091,44 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the False branch of the short-circuited `any_found` check in
+    /// `!any_created && any_found` (line 208): when both `--workspace` and
+    /// `--marketplace` are disabled, `init` performs no phases at all, so
+    /// `actions` stays empty. Both `any_created` and `any_found` are then
+    /// `false`, meaning `any_found`'s right-hand operand is evaluated (since
+    /// `any_created` is `false`) and itself evaluates to `false` — the
+    /// "nothing to do" warn must NOT be emitted, since the user did not ask
+    /// `init` to do anything in the first place.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_no_phases_requested_produces_no_actions_and_does_not_warn() {
+        let (tmp, _guard) = make_temp_dir("no-phases-requested");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE
+                | libaipm_engine_spec::EngineSet::COPILOT,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions when both phases are disabled");
+        assert!(
+            !logs_contain("aipm init found nothing to do"),
+            "warn must not fire when the user requested no phases at all"
+        );
+
+        cleanup(&tmp);
+    }
+
     /// Existing `aipm.toml` declares `engines = ["claude"]` but the
     /// wizard answer chose Copilot. Init must succeed (idempotent),
     /// leave the file unchanged, and emit a tracing::warn event naming
