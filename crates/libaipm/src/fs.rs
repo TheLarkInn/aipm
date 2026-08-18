@@ -505,6 +505,15 @@ mod tests {
     }
 
     #[test]
+    fn write_file_with_parents_no_parent_skips_if_let_branch() {
+        // Path::new("").parent() returns None (unlike a bare filename, whose
+        // parent is Some("")), so the `if let Some(parent) = path.parent()`
+        // branch is skipped entirely and write_file is called directly.
+        let result = Real.write_file_with_parents(Path::new(""), b"data");
+        assert!(result.is_err(), "writing to an empty path must fail");
+    }
+
+    #[test]
     fn write_file_with_parents_empty_parent_skips_create_dir_all() {
         // When path has a bare filename (parent = Some("")), create_dir_all must
         // NOT be called. Use a CWD-change guarded by a mutex so parallel tests
