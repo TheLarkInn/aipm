@@ -599,6 +599,40 @@ mod tests {
         assert!(check_source_redirect(&dir).is_none());
     }
 
+    /// Covers the full success path of the public `acquire_local` function
+    /// (line 100, `Ok(dest)`): source exists, is a directory, copies cleanly,
+    /// passes the file-count check, and validates as a plugin. All other
+    /// `acquire_local` tests exercise error paths via the `acquire_local_from`
+    /// helper, so this is the only test that drives the real function to its
+    /// success return. Uses a CWD-change (guarded by a mutex, following the
+    /// pattern in `fs.rs`) because `ValidatedPath`/`acquire_local` resolve
+    /// relative paths against the process's current directory.
+    #[test]
+    fn acquire_local_success_returns_ok() {
+        static CWD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = CWD_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+
+        let temp = make_temp();
+        let _src = make_local_plugin(&temp, "good-plugin");
+        let dest = temp.path().join("dest");
+        let _ = std::fs::create_dir_all(&dest);
+
+        let orig = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        if std::env::set_current_dir(temp.path()).is_err() {
+            return;
+        }
+
+        let path = ValidatedPath::new("good-plugin").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &dest, Engine::Claude);
+
+        let _ = std::env::set_current_dir(&orig);
+
+        assert!(result.is_ok(), "acquire_local should succeed: {result:?}");
+        let plugin_path = result.unwrap_or_else(|_| PathBuf::new());
+        assert!(plugin_path.join(".claude-plugin/plugin.json").exists());
+        assert!(plugin_path.join("README.md").exists());
+    }
+
     /// Covers the `acquire_local` path where the source IS a directory (False
     /// branch of `if !source.is_dir()`). The call proceeds past the dir-check,
     /// copies the directory, then fails at plugin validation because `tests/`
