@@ -260,6 +260,16 @@ mod tests {
     }
 
     #[test]
+    fn panic_free_unreachable_fallback_is_invoked_on_error() {
+        // Unlike the other tests, which only ever hit the `Ok` arm of
+        // `unwrap_or_else`, this test deliberately triggers the `Err` arm so
+        // the `panic_free_unreachable` closure body itself actually runs,
+        // exercising its previously-uncovered branch.
+        let path = ValidatedPath::new("../secret").unwrap_or_else(|e| panic_free_unreachable(&e));
+        assert_eq!(path.as_str(), "");
+    }
+
+    #[test]
     fn plugin_path_new_null_byte_returns_error() {
         // Exercises the null-byte PathTraversal branch through `ValidatedPath::new`.
         let result = ValidatedPath::new("foo\0bar");
