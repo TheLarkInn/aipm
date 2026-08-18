@@ -13,6 +13,11 @@ env:
   CARGO_NET_RETRY: 10
   RUST_BACKTRACE: short
   LIBGIT2_SYS_USE_PKG_CONFIG: "1"
+  # Pinned gh-aw compiler version. The aw-lock-drift job installs exactly this
+  # version and fails if the committed .github/workflows/*.lock.yml drift from
+  # their .md sources or report a different compiler_version. Bump it with
+  # 'gh extension upgrade gh-aw' + a full 'gh aw compile'. Documented in CLAUDE.md.
+  GH_AW_VERSION: v0.86.2
 
 jobs:
   ci:
@@ -47,6 +52,53 @@ jobs:
 
       - name: Format
         run: cargo fmt --check
+
+  aw-lock-drift:
+    name: Agentic workflow lock drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install gh-aw (pinned)
+        run: |
+          gh extension install github/gh-aw --pin "$GH_AW_VERSION"
+          gh aw version
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Recompile agentic workflows
+        run: gh aw compile
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Fail on lock-file drift
+        run: |
+          if ! git diff --exit-code -- .github/workflows .github/aw; then
+            echo "::error::Agentic workflow locks are out of date. Run 'gh aw compile' with gh-aw $GH_AW_VERSION and commit the result."
+            exit 1
+          fi
+
+      - name: Fail on untracked compiler output
+        run: |
+          untracked="$(git status --porcelain --untracked-files=all -- .github/workflows .github/aw | grep '^??' || true)"
+          if [ -n "$untracked" ]; then
+            echo "::error::gh aw compile produced untracked files. Commit them or remove the orphaned .md source:"
+            echo "$untracked"
+            exit 1
+          fi
+
+      - name: Assert uniform compiler_version across locks
+        run: |
+          versions="$(grep -hoP '(?<="compiler_version":")[^"]+' .github/workflows/*.lock.yml | sort -u)"
+          if [ "$(echo "$versions" | wc -l)" -ne 1 ]; then
+            echo "::error::Lock files report different compiler_version values. Recompile all workflows with gh-aw $GH_AW_VERSION:"
+            echo "$versions"
+            exit 1
+          fi
+          if [ "$versions" != "$GH_AW_VERSION" ]; then
+            echo "::error::Locks were compiled with gh-aw $versions but GH_AW_VERSION pins $GH_AW_VERSION. Update the pin in ci.yml or recompile the locks."
+            exit 1
+          fi
 
   coverage:
     name: Coverage (89% branch gate)
