@@ -2054,4 +2054,15 @@ mod tests {
         let group_line = output.lines().find(|l| l.starts_with("##[group]")).unwrap_or_default();
         assert!(group_line.contains("%0A##vso[task.setvariable"));
     }
+
+    #[test]
+    fn ci_azure_no_result_line_when_zero_warnings_and_errors() {
+        // Exercise the false side of `error_count == 0 && warning_count > 0`
+        // (reporter.rs line ~376): when there are neither errors nor
+        // warnings, the reporter must not emit a
+        // `##vso[task.complete result=SucceededWithIssues;]` line.
+        let outcome = Outcome { error_count: 0, warning_count: 0, ..Outcome::default() };
+        let output = render_ci_azure(&outcome);
+        assert!(!output.contains("SucceededWithIssues"));
+    }
 }
