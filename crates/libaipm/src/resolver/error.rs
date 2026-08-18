@@ -246,6 +246,34 @@ mod tests {
         assert!(msg.contains("root -> src-b -> pkg"));
     }
 
+    /// A `fmt::Write` sink that always fails, used to exercise the `?`
+    /// error-propagation branch of `ConflictDetail::fmt` (the initial
+    /// `write!` call returning `Err`).
+    struct FailingWriter;
+
+    impl std::fmt::Write for FailingWriter {
+        fn write_str(&mut self, _s: &str) -> std::fmt::Result {
+            Err(std::fmt::Error)
+        }
+    }
+
+    #[test]
+    fn conflict_detail_fmt_propagates_write_error() {
+        let detail = ConflictDetail {
+            name: "pkg".to_string(),
+            existing_req: "1.0.0".to_string(),
+            existing_source: "root".to_string(),
+            new_req: "2.0.0".to_string(),
+            new_source: "root".to_string(),
+            existing_chain: vec![],
+            new_chain: vec![],
+        };
+
+        let mut sink = FailingWriter;
+        let result = std::fmt::write(&mut sink, format_args!("{detail}"));
+        assert!(result.is_err());
+    }
+
     #[test]
     fn format_chain_single_element() {
         // Single-element chain should not include " -> " separators
