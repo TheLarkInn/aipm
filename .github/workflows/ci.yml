@@ -13,6 +13,9 @@ env:
   CARGO_NET_RETRY: 10
   RUST_BACKTRACE: short
   LIBGIT2_SYS_USE_PKG_CONFIG: "1"
+  # Pinned gh-aw compiler version. Bump this when upgrading lock files; the
+  # aw-lock-drift job installs this version and fails on any drift.
+  GH_AW_VERSION: v0.86.2
 
 jobs:
   ci:
@@ -47,6 +50,45 @@ jobs:
 
       - name: Format
         run: cargo fmt --check
+
+  aw-lock-drift:
+    name: Agentic workflow lock drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pinned gh-aw
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh extension install github/gh-aw --pin "$GH_AW_VERSION"
+
+      - name: Recompile agentic workflow locks
+        run: gh aw compile
+
+      - name: Fail on lock drift
+        run: |
+          if ! git diff --exit-code -- .github/workflows .github/aw; then
+            echo "::error::Lock files are out of date. Run 'gh aw compile' and commit the result."
+            exit 1
+          fi
+          untracked=$(git status --porcelain --untracked-files=all -- .github/workflows .github/aw | grep '^??' || true)
+          if [ -n "$untracked" ]; then
+            echo "::error::gh aw compile produced untracked files under .github/workflows or .github/aw."
+            echo "$untracked"
+            exit 1
+          fi
+
+      - name: Assert lock compiler versions match the pin
+        run: |
+          versions=$(grep -ho '"compiler_version":"v[^"]*"' .github/workflows/*.lock.yml | cut -d'"' -f4 | sort -u || true)
+          if [ -z "$versions" ]; then
+            echo "::error::No gh-aw lock files found under .github/workflows."
+            exit 1
+          fi
+          if [ "$versions" != "$GH_AW_VERSION" ]; then
+            echo "::error::Lock compiler_version mismatch. Expected $GH_AW_VERSION, found: $versions"
+            exit 1
+          fi
 
   coverage:
     name: Coverage (89% branch gate)
