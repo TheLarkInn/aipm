@@ -80,7 +80,7 @@ jobs:
 
       - name: Fail on untracked compiler output
         run: |
-          untracked="$(git status --porcelain --untracked-files=all -- .github/workflows .github/aw)"
+          untracked="$(git status --porcelain --untracked-files=all -- .github/workflows .github/aw | grep '^??' || true)"
           if [ -n "$untracked" ]; then
             echo "::error::gh aw compile produced untracked files. Commit them or remove the orphaned .md source:"
             echo "$untracked"
