@@ -149,4 +149,23 @@ mod tests {
         let result = find_marketplace(Path::new("/"), &fs);
         assert!(result.is_err());
     }
+
+    /// Covers the `MockFs` trait-method stubs (`create_dir_all`,
+    /// `write_file`, `read_to_string`, `read_dir`) that are not exercised by
+    /// `find_marketplace`, which only calls `exists`. These stubs exist
+    /// solely to satisfy the `Fs` trait, so they must be invoked directly.
+    #[test]
+    fn mock_fs_stub_methods_behave_as_documented() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/.ai");
+
+        assert!(fs.create_dir_all(path).is_ok());
+        assert!(fs.write_file(path, b"content").is_ok());
+
+        let err = fs.read_to_string(path).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+
+        let entries = fs.read_dir(path).unwrap_or_else(|_| Vec::new());
+        assert!(entries.is_empty());
+    }
 }
