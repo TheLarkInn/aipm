@@ -1781,6 +1781,18 @@ mod tests {
     }
 
     #[test]
+    fn convert_hooks_yaml_indented_continuation_three_lines() {
+        // Covers the branch where an indented line is appended to an existing
+        // `current_value` (the `else if let Some(ref mut v) = current_value` arm),
+        // which only triggers once at least two continuation lines already
+        // populated `current_value` before a third arrives.
+        let result =
+            convert_hooks_yaml_to_json("PreToolUse:\n  first_value\n  second_value\n  third_value");
+        assert!(result.contains("PreToolUse"));
+        assert!(result.contains("first_value second_value third_value"));
+    }
+
+    #[test]
     fn convert_hooks_yaml_no_colon() {
         let result = convert_hooks_yaml_to_json("no-colon-here");
         assert_eq!(result, "{}");
