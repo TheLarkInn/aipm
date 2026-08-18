@@ -468,6 +468,31 @@ mod tests {
     }
 
     #[test]
+    fn parse_empty_key_flushed_before_next_key_mid_loop() {
+        // A key with an empty value (`name:`) immediately followed by another
+        // non-indented key line. This exercises the in-loop flush branch at
+        // the `if let Some(key) = current_key.take()` check (distinct from
+        // the post-loop flush covered by `parse_multiline_key_then_eof_no_continuation`,
+        // which only has a single yaml line and never re-enters the loop body
+        // after setting `current_key`).
+        let content = "---\nname:\ndescription: test\n---\nbody";
+        let result = parse(content);
+        assert!(result.is_ok());
+        let fm = result.ok().and_then(|o| o);
+        assert!(fm.is_some());
+        let fm = fm.unwrap_or_else(|| Frontmatter {
+            fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
+            start_line: 0,
+            end_line: 0,
+            body: String::new(),
+        });
+        // `name` was flushed with an empty value before `description` was parsed
+        assert_eq!(fm.fields.get("name").map(String::as_str), Some(""));
+        assert_eq!(fm.fields.get("description").map(String::as_str), Some("test"));
+    }
+
+    #[test]
     fn parse_crlf_line_endings() {
         // Windows-style \r\n after closing ---
         let content = "---\r\nname: test\r\n---\r\nbody text";
