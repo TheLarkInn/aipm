@@ -177,6 +177,24 @@ mod tests {
     }
 
     #[test]
+    fn detect_mcp_servers_key_not_an_object() {
+        // "mcpServers" is present but not a JSON object (e.g. a string), so
+        // `.as_object()` yields `None` and the `is_none_or` branch is taken
+        // via the "None" side rather than the "empty object" side.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.mcp.json"));
+        fs.files.insert(
+            PathBuf::from("/project/.mcp.json"),
+            r#"{"mcpServers":"not-an-object"}"#.to_string(),
+        );
+
+        let detector = McpDetector;
+        let result = detector.detect(Path::new("/project/.claude"), &fs);
+        assert!(result.is_ok());
+        assert_eq!(result.ok().unwrap_or_default().len(), 0);
+    }
+
+    #[test]
     fn detect_no_mcp_servers_key() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.mcp.json"));
