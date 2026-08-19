@@ -1166,4 +1166,47 @@ mod tests {
         );
         assert!(report.contains("settings.json"), "settings.json path should be listed:\n{report}");
     }
+
+    #[test]
+    fn recursive_report_destructive_mixed_skipped_and_removable() {
+        // Covers the `&[&Artifact]` monomorphization of `write_cleanup_plan`
+        // (only reachable via `generate_recursive_report`) for:
+        // - the False branch of `if a.kind == ArtifactKind::Skill` at the
+        //   `kind_label` ternary (non-skill artifact present alongside skill),
+        // - the False branch of `cleanup::should_skip_for_report` inside the
+        //   "Skipped (shared config)" listing loop (non-shared-config artifact
+        //   present alongside a shared-config one).
+        let discovered = vec![DiscoveredSource {
+            source_dir: PathBuf::from("/project/.claude"),
+            source_type: ".claude".to_string(),
+            package_name: None,
+            relative_path: PathBuf::new(),
+        }];
+
+        let mut hook_artifact = make_artifact("project-hooks", ArtifactKind::Hook);
+        hook_artifact.source_path = PathBuf::from(".claude/settings.json");
+        let skill_artifact = make_artifact("deploy", ArtifactKind::Skill);
+
+        let plugin_plans = vec![PluginPlan {
+            name: "deploy".to_string(),
+            artifacts: vec![hook_artifact, skill_artifact],
+            is_package_scoped: false,
+            source_dir: PathBuf::from("/project/.claude"),
+            other_files: Vec::new(),
+        }];
+
+        let existing = HashSet::new();
+        let report = generate_recursive_report(&discovered, &plugin_plans, &existing, true);
+
+        // settings.json is skipped (shared config)
+        assert!(report.contains("Skipped (shared config)"), "expected skipped section:\n{report}");
+        assert!(report.contains("settings.json"), "expected settings.json in skipped:\n{report}");
+        // deploy skill is listed for removal (not skipped)
+        assert!(report.contains("deploy"), "expected deploy artifact:\n{report}");
+        // Both sections coexist: there IS something to remove
+        assert!(
+            !report.contains("(no files to remove)"),
+            "deploy should be in removal list:\n{report}"
+        );
+    }
 }
