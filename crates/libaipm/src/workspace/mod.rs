@@ -146,6 +146,45 @@ pub fn discover_members(
 mod tests {
     use super::*;
 
+    /// Minimal `Fs` mock whose `exists` always reports true (so
+    /// `find_workspace_root` attempts to read the manifest) but whose
+    /// `read_to_string` always fails, to exercise the read-error branch.
+    struct UnreadableFs;
+
+    impl crate::fs::Fs for UnreadableFs {
+        fn exists(&self, _path: &Path) -> bool {
+            true
+        }
+
+        fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _path: &Path, _content: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _path: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"))
+        }
+
+        fn read_dir(&self, _path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn find_root_skips_unreadable_manifest() {
+        // `exists` is true so the manifest read is attempted, but
+        // `read_to_string` fails — exercises the `Err(e)` branch in
+        // `find_workspace_root` (logs and continues walking up).
+        let result = find_workspace_root(&UnreadableFs, Path::new("/some/deep/dir"));
+        assert!(
+            result.is_none(),
+            "should skip unreadable manifest and find nothing, got: {result:?}"
+        );
+    }
+
     #[test]
     fn find_root_from_member() {
         let tmp = tempfile::tempdir().unwrap();
