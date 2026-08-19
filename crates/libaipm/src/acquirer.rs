@@ -580,6 +580,36 @@ mod tests {
         assert!(result.is_err(), "expected CopyFailed error, got: {result:?}");
     }
 
+    /// Covers the `None` arm of `source.path.and_then(|p| ValidatedPath::new(p).ok())`
+    /// in `check_source_redirect`: when `[package.source].path` fails
+    /// `ValidatedPath` validation (here, a `..` traversal component), the
+    /// redirect's `path` field must be `None` rather than propagating an error.
+    #[test]
+    fn source_redirect_with_invalid_path_field_yields_none_path() {
+        let temp = make_temp();
+        let dir = temp.path().join("invalid-redirect-path");
+        std::fs::create_dir_all(&dir).unwrap_or_else(|_| {});
+        std::fs::write(
+            dir.join("aipm.toml"),
+            concat!(
+                "[package]\n",
+                "name = \"stub\"\n",
+                "version = \"0.0.0\"\n",
+                "[package.source]\n",
+                "type = \"git\"\n",
+                "url = \"https://github.com/org/repo.git\"\n",
+                "path = \"../escape\"\n",
+            ),
+        )
+        .unwrap_or_else(|_| {});
+
+        let redirect = check_source_redirect(&dir);
+        assert!(redirect.is_some(), "redirect should still be found despite bad path");
+        let redirect = redirect.unwrap_or_else(|| std::process::abort());
+        assert_eq!(redirect.url, "https://github.com/org/repo.git");
+        assert!(redirect.path.is_none(), "invalid path should be dropped, not propagated");
+    }
+
     #[test]
     fn source_redirect_with_invalid_toml() {
         let temp = make_temp();
