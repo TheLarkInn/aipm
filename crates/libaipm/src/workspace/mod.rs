@@ -321,6 +321,50 @@ mod tests {
         assert!(members.contains_key("valid"));
     }
 
+    /// Mock filesystem that reports `aipm.toml` as existing but always fails
+    /// to read it, to exercise the "could not read manifest" debug-log branch
+    /// in `find_workspace_root` (as opposed to the "unparseable manifest"
+    /// branch, which is triggered by a read that succeeds but yields invalid
+    /// TOML).
+    struct UnreadableManifestFs;
+
+    impl crate::fs::Fs for UnreadableManifestFs {
+        fn exists(&self, _path: &Path) -> bool {
+            true
+        }
+
+        fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _path: &Path, _content: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _path: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::other("permission denied"))
+        }
+
+        fn read_dir(&self, _path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(vec![])
+        }
+    }
+
+    #[test]
+    fn find_root_logs_and_continues_when_manifest_unreadable() {
+        // Every "aipm.toml" reports as existing but fails to read, so
+        // `find_workspace_root` must hit the `Err(e)` arm for
+        // `fs.read_to_string` (the "could not read manifest" debug log) at
+        // every level and keep walking up until it runs out of ancestors.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(&subdir).unwrap();
+
+        let result = find_workspace_root(&UnreadableManifestFs, &subdir);
+        assert!(result.is_none(), "should skip unreadable manifest, got: {result:?}");
+    }
+
     #[test]
     fn discover_members_empty_when_no_matches() {
         let tmp = tempfile::tempdir().unwrap();
