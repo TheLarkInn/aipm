@@ -154,7 +154,17 @@ jobs:
 
       - name: Assert uniform pinned compiler version
         run: |
-          VERSIONS=$(sed -n 's/.*"compiler_version": *"\(v[0-9.]*\)".*/\1/p' .github/workflows/*.lock.yml | sort -u)
+          shopt -s nullglob
+          LOCK_FILES=(.github/workflows/*.lock.yml .github/aw/*.lock.yml)
+          if [ ${#LOCK_FILES[@]} -eq 0 ]; then
+            echo "::error::No .lock.yml files found under .github/workflows or .github/aw."
+            exit 1
+          fi
+          VERSIONS=$(sed -n 's/.*"compiler_version": *"\(v[0-9.]*\)".*/\1/p' "${LOCK_FILES[@]}" | sort -u)
+          if [ -z "$VERSIONS" ]; then
+            echo "::error::No compiler_version headers found in: ${LOCK_FILES[*]}"
+            exit 1
+          fi
           if [ "$(echo "$VERSIONS" | wc -l)" -ne 1 ]; then
             echo "::error::Lock files were compiled with mixed gh-aw versions:"
             echo "$VERSIONS"
@@ -164,4 +174,4 @@ jobs:
             echo "::error::Lock files were compiled with $VERSIONS but CI pins $GH_AW_VERSION. Recompile with the pinned version and commit."
             exit 1
           fi
-          echo "All lock files compiled with pinned gh-aw $VERSIONS"
+          echo "All ${#LOCK_FILES[@]} lock files compiled with pinned gh-aw $VERSIONS"
