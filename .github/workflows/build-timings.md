@@ -184,3 +184,5 @@ If the build is fast (under 30 seconds) and there are no actionable
 recommendations, call the `noop` safe output with a message like:
 > "Build timings analysis complete — build is healthy at X seconds with
 > no actionable recommendations."
+
+<!-- deliberate drift for CI verification of the #1390 guard -->
