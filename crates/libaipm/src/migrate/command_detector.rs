@@ -223,6 +223,19 @@ mod tests {
     }
 
     #[test]
+    fn detect_commands_dir_read_dir_error_propagates() {
+        // `commands_dir` exists but is absent from `fs.dirs`, so `read_dir`
+        // returns an `Err`. Exercises the `?` error-propagation branch on
+        // `fs.read_dir(&commands_dir)?`.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/commands"));
+
+        let detector = CommandDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn detect_command_strips_quoted_description() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/src/commands"));
