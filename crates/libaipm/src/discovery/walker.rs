@@ -291,6 +291,28 @@ mod tests {
     }
 
     #[test]
+    fn take_skipped_falls_back_to_default_when_poisoned() {
+        // Poison the mutex by panicking while holding the lock in another
+        // thread, then confirm `take_skipped` falls back to `Vec::default()`
+        // via `unwrap_or_default()` instead of propagating the poison error.
+        let shared: Arc<Mutex<Vec<SkipReason>>> =
+            Arc::new(Mutex::new(vec![SkipReason::SkipDirByName {
+                path: PathBuf::from("node_modules"),
+                name: "node_modules".to_string(),
+            }]));
+        let shared_for_thread = Arc::clone(&shared);
+        let handle = std::thread::spawn(move || {
+            let _guard = shared_for_thread.lock().expect("lock before poisoning");
+            panic!("intentionally poison the mutex");
+        });
+        // The panic in the spawned thread poisons the mutex; join returns Err.
+        assert!(handle.join().is_err());
+
+        let result = take_skipped(&shared);
+        assert!(result.is_empty(), "poisoned lock should fall back to an empty default");
+    }
+
+    #[test]
     fn results_are_sorted() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path();
