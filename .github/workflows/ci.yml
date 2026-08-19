@@ -13,6 +13,9 @@ env:
   CARGO_NET_RETRY: 10
   RUST_BACKTRACE: short
   LIBGIT2_SYS_USE_PKG_CONFIG: "1"
+  # Canonical gh-aw compiler pin — bump this when upgrading the extension and
+  # recompile every workflow lock with it. Referenced by the aw-lock-drift job.
+  GH_AW_VERSION: v0.86.2
 
 jobs:
   ci:
@@ -116,3 +119,59 @@ jobs:
         with:
           files: lcov.info
           fail_ci_if_error: false
+
+  aw-lock-drift:
+    name: Agentic workflow lock drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pinned gh-aw extension
+        run: gh extension install github/gh-aw --pin "$GH_AW_VERSION"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Recompile agentic workflows
+        run: gh aw compile
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Fail on lock-file drift
+        run: |
+          if ! git diff --exit-code -- .github/workflows .github/aw; then
+            echo "::error::Lock files are out of date. Run 'gh aw compile' with gh-aw $GH_AW_VERSION and commit the result."
+            exit 1
+          fi
+
+      - name: Fail on untracked compiler output
+        run: |
+          UNTRACKED=$(git ls-files --others --exclude-standard -- .github/workflows .github/aw)
+          if [ -n "$UNTRACKED" ]; then
+            echo "::error::gh aw compile produced untracked files. Commit them or remove the orphaned .md source."
+            echo "$UNTRACKED"
+            exit 1
+          fi
+
+      - name: Assert uniform pinned compiler version
+        run: |
+          shopt -s nullglob
+          LOCK_FILES=(.github/workflows/*.lock.yml .github/aw/*.lock.yml)
+          if [ ${#LOCK_FILES[@]} -eq 0 ]; then
+            echo "::error::No .lock.yml files found under .github/workflows or .github/aw."
+            exit 1
+          fi
+          VERSIONS=$(sed -n 's/.*"compiler_version": *"\(v[0-9.]*\)".*/\1/p' "${LOCK_FILES[@]}" | sort -u)
+          if [ -z "$VERSIONS" ]; then
+            echo "::error::No compiler_version headers found in: ${LOCK_FILES[*]}"
+            exit 1
+          fi
+          if [ "$(echo "$VERSIONS" | wc -l)" -ne 1 ]; then
+            echo "::error::Lock files were compiled with mixed gh-aw versions:"
+            echo "$VERSIONS"
+            exit 1
+          fi
+          if [ "$VERSIONS" != "$GH_AW_VERSION" ]; then
+            echo "::error::Lock files were compiled with $VERSIONS but CI pins $GH_AW_VERSION. Recompile with the pinned version and commit."
+            exit 1
+          fi
+          echo "All ${#LOCK_FILES[@]} lock files compiled with pinned gh-aw $VERSIONS"
