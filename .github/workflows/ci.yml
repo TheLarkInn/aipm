@@ -13,6 +13,9 @@ env:
   CARGO_NET_RETRY: 10
   RUST_BACKTRACE: short
   LIBGIT2_SYS_USE_PKG_CONFIG: "1"
+  # Canonical gh-aw pin. Bump here when upgrading, then recompile all locks
+  # (`gh aw compile`) in the same commit. Referenced from CLAUDE.md.
+  GH_AW_VERSION: v0.86.2
 
 jobs:
   ci:
@@ -116,3 +119,42 @@ jobs:
         with:
           files: lcov.info
           fail_ci_if_error: false
+
+  aw-lock-drift:
+    name: Agentic workflow lock drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pinned gh-aw extension
+        run: |
+          gh extension install github/gh-aw --pin "$GH_AW_VERSION"
+          gh aw version
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Recompile all agentic workflow locks
+        run: gh aw compile
+
+      - name: Fail on lock drift or compiler-version skew
+        run: |
+          if ! git diff --exit-code -- .github/workflows .github/aw; then
+            echo "::error::Lock files are out of date. Run 'gh aw compile' with gh-aw $GH_AW_VERSION and commit the result."
+            exit 1
+          fi
+          untracked=$(git status --porcelain --untracked-files=all -- .github/workflows .github/aw | grep '^??' || true)
+          if [ -n "$untracked" ]; then
+            echo "::error::'gh aw compile' produced untracked files. Commit the generated files or remove the orphaned source:"
+            echo "$untracked"
+            exit 1
+          fi
+          versions=$(grep -ho '"compiler_version":"[^"]*"' .github/workflows/*.lock.yml | sort -u)
+          if [ "$(echo "$versions" | wc -l)" -ne 1 ]; then
+            echo "::error::Lock files were compiled with mixed gh-aw versions — recompile all locks with gh-aw $GH_AW_VERSION:"
+            echo "$versions"
+            exit 1
+          fi
+          if [ "$versions" != "\"compiler_version\":\"$GH_AW_VERSION\"" ]; then
+            echo "::error::Lock files were compiled with ${versions} but the pinned version is $GH_AW_VERSION — recompile all locks with gh-aw $GH_AW_VERSION."
+            exit 1
+          fi
