@@ -248,4 +248,20 @@ mod tests {
             Some(PathBuf::from("/a/b/.copilot/mcp-config.json"))
         );
     }
+
+    #[test]
+    fn io_error_on_read_is_propagated() {
+        // `.copilot/mcp-config.json` is reported as existing but has no
+        // content in `fs.files`, so `read_to_string` returns an IO error —
+        // exercises the `?` error-propagation branch on the read call
+        // inside `detect`.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.copilot/mcp-config.json"));
+        // Intentionally NOT adding content to fs.files
+
+        let detector = CopilotMcpDetector;
+        let result = detector.detect(Path::new("/project/.github"), &fs);
+        assert!(result.is_err());
+        assert!(result.err().is_some_and(|e| matches!(e, Error::Io(_))));
+    }
 }
