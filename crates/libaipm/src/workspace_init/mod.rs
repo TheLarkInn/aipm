@@ -718,6 +718,32 @@ mod tests {
     }
 
     #[test]
+    fn init_noop_when_no_phases_requested() {
+        // #850 Spec G12 / Q9.5: the tail warn should only fire when
+        // something was *found* but nothing was *created*. With both
+        // `workspace` and `marketplace` disabled, `actions` stays empty,
+        // so `any_found` is false and the warn must NOT be emitted —
+        // covers the false branch of `!any_created && any_found`.
+        let (tmp, _guard) = make_temp_dir("noop-init");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "{result:?}");
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_workspace_creates_manifest() {
         let (tmp, _guard) = make_temp_dir("ws-create");
         let adaptors = default_adaptors();
