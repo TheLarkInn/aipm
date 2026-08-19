@@ -388,4 +388,25 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Exercises the `set.is_empty()` → `true` branch on line 358: every
+    /// name in the list is unrecognized, so `Engine::from_name` never
+    /// contributes to `set` and the deserializer must reject the value
+    /// instead of silently treating it as "all engines allowed".
+    #[test]
+    fn engine_set_serde_all_unknown_names_returns_error() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value =
+            serde_json::json!(["totally-unknown-engine", "another-bogus-one"]);
+        let result: Result<Option<EngineSet>, _> =
+            engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_err(), "all-unknown engine names should be rejected: {result:?}");
+        if let Err(err) = result {
+            let message = err.to_string();
+            assert!(
+                message.contains("contains no known engine names"),
+                "unexpected error message: {message}"
+            );
+        }
+    }
 }
