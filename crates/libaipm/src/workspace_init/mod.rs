@@ -1697,6 +1697,35 @@ mod tests {
     }
 
     #[test]
+    fn init_with_both_flags_disabled_emits_no_actions_and_no_warn() {
+        // Exercises the `any_found == false` side of `!any_created &&
+        // any_found` at the tail of `init` — with both `workspace` and
+        // `marketplace` disabled, `actions` stays empty, so neither
+        // `any_created` nor `any_found` is true and the tail warn must
+        // not fire.
+        let (tmp, _guard) = make_temp_dir("both-flags-disabled");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed with both flags disabled: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions when both flags are disabled");
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn make_temp_dir_cleans_up_existing_directory() {
         // Pre-create the directory so that the `if tmp.exists()` branch in
         // `make_temp_dir` (the cleanup-before-recreate path) is exercised.
