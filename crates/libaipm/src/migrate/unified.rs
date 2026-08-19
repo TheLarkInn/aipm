@@ -562,6 +562,26 @@ mod tests {
         assert!(outcome.actions.is_empty(), "no actions when source dir does not exist");
     }
 
+    /// Covers the `None` arm of `per_artifact.first_mut()` (line 322) in the
+    /// "adapter artifacts without a matching source" loop of
+    /// `build_plugin_plans`: when a root in `adapter_artifacts` maps to an
+    /// empty artifact vec, `sorted` ends up empty, so `first_mut()` returns
+    /// `None` and no `PluginPlan`'s `other_files` gets patched.
+    #[test]
+    fn build_plugin_plans_empty_unmatched_root_artifacts_is_noop() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path().join("orphan-root");
+        std::fs::create_dir_all(&root).expect("create orphan root");
+
+        let mut adapter_artifacts: BTreeMap<PathBuf, Vec<Artifact>> = BTreeMap::new();
+        adapter_artifacts.insert(root, Vec::new());
+
+        // No sources cover `root`, so it falls into the "unhandled roots"
+        // loop where `sorted` is empty and `first_mut()` returns `None`.
+        let plans = build_plugin_plans(&adapter_artifacts, &[], &Real).expect("build plans");
+        assert!(plans.is_empty(), "no artifacts means no plugin plans are produced");
+    }
+
     #[test]
     fn discover_options_from_options_maps_correctly() {
         let opts = Options {
