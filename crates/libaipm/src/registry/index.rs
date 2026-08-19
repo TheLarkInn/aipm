@@ -158,6 +158,15 @@ mod tests {
     }
 
     #[test]
+    fn index_path_scoped_single_char_scope() {
+        // A 1-char scope makes `scope.get(..2)` return `None`, so the
+        // `map_or_else` else-branch (`format!("@{scope}")`) fires instead of
+        // slicing the first two bytes.
+        let path = package_path("@a/tool").unwrap();
+        assert_eq!(path, PathBuf::from("@a/@a/tool"));
+    }
+
+    #[test]
     fn index_path_empty_errors() {
         assert!(package_path("").is_err());
     }
