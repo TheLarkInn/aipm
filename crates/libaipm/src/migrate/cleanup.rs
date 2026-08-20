@@ -201,7 +201,7 @@ mod tests {
         let outcome = make_outcome(Vec::new());
         let result = remove_migrated_sources(&outcome, &fs);
         assert!(result.is_ok());
-        assert!(result.ok().is_some_and(|a| a.is_empty()));
+        assert!(result.is_ok_and(|a| a.is_empty()));
     }
 
     #[test]
@@ -277,7 +277,7 @@ mod tests {
 
         let result = remove_migrated_sources(&outcome, &fs);
         assert!(result.is_ok());
-        assert!(result.ok().is_some_and(|a| a.is_empty()));
+        assert!(result.is_ok_and(|a| a.is_empty()));
     }
 
     #[test]
@@ -290,7 +290,7 @@ mod tests {
 
         let result = remove_migrated_sources(&outcome, &fs);
         assert!(result.is_ok());
-        assert!(result.ok().is_some_and(|a| a.is_empty()));
+        assert!(result.is_ok_and(|a| a.is_empty()));
     }
 
     #[test]
