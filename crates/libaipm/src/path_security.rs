@@ -294,4 +294,13 @@ mod tests {
         let _ = err;
         ValidatedPath(String::new())
     }
+
+    #[test]
+    fn panic_free_unreachable_produces_empty_validated_path() {
+        // Directly exercises the `panic_free_unreachable` fallback body
+        // (lines otherwise unreached because every `unwrap_or_else` call
+        // site above always receives an `Ok` value in practice).
+        let path = panic_free_unreachable(&PathValidationError::EmptyPath);
+        assert_eq!(path.as_str(), "");
+    }
 }
