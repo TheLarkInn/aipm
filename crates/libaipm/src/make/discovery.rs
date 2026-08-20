@@ -149,4 +149,20 @@ mod tests {
         let result = find_marketplace(Path::new("/"), &fs);
         assert!(result.is_err());
     }
+
+    /// Directly exercises `has_any_engine_marketplace` returning `false`
+    /// when the `.ai/` directory contains no marketplace manifest for any
+    /// engine in `libaipm_engine_spec::Engine::ALL`. The walk-up tests above
+    /// only ever observe this function through `find_marketplace`, where an
+    /// `.any()` iterator short-circuits on the first matching engine — so a
+    /// completely empty `.ai/` directory (the "no engine matched" branch)
+    /// was previously only covered indirectly via `MarketplaceNotFound`.
+    /// Calling the helper directly pins down that fall-through behavior.
+    #[test]
+    fn has_any_engine_marketplace_false_for_empty_ai_dir() {
+        let fs = MockFs::new();
+        let ai_dir = Path::new("/project/.ai");
+
+        assert!(!has_any_engine_marketplace(ai_dir, &fs));
+    }
 }
