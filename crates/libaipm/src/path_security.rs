@@ -137,6 +137,16 @@ mod tests {
     }
 
     #[test]
+    fn validate_path_traversal_dotdot_substring_in_component() {
+        // "foo..bar" is a single Normal path component (no ParentDir), so it
+        // passes the component-based check, but the raw string still
+        // contains ".." — this exercises the `lower.contains("..")` true
+        // branch directly, distinct from the `%2e%2e` sub-branch.
+        let result = validate_plugin_path("foo..bar/baz");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
+    #[test]
     fn validate_absolute_path_unix() {
         let result = validate_plugin_path("/etc/passwd");
         assert!(matches!(result, Err(PathValidationError::AbsolutePath)));
