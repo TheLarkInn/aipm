@@ -1548,6 +1548,33 @@ mod tests {
     }
 
     #[test]
+    fn init_with_no_phases_emits_no_actions_and_no_warn() {
+        // Covers the False branch of `any_found` in the `!any_created &&
+        // any_found` tail-warn check: with both `workspace` and
+        // `marketplace` false, no actions are produced at all, so
+        // `any_created` and `any_found` are both false and the warn must
+        // not fire.
+        let (tmp, _guard) = make_temp_dir("no-phases");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init with no phases must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions when no phases requested");
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_adaptor_returns_false_no_tool_configured_action() {
         // Covers the False branch of `if adaptor.apply(...)? { ... }` in `init()`:
         // when an adaptor returns Ok(false) (already configured, no changes needed),
