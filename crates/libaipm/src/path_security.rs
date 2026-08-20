@@ -136,6 +136,17 @@ mod tests {
         assert!(matches!(result, Err(PathValidationError::PathTraversal)));
     }
 
+    /// Covers the `lower.contains("%2e%2e")` branch in isolation (the `true`
+    /// side of the second `||` operand at line 104). The path contains no
+    /// literal `..` substring anywhere, so `lower.contains("..")` is `false`
+    /// and evaluation must proceed to check the URL-encoded variant, which
+    /// matches and short-circuits with `PathTraversal`.
+    #[test]
+    fn validate_path_traversal_encoded_uppercase_only() {
+        let result = validate_plugin_path("foo/%2E%2E/bar");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
     #[test]
     fn validate_absolute_path_unix() {
         let result = validate_plugin_path("/etc/passwd");
