@@ -13,6 +13,13 @@ env:
   CARGO_NET_RETRY: 10
   RUST_BACKTRACE: short
   LIBGIT2_SYS_USE_PKG_CONFIG: "1"
+  # Single source of truth for the pinned gh-aw compiler version. Every
+  # .github/workflows/*.lock.yml must be compiled with this exact version —
+  # the aw-lock-drift job enforces it. To bump: change this value, install
+  # with `gh extension install github/gh-aw --pin <version>` (NOT
+  # `gh extension upgrade gh-aw`, which floats to latest), run a bare
+  # `gh aw compile`, and commit every regenerated lock file together.
+  GH_AW_VERSION: "v0.86.2"
 
 jobs:
   ci:
@@ -47,6 +54,52 @@ jobs:
 
       - name: Format
         run: cargo fmt --check
+
+  aw-lock-drift:
+    name: Agentic workflow lock drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pinned gh-aw extension
+        run: gh extension install github/gh-aw --pin "$GH_AW_VERSION"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Recompile agentic workflows
+        run: gh aw compile
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Fail on lock-file drift or untracked compiler output
+        run: |
+          if ! git diff --exit-code -- .github/workflows .github/aw; then
+            echo "::error::Lock files are out of date. Install the pinned gh-aw ('gh extension install github/gh-aw --pin $GH_AW_VERSION'), run 'gh aw compile', and commit the result."
+            exit 1
+          fi
+          UNTRACKED=$(git status --porcelain --untracked-files=all -- .github/workflows)
+          if [ -n "$UNTRACKED" ]; then
+            echo "::error::gh aw compile produced untracked files. Commit them, or delete the orphaned .md source that generated them:"
+            echo "$UNTRACKED"
+            exit 1
+          fi
+
+      - name: Assert every lock reports the pinned compiler version
+        run: |
+          VERSIONS=$(grep -ho '"compiler_version":"[^"]*"' .github/workflows/*.lock.yml | sort -u || true)
+          if [ -z "$VERSIONS" ]; then
+            echo "::error::No compiler_version found in any .github/workflows/*.lock.yml header."
+            exit 1
+          fi
+          if [ "$(printf '%s\n' "$VERSIONS" | wc -l)" -ne 1 ]; then
+            echo "::error::Lock files report multiple gh-aw compiler versions — recompile ALL workflows with the pinned version ($GH_AW_VERSION):"
+            printf '%s\n' "$VERSIONS"
+            exit 1
+          fi
+          if [ "$VERSIONS" != "\"compiler_version\":\"$GH_AW_VERSION\"" ]; then
+            echo "::error::Locks were compiled with $VERSIONS but GH_AW_VERSION=$GH_AW_VERSION is pinned. Install it ('gh extension install github/gh-aw --pin $GH_AW_VERSION'), run 'gh aw compile', and commit."
+            exit 1
+          fi
 
   coverage:
     name: Coverage (89% branch gate)
