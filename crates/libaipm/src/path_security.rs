@@ -294,4 +294,21 @@ mod tests {
         let _ = err;
         ValidatedPath(String::new())
     }
+
+    #[test]
+    fn panic_free_unreachable_returns_empty_path_for_any_error() {
+        // Directly exercises `panic_free_unreachable`'s body (never reached
+        // through the `.unwrap_or_else` call sites above, since those always
+        // operate on `Ok` results in this test module). Confirms the fallback
+        // helper returns an empty `ValidatedPath` regardless of the error
+        // variant passed in.
+        let empty = panic_free_unreachable(&PathValidationError::EmptyPath);
+        assert_eq!(empty.as_str(), "");
+
+        let traversal = panic_free_unreachable(&PathValidationError::PathTraversal);
+        assert_eq!(traversal.as_str(), "");
+
+        let absolute = panic_free_unreachable(&PathValidationError::AbsolutePath);
+        assert_eq!(absolute.as_str(), "");
+    }
 }
