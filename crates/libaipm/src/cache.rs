@@ -599,6 +599,22 @@ mod tests {
     }
 
     #[test]
+    fn put_errors_on_corrupt_index_json() {
+        // Covers the `IndexParse` error branch in `with_index` (cache.rs):
+        // when the on-disk index file has non-empty content that is not
+        // valid JSON, `serde_json::from_str` fails and `with_index` must
+        // surface an `Error::IndexParse` rather than panicking or silently
+        // resetting to a default index.
+        let (temp, cache) = test_cache(Policy::Auto);
+        cache.ensure_dirs().unwrap_or(());
+        std::fs::write(cache.index_path(), "not valid json").unwrap_or(());
+
+        let src = create_source_plugin(&temp);
+        let result = cache.put("spec", &src, None);
+        assert!(result.is_err(), "put should fail on a corrupt cache index");
+    }
+
+    #[test]
     fn cache_force_refresh_always_misses() {
         let (temp, cache) = test_cache(Policy::ForceRefresh);
         let src = create_source_plugin(&temp);
