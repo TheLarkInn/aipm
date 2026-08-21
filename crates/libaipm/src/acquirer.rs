@@ -354,6 +354,33 @@ mod tests {
         let _ = path; // satisfy unused warning
     }
 
+    /// Covers the full success path of `acquire_local` itself (as opposed to
+    /// the `acquire_local_from` test helper): the source exists, is a
+    /// directory, and the plugin validates, reaching the final `Ok(dest)`.
+    /// Requires a CWD change because `acquire_local` resolves
+    /// `path.as_str()` via `PathBuf::from`, which is only meaningful
+    /// relative to the process's current directory.
+    #[test]
+    fn acquire_local_valid_plugin_via_public_api() {
+        static CWD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = CWD_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+
+        let temp = make_temp();
+        make_local_plugin(&temp, "source-plugin");
+        let dest = temp.path().join("dest");
+
+        let orig = std::env::current_dir().unwrap_or_else(|_| std::process::abort());
+        std::env::set_current_dir(temp.path()).unwrap_or_else(|_| std::process::abort());
+        let path = ValidatedPath::new("source-plugin").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &dest, Engine::Claude);
+        std::env::set_current_dir(&orig).unwrap_or_else(|_| std::process::abort());
+
+        assert!(result.is_ok(), "expected Ok from acquire_local, got: {result:?}");
+        let plugin_path = result.unwrap_or_else(|_| PathBuf::new());
+        assert!(plugin_path.join(".claude-plugin/plugin.json").exists());
+        assert!(plugin_path.join("README.md").exists());
+    }
+
     #[test]
     fn acquire_local_not_found() {
         let temp = make_temp();
