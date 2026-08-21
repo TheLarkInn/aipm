@@ -1092,6 +1092,37 @@ mod tests {
     }
 
     #[test]
+    fn with_index_treats_empty_existing_file_as_default() {
+        // Covers the True branch of `if content.is_empty()` in `with_index`:
+        // when the on-disk index file exists but has zero-length content
+        // (e.g. created by a prior process that crashed before writing any
+        // JSON), `with_index` must fall back to a default `CacheIndex`
+        // instead of failing to parse empty content as JSON.
+        let (_temp, cache) = test_cache(Policy::Auto);
+
+        cache.ensure_dirs().unwrap();
+        std::fs::write(cache.index_path(), "").unwrap();
+
+        let result = cache.with_index(|index| {
+            index.entries.insert(
+                "new-spec".to_string(),
+                CacheEntry {
+                    spec: "new-spec".to_string(),
+                    dir_name: "dir".to_string(),
+                    last_accessed: 0,
+                    installed: false,
+                    fetched_at: 0,
+                    ttl_secs: None,
+                },
+            );
+        });
+
+        assert!(result.is_ok(), "with_index must handle an empty index file");
+        let index = cache.read_index().unwrap();
+        assert!(index.entries.contains_key("new-spec"));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn gc_silently_skips_non_utf8_entry_names() {
         // Covers the None branch of `entry.file_name().to_str()` in gc():
