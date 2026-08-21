@@ -835,6 +835,66 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// #850 G12/Q9.5: when both `--workspace` and `--marketplace` are
+    /// requested but everything already exists (pre-existing `aipm.toml`
+    /// and `.ai/`), every action is a `*FoundExisting` variant and none is
+    /// a `*Created`/`ToolConfigured` variant. This must trigger the tail
+    /// `any_created == false && any_found == true` warn branch.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_both_found_existing_emits_nothing_to_do_warning() {
+        let (tmp, _guard) = make_temp_dir("both-found-existing");
+
+        let existing = generate_workspace_manifest(None);
+        std::fs::write(tmp.join("aipm.toml"), &existing).ok();
+        let claude_dir = tmp.join(".ai/.claude-plugin");
+        std::fs::create_dir_all(&claude_dir).ok();
+        let valid = crate::generate::marketplace::create("preexisting", &[]);
+        std::fs::write(claude_dir.join("marketplace.json"), &valid).ok();
+        // Pre-register the marketplace in .claude/settings.json so the
+        // Claude adaptor's `apply()` is a no-op (mp_changed == false) and
+        // does not emit a ToolConfigured action.
+        std::fs::create_dir_all(tmp.join(".claude")).ok();
+        std::fs::write(
+            tmp.join(".claude/settings.json"),
+            serde_json::json!({
+                "extraKnownMarketplaces": {
+                    "local-repo-plugins": { "source": { "source": "directory", "path": "./.ai" } }
+                }
+            })
+            .to_string(),
+        )
+        .ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "idempotent init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+        assert!(actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)));
+        assert!(!actions.iter().any(|a| matches!(
+            a,
+            InitAction::WorkspaceCreated
+                | InitAction::MarketplaceCreated
+                | InitAction::MarketplaceManifestWritten { .. }
+                | InitAction::ToolConfigured(_)
+        )));
+        assert!(logs_contain("aipm init found nothing to do"));
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_both_creates_everything() {
         let (tmp, _guard) = make_temp_dir("both");
