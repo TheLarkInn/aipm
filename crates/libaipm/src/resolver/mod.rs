@@ -1478,6 +1478,27 @@ mod tests {
     }
 
     #[test]
+    fn root_deps_same_major_conflict_with_no_backtrack_choices() {
+        // Covers the True branch of the same-major conflict check inside
+        // `try_activate_with_backtrack` (line 249: `if !req.matches(&existing.version)`)
+        // when it is reached directly from two *root* dependencies (not via
+        // `queue_transitive_dep`), and neither activation created a choice point
+        // (each requirement pins to exactly one candidate), so `backtrack_and_retry`
+        // has nothing to backtrack to and reports a conflict.
+        //
+        // `queue` is a stack (`Vec::pop`), so root deps are processed in reverse
+        // push order: the second dep here (`=1.1.0`) is popped and activated first;
+        // the first dep (`=1.0.0`) is popped second and conflicts with the already
+        // activated 1.1.0 since `=1.0.0` does not match it.
+        let mut reg = MockRegistry::new();
+        reg.add_package("shared", vec![("1.0.0", vec![]), ("1.1.0", vec![])]);
+
+        let deps = vec![root_dep("shared", "=1.0.0"), root_dep("shared", "=1.1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn transitive_dep_conflict_when_both_major_versions_already_activated() {
         // Covers the `has_same_major_conflict` True branch in `queue_transitive_dep`.
         //
