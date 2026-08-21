@@ -223,6 +223,16 @@ mod tests {
     }
 
     #[test]
+    fn validate_encoded_traversal_without_literal_dots_rejected() {
+        // "foo%2e%2ebar" contains no literal ".." substring (so the first
+        // `||` operand is false), but does contain "%2e%2e" once lowercased.
+        // This exercises the true branch of the `lower.contains("%2e%2e")`
+        // sub-condition independently of the `lower.contains("..")` operand.
+        let result = validate_plugin_path("foo%2e%2ebar");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
+    #[test]
     fn validate_double_dot_in_filename_rejected() {
         // "foo..bar" contains ".." in the raw string but not as a path component
         let result = validate_plugin_path("foo..bar");
