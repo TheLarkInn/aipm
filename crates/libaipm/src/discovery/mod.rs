@@ -201,6 +201,21 @@ mod tests {
     }
 
     #[test]
+    fn discover_skips_files_with_no_classification() {
+        // A plain, non-engine-related file has no engine-root ancestor and
+        // does not match any instruction/skill/hook/agent pattern, so
+        // `classify::classify` returns `None` and `discover` takes the
+        // `else` (skipped, no classification) branch instead of pushing a
+        // feature.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        touch(&root.join("notes.txt"));
+        let set =
+            discover(root, &DiscoverOptions::default(), &Real).expect("discover should succeed");
+        assert!(set.is_empty(), "unclassifiable file should not produce a feature");
+    }
+
+    #[test]
     fn apply_source_filter_no_filter_keeps_all() {
         let mut features = vec![
             types::DiscoveredFeature {
