@@ -149,4 +149,19 @@ mod tests {
         let result = find_marketplace(Path::new("/"), &fs);
         assert!(result.is_err());
     }
+
+    /// Covers the unused-by-`find_marketplace` `Fs` trait methods on
+    /// `MockFs`. These stubs exist only to satisfy the `Fs` trait bound and
+    /// are never reached through `find_marketplace`/`has_any_engine_marketplace`,
+    /// so exercise them directly.
+    #[test]
+    fn mock_fs_stub_methods_return_expected_defaults() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/.ai");
+
+        assert!(fs.create_dir_all(path).is_ok());
+        assert!(fs.write_file(path, b"content").is_ok());
+        assert!(fs.read_to_string(path).is_err());
+        assert_eq!(fs.read_dir(path).unwrap_or_default().len(), 0);
+    }
 }
