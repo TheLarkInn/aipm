@@ -290,6 +290,47 @@ mod tests {
         assert!(members.contains_key("tool-b"));
     }
 
+    /// A minimal `Fs` mock that reports `aipm.toml` as existing at the root
+    /// but always fails to read it, to exercise the I/O error branch in
+    /// `find_workspace_root` (as opposed to the TOML-parse-error branch).
+    struct UnreadableManifestFs {
+        manifest_path: PathBuf,
+    }
+
+    impl crate::fs::Fs for UnreadableManifestFs {
+        fn exists(&self, path: &Path) -> bool {
+            path == self.manifest_path
+        }
+
+        fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _path: &Path, _content: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _path: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::other("simulated read failure"))
+        }
+
+        fn read_dir(&self, _path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn find_root_skips_unreadable_manifest() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(&subdir).unwrap();
+
+        let fs = UnreadableManifestFs { manifest_path: root.join("aipm.toml") };
+        let result = find_workspace_root(&fs, &subdir);
+        assert!(result.is_none(), "should skip unreadable manifest, got: {result:?}");
+    }
+
     #[test]
     fn find_root_skips_invalid_toml() {
         let tmp = tempfile::tempdir().unwrap();
