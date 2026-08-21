@@ -161,6 +161,7 @@ mod tests {
         let levels = [
             (LevelFilter::OFF, "off"),
             (LevelFilter::ERROR, "error"),
+            (LevelFilter::WARN, "warn"),
             (LevelFilter::INFO, "info"),
             (LevelFilter::DEBUG, "debug"),
             (LevelFilter::TRACE, "trace"),
