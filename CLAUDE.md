@@ -119,13 +119,22 @@ Never hand-edit a `.lock.yml`: commit both the `.md` source and the regenerated 
 
 #### Keep every lock file on the same compiler version
 
-**All lock files must be compiled with the same `gh aw` version.** The repository is currently on **`v0.86.2`**, pinned as the `GH_AW_VERSION` env var in `.github/workflows/gh-aw-drift.yml` — that workflow is the single source of truth for the pin (the `# gh-aw-metadata:` header in every lock file also records it as `compiler_version`). Check yours with `gh aw version` and upgrade with `gh extension upgrade gh-aw` before recompiling.
+**All lock files must be compiled with the same `gh aw` version.** The pin lives in the `GH_AW_VERSION` env var in `.github/workflows/gh-aw-drift.yml` — that workflow is the single source of truth, and every lock file's `# gh-aw-metadata:` header must report the same `compiler_version`.
 
-The `gh-aw-drift.yml` workflow ([#1390](https://github.com/TheLarkInn/aipm/issues/1390)) is the CI guard for this policy: on every PR and push to `main` it installs the pinned `GH_AW_VERSION` (never `latest`, so upstream releases cannot break CI spontaneously), re-runs `gh aw compile`, and fails if any committed `.lock.yml` or `.github/aw/actions-lock.json` changes — or if compile emits untracked files (the orphaned-source class of bug: a `.md` whose lock file was never committed). When bumping the pin, update `GH_AW_VERSION` **and** the `setup-cli` action SHA/tag in the same workflow, then recompile everything in the same PR.
+Install the **pinned** version before recompiling:
+
+```bash
+GH_AW_VERSION="$(awk '/^  GH_AW_VERSION:/ { print $2; exit }' .github/workflows/gh-aw-drift.yml | tr -d '"\r')"
+gh extension install github/gh-aw --pin "$GH_AW_VERSION" --force
+```
+
+Do **NOT** run `gh extension upgrade gh-aw` — upgrading floats to the latest release, and if latest differs from the pin your recompiled locks will fail the `gh-aw-drift.yml` workflow spuriously. Check what you have with `gh aw version`.
+
+The `gh-aw-drift.yml` workflow ([#1390](https://github.com/TheLarkInn/aipm/issues/1390)) is the CI guard for this policy: on every PR and push to `main` it installs the pinned `GH_AW_VERSION` (never `latest`, so upstream releases cannot break CI spontaneously), re-runs `gh aw compile`, and fails if any committed `.lock.yml` or `.github/aw/actions-lock.json` changes, if compile emits untracked files (the orphaned-source class of bug), or if any lock reports a `compiler_version` other than the pin.
 
 Recompiling a single workflow with a newer extension than the others introduces *compiler version skew*. Each lock file embeds a pinned [`gh-aw-firewall`](https://github.com/githubnext/gh-aw-firewall) (AWF) release, so a skewed lock ends up on a different AWF pin than its siblings. Upstream deletes old AWF releases, and when that happens the `Install AWF binary` step dies with `curl: (22) ... 404` and the workflow fails 100% of the time — which is exactly how `reverse-binary-analysis` (pinned to the deleted `v0.25.28`) silently failed every week for over two months ([#1388](https://github.com/TheLarkInn/aipm/issues/1388)).
 
-When upgrading the extension, run a bare `gh aw compile` to recompile **all** workflows at once, and confirm the pins agree before committing:
+When bumping the pin, update `GH_AW_VERSION` **and** the `setup-cli` action SHA/tag in `.github/workflows/gh-aw-drift.yml`, install that version, run a bare `gh aw compile` to recompile **all** workflows at once, and confirm the AWF pins agree before committing:
 
 ```bash
 grep -ho 'install_awf_binary\.sh" v[0-9.]*' .github/workflows/*.lock.yml | awk '{print $2}' | sort -u
@@ -136,6 +145,16 @@ That must print exactly one version, and it must resolve upstream:
 ```bash
 gh api repos/githubnext/gh-aw-firewall/releases/tags/<version> --jq .tag_name
 ```
+
+#### The `gh-aw-drift.yml` workflow enforces all of this
+
+The dedicated workflow installs gh-aw at exactly `GH_AW_VERSION`, runs `gh aw compile`, and fails if:
+
+- `git diff --exit-code -- .github/workflows .github/aw` shows any change — an `.md` was edited (or gh-aw bumped) without committing the regenerated `.lock.yml` ([#1390](https://github.com/TheLarkInn/aipm/issues/1390))
+- `git ls-files --others --exclude-standard -- .github/workflows/ .github/aw/` is non-empty — compile emitted an untracked file, the orphaned-source class of bug
+- the `# gh-aw-metadata:` headers disagree on `compiler_version`, or report anything other than `GH_AW_VERSION` — compiler-version skew
+
+If it fails on your PR, install the pinned version and recompile as shown above, then commit every regenerated file.
 
 #### Lock files are generated — `.gitattributes` is deliberately minimal
 

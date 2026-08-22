@@ -49,3 +49,26 @@ jobs:
             echo "$UNTRACKED"
             exit 1
           fi
+
+      - name: Fail if lock compiler versions differ from the pin
+        run: |
+          FOUND_LOCK=false
+          for LOCK in .github/workflows/*.lock.yml; do
+            if [ ! -e "$LOCK" ]; then
+              continue
+            fi
+            FOUND_LOCK=true
+            VERSION="$(sed -n 's/^# gh-aw-metadata: .*"compiler_version":"\([^"]*\)".*/\1/p' "$LOCK")"
+            if [ -z "$VERSION" ]; then
+              echo "::error file=$LOCK::Lock file has no compiler_version in its # gh-aw-metadata header."
+              exit 1
+            fi
+            if [ "$VERSION" != "$GH_AW_VERSION" ]; then
+              echo "::error file=$LOCK::Lock was compiled with gh-aw $VERSION; expected pinned version $GH_AW_VERSION. Recompile all workflows with the pinned version and commit every generated file."
+              exit 1
+            fi
+          done
+          if [ "$FOUND_LOCK" != true ]; then
+            echo "::error::No .github/workflows/*.lock.yml files found."
+            exit 1
+          fi
