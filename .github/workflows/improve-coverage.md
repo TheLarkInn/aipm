@@ -60,9 +60,11 @@ safe-outputs:
     target: "*"
     max: 2
   create-issue:
-    title-prefix: "[coverage-improver]"
+    title-prefix: "[coverage-improver] "
     labels: [coverage-improver]
     max: 1
+    # Escalation issues must stay open until a maintainer resolves the blocker.
+    expires: false
   noop:
     report-as-issue: false
 ---
@@ -117,6 +119,11 @@ actually merge. Fetch its current state:
 gh pr view <number> --json mergeable,mergeStateStatus,statusCheckRollup,updatedAt,headRefName,commits
 ```
 
+Use the latest entry in `commits` (its `committedDate`) for every age
+threshold below. Treat `updatedAt` as diagnostic context only: PR comments,
+including this workflow's own waiting markers, update it without advancing the
+branch.
+
 Decide as follows:
 
 - **`mergeable` is `CONFLICTING`** → go to **Step 3** (repair or supersede).
@@ -128,9 +135,9 @@ Decide as follows:
   - If unresolved review comments already describe the failures, go to
     **Step 6** (handle review comments) — applying them usually fixes CI.
   - Otherwise go to **Step 4** (fix failing checks). Do **not** `noop`.
-- **`statusCheckRollup` is empty AND `updatedAt` is more than 2 hours ago** →
-  CI never started on this PR; it is stuck. Go to **Step 5** (close as
-  superseded and start fresh). Do **not** `noop`.
+- **`statusCheckRollup` is empty AND the most recent commit is more than
+  2 hours old** → CI never started on this PR; it is stuck. Go to **Step 5**
+  (close as superseded and start fresh). Do **not** `noop`.
 - **The PR's most recent commit is more than 24 hours old and it is still
   unmerged** (checks failing, absent, or long green without a merge) → stale.
   Go to **Step 5** (close as superseded and start fresh). Do **not** `noop`.
@@ -249,12 +256,22 @@ But an unbroken streak of identical `noop`s on the same PR must surface
 visibly instead of reporting clean success forever — that silence is exactly
 how the previous livelock hid. Apply this guard:
 
-1. **Count the waiting streak.** List the PR's comments
-   (`gh pr view <number> --json comments`, or the GitHub issue-comments tool
-   for the PR number). Scanning from newest to oldest, count the trailing
-   comments whose body contains the marker `<!-- coverage-improver-noop -->`.
-   Stop at the first comment without the marker — any newer commit, review,
-   or human comment resets the streak. Call the count **C**.
+1. **Count the waiting streak.** Fetch all event types that can represent
+   progress:
+
+   ```bash
+   gh pr view <number> --json comments,commits,reviews
+   ```
+
+   Set the progress cutoff to the newest timestamp among:
+   - the latest commit's `committedDate`;
+   - every review's `submittedAt`; and
+   - every non-marker PR comment's `createdAt`.
+
+   Count only comments whose body contains
+   `<!-- coverage-improver-noop -->` **and** whose `createdAt` is newer than
+   that cutoff. A new commit, review, or non-marker comment therefore resets
+   the streak. Call the count **C**.
 
 2. **C < 8** — keep waiting, but leave a visible trace. Post a marker comment
    via the `add-comment` safe output:
@@ -287,8 +304,9 @@ how the previous livelock hid. Apply this guard:
      - Otherwise use the `create-issue` safe output with title
        `PR #N is healthy but not merging — auto-merge appears stuck` and a
        body containing the Step 2 diagnostics (`mergeable`,
-       `mergeStateStatus`, a check summary, `updatedAt`, the waiting streak
-       length) and a request for a maintainer to merge or unblock it manually.
+       `mergeStateStatus`, a check summary, the latest commit timestamp,
+       `updatedAt`, the waiting streak length) and a request for a maintainer
+       to merge or unblock it manually.
 
      While the escalation issue is open, later runs `noop` quietly at this
      point — the open issue, not the run log, is now the visible signal.
