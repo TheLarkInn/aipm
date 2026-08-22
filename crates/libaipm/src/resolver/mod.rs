@@ -717,6 +717,24 @@ mod tests {
     }
 
     #[test]
+    fn root_deps_same_major_conflict_reported_directly() {
+        // Two root deps for the *same* package name with incompatible same-major
+        // requirements. This must hit the same-major conflict check directly
+        // inside `try_activate_with_backtrack` (not via `queue_transitive_dep`'s
+        // own check, nor via `backtrack_and_retry`'s re-check).
+        let mut reg = MockRegistry::new();
+        reg.add_package("c", vec![("1.0.0", vec![]), ("1.1.0", vec![])]);
+
+        let deps = vec![root_dep("c", "=1.1.0"), root_dep("c", "=1.0.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg);
+
+        assert!(result.is_err());
+        if let Err(Error::Conflict(detail)) = &result {
+            assert_eq!(detail.name, "c");
+        }
+    }
+
+    #[test]
     fn resolve_package_not_found() {
         let reg = MockRegistry::new();
         let deps = vec![root_dep("nonexistent", "^1.0")];
