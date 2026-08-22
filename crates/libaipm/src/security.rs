@@ -80,7 +80,7 @@ pub enum Error {
 
 /// Check if the environment variable forces enforcement.
 fn is_env_enforced() -> bool {
-    std::env::var(ENFORCE_ENV_VAR).ok().is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+    std::env::var(ENFORCE_ENV_VAR).is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
 }
 
 /// Check if a URL matches any of the given glob-style patterns.

@@ -1,13 +1,13 @@
 ---
 description: >
   Coverage improver — runs every 15 minutes. Checks open coverage-improver PRs
-  for Copilot review comments and applies any requested updates. Verifies an
-  open PR can actually merge (conflicts, failing or missing checks, staleness)
-  and escalates repeated no-ops instead of idling on a stuck PR. If the PR
-  needs no further changes, queues the build and enables auto-merge. If no
-  open PR exists, runs Rust branch coverage analysis, identifies one uncovered
-  branch, writes a test to cover it, and opens a PR explaining the scenario
-  that the new test covers.
+  for Copilot review comments and applies any requested updates. Before waiting
+  on an existing PR it verifies the PR can actually merge — repairing conflicts,
+  fixing failing checks, or closing stuck/stale PRs as superseded — and repeated
+  no-op runs on the same PR escalate to an issue instead of reporting silent
+  success. If no open PR exists, runs Rust branch coverage analysis, identifies
+  one uncovered branch, writes a test to cover it, and opens a PR explaining
+  the scenario that the new test covers.
 on:
   schedule:
     - cron: "*/15 * * * *"
@@ -16,11 +16,12 @@ permissions:
   contents: read
   issues: read
   pull-requests: read
+  checks: read
+  actions: read
 timeout-minutes: 45
 tools:
   github:
     toolsets: [default]
-  cache-memory: true
 network:
   allowed: [defaults, rust]
 steps:
@@ -51,23 +52,18 @@ safe-outputs:
     target: "*"
     required-title-prefix: "[coverage-improver]"
     if-no-changes: ignore
-  # Lets the agent close a coverage-improver PR that can never merge
-  # (unresolvable conflicts, stale beyond recovery) so a fresh PR can replace
-  # it. Restricted to the workflow's own title prefix.
   close-pull-request:
     target: "*"
     required-title-prefix: "[coverage-improver]"
     max: 1
-  # Escalation channel for the no-op guard and the broken-auto-merge case:
-  # instead of reporting a clean success, the workflow files an issue.
-  # deduplicate-by-title + close-older-issues keep recurring escalations from
-  # piling up; expires: false keeps the latest one open until a human acts.
+  add-comment:
+    target: "*"
+    max: 2
   create-issue:
+    title-prefix: "[coverage-improver] "
+    labels: [coverage-improver]
     max: 1
-    title-prefix: "[coverage-improver-guard] "
-    labels: [coverage-improver, agentic-workflows]
-    deduplicate-by-title: true
-    close-older-issues: true
+    # Escalation issues must stay open until a maintainer resolves the blocker.
     expires: false
   noop:
     report-as-issue: false
@@ -81,11 +77,17 @@ The project enforces a strict **89% branch-coverage gate** (see `CLAUDE.md`).
 ## Goal
 
 On each run, first check whether an open `[coverage-improver]` PR already
-exists. If it does, verify the PR can actually make forward progress
-(conflicts, failing or missing checks, staleness) before anything else, then
-inspect it for unresolved Copilot review comments and act accordingly. If no
-PR exists, find **one** uncovered branch, write the smallest possible test
-that covers it, and open a PR.
+exists. If it does, **verify the PR can actually make progress** before doing
+anything else: a conflicting, failing, stuck, or stale PR must be repaired or
+superseded — never waited on. If the existing PR is healthy, inspect it for
+unresolved Copilot review comments and act accordingly. If no PR exists, find
+**one** uncovered branch, write the smallest possible test that covers it, and
+open a PR.
+
+A run that only `noop`s is classified as success, which is how a past livelock
+(a conflicting PR parked the workflow for weeks while every run exited green)
+stayed invisible. Step 8 therefore escalates repeated identical `noop`s on the
+same PR to a visible issue instead of letting silence pass for success.
 
 ## Lint Rules (MUST follow — compiler will reject violations)
 
@@ -102,73 +104,119 @@ Key rules:
 
 ### 1 — Check for an existing open coverage-improver PR
 
-Search for an open pull request whose title contains `[coverage-improver]`.
+Search for open pull requests whose title contains `[coverage-improver]`. If
+several are open, operate on the most recently updated one.
 
-- If **an open PR is found**, go to **Step 2** (assess mergeability).
-- If **no open PR is found**, go to **Step 6** (create a new PR).
+- If **an open PR is found**, go to **Step 2** (check its mergeability).
+- If **no open PR is found**, go to **Step 9** (create a new PR).
 
-### 2 — Assess mergeability before anything else
+### 2 — Inspect the PR's mergeability (required before any `noop`)
 
-A previous incarnation of this workflow no-op'd indefinitely on a PR that
-could never merge ([#887](https://github.com/TheLarkInn/aipm/pull/887)),
-burning ~57 runs a day while every run reported `success`. **Never `noop` on
-a PR that is stuck.**
-
-Inspect the open PR's merge state with the GitHub pull-request tools — the
-equivalent of:
+Never decide to `noop` without first checking whether the existing PR can
+actually merge. Fetch its current state:
 
 ```bash
-gh pr view <n> --json mergeable,mergeStateStatus,statusCheckRollup,updatedAt
+gh pr view <number> --json mergeable,mergeStateStatus,statusCheckRollup,updatedAt,headRefName,commits
 ```
 
-Evaluate the following rules **in order** and act on the **first** one that
-matches. Only the last rule permits continuing to review-comment handling;
-every other rule requires forward progress — never a `noop`:
+Use the latest entry in `commits` (its `committedDate`) for every age
+threshold below. Treat `updatedAt` as diagnostic context only: PR comments,
+including this workflow's own waiting markers, update it without advancing the
+branch.
 
-1. **`mergeable: CONFLICTING` (or `mergeStateStatus: DIRTY`)** — the PR cannot
-   merge. Try to repair it: check out the PR branch, rebase it onto the
-   latest `main`, resolve any conflicts, verify build/tests/clippy/fmt all
-   pass (the same commands as Step 4), and push with the
-   `push-to-pull-request-branch` safe output. If the conflicts cannot be
-   resolved with reasonable effort — for example the branch it covers is
-   already covered on `main` — close the PR with the `close-pull-request`
-   safe output (note that it is superseded and why), then go to **Step 6**
-   to open a fresh PR. **Do not `noop`.**
-2. **Failing checks and no actionable review comments** — the PR needs code
-   changes, not patience. Diagnose the failing checks, fix the failures
-   following all lint rules, verify locally, and push with
-   `push-to-pull-request-branch`, then stop. **Do not `noop`.**
-3. **No checks at all, and `updatedAt` is more than 2 hours ago** — CI never
-   started and the PR is stuck (auto-merge can never fire). Rebase-push it
-   onto `main` to retrigger CI; if that is not possible, close it with
-   `close-pull-request` (note that it is superseded because checks never
-   ran), then go to **Step 6**. **Do not `noop` indefinitely.**
-4. **Stale: `updatedAt` is more than 48 hours old with no new commits, check
-   progress, or comments** — no progress is happening regardless of what the
-   fields claim. Close the PR with `close-pull-request` (note that it is
-   superseded due to inactivity), then go to **Step 6**.
-5. **`mergeable: MERGEABLE` with all checks green, but the PR is still
-   open** — auto-merge should have fired and did not; this is a
-   broken-merge condition no amount of waiting will fix. Escalate with the
-   `create-issue` safe output (a title like "Coverage PR #N is mergeable
-   with green checks but auto-merge never fired", a body describing the
-   PR's merge state, check rollup, and `updatedAt`), then **stop**.
-   **Do not `noop`.**
-6. **Otherwise** (mergeable, checks pending or running normally, PR is
-   fresh) — the PR is healthy and merely waiting on CI. Go to **Step 3**.
+Decide as follows:
 
-### 3 — Inspect for Copilot review comments
+- **`mergeable` is `CONFLICTING`** → go to **Step 3** (repair or supersede).
+  Do **not** `noop`.
+- **`mergeStateStatus` is `BEHIND`** (mergeable, but behind `main`) → go to
+  **Step 3** (merge `main` into the PR branch and push). Do **not** `noop`.
+- **Any entry in `statusCheckRollup` has concluded `FAILURE`, `TIMED_OUT`,
+  `CANCELLED`, or `ACTION_REQUIRED`**:
+  - If unresolved review comments already describe the failures, go to
+    **Step 6** (handle review comments) — applying them usually fixes CI.
+  - Otherwise go to **Step 4** (fix failing checks). Do **not** `noop`.
+- **`statusCheckRollup` is empty AND the most recent commit is more than
+  2 hours old** → CI never started on this PR; it is stuck. Go to **Step 5**
+  (close as superseded and start fresh). Do **not** `noop`.
+- **The PR's most recent commit is more than 24 hours old and it is still
+  unmerged** (checks failing, absent, or long green without a merge) → stale.
+  Go to **Step 5** (close as superseded and start fresh). Do **not** `noop`.
+- **Otherwise** (mergeable; checks green or still running normally;
+  `mergeable: UNKNOWN` while GitHub computes mergeability) → the PR is
+  healthy. Go to **Step 6** (handle review comments).
+
+### 3 — Repair a conflicting or behind PR
+
+1. Check out the PR branch locally (the checkout fetches every branch) and
+   merge `main` into it:
+
+   ```bash
+   git checkout -B <headRefName> origin/<headRefName>
+   git merge origin/main
+   ```
+
+   Prefer merging over rebasing — a merge is a plain fast-forwardable push,
+   while a rebase would require a force-push.
+
+2. Resolve any conflicts, keeping the PR's intent. If the branch the PR set
+   out to cover is already covered on `main`, or the conflicts cannot be
+   resolved cleanly, do not force it: close the PR as described in **Step 5**
+   and continue to **Step 9** (fresh coverage run) instead.
+
+3. Verify the repaired branch:
+
+   ```bash
+   cargo build --workspace
+   cargo test --workspace
+   cargo clippy --workspace -- -D warnings
+   cargo fmt --check
+   ```
+
+4. Use the `push-to-pull-request-branch` safe output to push the merge commit
+   to the existing PR branch.
+
+After pushing, **stop** — CI will re-run on the updated branch.
+
+### 4 — Fix failing checks
+
+1. Identify what failed:
+
+   ```bash
+   gh pr checks <number>
+   gh run view --log-failed <run-id>
+   ```
+
+2. Fix the failures, following all lint rules.
+3. Run the build, test, clippy, and formatting commands shown in Step 3, then
+   run the coverage commands shown in Step 7 to confirm the branch still meets
+   the 89% gate.
+4. Use the `push-to-pull-request-branch` safe output to push the fix to the
+   existing PR branch.
+
+After pushing, **stop** — CI will re-run on the updated branch.
+
+### 5 — Close a stuck or stale PR as superseded
+
+1. Use the `close-pull-request` safe output to close the PR, with a comment
+   explaining why, e.g.:
+   > "Superseded: this PR has merge conflicts / failing checks / no CI after
+   > 2 hours / no progress for 24 hours. A fresh coverage PR replaces it."
+2. **Continue to Step 9** — run a fresh coverage analysis and open a
+   replacement PR in this same run. Do not stop and do not `noop`: the run
+   must make forward progress.
+
+### 6 — Inspect for Copilot review comments
 
 Read all open (unresolved) review threads on the existing PR. Focus on comments
 left by Copilot or the `github-actions` bot that request code changes.
 
 - If **there are unresolved review comments requesting code changes**,
-  go to **Step 4** (apply the updates).
+  go to **Step 7** (apply the updates).
 - If **there are no actionable review comments** (comments are resolved,
   informational only, or there are none at all),
-  go to **Step 5** (confirm the PR is ready).
+  go to **Step 8** (confirm the PR is ready — with the noop escalation guard).
 
-### 4 — Apply review comment updates
+### 7 — Apply review comment updates
 
 For each unresolved review comment that requests a code change:
 
@@ -200,47 +248,73 @@ For each unresolved review comment that requests a code change:
 After pushing, **stop** — the CI pipeline will re-run and Copilot will
 re-review if needed. The next scheduled run will pick up any new comments.
 
-### 5 — Confirm the PR is ready (with the no-op escalation guard)
+### 8 — Confirm the PR is ready (noop escalation guard)
 
-This step is reached only when Step 2 confirmed the PR is mergeable with
-checks pending or in progress, and there are no actionable review comments —
-the PR is waiting on CI or auto-merge and there is nothing to change. Before
-calling `noop`, update the no-op guard state kept in cache memory so a
-silently stuck PR cannot pass for a healthy one:
+The PR passed the Step 2 mergeability check and has no actionable review
+comments, so the correct outcome is usually to wait for checks and auto-merge.
+But an unbroken streak of identical `noop`s on the same PR must surface
+visibly instead of reporting clean success forever — that silence is exactly
+how the previous livelock hid. Apply this guard:
 
-1. Read `/tmp/gh-aw/cache-memory/noop-guard.json` if it exists. It has the
-   shape `{ "pr": <number>, "consecutive_noops": <count> }`.
-2. If it refers to this same PR, increment `consecutive_noops`; otherwise
-   start a new record for this PR with `consecutive_noops: 1`.
-3. Write the updated record back to `/tmp/gh-aw/cache-memory/noop-guard.json`.
-4. If `consecutive_noops` exceeds **8** (≈ 2 hours of runs at the 15-minute
-   cadence), do **not** `noop`. A livelocked workflow that only emits `noop`
-   still exits `success`, so repeated no-ops must surface visibly instead:
-   - Use the `create-issue` safe output with a title like
-     "Coverage Improver is no-op'ing on PR #N" and a body describing the
-     PR's merge state, check rollup, and `updatedAt`.
-   - Reset `consecutive_noops` to `0` in the state file.
-   - Then make forward progress instead of idling: treat the PR as stuck
-     per **Step 2** (push a fix, or close it as superseded and go to
-     **Step 6**).
+1. **Count the waiting streak.** Fetch all event types that can represent
+   progress:
 
-If the count is within the limit, call the `noop` safe output with a message
-such as:
-> "No outstanding review comments found on PR #N. Auto-merge will trigger once
-> all checks pass."
+   ```bash
+   gh pr view <number> --json comments,commits,reviews
+   ```
 
-**Stop** — do not run coverage analysis or create a new PR.
+   Set the progress cutoff to the newest timestamp among:
+   - the latest commit's `committedDate`;
+   - every review's `submittedAt`; and
+   - every non-marker PR comment's `createdAt`.
 
-A `noop` is only legitimate here because Step 2 already verified the PR is
-mergeable, has checks running, and is fresh — and the guard above bounds how
-long that may continue unanswered. Any run that ends with a push, a closed
-PR, or a newly created PR must reset the guard: delete
-`/tmp/gh-aw/cache-memory/noop-guard.json` or write it with
-`consecutive_noops: 0`.
+   Count only comments whose body contains
+   `<!-- coverage-improver-noop -->` **and** whose `createdAt` is newer than
+   that cutoff. A new commit, review, or non-marker comment therefore resets
+   the streak. Call the count **C**.
 
-### 6 — Collect branch-level coverage
+2. **C < 8** — keep waiting, but leave a visible trace. Post a marker comment
+   via the `add-comment` safe output:
 
-No open PR exists. Run a fresh coverage analysis:
+   > `<!-- coverage-improver-noop -->` ⏳ Coverage Improver: PR is mergeable
+   > with no outstanding review comments; waiting on checks/auto-merge.
+   > (Consecutive waiting runs: C+1/8 — the 8th escalates instead of waiting.)
+
+   Then call the `noop` safe output with a message such as:
+   > "No outstanding review comments found on PR #N (waiting streak C+1/8).
+   > Auto-merge will trigger once all checks pass."
+
+   **Stop** — do not run coverage analysis or create a new PR.
+
+3. **C ≥ 8** (about 2 hours with zero progress) — escalate; do **not** `noop`.
+   Re-run the Step 2 mergeability check once more and act on the result:
+
+   - Now `CONFLICTING` or `BEHIND` → go to **Step 3**.
+   - Failing checks → go to **Step 4**.
+   - Still no checks after 2+ hours → go to **Step 5** (supersede and rebuild).
+   - Checks green, `mergeable: MERGEABLE`, auto-merge enabled, yet still
+     unmerged → something outside this workflow's control is blocking the
+     merge (branch protection, a required review, a stuck merge queue).
+     Escalate to a human:
+     - Search for an existing open escalation issue first
+       (`gh issue list --search 'in:title "[coverage-improver] PR #N"' --state open`).
+       If one already exists, do not open a duplicate and do not add another
+       comment — call `noop` and stop. The open issue is the visible signal;
+       repeated comments would be noise.
+     - Otherwise use the `create-issue` safe output with title
+       `PR #N is healthy but not merging — auto-merge appears stuck` and a
+       body containing the Step 2 diagnostics (`mergeable`,
+       `mergeStateStatus`, a check summary, the latest commit timestamp,
+       `updatedAt`, the waiting streak length) and a request for a maintainer
+       to merge or unblock it manually.
+
+     While the escalation issue is open, later runs `noop` quietly at this
+     point — the open issue, not the run log, is now the visible signal.
+
+### 9 — Collect branch-level coverage
+
+No open PR exists (either none was found, or a stuck/stale one was superseded
+in Step 5). Run a fresh coverage analysis:
 
 ```bash
 cargo +nightly llvm-cov clean --workspace
@@ -248,7 +322,7 @@ cargo +nightly llvm-cov --no-report --workspace --branch
 cargo +nightly llvm-cov --no-report --doc
 ```
 
-### 7 — Generate a detailed per-file report
+### 10 — Generate a detailed per-file report
 
 ```bash
 cargo +nightly llvm-cov report --doctests --branch \
@@ -257,7 +331,7 @@ cargo +nightly llvm-cov report --doctests --branch \
 
 Save the full output. Note the overall branch percentage.
 
-### 8 — Find uncovered branches
+### 11 — Find uncovered branches
 
 Run the HTML or text report to locate files with uncovered branches:
 
@@ -271,12 +345,12 @@ Pick **one** file and **one** uncovered branch. Prefer branches that are
 straightforward to test (e.g., error-handling paths, edge cases, boundary
 conditions). Avoid branches inside `wizard_tty.rs` or test helpers.
 
-### 9 — Understand the uncovered branch
+### 12 — Understand the uncovered branch
 
 Read the source file and understand what scenario triggers the uncovered branch.
 Identify the function, the condition, and what input would reach that branch.
 
-### 10 — Write a test
+### 13 — Write a test
 
 Add a test in the appropriate test module (unit test in the same file, or
 integration test under `tests/`). Follow the existing test style in the codebase.
@@ -287,7 +361,7 @@ Requirements:
 - Clippy must be clean: `cargo clippy --workspace -- -D warnings`
 - Formatting must pass: `cargo fmt --check`
 
-### 11 — Verify coverage improved
+### 14 — Verify coverage improved
 
 Re-run coverage and confirm the branch you targeted is now covered:
 
@@ -301,7 +375,7 @@ cargo +nightly llvm-cov report --doctests --branch \
 
 Compare the before/after branch percentages.
 
-### 12 — Open a Pull Request
+### 15 — Open a Pull Request
 
 Use the `create-pull-request` safe output to open a **non-draft** PR (set
 `draft: false`) with:
@@ -317,7 +391,7 @@ Use the `create-pull-request` safe output to open a **non-draft** PR (set
 The PR is created with auto-merge enabled, so it will merge automatically once
 all CI checks pass and any required reviews are approved.
 
-### 13 — Nothing to do?
+### 16 — Nothing to do?
 
 If coverage is already at 100% or all remaining uncovered branches are in
 excluded files (`wizard_tty.rs`, `tests/`, etc.), call the `noop` safe output

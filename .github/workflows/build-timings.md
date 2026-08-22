@@ -24,9 +24,7 @@ steps:
 safe-outputs:
   create-issue:
     max: 1
-  add-labels:
-    allowed: [build-timings]
-    max: 1
+    labels: [build-timings]
   noop:
 ---
 
@@ -179,8 +177,6 @@ Use the `create-issue` safe output to open an issue with the following format:
    - Build time comparison with last report
    - New dependencies added
    - Dependencies removed
-
-Then use the `add-labels` safe output to add the `build-timings` label.
 
 ### 9 — Nothing noteworthy?
 
