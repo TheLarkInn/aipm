@@ -388,4 +388,19 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Deserialize a JSON array where every engine name is unknown so that the
+    /// `if set.is_empty() { return Err(...) }` arm (around line 358) is covered.
+    /// A single known name would resolve the bitset to non-empty, so this input
+    /// must contain only names absent from `Engine::ALL`.
+    #[test]
+    fn engine_set_serde_all_unknown_names_errors() {
+        let de = serde_json::json!(["totally-unknown-engine", "another-bogus-engine"]);
+        let result = engine_set_serde::deserialize(de);
+        let Err(err) = result else {
+            panic!("all-unknown engine names should error, got {result:?}");
+        };
+        let message = err.to_string();
+        assert!(message.contains("no known engine names"), "unexpected error message: {message}");
+    }
 }
