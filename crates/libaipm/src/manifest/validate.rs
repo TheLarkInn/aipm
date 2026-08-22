@@ -330,6 +330,24 @@ some-dep = {}
     }
 
     #[test]
+    fn components_present_without_base_dir_skips_path_validation() {
+        // Covers the `if let Some(dir) = base_dir` → `None` branch in
+        // `validate()`: when `[components]` is present but no `base_dir` is
+        // supplied, component path validation is skipped entirely and the
+        // manifest is still considered valid.
+        let toml = r#"
+[package]
+name = "test"
+version = "0.1.0"
+
+[components]
+agents = ["agents/my-agent"]
+"#;
+        let result = crate::manifest::parse_and_validate(toml, None);
+        assert!(result.is_ok(), "components without base_dir should skip path checks: {result:?}");
+    }
+
+    #[test]
     fn segment_starting_with_digit_is_valid() {
         // Covers the `b.is_ascii_digit()` branch in `is_valid_segment` —
         // when the first byte is a digit, `is_ascii_lowercase()` is false and
