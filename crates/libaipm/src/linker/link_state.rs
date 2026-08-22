@@ -242,4 +242,27 @@ mod tests {
         let result = write(FS, Path::new("/"), &State::default());
         assert!(result.is_err());
     }
+
+    #[test]
+    fn write_serialization_failure_propagates() {
+        // A non-UTF-8 path in a LinkEntry can't be represented in TOML, so
+        // `toml::to_string_pretty` fails before any filesystem write happens.
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join(".aipm/links.toml");
+
+        let bad_path = PathBuf::from(OsStr::from_bytes(&[0xFF, 0xFE]));
+        let state = State {
+            link: vec![LinkEntry {
+                name: "bad".to_string(),
+                path: bad_path,
+                linked_at: "2026-03-26T14:30:00Z".to_string(),
+            }],
+        };
+
+        let result = write(FS, &path, &state);
+        assert!(result.is_err());
+    }
 }
