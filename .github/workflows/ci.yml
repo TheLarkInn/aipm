@@ -70,13 +70,15 @@ jobs:
       - name: Fail on lock-file drift
         run: |
           if ! git diff --exit-code -- .github/workflows .github/aw; then
-            echo "::error::Lock files are out of date. Run 'gh aw compile' with gh-aw $GH_AW_VERSION and commit the result."
+            echo "::error::Generated agentic workflow artifacts are out of date. Run 'gh aw compile' with gh-aw $GH_AW_VERSION and commit the result."
+            echo "Changed generated artifacts:"
+            git diff --name-only -- .github/workflows .github/aw
             exit 1
           fi
 
       - name: Fail on untracked compiler output
         run: |
-          UNTRACKED=$(git status --porcelain --untracked-files=all -- .github/workflows .github/aw)
+          UNTRACKED=$(git ls-files --others --exclude-standard -- .github/workflows .github/aw)
           if [ -n "$UNTRACKED" ]; then
             echo "::error::gh aw compile produced untracked files (orphaned .md source or unexpected output):"
             echo "$UNTRACKED"
