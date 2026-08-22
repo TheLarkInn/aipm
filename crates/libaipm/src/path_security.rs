@@ -284,6 +284,17 @@ mod tests {
         assert!(matches!(result, Err(PathValidationError::PathTraversal)));
     }
 
+    #[test]
+    fn panic_free_unreachable_helper_returns_empty_path() {
+        // Directly exercises the fallback helper itself (never reached via
+        // the `unwrap_or_else` call sites above, since those only run on
+        // `Ok` results in passing tests). Confirms it returns an empty
+        // `ValidatedPath` without panicking, satisfying the no-`unwrap()`
+        // lint while covering the branch.
+        let dummy = panic_free_unreachable(&PathValidationError::EmptyPath);
+        assert_eq!(dummy.as_ref(), "");
+    }
+
     /// Test helper that converts a validation error to a string and then
     /// creates a dummy [`ValidatedPath`] — used in place of `.unwrap()` which
     /// is denied by the workspace lint configuration.
