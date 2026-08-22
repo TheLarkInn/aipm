@@ -184,6 +184,28 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
+    fn open_fails_when_file_open_errors() {
+        // Create a read-only file so `OpenOptions::new().write(true).open(..)`
+        // fails with a permission error, exercising the file-open error branch
+        // in `LockedFile::open` (distinct from the mkdir error branch above).
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let path = temp.path().join("readonly.json");
+        std::fs::write(&path, b"content").unwrap_or_else(|_| {});
+
+        if let Ok(metadata) = std::fs::metadata(&path) {
+            let mut perms = metadata.permissions();
+            perms.set_mode(0o444);
+            let _ = std::fs::set_permissions(&path, perms);
+        }
+
+        let result = LockedFile::open(&path);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn open_path_with_no_parent_skips_mkdir_and_fails() {
         // Path::new("/").parent() returns None, so the `if let Some(parent)` branch
         // is skipped entirely.  Opening "/" as a regular file then fails because it
