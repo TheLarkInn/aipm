@@ -107,6 +107,8 @@ The manual `ci: trigger checks` empty-commit workaround is **obsolete** — do n
 
 A gh-aw workflow that emits only `noop` outputs still exits `success` — the run log literally says "Agent succeeded with only noop outputs - this is not a failure". A workflow can therefore be livelocked while the dashboard shows green for weeks: `improve-coverage` parked indefinitely on an unmergeable PR exactly this way ([#1391](https://github.com/TheLarkInn/aipm/issues/1391)). When auditing a workflow, check what it *did* — issues/PRs created, comments posted — not just its conclusion, and treat repeated identical `noop` cycles as a failure signal.
 
+`improve-coverage` now guards against this class of livelock directly ([#1552](https://github.com/TheLarkInn/aipm/pull/1552)): before doing anything else on an existing open PR, it runs a mergeability gate (`gh pr view <n> --json mergeable,mergeStateStatus,statusCheckRollup,updatedAt`) instead of only checking for review comments. A `CONFLICTING` PR, one with failing checks, one with no checks after 24 h, or one stale beyond 48 h is repaired (rebase/merge `main` and push) or superseded via the `close-pull-request` safe output and a fresh PR — never silently `noop`'d. Repeated no-op cycles still escalate via a deduplicated `create-issue` with `expires: false` so the signal can't auto-close.
+
 ### Modifying workflow files
 
 After editing any `.github/workflows/<name>.md`, recompile its lock file:
