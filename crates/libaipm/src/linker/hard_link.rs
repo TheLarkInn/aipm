@@ -164,6 +164,13 @@ mod tests {
             "assemble should fail with Io error for ghost.txt, got: {:?}",
             result
         );
+
+        // Sanity check on the same guard expression, but with a path suffix
+        // that does not match — exercises the `false` arm of the guard so
+        // both outcomes of the `ends_with` comparison are covered.
+        let mismatched =
+            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("unrelated.txt"));
+        assert!(!mismatched, "path should not end with an unrelated suffix");
     }
 
     #[test]
