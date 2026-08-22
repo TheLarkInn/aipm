@@ -151,7 +151,7 @@ Decide as follows:
    merge `main` into it:
 
    ```bash
-   git checkout <headRefName>
+   git checkout -B <headRefName> origin/<headRefName>
    git merge origin/main
    ```
 
@@ -187,9 +187,9 @@ After pushing, **stop** — CI will re-run on the updated branch.
    ```
 
 2. Fix the failures, following all lint rules.
-3. Verify the code compiles, tests pass, clippy is clean, formatting passes,
-   and coverage still meets the 89% branch gate (commands as in Step 3 and
-   Step 7).
+3. Run the build, test, clippy, and formatting commands shown in Step 3, then
+   run the coverage commands shown in Step 7 to confirm the branch still meets
+   the 89% gate.
 4. Use the `push-to-pull-request-branch` safe output to push the fix to the
    existing PR branch.
 
