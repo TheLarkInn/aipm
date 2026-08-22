@@ -1,0 +1,74 @@
+name: gh-aw drift guard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # Pinned gh-aw compiler version — the single source of truth for the version
+  # every .github/workflows/*.lock.yml must be compiled with. Referenced from
+  # CLAUDE.md. Deliberately NOT "latest": bump it only together with a full
+  # recompile of every workflow (see CLAUDE.md, "Keep every lock file on the
+  # same compiler version").
+  GH_AW_VERSION: v0.86.2
+
+jobs:
+  lock-drift:
+    name: Lock-file drift guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # `uses:` refs cannot read env vars, so this tag must match GH_AW_VERSION.
+      - name: Install gh-aw CLI (pinned)
+        uses: github/gh-aw-actions/setup-cli@6aab9e5b5c91c615506061f09bedd81a23babe3c # v0.86.2
+        with:
+          version: ${{ env.GH_AW_VERSION }}
+
+      - name: Recompile all agentic workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh aw compile
+
+      - name: Fail if committed locks drifted
+        run: |
+          if ! git diff --exit-code -- .github/workflows/ .github/aw/; then
+            echo "::error::Regenerated gh-aw output differs from what is committed. Re-run 'gh aw compile' with gh-aw $GH_AW_VERSION and commit the regenerated .lock.yml files (plus .github/aw/actions-lock.json and agentics-maintenance.yml if they changed)."
+            exit 1
+          fi
+
+      - name: Fail if compile emitted untracked files
+        run: |
+          UNTRACKED="$(git ls-files --others --exclude-standard -- .github/workflows/ .github/aw/)"
+          if [ -n "$UNTRACKED" ]; then
+            echo "::error::'gh aw compile' produced files that are not committed. Every workflow .md source must have its generated .lock.yml committed:"
+            echo "$UNTRACKED"
+            exit 1
+          fi
+
+      - name: Fail if lock compiler versions differ from the pin
+        run: |
+          FOUND_LOCK=false
+          for LOCK in .github/workflows/*.lock.yml; do
+            if [ ! -e "$LOCK" ]; then
+              continue
+            fi
+            FOUND_LOCK=true
+            VERSION="$(sed -n 's/^# gh-aw-metadata: .*"compiler_version":"\([^"]*\)".*/\1/p' "$LOCK")"
+            if [ -z "$VERSION" ]; then
+              echo "::error file=$LOCK::Lock file has no compiler_version in its # gh-aw-metadata header."
+              exit 1
+            fi
+            if [ "$VERSION" != "$GH_AW_VERSION" ]; then
+              echo "::error file=$LOCK::Lock was compiled with gh-aw $VERSION; expected pinned version $GH_AW_VERSION. Recompile all workflows with the pinned version and commit every generated file."
+              exit 1
+            fi
+          done
+          if [ "$FOUND_LOCK" != true ]; then
+            echo "::error::No .github/workflows/*.lock.yml files found."
+            exit 1
+          fi

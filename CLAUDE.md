@@ -73,7 +73,7 @@ Do **not** remove or weaken `CARGO_NET_RETRY` (currently `10`) or the `--locked`
 
 ## Agentic Workflows
 
-The repository uses [GitHub Agentic Workflows](https://githubnext.com/projects/agentics) (`.github/workflows/*.md` compiled via `gh aw compile`) for automated maintenance tasks.
+The repository uses [GitHub Agentic Workflows](https://githubnext.com/projects/agentics) (`.github/workflows/*.md` compiled via `gh aw compile`) for automated maintenance tasks. One exception: `research-codebase.yml` is intentionally hand-written — see the note below the table.
 
 | Workflow file | Timeout | Schedule | Purpose |
 |---|---|---|---|
@@ -83,12 +83,11 @@ The repository uses [GitHub Agentic Workflows](https://githubnext.com/projects/a
 | `update-docs.md` | 45 min | On push to `main` | Updates docs on every merge |
 | `build-timings.md` | 45 min | Weekdays daily | Analyzes compilation bottlenecks |
 | `reverse-binary-analysis.md` | 120 min | Weekly | Downloads AI engine CLIs, extracts plugin API surface, updates `crates/libaipm-engine-spec/data/engine-api-schema.json`, opens PR when schema changes |
+| `research-codebase.yml` † | 30 min | On `research` label applied to issue | Runs Copilot CLI to research the codebase, writes findings to `research/docs/`, posts the generated file as the issue body, and relabels with `spec review` |
 
-### `research-codebase.yml` is hand-written — NOT managed by `gh aw compile`
+† **`research-codebase.yml` is intentionally hand-written and is NOT managed by `gh aw compile`.** It replaced a compiled gh-aw workflow in [#97](https://github.com/TheLarkInn/aipm/pull/97), and the orphaned `research-codebase.md` source was removed under [#1385](https://github.com/TheLarkInn/aipm/issues/1385). There is deliberately no `research-codebase.md` source and no `research-codebase.lock.yml` — do not re-add them: `gh aw compile` would emit a second workflow also named "Research Codebase", and both would fire on the same `research` label. Edit the `.yml` directly.
 
-`.github/workflows/research-codebase.yml` (30 min timeout; fires when the `research` label is applied to an issue, or via manual `workflow_dispatch`) runs Copilot CLI to research the codebase, writes the findings to `research/docs/`, posts the generated file as the issue body, and relabels the issue with `spec review`.
-
-It is **intentionally hand-written**: it replaced the compiled gh-aw workflow in [#97](https://github.com/TheLarkInn/aipm/pull/97), and the orphaned `research-codebase.md` source was removed under [#1385](https://github.com/TheLarkInn/aipm/issues/1385). There is deliberately no `research-codebase.md` and no `research-codebase.lock.yml`. **Do not re-add them** — `gh aw compile` would emit a second workflow also named "Research Codebase", and both would fire on the same `research` label. Edit the `.yml` directly.
+Every workflow in the table also supports manual runs via `workflow_dispatch` (`research-codebase.yml` requires an `issue_number` input when dispatched manually).
 
 ### Why different timeouts?
 
@@ -104,6 +103,10 @@ Most maintenance workflows are capped at **45 minutes**: the full agent cycle (n
 
 The manual `ci: trigger checks` empty-commit workaround is **obsolete** — do not push empty commits to trigger CI on `main`. If post-merge CI stops running again, check which token enabled auto-merge on the merged PR.
 
+### A green run is not a healthy run
+
+A gh-aw workflow that emits only `noop` outputs still exits `success` — the run log literally says "Agent succeeded with only noop outputs - this is not a failure". A workflow can therefore be livelocked while the dashboard shows green for weeks: `improve-coverage` parked indefinitely on an unmergeable PR exactly this way ([#1391](https://github.com/TheLarkInn/aipm/issues/1391)). When auditing a workflow, check what it *did* — issues/PRs created, comments posted — not just its conclusion, and treat repeated identical `noop` cycles as a failure signal.
+
 ### Modifying workflow files
 
 After editing any `.github/workflows/<name>.md`, recompile its lock file:
@@ -116,17 +119,28 @@ Commit both the `.md` source and the regenerated `.lock.yml` together. The compi
 
 #### Keep every lock file on the same compiler version
 
-**All lock files must be compiled with the same `gh aw` version.** The repository is currently on **`v0.86.2`**; check yours with `gh aw version` and upgrade with `gh extension upgrade gh-aw` before recompiling.
+**All lock files must be compiled with the same `gh aw` version.** The pin lives in the `GH_AW_VERSION` env var in `.github/workflows/gh-aw-drift.yml` — that workflow is the single source of truth, and every lock file's `# gh-aw-metadata:` header must report the same `compiler_version`.
 
-The pinned version is recorded on disk in three places, which must always agree:
+Install the **pinned** version before recompiling:
 
-- `.github/aw/actions-lock.json` — the `github/gh-aw-actions/setup-cli` and `github/gh-aw-actions/setup` entries (currently `v0.86.2`, SHA-pinned)
+```bash
+GH_AW_VERSION="$(awk '/^  GH_AW_VERSION:/ { print $2; exit }' .github/workflows/gh-aw-drift.yml | tr -d '"\r')"
+gh extension install github/gh-aw --pin "$GH_AW_VERSION" --force
+```
+
+Do **NOT** run `gh extension upgrade gh-aw` — upgrading floats to the latest release, and if latest differs from the pin your recompiled locks will fail the `gh-aw-drift.yml` workflow spuriously. Check what you have with `gh aw version`.
+
+The `gh-aw-drift.yml` workflow ([#1390](https://github.com/TheLarkInn/aipm/issues/1390)) is the CI guard for this policy: on every PR and push to `main` it installs the pinned `GH_AW_VERSION` (never `latest`, so upstream releases cannot break CI spontaneously), re-runs `gh aw compile`, and fails if any committed `.lock.yml` or `.github/aw/actions-lock.json` changes, if compile emits untracked files (the orphaned-source class of bug), or if any lock reports a `compiler_version` other than the pin.
+
+The selected compiler version is also recorded in three generated locations, which must agree with `GH_AW_VERSION`:
+
+- `.github/aw/actions-lock.json` — the `github/gh-aw-actions/setup-cli` and `github/gh-aw-actions/setup` entries (tagged and SHA-pinned)
 - each `.lock.yml`'s `# gh-aw-metadata:` header — the `compiler_version` field
 - each `.lock.yml`'s `# This file was automatically generated by gh-aw (vX.Y.Z). DO NOT EDIT.` banner and its `GH_AW_INFO_CLI_VERSION` env var
 
 Recompiling a single workflow with a newer extension than the others introduces *compiler version skew*. Each lock file embeds a pinned [`gh-aw-firewall`](https://github.com/github/gh-aw-firewall) (AWF) release, so a skewed lock ends up on a different AWF pin than its siblings. Upstream deletes old AWF releases, and when that happens the `Install AWF binary` step dies with `curl: (22) ... 404` and the workflow fails 100% of the time — which is exactly how `reverse-binary-analysis` (pinned to the deleted `v0.25.28`) silently failed every week for over two months ([#1388](https://github.com/TheLarkInn/aipm/issues/1388)).
 
-When upgrading the extension, run a bare `gh aw compile` to recompile **all** workflows at once, and confirm the pins agree before committing:
+When bumping the pin, update `GH_AW_VERSION` **and** the `setup-cli` action SHA/tag in `.github/workflows/gh-aw-drift.yml`, install that version, run a bare `gh aw compile` to recompile **all** workflows at once, and confirm the AWF pins agree before committing:
 
 ```bash
 grep -ho 'install_awf_binary\.sh" v[0-9.]*' .github/workflows/*.lock.yml | awk '{print $2}' | sort -u
@@ -138,6 +152,16 @@ That must print exactly one version, and it must resolve upstream:
 gh api repos/github/gh-aw-firewall/releases/tags/<version> --jq .tag_name
 ```
 
+#### The `gh-aw-drift.yml` workflow enforces all of this
+
+The dedicated workflow installs gh-aw at exactly `GH_AW_VERSION`, runs `gh aw compile`, and fails if:
+
+- `git diff --exit-code -- .github/workflows .github/aw` shows any change — an `.md` was edited (or gh-aw bumped) without committing the regenerated `.lock.yml` ([#1390](https://github.com/TheLarkInn/aipm/issues/1390))
+- `git ls-files --others --exclude-standard -- .github/workflows/ .github/aw/` is non-empty — compile emitted an untracked file, the orphaned-source class of bug
+- the `# gh-aw-metadata:` headers disagree on `compiler_version`, or report anything other than `GH_AW_VERSION` — compiler-version skew
+
+If it fails on your PR, install the pinned version and recompile as shown above, then commit every regenerated file.
+
 #### Lock files are generated — `.gitattributes` is deliberately minimal
 
 `.gitattributes` carries exactly one rule for the compiled locks:
@@ -146,18 +170,11 @@ gh api repos/github/gh-aw-firewall/releases/tags/<version> --jq .tag_name
 .github/workflows/*.lock.yml linguist-generated=true
 ```
 
-`linguist-generated=true` keeps the generated locks out of PR diffs and repo language stats. The rule **deliberately does not** set `merge=ours` ([#1392](https://github.com/TheLarkInn/aipm/issues/1392)): `merge=ours` only works when every contributor configures the `ours` merge driver locally (`git config merge.ours.driver true`), so it was inert for most clones, and when it *did* fire it silently resolved lock conflicts to the local side instead of regenerating from the `.md` source — precisely the drift this section exists to prevent. A conflict in a lock file must be resolved by recompiling (`gh aw compile`), never by keeping one side, so a loud conflict is the desired behaviour. The follow-up CI guard in [#1390](https://github.com/TheLarkInn/aipm/issues/1390) makes out-of-date locks fail the build outright.
+`linguist-generated=true` keeps the generated locks out of PR diffs and repo language stats. The rule **deliberately does not** set `merge=ours` ([#1392](https://github.com/TheLarkInn/aipm/issues/1392)): `merge=ours` only works when every contributor configures the `ours` merge driver locally (`git config merge.ours.driver true`), so it was inert for most clones, and when it *did* fire it silently resolved lock conflicts to the local side instead of regenerating from the `.md` source — precisely the drift this section exists to prevent. A conflict in a lock file must be resolved by recompiling (`gh aw compile`), never by keeping one side, so a loud conflict is the desired behaviour. The `gh-aw-drift.yml` CI guard ([#1390](https://github.com/TheLarkInn/aipm/issues/1390)) makes out-of-date locks fail the build outright.
 
 #### `agentics-maintenance.yml` is generated and adopted
 
 `gh aw compile` also emits a generated `.github/workflows/agentics-maintenance.yml` (no `.md` source). It is **adopted deliberately** ([#1392](https://github.com/TheLarkInn/aipm/issues/1392)), not committed by accident. It exists because `daily-qa.md` uses a `create-discussion` safe output, which the compiler gives a default 7-day `expires` — the maintenance workflow's scheduled jobs close those expired discussions (and any expired issues/PRs/cache) so they do not accumulate. It runs daily at 00:37 UTC with a top-level `permissions: {}` and least-privilege per-job permissions, and also exposes manual `workflow_dispatch` maintenance operations. This does **not** overlap with `stale-bot-prs.yml`, which closes *idle* bot-authored PRs on a separate stale/grace policy rather than *expired* safe outputs. To suppress the generated file, set `{"maintenance": false}` in `.github/workflows/aw.json`; do not hand-edit the file — it is regenerated by `gh aw compile`.
-
-### Operational gotchas (learned the hard way — do not re-learn)
-
-- **Bot merges via `GITHUB_TOKEN` do not emit `push` events.** Anything relying on `on: push: [main]` needs a different trigger (or a PAT-attributed merge). This silently disabled post-merge CI and Update Docs for ~3 months ([#1387](https://github.com/TheLarkInn/aipm/issues/1387)) — see "Bot merges and push events" above.
-- **A gh-aw workflow that emits only `noop` still exits `success`.** A livelocked workflow looks perfectly healthy on the Actions dashboard. When auditing a workflow, check what it actually *did* (artifacts, comments, PRs, or its `noop` message) — not just its conclusion.
-- **External pins rot.** Lock files pin an AWF firewall release and container images hosted upstream; when the `v0.25.28` AWF release was deleted, `reverse-binary-analysis` failed 100% of the time for 10+ weeks with no alert ([#1388](https://github.com/TheLarkInn/aipm/issues/1388)). Re-run the pin-verification commands in "Keep every lock file on the same compiler version" whenever pins are touched.
-- **Lock files are generated artefacts.** Never hand-edit them; always commit `.md` source + regenerated `.lock.yml` together, and resolve merge conflicts in locks by recompiling — never by keeping one side. See "Modifying workflow files" and the `.gitattributes` subsection above.
 
 ## Project Structure
 
