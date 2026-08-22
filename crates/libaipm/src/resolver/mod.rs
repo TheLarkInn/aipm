@@ -465,7 +465,7 @@ fn select_sorted_candidates(
         .versions
         .iter()
         .filter(|v| !v.yanked)
-        .filter(|v| Version::parse(&v.vers).ok().is_some_and(|ver| req.matches(&ver)))
+        .filter(|v| Version::parse(&v.vers).is_ok_and(|ver| req.matches(&ver)))
         .cloned()
         .collect();
 

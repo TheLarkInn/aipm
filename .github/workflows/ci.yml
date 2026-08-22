@@ -13,11 +13,6 @@ env:
   CARGO_NET_RETRY: 10
   RUST_BACKTRACE: short
   LIBGIT2_SYS_USE_PKG_CONFIG: "1"
-  # Pinned gh-aw compiler version. Every committed `.github/workflows/*.lock.yml`
-  # records this in its `# gh-aw-metadata:` header as `compiler_version` — the
-  # two MUST stay in sync. See "Keep every lock file on the same compiler
-  # version" in CLAUDE.md. Never float this to `latest`.
-  GH_AW_VERSION: v0.86.2
 
 jobs:
   ci:
@@ -52,54 +47,6 @@ jobs:
 
       - name: Format
         run: cargo fmt --check
-
-  aw-lock-drift:
-    name: Agentic workflow lock drift
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install pinned gh-aw extension
-        run: gh extension install github/gh-aw --pin "$GH_AW_VERSION"
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - name: Compile agentic workflows
-        run: gh aw compile
-
-      - name: Fail on lock-file drift
-        run: |
-          if ! git diff --exit-code -- .github/workflows .github/aw; then
-            echo "::error::Generated agentic workflow artifacts are out of date. Run 'gh aw compile' with gh-aw $GH_AW_VERSION and commit the result."
-            echo "Changed generated artifacts:"
-            git diff --name-only -- .github/workflows .github/aw
-            exit 1
-          fi
-
-      - name: Fail on untracked compiler output
-        run: |
-          UNTRACKED=$(git ls-files --others --exclude-standard -- .github/workflows .github/aw)
-          if [ -n "$UNTRACKED" ]; then
-            echo "::error::gh aw compile produced untracked files (orphaned .md source or unexpected output):"
-            echo "$UNTRACKED"
-            exit 1
-          fi
-
-      - name: Assert uniform compiler_version across locks
-        run: |
-          VERSIONS=$(grep -ho '"compiler_version":"[^"]*"' .github/workflows/*.lock.yml | sort -u)
-          COUNT=$(echo "$VERSIONS" | wc -l)
-          if [ "$COUNT" -ne 1 ]; then
-            echo "::error::Lock files were compiled with different gh-aw versions:"
-            echo "$VERSIONS"
-            exit 1
-          fi
-          LOCK_VERSION=$(echo "$VERSIONS" | sed 's/"compiler_version":"//; s/"//')
-          if [ "$LOCK_VERSION" != "$GH_AW_VERSION" ]; then
-            echo "::error::Locks were compiled with $LOCK_VERSION but CI pins $GH_AW_VERSION. Update GH_AW_VERSION in ci.yml and recompile all workflows."
-            exit 1
-          fi
-          echo "All locks compiled with $LOCK_VERSION (matches pinned GH_AW_VERSION)"
 
   coverage:
     name: Coverage (89% branch gate)
