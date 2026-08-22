@@ -1350,6 +1350,41 @@ mod tests {
     }
 
     #[test]
+    fn human_reporter_line_beyond_source_no_snippet() {
+        // `start_idx` computed from a reported line number far past the end
+        // of the source falls outside the file's line range, so
+        // `start_idx < total_lines` is false and no snippet is emitted —
+        // covers the `else { None }` branch in `Human::report`.
+        let mut mock_fs = MockFs::new();
+        mock_fs.files.insert(PathBuf::from("/project/test.md"), "only one line".to_string());
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/out-of-range".into(),
+                severity: Severity::Warning,
+                message: "line does not exist in source".into(),
+                file_path: PathBuf::from("test.md"),
+                line: Some(500),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+            ..Outcome::default()
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("test/out-of-range"));
+        assert!(!output.contains("only one line"));
+    }
+
+    #[test]
     fn human_reporter_directory_level_no_snippet() {
         let mock_fs = MockFs::new();
         let reporter = make_human_reporter(&mock_fs);
