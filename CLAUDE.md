@@ -119,19 +119,22 @@ Never hand-edit a `.lock.yml`: commit both the `.md` source and the regenerated 
 
 #### Keep every lock file on the same compiler version
 
-**All lock files must be compiled with the same `gh aw` version.** The repository is currently on **`v0.86.2`**. The pin lives in the `GH_AW_VERSION` env var at the top of `.github/workflows/ci.yml` — that is the single source of truth, and every lock file's `# gh-aw-metadata:` header must report the same `compiler_version`.
+**All lock files must be compiled with the same `gh aw` version.** The pin lives in the `GH_AW_VERSION` env var in `.github/workflows/gh-aw-drift.yml` — that workflow is the single source of truth, and every lock file's `# gh-aw-metadata:` header must report the same `compiler_version`.
 
 Install the **pinned** version before recompiling:
 
 ```bash
-gh extension install github/gh-aw --pin v0.86.2   # use the GH_AW_VERSION value from ci.yml
+GH_AW_VERSION="$(awk '/^  GH_AW_VERSION:/ { print $2; exit }' .github/workflows/gh-aw-drift.yml | tr -d '"\r')"
+gh extension install github/gh-aw --pin "$GH_AW_VERSION" --force
 ```
 
-Do **NOT** run `gh extension upgrade gh-aw` — upgrading floats to the latest release, and if latest differs from the pin your recompiled locks will fail the `aw-lock-drift` CI job spuriously. Check what you have with `gh aw version`.
+Do **NOT** run `gh extension upgrade gh-aw` — upgrading floats to the latest release, and if latest differs from the pin your recompiled locks will fail the `gh-aw-drift.yml` workflow spuriously. Check what you have with `gh aw version`.
+
+The `gh-aw-drift.yml` workflow ([#1390](https://github.com/TheLarkInn/aipm/issues/1390)) is the CI guard for this policy: on every PR and push to `main` it installs the pinned `GH_AW_VERSION` (never `latest`, so upstream releases cannot break CI spontaneously), re-runs `gh aw compile`, and fails if any committed `.lock.yml` or `.github/aw/actions-lock.json` changes, if compile emits untracked files (the orphaned-source class of bug), or if any lock reports a `compiler_version` other than the pin.
 
 Recompiling a single workflow with a newer extension than the others introduces *compiler version skew*. Each lock file embeds a pinned [`gh-aw-firewall`](https://github.com/githubnext/gh-aw-firewall) (AWF) release, so a skewed lock ends up on a different AWF pin than its siblings. Upstream deletes old AWF releases, and when that happens the `Install AWF binary` step dies with `curl: (22) ... 404` and the workflow fails 100% of the time — which is exactly how `reverse-binary-analysis` (pinned to the deleted `v0.25.28`) silently failed every week for over two months ([#1388](https://github.com/TheLarkInn/aipm/issues/1388)).
 
-When bumping the pin, update `GH_AW_VERSION` in `ci.yml`, install that version, run a bare `gh aw compile` to recompile **all** workflows at once, and confirm the AWF pins agree before committing:
+When bumping the pin, update `GH_AW_VERSION` **and** the `setup-cli` action SHA/tag in `.github/workflows/gh-aw-drift.yml`, install that version, run a bare `gh aw compile` to recompile **all** workflows at once, and confirm the AWF pins agree before committing:
 
 ```bash
 grep -ho 'install_awf_binary\.sh" v[0-9.]*' .github/workflows/*.lock.yml | awk '{print $2}' | sort -u
@@ -143,12 +146,12 @@ That must print exactly one version, and it must resolve upstream:
 gh api repos/githubnext/gh-aw-firewall/releases/tags/<version> --jq .tag_name
 ```
 
-#### The `aw-lock-drift` CI job enforces all of this
+#### The `gh-aw-drift.yml` workflow enforces all of this
 
-The `aw-lock-drift` job in `ci.yml` fails the build when the committed locks drift from the `.md` sources or the pin. It installs gh-aw at exactly `GH_AW_VERSION` (`gh extension install github/gh-aw --pin`), runs `gh aw compile`, and fails if:
+The dedicated workflow installs gh-aw at exactly `GH_AW_VERSION`, runs `gh aw compile`, and fails if:
 
 - `git diff --exit-code -- .github/workflows .github/aw` shows any change — an `.md` was edited (or gh-aw bumped) without committing the regenerated `.lock.yml` ([#1390](https://github.com/TheLarkInn/aipm/issues/1390))
-- `git status --porcelain --untracked-files=all -- .github/workflows` is non-empty — compile emitted an untracked file, the orphaned-source class of bug
+- `git ls-files --others --exclude-standard -- .github/workflows/ .github/aw/` is non-empty — compile emitted an untracked file, the orphaned-source class of bug
 - the `# gh-aw-metadata:` headers disagree on `compiler_version`, or report anything other than `GH_AW_VERSION` — compiler-version skew
 
 If it fails on your PR, install the pinned version and recompile as shown above, then commit every regenerated file.
@@ -161,7 +164,7 @@ If it fails on your PR, install the pinned version and recompile as shown above,
 .github/workflows/*.lock.yml linguist-generated=true
 ```
 
-`linguist-generated=true` keeps the generated locks out of PR diffs and repo language stats. The rule **deliberately does not** set `merge=ours` ([#1392](https://github.com/TheLarkInn/aipm/issues/1392)): `merge=ours` only works when every contributor configures the `ours` merge driver locally (`git config merge.ours.driver true`), so it was inert for most clones, and when it *did* fire it silently resolved lock conflicts to the local side instead of regenerating from the `.md` source — precisely the drift this section exists to prevent. A conflict in a lock file must be resolved by recompiling (`gh aw compile`), never by keeping one side, so a loud conflict is the desired behaviour. The `aw-lock-drift` CI guard ([#1390](https://github.com/TheLarkInn/aipm/issues/1390)) makes out-of-date locks fail the build outright.
+`linguist-generated=true` keeps the generated locks out of PR diffs and repo language stats. The rule **deliberately does not** set `merge=ours` ([#1392](https://github.com/TheLarkInn/aipm/issues/1392)): `merge=ours` only works when every contributor configures the `ours` merge driver locally (`git config merge.ours.driver true`), so it was inert for most clones, and when it *did* fire it silently resolved lock conflicts to the local side instead of regenerating from the `.md` source — precisely the drift this section exists to prevent. A conflict in a lock file must be resolved by recompiling (`gh aw compile`), never by keeping one side, so a loud conflict is the desired behaviour. The `gh-aw-drift.yml` CI guard ([#1390](https://github.com/TheLarkInn/aipm/issues/1390)) makes out-of-date locks fail the build outright.
 
 #### `agentics-maintenance.yml` is generated and adopted
 
