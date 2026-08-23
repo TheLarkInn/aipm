@@ -343,6 +343,22 @@ mod tests {
     }
 
     #[test]
+    fn collect_files_propagates_error_from_nested_dir_read() {
+        // The subdirectory "sub" is listed as an entry but has no corresponding
+        // entry in `fs.dirs`, so the recursive call's `fs.read_dir` fails.
+        // This exercises the `?` error-propagation branch on the recursive
+        // `collect_files_recursive` call.
+        let mut fs = MockFs::new();
+        fs.dirs.insert(
+            PathBuf::from("/base"),
+            vec![crate::fs::DirEntry { name: "sub".to_string(), is_dir: true }],
+        );
+
+        let result = collect_files_recursive(Path::new("/base"), Path::new("/base"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn parse_frontmatter_with_hooks_tab_indent() {
         let result =
             parse_frontmatter("---\nhooks:\n\tPreToolUse: check\n---\nbody", Path::new("test"));
