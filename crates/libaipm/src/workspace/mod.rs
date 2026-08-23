@@ -290,6 +290,48 @@ mod tests {
         assert!(members.contains_key("tool-b"));
     }
 
+    /// A minimal `Fs` mock whose `exists()` reports true for a fixed path
+    /// but whose `read_to_string()` always errors, exercising the
+    /// `Err(e) => tracing::debug!(...)` branch in `find_workspace_root`
+    /// when the manifest exists but cannot be read (e.g., permission
+    /// denied).
+    struct UnreadableManifestFs {
+        manifest_path: PathBuf,
+    }
+
+    impl crate::fs::Fs for UnreadableManifestFs {
+        fn exists(&self, path: &Path) -> bool {
+            path == self.manifest_path
+        }
+
+        fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _path: &Path, _content: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _path: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::other("permission denied"))
+        }
+
+        fn read_dir(&self, _path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn find_root_skips_unreadable_manifest() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join("sub")).unwrap();
+
+        let fs = UnreadableManifestFs { manifest_path: root.join("aipm.toml") };
+        let result = find_workspace_root(&fs, &root.join("sub"));
+        assert!(result.is_none(), "should skip unreadable manifest, got: {result:?}");
+    }
+
     #[test]
     fn find_root_skips_invalid_toml() {
         let tmp = tempfile::tempdir().unwrap();
