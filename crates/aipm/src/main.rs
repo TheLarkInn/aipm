@@ -1698,6 +1698,43 @@ mod tests {
         assert_eq!(day, 1, "remaining after subtracting all months should be 0, giving day 1");
     }
 
+    /// `cmd_migrate` with `dry_run = false` and real migrated artifacts covers the
+    /// False branch of `if dry_run || !result.has_migrated_artifacts()`: the
+    /// function does not return early and instead proceeds to the post-migration
+    /// cleanup phase. Since the test process's stdin is not a terminal,
+    /// `should_clean` resolves to `false` without invoking the interactive wizard,
+    /// so `cmd_migrate` returns `Ok(())` after passing through the guard.
+    #[test]
+    fn cmd_migrate_non_dry_run_with_artifacts_continues_past_guard() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join(".ai/.claude-plugin"))
+            .expect("create .ai/.claude-plugin");
+        std::fs::write(
+            root.join(".ai/.claude-plugin/marketplace.json"),
+            r#"{"name":"t","plugins":[]}"#,
+        )
+        .expect("write marketplace.json");
+        std::fs::create_dir_all(root.join(".claude/skills/deploy")).expect("create skill");
+        std::fs::write(
+            root.join(".claude/skills/deploy/SKILL.md"),
+            "---\nname: deploy\ndescription: Deploy app\n---\nDeploy",
+        )
+        .expect("write SKILL.md");
+
+        let result = cmd_migrate(
+            false, // dry_run
+            false, // destructive
+            Some(".claude"),
+            None,
+            false, // manifest
+            root.to_path_buf(),
+            true, // no_summary
+        );
+
+        assert!(result.is_ok(), "cmd_migrate should succeed past the cleanup guard: {result:?}");
+    }
+
     /// `resolve_dir` with `"."` returns the current working directory, covering
     /// the `if dir.as_os_str() == "."` True branch in `resolve_dir`.
     #[test]
