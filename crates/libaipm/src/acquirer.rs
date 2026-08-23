@@ -321,6 +321,8 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), Error> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
     use super::*;
 
     fn make_temp() -> tempfile::TempDir {
@@ -352,6 +354,35 @@ mod tests {
         assert!(plugin_path.join("README.md").exists());
 
         let _ = path; // satisfy unused warning
+    }
+
+    /// Covers the success path of `acquire_local` itself (line `Ok(dest)`),
+    /// which no other test exercises directly — existing success-path tests
+    /// go through the private `acquire_local_from` helper instead. Changes
+    /// the process cwd to a temp dir containing a valid relative plugin
+    /// directory so `PathBuf::from(path.as_str())` resolves to a real,
+    /// valid plugin on disk.
+    #[test]
+    fn acquire_local_public_fn_success_path() {
+        static CWD_LOCK: Mutex<()> = Mutex::new(());
+        let _guard = CWD_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+
+        let temp = make_temp();
+        let _src = make_local_plugin(&temp, "source-plugin");
+        let dest = temp.path().join("dest");
+        std::fs::create_dir_all(&dest).unwrap_or_else(|_| {});
+
+        let orig_cwd = std::env::current_dir().unwrap_or_else(|_| std::process::abort());
+        std::env::set_current_dir(temp.path()).unwrap_or_else(|_| std::process::abort());
+
+        let path = ValidatedPath::new("source-plugin").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &dest, Engine::Claude);
+
+        std::env::set_current_dir(&orig_cwd).unwrap_or_else(|_| std::process::abort());
+
+        assert!(result.is_ok());
+        let plugin_path = result.unwrap_or_else(|_| PathBuf::new());
+        assert!(plugin_path.join(".claude-plugin/plugin.json").exists());
     }
 
     #[test]
