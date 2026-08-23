@@ -159,6 +159,33 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unparseable_manifest() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Root has a valid workspace manifest.
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+
+        // An intermediate directory has an aipm.toml that fails to parse as
+        // TOML at all, exercising the `Err(e)` branch of `toml::from_str`
+        // (the manifest-parse-failure branch, distinct from the
+        // read-failure branch already covered elsewhere).
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(&subdir).unwrap();
+        std::fs::write(subdir.join("aipm.toml"), "this is not valid toml [[[").unwrap();
+
+        let nested = subdir.join("nested");
+        std::fs::create_dir_all(&nested).unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &nested);
+        assert_eq!(
+            result.as_deref(),
+            Some(root),
+            "should skip the unparseable manifest and keep walking up to the real workspace root"
+        );
+    }
+
+    #[test]
     fn find_root_returns_none_for_non_workspace() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
