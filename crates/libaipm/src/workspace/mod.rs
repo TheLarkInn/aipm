@@ -185,6 +185,25 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unreadable_manifest() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // "aipm.toml" is a directory here, so `fs.exists()` is true but
+        // `fs.read_to_string()` fails (it's not a regular file). This
+        // exercises the `Err(e)` branch in `find_workspace_root` that logs
+        // and continues walking up instead of erroring out.
+        std::fs::create_dir_all(root.join("aipm.toml")).unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, root);
+        assert_eq!(
+            result.as_deref(),
+            None,
+            "unreadable manifest should be skipped, not treated as a workspace root"
+        );
+    }
+
+    #[test]
     fn discover_members_single_glob() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
