@@ -158,6 +158,15 @@ mod tests {
     }
 
     #[test]
+    fn index_path_scoped_single_char_scope() {
+        // A 1-character scope means `scope.get(..2)` returns `None` (out of
+        // bounds), exercising the `map_or_else` fallback that formats the
+        // prefix directly from the short scope instead of slicing it.
+        let path = package_path("@a/tool").unwrap();
+        assert_eq!(path, PathBuf::from("@a/@a/tool"));
+    }
+
+    #[test]
     fn index_path_empty_errors() {
         assert!(package_path("").is_err());
     }
