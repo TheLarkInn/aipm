@@ -173,6 +173,42 @@ mod tests {
         assert!(result.is_none(), "should not match non-workspace manifest, got: {result:?}");
     }
 
+    /// A minimal [`crate::fs::Fs`] mock whose `read_to_string` always fails,
+    /// even though `exists` reports the path as present. Exercises the
+    /// "could not read manifest" debug-log branch in `find_workspace_root`,
+    /// which is unreachable through `crate::fs::Real` in a normal test
+    /// filesystem (a file that exists but cannot be read requires special
+    /// permissions setup).
+    struct UnreadableFs;
+
+    impl crate::fs::Fs for UnreadableFs {
+        fn exists(&self, _path: &Path) -> bool {
+            true
+        }
+
+        fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _path: &Path, _content: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _path: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"))
+        }
+
+        fn read_dir(&self, _path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn find_root_skips_unreadable_manifest() {
+        let result = find_workspace_root(&UnreadableFs, Path::new("/some/start"));
+        assert!(result.is_none(), "should skip unreadable manifest, got: {result:?}");
+    }
+
     #[test]
     fn find_root_from_root_itself() {
         let tmp = tempfile::tempdir().unwrap();
