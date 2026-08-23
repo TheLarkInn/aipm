@@ -294,4 +294,14 @@ mod tests {
         let _ = err;
         ValidatedPath(String::new())
     }
+
+    /// Directly exercises `panic_free_unreachable`'s body. Every other call
+    /// site only reaches this helper via `.unwrap_or_else` on an `Ok` value
+    /// (guarded by a preceding `assert!(path.is_ok())`), so the helper's own
+    /// branch was otherwise never executed under coverage instrumentation.
+    #[test]
+    fn panic_free_unreachable_returns_empty_validated_path() {
+        let dummy = panic_free_unreachable(&PathValidationError::EmptyPath);
+        assert_eq!(dummy.as_str(), "");
+    }
 }
