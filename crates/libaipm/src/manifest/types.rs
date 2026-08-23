@@ -388,4 +388,18 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Feed a JSON value that is neither `null` nor an array (a bare string)
+    /// so that `Option::<Vec<String>>::deserialize` itself fails, exercising
+    /// the `?` error-propagation branch on the first line of
+    /// `engine_set_serde::deserialize`. This path never triggers through
+    /// well-formed TOML manifests, so it must be exercised directly at the
+    /// deserializer boundary.
+    #[test]
+    fn engine_set_serde_non_array_returns_deserialize_error() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value = serde_json::Value::String("not-a-list".to_string());
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_err(), "a bare string should fail to deserialize as Option<Vec<String>>");
+    }
 }
