@@ -184,6 +184,20 @@ mod tests {
     }
 
     #[test]
+    fn read_content_returns_error_on_invalid_utf8() {
+        // Writing raw non-UTF-8 bytes directly (bypassing `write_content`,
+        // which only accepts `&str`) lets us exercise the `Error::Read`
+        // branch in `read_content` when `read_to_string` fails.
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let path = temp.path().join("invalid-utf8.json");
+        std::fs::write(&path, [0xFF, 0xFE, 0xFD]).unwrap_or_else(|_| {});
+
+        let mut locked = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
+        let result = locked.read_content();
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn open_path_with_no_parent_skips_mkdir_and_fails() {
         // Path::new("/").parent() returns None, so the `if let Some(parent)` branch
         // is skipped entirely.  Opening "/" as a regular file then fails because it
