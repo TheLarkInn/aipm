@@ -149,4 +149,18 @@ mod tests {
         let result = find_marketplace(Path::new("/"), &fs);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn mock_fs_stub_methods_are_no_ops() {
+        // Exercises the trivial stub implementations of `create_dir_all`,
+        // `write_file`, and `read_dir` on `MockFs`, which are otherwise
+        // never invoked by the marketplace-discovery tests above (they only
+        // call `exists`).
+        let fs = MockFs::new();
+        let dir = Path::new("/project/.ai");
+
+        assert!(fs.create_dir_all(dir).is_ok());
+        assert!(fs.write_file(&dir.join("marker"), b"data").is_ok());
+        assert!(fs.read_dir(dir).unwrap_or_default().is_empty());
+    }
 }
