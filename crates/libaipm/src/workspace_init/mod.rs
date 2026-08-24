@@ -861,6 +861,31 @@ mod tests {
     }
 
     #[test]
+    fn init_with_nothing_requested_skips_tail_warn() {
+        // #850 Spec G12 / Q9.5: when neither `workspace` nor `marketplace`
+        // is requested, `actions` stays empty, so both `any_created` and
+        // `any_found` are false and the tail warn must be skipped.
+        let (tmp, _guard) = make_temp_dir("nothing-requested");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init with no flags must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "no actions should be recorded when nothing is requested");
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_with_no_adaptors() {
         let (tmp, _guard) = make_temp_dir("no-adaptors");
         let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
