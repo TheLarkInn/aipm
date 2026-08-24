@@ -774,6 +774,33 @@ mod tests {
     }
 
     #[test]
+    fn init_with_both_phases_disabled_produces_no_actions_and_no_warning() {
+        // Covers the False side of `any_found` in the tail idempotency-warning
+        // check: `if !any_created && any_found`. When both `workspace` and
+        // `marketplace` are false, `init` never pushes any `InitAction`, so
+        // both `any_created` and `any_found` are false and the warning is
+        // skipped entirely — the "nothing requested" case, distinct from the
+        // "requested but already existed" case exercised elsewhere.
+        let (tmp, _guard) = make_temp_dir("no-op-init");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "no-op init must succeed: {result:?}");
+        assert!(result.is_ok_and(|r| r.actions.is_empty()), "expected zero actions");
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_workspace_is_idempotent_when_aipm_toml_exists() {
         let (tmp, _guard) = make_temp_dir("ws-idempotent");
 
