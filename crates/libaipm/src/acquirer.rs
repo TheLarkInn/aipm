@@ -489,6 +489,36 @@ mod tests {
         assert_eq!(redirect.path.as_ref().map(ValidatedPath::as_str), Some("plugins/my-plugin"));
     }
 
+    /// Covers the `and_then(|p| ValidatedPath::new(p).ok())` `None` branch in
+    /// `check_source_redirect` (line 227): when `[package.source].path` is
+    /// present but fails path validation (e.g. a traversal attempt), the
+    /// redirect's `path` field becomes `None` instead of propagating an error.
+    #[test]
+    fn source_redirect_with_invalid_path_becomes_none() {
+        let temp = make_temp();
+        let dir = temp.path().join("stub-plugin-invalid-path");
+        std::fs::create_dir_all(&dir).unwrap_or_else(|_| {});
+        std::fs::write(
+            dir.join("aipm.toml"),
+            concat!(
+                "[package]\n",
+                "name = \"stub\"\n",
+                "version = \"0.0.0\"\n",
+                "[package.source]\n",
+                "type = \"git\"\n",
+                "url = \"https://github.com/org/repo.git\"\n",
+                "path = \"../escape\"\n",
+            ),
+        )
+        .unwrap_or_else(|_| {});
+
+        let redirect = check_source_redirect(&dir);
+        assert!(redirect.is_some(), "redirect should still be Some even with an invalid path");
+        let redirect = redirect.unwrap_or_else(|| std::process::abort());
+        assert_eq!(redirect.url, "https://github.com/org/repo.git");
+        assert!(redirect.path.is_none(), "invalid path should be dropped, not propagated");
+    }
+
     #[test]
     fn source_redirect_none_when_no_source_section() {
         let temp = make_temp();
