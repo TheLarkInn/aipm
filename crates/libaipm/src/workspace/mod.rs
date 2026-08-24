@@ -290,6 +290,42 @@ mod tests {
         assert!(members.contains_key("tool-b"));
     }
 
+    /// Fs mock whose `read_to_string` always errors, used to exercise the
+    /// "could not read manifest" branch in `find_workspace_root` without
+    /// depending on OS-level permission tricks.
+    struct UnreadableManifestFs;
+
+    impl crate::fs::Fs for UnreadableManifestFs {
+        fn exists(&self, _path: &Path) -> bool {
+            true
+        }
+
+        fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _path: &Path, _content: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _path: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::other("simulated read failure"))
+        }
+
+        fn read_dir(&self, _path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn find_root_skips_unreadable_manifest() {
+        // `exists` reports the manifest is present but `read_to_string` fails;
+        // `find_workspace_root` should log and continue walking up rather than
+        // propagating the I/O error, eventually returning `None`.
+        let result = find_workspace_root(&UnreadableManifestFs, Path::new("/some/deep/path"));
+        assert!(result.is_none(), "should skip unreadable manifest, got: {result:?}");
+    }
+
     #[test]
     fn find_root_skips_invalid_toml() {
         let tmp = tempfile::tempdir().unwrap();
