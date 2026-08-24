@@ -701,6 +701,20 @@ mod tests {
     }
 
     #[test]
+    fn install_name_conflict_returns_error() {
+        // Covers the False branch of `conflicts.is_empty()` in
+        // `check_name_conflicts`: installing a second plugin whose folder
+        // name matches an already-installed plugin's folder name, with
+        // overlapping engines, must be rejected with `Error::NameConflict`.
+        let mut registry = Registry::default();
+        let first = registry.install("github:owner-a/repo-a:plugin".to_string(), &[], None, None);
+        assert!(first.is_ok());
+
+        let result = registry.install("github:owner-b/repo-b:plugin".to_string(), &[], None, None);
+        assert!(matches!(result, Err(Error::NameConflict { .. })));
+    }
+
+    #[test]
     fn install_unparseable_spec_skips_conflict_check() {
         // Covers the `Err(_) => return Ok(())` branch in `check_name_conflicts`:
         // when the spec string cannot be parsed as a `Spec`, the name-conflict
