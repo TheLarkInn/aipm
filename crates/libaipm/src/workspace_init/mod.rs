@@ -1857,6 +1857,32 @@ mod tests {
     }
 
     #[test]
+    fn init_with_both_phases_disabled_produces_no_tail_warn_actions() {
+        // #850 Spec G12 / Q9.5: with both `workspace` and `marketplace`
+        // disabled, `init` runs neither phase, so `actions` stays empty.
+        // `any_created` and `any_found` are therefore both false, exercising
+        // the `!any_created && any_found` short-circuit on its `any_found`
+        // operand (which never gets evaluated as `true` in any other test).
+        let (tmp, _guard) = make_temp_dir("both-phases-disabled");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init with both phases disabled must succeed: {result:?}");
+        assert!(result.ok().is_some_and(|r| r.actions.is_empty()));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_workspace_with_narrow_support_writes_engines_field() {
         // engines_support = Some(CLAUDE) with workspace=true → workspace
         // aipm.toml gets `engines = ["claude"]`.
