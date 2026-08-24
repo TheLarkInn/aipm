@@ -303,6 +303,42 @@ mod tests {
         assert!(result.is_none(), "should skip invalid TOML, got: {result:?}");
     }
 
+    /// An `Fs` mock whose `read_to_string` always errors, so
+    /// `find_workspace_root` exercises the "could not read manifest" branch
+    /// (an `aipm.toml` reported as existing but that fails to read).
+    struct UnreadableFs;
+
+    impl crate::fs::Fs for UnreadableFs {
+        fn exists(&self, path: &Path) -> bool {
+            path.file_name().is_some_and(|n| n == "aipm.toml")
+        }
+
+        fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _path: &Path, _content: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _path: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"))
+        }
+
+        fn read_dir(&self, _path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn find_root_skips_unreadable_manifest() {
+        // The manifest "exists" per the mock, but reading it always fails,
+        // so `find_workspace_root` should log and keep walking up until it
+        // runs out of parent directories, returning `None`.
+        let result = find_workspace_root(&UnreadableFs, Path::new("/a/b/c"));
+        assert!(result.is_none(), "should skip unreadable manifest, got: {result:?}");
+    }
+
     #[test]
     fn discover_members_skips_non_directory_match() {
         let tmp = tempfile::tempdir().unwrap();
