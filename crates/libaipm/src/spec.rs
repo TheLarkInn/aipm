@@ -1081,6 +1081,26 @@ mod tests {
     }
 
     #[test]
+    fn local_path_null_byte_rejected() {
+        // Exercises the null-byte `PathTraversal` branch in
+        // `validate_plugin_path` through the `local:` spec parsing call
+        // site (a distinct instantiation from the direct
+        // `path_security` unit tests).
+        let result = "local:foo\0bar".parse::<Spec>();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn local_path_url_encoded_traversal_rejected() {
+        // Exercises the `lower.contains("%2e%2e")` branch in
+        // `validate_plugin_path` through the `local:` spec parsing call
+        // site (a distinct instantiation from the direct
+        // `path_security` unit tests).
+        let result = "local:foo/%2e%2e/bar".parse::<Spec>();
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn marketplace_parent_path_location() {
         let spec = parse("market:my-plugin@../parent-marketplace");
         assert_eq!(spec.source_name(), "marketplace");
