@@ -365,4 +365,23 @@ mod tests {
             "expected 'failed to read' error, got: {err}"
         );
     }
+
+    #[test]
+    fn find_workspace_root_skips_unreadable_manifest() {
+        // If "aipm.toml" exists as a directory rather than a file, `fs.exists`
+        // returns true but `fs.read_to_string` errors ("Is a directory"). This
+        // covers the `Err(e)` arm at the read_to_string match in
+        // `find_workspace_root` (distinct from the toml-parse-error arm),
+        // which logs and falls through to walking up to the parent directory.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // "aipm.toml" as a directory in the starting dir — unreadable as a file.
+        std::fs::create_dir_all(root.join("sub/aipm.toml")).unwrap();
+        // A real workspace manifest one level up, so the walk-up still succeeds.
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &root.join("sub"));
+        assert_eq!(result.as_deref(), Some(root));
+    }
 }
