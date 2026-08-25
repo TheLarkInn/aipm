@@ -388,4 +388,19 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Covers the `?` propagation on `Option::<Vec<String>>::deserialize`
+    /// (the `let raw: Option<Vec<String>> = Option::deserialize(deserializer)?;`
+    /// line) when the underlying value cannot deserialize into that type at
+    /// all — e.g. a JSON boolean instead of an array of strings or `null`.
+    /// TOML can't produce this shape either (a `[package].engines` key must
+    /// be an array), so it is exercised directly at the deserializer
+    /// boundary, same as the null test above.
+    #[test]
+    fn engine_set_serde_deserialize_error_propagates() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value = serde_json::Value::Bool(true);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_err(), "deserializing a bool should fail: {result:?}");
+    }
 }
