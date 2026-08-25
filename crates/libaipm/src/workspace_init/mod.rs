@@ -743,6 +743,33 @@ mod tests {
     }
 
     #[test]
+    fn init_with_no_phases_selected_produces_no_actions_and_no_warn() {
+        // Both `workspace` and `marketplace` are disabled, so neither
+        // phase's block runs and `actions` stays empty. This exercises the
+        // `any_found == false` side of the `!any_created && any_found`
+        // tail-warn check (line ~208): with an empty actions list both
+        // `any_created` and `any_found` are false, so the warn must not
+        // fire, distinguishing this "nothing requested" no-op from the
+        // "everything requested already existed" case.
+        let (tmp, _guard) = make_temp_dir("no-phases");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_marketplace_creates_tree() {
         let (tmp, _guard) = make_temp_dir("mp-create");
         let adaptors = default_adaptors();
