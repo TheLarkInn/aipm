@@ -807,6 +807,65 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `!any_created && any_found` True branch (line 208): when
+    /// both the workspace and marketplace phases find pre-existing
+    /// artifacts (and produce no `*Created`/`*Written`/`ToolConfigured`
+    /// actions), `init` emits the "nothing to do" tail warn instead of
+    /// silently succeeding.
+    #[test]
+    fn init_emits_nothing_to_do_warn_when_everything_pre_exists() {
+        let (tmp, _guard) = make_temp_dir("nothing-to-do");
+
+        // Pre-create a valid aipm.toml so the workspace phase reports
+        // `WorkspaceFoundExisting` rather than `WorkspaceCreated`.
+        let existing = generate_workspace_manifest(None);
+        std::fs::write(tmp.join("aipm.toml"), &existing).ok();
+
+        // Pre-create .ai/ and the Claude marketplace manifest so the
+        // marketplace phase reports only `MarketplaceFoundExisting` /
+        // `MarketplaceManifestFoundExisting`, never a Created/Written action.
+        let manifest_path = tmp.join(".ai").join(".claude-plugin").join("marketplace.json");
+        std::fs::create_dir_all(manifest_path.parent().unwrap_or(&tmp)).ok();
+        std::fs::write(
+            &manifest_path,
+            crate::generate::marketplace::create("local-repo-plugins", &[]),
+        )
+        .ok();
+
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = Vec::new();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init should succeed when everything pre-exists: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+        assert!(actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)));
+        assert!(actions
+            .iter()
+            .any(|a| matches!(a, InitAction::MarketplaceManifestFoundExisting { .. })));
+        assert!(
+            !actions.iter().any(|a| matches!(
+                a,
+                InitAction::WorkspaceCreated
+                    | InitAction::MarketplaceCreated
+                    | InitAction::MarketplaceManifestWritten { .. }
+                    | InitAction::ToolConfigured(_)
+            )),
+            "no Created/Written/ToolConfigured actions should be present: {actions:?}"
+        );
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_marketplace_is_idempotent_when_ai_exists() {
         let (tmp, _guard) = make_temp_dir("mp-idempotent");
