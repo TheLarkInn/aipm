@@ -1,7 +1,7 @@
 {
   "$schema": "../../../schemas/engine-api.schema.json",
   "meta_schema_version": "2.0.0",
-  "generated_at": "2026-05-05T13:04:12Z",
+  "generated_at": "2026-08-25T17:55:10Z",
   "engines": [
     {
       "name": "claude",
@@ -15,8 +15,8 @@
     }
   ],
   "versions": {
-    "claude": "2.1.128",
-    "copilot": "1.0.40"
+    "claude": "2.1.245",
+    "copilot": "1.0.80"
   },
   "apis": {
     "claude": {
@@ -206,6 +206,368 @@
           ],
           "deprecated": false,
           "notes": "Stop a running task"
+        },
+        {
+          "name": "LS",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "List directory contents"
+        },
+        {
+          "name": "MultiEdit",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Apply multiple edits to a single file atomically"
+        },
+        {
+          "name": "BashOutput",
+          "aliases": [
+            "KillBash"
+          ],
+          "deprecated": false,
+          "notes": "Retrieve output of a background bash shell"
+        },
+        {
+          "name": "KillShell",
+          "aliases": [
+            "KillBash"
+          ],
+          "deprecated": false,
+          "notes": "Terminate a running background shell"
+        },
+        {
+          "name": "PowerShell",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Execute PowerShell commands (Windows)"
+        },
+        {
+          "name": "Tmux",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Run commands in a tmux session"
+        },
+        {
+          "name": "Monitor",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Monitor a running background process"
+        },
+        {
+          "name": "REPL",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Interactive read-eval-print-loop tool"
+        },
+        {
+          "name": "LSP",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Language Server Protocol integration tool"
+        },
+        {
+          "name": "ReadMcpResourceTool",
+          "aliases": [
+            "ReadMcpResource"
+          ],
+          "deprecated": false,
+          "notes": "Read an MCP resource (canonical internal name)"
+        },
+        {
+          "name": "ReadMcpResourceDirTool",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Read an MCP resource directory listing"
+        },
+        {
+          "name": "ListMcpResourcesTool",
+          "aliases": [
+            "ListMcpResources"
+          ],
+          "deprecated": false,
+          "notes": "List available MCP resources (canonical internal name)"
+        },
+        {
+          "name": "Snip",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Create a code/text snippet reference"
+        },
+        {
+          "name": "WebBrowser",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Interactive web browser automation tool"
+        },
+        {
+          "name": "Agent",
+          "aliases": [
+            "Task"
+          ],
+          "deprecated": false,
+          "notes": "Alias entry for sub-agent spawning"
+        },
+        {
+          "name": "Workflow",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Define or invoke a multi-step workflow"
+        },
+        {
+          "name": "Skill",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Invoke a registered skill"
+        },
+        {
+          "name": "CronCreate",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Create a scheduled cron task"
+        },
+        {
+          "name": "CronDelete",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Delete a scheduled cron task"
+        },
+        {
+          "name": "CronList",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "List scheduled cron tasks"
+        },
+        {
+          "name": "ScheduleWakeup",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Schedule a future wakeup/resume event"
+        },
+        {
+          "name": "RemoteTrigger",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Trigger a remote execution event"
+        },
+        {
+          "name": "EnterWorktree",
+          "aliases": [
+            "enter_worktree"
+          ],
+          "deprecated": false,
+          "notes": "Enter an isolated git worktree"
+        },
+        {
+          "name": "ExitWorktree",
+          "aliases": [
+            "exit_worktree"
+          ],
+          "deprecated": false,
+          "notes": "Exit an isolated git worktree"
+        },
+        {
+          "name": "SendMessage",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Send a message to a named sub-agent or team member"
+        },
+        {
+          "name": "SendUserMessage",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Send a message directly to the user"
+        },
+        {
+          "name": "Brief",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Produce a brief/summary artifact"
+        },
+        {
+          "name": "PushNotification",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Send a push notification"
+        },
+        {
+          "name": "SendFeedback",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Send feedback to Anthropic"
+        },
+        {
+          "name": "SendFile",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Send a file as an attachment"
+        },
+        {
+          "name": "SendUserFile",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Send a file to the user"
+        },
+        {
+          "name": "SubscribePR",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Subscribe to pull request updates"
+        },
+        {
+          "name": "Artifact",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Create or update an artifact"
+        },
+        {
+          "name": "DesignSync",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Synchronize design assets"
+        },
+        {
+          "name": "ClaudeDesign",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Design tooling integration"
+        },
+        {
+          "name": "Projects",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Manage Claude Projects"
+        },
+        {
+          "name": "ConnectGitHub",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Connect a GitHub account/integration"
+        },
+        {
+          "name": "ReportFindings",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Report findings from an observer/analysis pass"
+        },
+        {
+          "name": "ObserverReport",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Submit an observer report"
+        },
+        {
+          "name": "propose_skills",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Propose new skills based on session context"
+        },
+        {
+          "name": "RefreshMcpTools",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Refresh the list of available MCP tools"
+        },
+        {
+          "name": "SuggestPluginInstall",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Suggest installing a plugin"
+        },
+        {
+          "name": "SuggestConnectors",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Suggest MCP connectors"
+        },
+        {
+          "name": "SuggestSkills",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Suggest relevant skills"
+        },
+        {
+          "name": "ListConnectors",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "List available connectors"
+        },
+        {
+          "name": "ListAgents",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "List available sub-agents"
+        },
+        {
+          "name": "ListPeers",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "List peer agents in a team"
+        },
+        {
+          "name": "SearchMcpRegistry",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Search the MCP registry"
+        },
+        {
+          "name": "ListPlugins",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "List installed plugins"
+        },
+        {
+          "name": "ListSkills",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "List installed skills"
+        },
+        {
+          "name": "SearchPlugins",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Search available plugins"
+        },
+        {
+          "name": "SearchSkills",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Search available skills"
+        },
+        {
+          "name": "TaskCreate",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Create a new tracked task"
+        },
+        {
+          "name": "TaskGet",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Get details of a tracked task"
+        },
+        {
+          "name": "TaskList",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "List tracked tasks"
+        },
+        {
+          "name": "TaskUpdate",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Update a tracked task"
+        },
+        {
+          "name": "self_hosted_runner_spawn_local",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Spawn a session on a self-hosted runner (enterprise feature); sibling tools observed: self_hosted_runner_requeue_session, self_hosted_runner_tail_log, self_hosted_runner_list_sessions, self_hosted_runner_list_runners, self_hosted_runner_get_pool, self_hosted_runner_list_secrets, self_hosted_runner_read_health, self_hosted_runner_read_metrics"
+        },
+        {
+          "name": "mcp__claude-code-remote",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Built-in remote MCP server namespace; also observed extensive mcp__github__* first-party GitHub MCP tool catalog (~140 tools: pull_request/issue/workflow/gist/discussion read+write, code/repo search, notifications, releases) bundled directly into the claude CLI binary."
         }
       ],
       "hook_events": [
@@ -1275,6 +1637,57 @@
           "aliases": [],
           "deprecated": false,
           "notes": "Azure IT tool"
+        },
+        {
+          "name": "read_file",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Read file contents (internal editor tool constant)"
+        },
+        {
+          "name": "str_replace_editor",
+          "aliases": [
+            "str_replace",
+            "edit"
+          ],
+          "deprecated": false,
+          "notes": "String-replace based file editing tool; supports view/create/str_replace/edit commands"
+        },
+        {
+          "name": "view",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "View file or directory contents (str_replace_editor command)"
+        },
+        {
+          "name": "create",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Create a new file (str_replace_editor command)"
+        },
+        {
+          "name": "task",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Spawn or manage a sub-task"
+        },
+        {
+          "name": "file_search",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Search for files by name/path pattern"
+        },
+        {
+          "name": "semantic_search",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Semantic code search"
+        },
+        {
+          "name": "grep_search",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Regex-based content search (internal editor tool constant, distinct from MCP 'grep')"
         }
       ],
       "hook_events": [
@@ -1376,14 +1789,97 @@
     }
   },
   "tool_compatibility": {
-    "shared_tools": [
-      "bash",
-      "glob",
-      "grep",
-      "web_fetch"
-    ],
+    "shared_tools": [],
     "engine_exclusive_tools": {
-      "Task": {
+      "Agent": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Artifact": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "AskUserQuestion": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Bash": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "BashOutput": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Brief": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ClaudeDesign": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ConnectGitHub": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "CronCreate": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "CronDelete": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "CronList": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "DesignSync": {
         "supported_by": [
           "claude"
         ],
@@ -1399,7 +1895,7 @@
           "copilot"
         ]
       },
-      "Read": {
+      "EnterWorktree": {
         "supported_by": [
           "claude"
         ],
@@ -1407,7 +1903,7 @@
           "copilot"
         ]
       },
-      "Write": {
+      "ExitPlanMode": {
         "supported_by": [
           "claude"
         ],
@@ -1415,7 +1911,31 @@
           "copilot"
         ]
       },
-      "Grep": {
+      "ExitWorktree": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "FileEdit": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "FileRead": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "FileWrite": {
         "supported_by": [
           "claude"
         ],
@@ -1431,7 +1951,7 @@
           "copilot"
         ]
       },
-      "WebSearch": {
+      "Grep": {
         "supported_by": [
           "claude"
         ],
@@ -1439,7 +1959,399 @@
           "copilot"
         ]
       },
-      "WebFetch": {
+      "KillBash": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "KillShell": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "LS": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "LSP": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ListAgents": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ListConnectors": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ListMcpResources": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ListMcpResourcesTool": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ListPeers": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ListPlugins": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ListSkills": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "McpInput": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Monitor": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "MultiEdit": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "NotebookEdit": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ObserverReport": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "PowerShell": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Projects": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "PushNotification": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "REPL": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Read": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ReadMcpResource": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ReadMcpResourceDirTool": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ReadMcpResourceTool": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "RefreshMcpTools": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "RemoteTrigger": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ReportFindings": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ScheduleWakeup": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "SearchMcpRegistry": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "SearchPlugins": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "SearchSkills": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "SendFeedback": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "SendFile": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "SendMessage": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "SendUserFile": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "SendUserMessage": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Skill": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Snip": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "SubscribePR": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "SuggestConnectors": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "SuggestPluginInstall": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "SuggestSkills": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Task": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskCreate": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskGet": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskList": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskOutput": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskStop": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskUpdate": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Tmux": {
         "supported_by": [
           "claude"
         ],
@@ -1455,7 +2367,7 @@
           "copilot"
         ]
       },
-      "mcp": {
+      "WebBrowser": {
         "supported_by": [
           "claude"
         ],
@@ -1463,7 +2375,7 @@
           "copilot"
         ]
       },
-      "list_mcp_resources": {
+      "WebFetch": {
         "supported_by": [
           "claude"
         ],
@@ -1471,7 +2383,7 @@
           "copilot"
         ]
       },
-      "read_mcp_resource": {
+      "WebSearch": {
         "supported_by": [
           "claude"
         ],
@@ -1479,7 +2391,15 @@
           "copilot"
         ]
       },
-      "notebook_edit": {
+      "Workflow": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Write": {
         "supported_by": [
           "claude"
         ],
@@ -1503,6 +2423,14 @@
           "copilot"
         ]
       },
+      "exit_plan_mode": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
       "exit_worktree": {
         "supported_by": [
           "claude"
@@ -1511,7 +2439,55 @@
           "copilot"
         ]
       },
-      "exit_plan_mode": {
+      "list_mcp_resources": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "mcp": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "mcp__claude-code-remote": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "notebook_edit": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "propose_skills": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "read_mcp_resource": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "self_hosted_runner_spawn_local": {
         "supported_by": [
           "claude"
         ],
@@ -1535,7 +2511,7 @@
           "copilot"
         ]
       },
-      "get_file_contents": {
+      "actions_get": {
         "supported_by": [
           "copilot"
         ],
@@ -1543,7 +2519,7 @@
           "claude"
         ]
       },
-      "git_apply_patch": {
+      "actions_list": {
         "supported_by": [
           "copilot"
         ],
@@ -1551,7 +2527,7 @@
           "claude"
         ]
       },
-      "search": {
+      "actions_run_trigger": {
         "supported_by": [
           "copilot"
         ],
@@ -1559,7 +2535,7 @@
           "claude"
         ]
       },
-      "search_code": {
+      "ait": {
         "supported_by": [
           "copilot"
         ],
@@ -1567,7 +2543,7 @@
           "claude"
         ]
       },
-      "search_issues": {
+      "aks": {
         "supported_by": [
           "copilot"
         ],
@@ -1575,7 +2551,7 @@
           "claude"
         ]
       },
-      "search_repositories": {
+      "appconfig": {
         "supported_by": [
           "copilot"
         ],
@@ -1583,7 +2559,7 @@
           "claude"
         ]
       },
-      "search_users": {
+      "azureterraformbestpractices": {
         "supported_by": [
           "copilot"
         ],
@@ -1591,7 +2567,295 @@
           "claude"
         ]
       },
-      "get_me": {
+      "bash": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "bestpractices": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "bicepschema": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_click": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_close": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_console_messages": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_drag": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_evaluate": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_file_upload": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_fill_form": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_handle_dialog": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_hover": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_install": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_navigate": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_navigate_back": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_network_requests": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_press_key": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_resize": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_select_option": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_snapshot": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_tabs": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_take_screenshot": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_type": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "browser_wait_for": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "convert_time": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "cosmos": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "create": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "datadog": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "documentation": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "edit": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "extension_az": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "extension_azd": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "extension_azqr": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "file_search": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "foundry": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "get_code_scanning_alert": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "get_color_usage": {
         "supported_by": [
           "copilot"
         ],
@@ -1607,7 +2871,87 @@
           "claude"
         ]
       },
-      "get_tag": {
+      "get_component": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "get_component_accessibility_guidelines": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "get_component_examples": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "get_component_usage_guidelines": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "get_copilot_space": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "get_current_time": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "get_file_contents": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "get_icon": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "get_job_logs": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "get_me": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "get_pattern": {
         "supported_by": [
           "copilot"
         ],
@@ -1655,7 +2999,7 @@
           "claude"
         ]
       },
-      "list_pull_requests": {
+      "get_secret_scanning_alert": {
         "supported_by": [
           "copilot"
         ],
@@ -1663,7 +3007,7 @@
           "claude"
         ]
       },
-      "list_issues": {
+      "get_tag": {
         "supported_by": [
           "copilot"
         ],
@@ -1671,39 +3015,7 @@
           "claude"
         ]
       },
-      "issue_read": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "list_branches": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "list_commits": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "list_tags": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "list_workflows": {
+      "get_typography_usage": {
         "supported_by": [
           "copilot"
         ],
@@ -1735,7 +3047,151 @@
           "claude"
         ]
       },
-      "list_workflow_runs": {
+      "git_apply_patch": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "glob": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "grafana": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "grep": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "grep_search": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "issue_read": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "keyvault": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "kusto": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "list_branches": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "list_code_scanning_alerts": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "list_commits": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "list_components": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "list_copilot_spaces": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "list_icons": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "list_issues": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "list_patterns": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "list_pull_requests": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "list_secret_scanning_alerts": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "list_tags": {
         "supported_by": [
           "copilot"
         ],
@@ -1759,7 +3215,7 @@
           "claude"
         ]
       },
-      "summarize_job_log_failures": {
+      "list_workflow_runs": {
         "supported_by": [
           "copilot"
         ],
@@ -1767,7 +3223,7 @@
           "claude"
         ]
       },
-      "actions_get": {
+      "list_workflows": {
         "supported_by": [
           "copilot"
         ],
@@ -1775,7 +3231,7 @@
           "claude"
         ]
       },
-      "actions_list": {
+      "loadtesting": {
         "supported_by": [
           "copilot"
         ],
@@ -1783,7 +3239,7 @@
           "claude"
         ]
       },
-      "actions_run_trigger": {
+      "monitor": {
         "supported_by": [
           "copilot"
         ],
@@ -1791,7 +3247,7 @@
           "claude"
         ]
       },
-      "get_code_scanning_alert": {
+      "postgres": {
         "supported_by": [
           "copilot"
         ],
@@ -1799,7 +3255,7 @@
           "claude"
         ]
       },
-      "list_code_scanning_alerts": {
+      "read_file": {
         "supported_by": [
           "copilot"
         ],
@@ -1807,7 +3263,7 @@
           "claude"
         ]
       },
-      "get_secret_scanning_alert": {
+      "redis": {
         "supported_by": [
           "copilot"
         ],
@@ -1815,7 +3271,7 @@
           "claude"
         ]
       },
-      "list_secret_scanning_alerts": {
+      "report_intent": {
         "supported_by": [
           "copilot"
         ],
@@ -1823,7 +3279,7 @@
           "claude"
         ]
       },
-      "get_job_logs": {
+      "review_alt_text": {
         "supported_by": [
           "copilot"
         ],
@@ -1831,7 +3287,7 @@
           "claude"
         ]
       },
-      "get_copilot_space": {
+      "search": {
         "supported_by": [
           "copilot"
         ],
@@ -1839,7 +3295,7 @@
           "claude"
         ]
       },
-      "list_copilot_spaces": {
+      "search_code": {
         "supported_by": [
           "copilot"
         ],
@@ -1847,7 +3303,23 @@
           "claude"
         ]
       },
-      "store_memory": {
+      "search_issues": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "search_repositories": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "search_users": {
         "supported_by": [
           "copilot"
         ],
@@ -1863,6 +3335,14 @@
           "claude"
         ]
       },
+      "semantic_search": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
       "sequentialthinking": {
         "supported_by": [
           "copilot"
@@ -1871,183 +3351,7 @@
           "claude"
         ]
       },
-      "convert_time": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "get_current_time": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_navigate": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_navigate_back": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_click": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_type": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_fill_form": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_snapshot": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_take_screenshot": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_tabs": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_close": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_install": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_hover": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_drag": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_press_key": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_select_option": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_resize": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_evaluate": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_file_upload": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_handle_dialog": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_console_messages": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_network_requests": {
-        "supported_by": [
-          "copilot"
-        ],
-        "unsupported_by": [
-          "claude"
-        ]
-      },
-      "browser_wait_for": {
+      "servicebus": {
         "supported_by": [
           "copilot"
         ],
@@ -2063,7 +3367,79 @@
           "claude"
         ]
       },
-      "report_intent": {
+      "storage": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "store_memory": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "str_replace": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "str_replace_editor": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "subscription": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "summarize_job_log_failures": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "task": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "view": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "web_fetch": {
+        "supported_by": [
+          "copilot"
+        ],
+        "unsupported_by": [
+          "claude"
+        ]
+      },
+      "workbooks": {
         "supported_by": [
           "copilot"
         ],
@@ -2078,7 +3454,8 @@
       "adaptor_fixes": [
         "crates/libaipm/src/detect.rs (or equivalent): add detection for .claude/ folder and CLAUDE.md presence",
         "Ensure settings paths .claude/settings.json and .claude/settings.local.json are recognized in validation",
-        "Add worktree isolation mode (isolation:worktree) support for Task tool invocations in lint rules"
+        "Add worktree isolation mode (isolation:worktree) support for Task tool invocations in lint rules",
+        "Recognize newly discovered internal tool constants (BashOutput, KillShell, MultiEdit, LS, LSP, Skill, TaskCreate/Get/List/Update) as valid claude tool names in lint rules"
       ],
       "test_cases": [
         "Test detection of claude engine via presence of .claude/ folder",
@@ -2087,13 +3464,15 @@
         "Test that enter_worktree/exit_worktree tools are recognized as claude-exclusive",
         "Test that notebook_edit tool is recognized as valid for claude",
         "Test that ask_user_question tool is recognized as valid for claude",
-        "Test that mcp, list_mcp_resources, read_mcp_resource are valid claude tool names"
+        "Test that mcp, list_mcp_resources, read_mcp_resource are valid claude tool names",
+        "Test that BashOutput, KillShell, MultiEdit, and LS are accepted as valid claude tool names"
       ],
       "behaviour_variants": [
         "Claude supports both sync and async agent modes (agentId + outputFile for async)",
         "FileRead supports text, image (jpeg/png/gif/webp), notebook, and pdf types",
         "Bash tool supports run_in_background flag and dangerouslyDisableSandbox override",
-        "AgentOutput includes detailed toolStats (readCount, searchCount, bashCount, editFileCount, linesAdded, linesRemoved)"
+        "AgentOutput includes detailed toolStats (readCount, searchCount, bashCount, editFileCount, linesAdded, linesRemoved)",
+        "claude v2.1.245 bundles an extensive built-in mcp__github__* GitHub MCP tool catalog (~140 tools) directly in the CLI binary, plus enterprise-only self_hosted_runner_* tools gated behind account tier"
       ]
     },
     "copilot": {
@@ -2103,7 +3482,8 @@
         "Add recognition of .github/mcp.json and .github/lsp.json as copilot-specific config files",
         "Add recognition of .github/extensions/ as copilot extension discovery path",
         "Add lint rules for postInstallMessage max 2048 chars",
-        "Recognize AGENTS.md as a copilot convention file (alongside CLAUDE.md and GEMINI.md)"
+        "Recognize AGENTS.md as a copilot convention file (alongside CLAUDE.md and GEMINI.md)",
+        "Recognize internal editor tool constants read_file, str_replace_editor (view/create/str_replace/edit commands), file_search, semantic_search, grep_search, and task as valid copilot-cli tool names"
       ],
       "test_cases": [
         "Test detection of copilot-cli engine via .github/copilot-instructions.md",
@@ -2116,7 +3496,8 @@
         "Test that browser_* tools are only valid for copilot-cli-targeted plugins",
         "Test that GitHub API tools (get_pull_request, list_issues, etc.) are copilot-cli exclusive",
         "Test that valid-tool-name lint warns when using copilot-cli-exclusive tool without engines restriction",
-        "Test feature flag managed-agents-2026-04-01 gating for agent functionality"
+        "Test feature flag managed-agents-2026-04-01 gating for agent functionality",
+        "Test that str_replace_editor sub-commands (view, create, str_replace, edit) are all accepted as valid tool invocations for copilot-cli"
       ],
       "behaviour_variants": [
         "Copilot-cli supports multiple marketplace search paths: marketplace.json, .plugin/marketplace.json, .github/plugin/marketplace.json, .claude-plugin/marketplace.json",
