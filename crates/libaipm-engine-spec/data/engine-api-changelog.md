@@ -2,6 +2,28 @@
 
 <!-- Entries are prepended (newest first). -->
 
+## 2026-08-25 — claude v2.1.245 (was v2.1.128)
+
+| Field | Change |
+|-------|--------|
+| `tool_calls` | **Added** 58 tool entries discovered via binary string extraction of the internal tool-name array (`FWo=[...]`): `LS`, `MultiEdit`, `BashOutput`, `KillShell`, `PowerShell`, `Tmux`, `Monitor`, `REPL`, `LSP`, `ReadMcpResourceTool`, `ReadMcpResourceDirTool`, `ListMcpResourcesTool`, `Snip`, `WebBrowser`, `Agent`, `Workflow`, `Skill`, `CronCreate`, `CronDelete`, `CronList`, `ScheduleWakeup`, `RemoteTrigger`, `EnterWorktree`, `ExitWorktree`, `SendMessage`, `SendUserMessage`, `Brief`, `PushNotification`, `SendFeedback`, `SendFile`, `SendUserFile`, `SubscribePR`, `Artifact`, `DesignSync`, `ClaudeDesign`, `Projects`, `ConnectGitHub`, `ReportFindings`, `ObserverReport`, `propose_skills`, `RefreshMcpTools`, `SuggestPluginInstall`, `SuggestConnectors`, `SuggestSkills`, `ListConnectors`, `ListAgents`, `ListPeers`, `SearchMcpRegistry`, `ListPlugins`, `ListSkills`, `SearchPlugins`, `SearchSkills`, `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, `self_hosted_runner_spawn_local` (enterprise-gated, summarizes 7 sibling `self_hosted_runner_*` tools), `mcp__claude-code-remote` (summarizes a bundled first-party `mcp__github__*` catalog of ~140 GitHub MCP tools) |
+| `hook_events` | No changes detected — `PreToolUse`, `PostToolUse`, `Notification`, `Stop`, `SubagentStop`, `SessionStart`, `SessionEnd`, `PreCompact`, `UserPromptSubmit`, etc. all still present verbatim in the binary. |
+| `suggestions.claude` | **Added** adaptor-fix, test-case, and behaviour-variant notes covering the new tool constants and the bundled GitHub MCP catalog. |
+
+## 2026-08-25 — copilot-cli v1.0.80 (was v1.0.40)
+
+| Field | Change |
+|-------|--------|
+| `tool_calls` | **Added** 8 internal editor tool entries found in `app.js`: `read_file`, `str_replace_editor` (aliases `str_replace`, `edit`; sub-commands `view`/`create`/`str_replace`/`edit`), `view`, `create`, `task`, `file_search`, `semantic_search`, `grep_search`. These are distinct from the previously catalogued MCP-exposed `bash`/`glob`/`grep`/`web_fetch` tool names. |
+| `suggestions.copilot` | **Added** adaptor-fix and test-case notes covering the internal editor tool constants. |
+
+## 2026-08-25 — Cross-engine tool compatibility recomputed
+
+| Field | Change |
+|-------|--------|
+| `tool_compatibility.shared_tools` | **Changed** — now empty; the previously recorded `bash`/`glob`/`grep`/`web_fetch` overlap was based on case-insensitive/informal matching, but exact tool-call names differ per engine (e.g. `Bash` vs `bash`, `Glob` vs `glob`). Recomputed by exact case-sensitive name/alias set intersection. |
+| `tool_compatibility.engine_exclusive_tools` | **Changed** — regenerated to include all 207 exact tool names now catalogued across both engines (up from the prior smaller list), each flagged with `supported_by`/`unsupported_by`. |
+
 ## 2026-05-05 — claude v2.1.128
 
 | Field | Change |
