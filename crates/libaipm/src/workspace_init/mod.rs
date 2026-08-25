@@ -2397,4 +2397,35 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    /// Covers the False arm of `any_found` in the tail warn condition
+    /// (line 208, col 24): `if !any_created && any_found`.
+    ///
+    /// Every other test either enables `workspace` or `marketplace`, so
+    /// `actions` always contains at least one Found* or Created* action.
+    /// With both flags disabled, `init` performs no work at all: `actions`
+    /// stays empty, so both `any_created` and `any_found` are false and the
+    /// tail warn is skipped without ever evaluating a true `any_found`.
+    #[test]
+    fn init_with_both_flags_disabled_skips_tail_warn() {
+        let (tmp, _guard) = make_temp_dir("no-op-init");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed as a no-op: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "no actions expected when both flags are disabled");
+
+        cleanup(&tmp);
+    }
 }
