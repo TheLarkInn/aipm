@@ -246,6 +246,36 @@ mod tests {
     }
 
     #[test]
+    fn discover_members_error_duplicate_name_across_patterns() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let dir_a = root.join("plugins/dup-name");
+        std::fs::create_dir_all(&dir_a).unwrap();
+        std::fs::write(
+            dir_a.join("aipm.toml"),
+            "[package]\nname = \"dup-name\"\nversion = \"1.0.0\"\n",
+        )
+        .unwrap();
+
+        let dir_b = root.join("tools/dup-name");
+        std::fs::create_dir_all(&dir_b).unwrap();
+        std::fs::write(
+            dir_b.join("aipm.toml"),
+            "[package]\nname = \"dup-name\"\nversion = \"2.0.0\"\n",
+        )
+        .unwrap();
+
+        let err = discover_members(
+            &crate::fs::Real,
+            root,
+            &["plugins/*".to_string(), "tools/*".to_string()],
+        )
+        .unwrap_err();
+        assert!(format!("{err}").contains("duplicate workspace member name"));
+    }
+
+    #[test]
     fn discover_members_error_no_package_section() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
