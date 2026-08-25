@@ -504,6 +504,36 @@ mod tests {
         assert!(redirect.is_none());
     }
 
+    /// Covers the `source.path.and_then(|p| ValidatedPath::new(p).ok())` branch
+    /// where the redirect's `path` fails validation (path traversal), so the
+    /// resulting `GitSource.path` is `None` even though the redirect itself is
+    /// still returned (the `url` is valid).
+    #[test]
+    fn source_redirect_invalid_path_is_dropped() {
+        let temp = make_temp();
+        let dir = temp.path().join("bad-path-plugin");
+        std::fs::create_dir_all(&dir).unwrap_or_else(|_| {});
+        std::fs::write(
+            dir.join("aipm.toml"),
+            concat!(
+                "[package]\n",
+                "name = \"stub\"\n",
+                "version = \"0.0.0\"\n",
+                "[package.source]\n",
+                "type = \"git\"\n",
+                "url = \"https://github.com/org/repo.git\"\n",
+                "path = \"../escape\"\n",
+            ),
+        )
+        .unwrap_or_else(|_| {});
+
+        let redirect = check_source_redirect(&dir);
+        assert!(redirect.is_some());
+        let redirect = redirect.unwrap_or_else(|| std::process::abort());
+        assert_eq!(redirect.url, "https://github.com/org/repo.git");
+        assert!(redirect.path.is_none());
+    }
+
     #[test]
     fn source_redirect_none_when_no_aipm_toml() {
         let temp = make_temp();
