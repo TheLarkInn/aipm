@@ -1762,6 +1762,82 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `!any_created && any_found` true branch (line 208):
+    /// when every requested phase (workspace, marketplace, tool config)
+    /// finds a pre-existing artifact and nothing new is created, `init`
+    /// must emit the "nothing to do" tracing warn instead of silently
+    /// succeeding. This is distinct from `init_adaptor_skips_when_
+    /// settings_already_configured`, which only covers the adaptor
+    /// `apply` false branch — this test additionally pre-seeds
+    /// `aipm.toml` so `init_workspace` also takes the FoundExisting path,
+    /// making `any_created` false across *every* phase at once.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_all_phases_found_existing_warns_nothing_to_do() {
+        let (tmp, _guard) = make_temp_dir("all-found-existing");
+
+        // Pre-existing valid aipm.toml so init_workspace takes the
+        // FoundExisting path.
+        let existing_manifest = generate_workspace_manifest(None);
+        std::fs::write(tmp.join("aipm.toml"), &existing_manifest).ok();
+
+        // Pre-existing .ai/ marketplace so scaffold_marketplace takes the
+        // FoundExisting path for the directory itself, and pre-seed both
+        // engines' marketplace.json so scaffold_engine_marketplaces also
+        // takes the FoundExisting path (not the write/create path).
+        let claude_dir = tmp.join(".ai/.claude-plugin");
+        let copilot_dir = tmp.join(".ai/.github/plugin");
+        std::fs::create_dir_all(&claude_dir).ok();
+        std::fs::create_dir_all(&copilot_dir).ok();
+        let valid_marketplace = crate::generate::marketplace::create("preexisting", &[]);
+        std::fs::write(claude_dir.join("marketplace.json"), &valid_marketplace).ok();
+        std::fs::write(copilot_dir.join("marketplace.json"), &valid_marketplace).ok();
+
+        // Pre-existing settings so both default adaptors report `Ok(false)`
+        // (no ToolConfigured action), matching
+        // init_adaptor_skips_when_settings_already_configured's setup.
+        let settings_dir = tmp.join(".claude");
+        std::fs::create_dir_all(&settings_dir).ok();
+        let settings_str = r#"{
+  "extraKnownMarketplaces": {
+    "local-repo-plugins": { "source": { "source": "directory", "path": "./.ai" } }
+  },
+  "enabledPlugins": {
+    "starter-aipm-plugin@local-repo-plugins": true
+  }
+}"#;
+        std::fs::write(settings_dir.join("settings.json"), settings_str.as_bytes()).ok();
+        let github_dir = tmp.join(".github");
+        std::fs::create_dir_all(&github_dir).ok();
+        std::fs::write(github_dir.join("copilot-instructions.md"), b"# user content\n").ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::ALL,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(!actions.iter().any(|a| matches!(
+            a,
+            InitAction::WorkspaceCreated
+                | InitAction::MarketplaceCreated
+                | InitAction::MarketplaceManifestWritten { .. }
+                | InitAction::ToolConfigured(_)
+        )));
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+        assert!(logs_contain("aipm init found nothing to do"));
+
+        cleanup(&tmp);
+    }
+
     // =====================================================================
     // Feature 9 — engines_scaffold filter + engines_support emission
     // =====================================================================
