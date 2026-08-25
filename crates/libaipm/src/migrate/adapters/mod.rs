@@ -120,6 +120,22 @@ mod tests {
     }
 
     #[test]
+    fn stub_adapter_to_artifact_returns_unsupported_source_error() {
+        let stub = StubAdapter;
+        let feat = DiscoveredFeature {
+            kind: crate::discovery::FeatureKind::Skill,
+            source: crate::discovery::types::DiscoverySource::CLAUDE,
+            layout: crate::discovery::Layout::Canonical,
+            source_root: std::path::PathBuf::from(".claude"),
+            feature_dir: None,
+            path: std::path::PathBuf::from(".claude/skills/x/SKILL.md"),
+        };
+        let fs = crate::fs::Real;
+        let err = stub.to_artifact(&feat, &fs).expect_err("stub never produces artifacts");
+        assert!(matches!(err, Error::UnsupportedSource(_)));
+    }
+
+    #[test]
     fn stub_adapter_does_not_apply() {
         let stub = StubAdapter;
         let feat = DiscoveredFeature {
