@@ -159,6 +159,47 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unreadable_manifest_and_continues_up() {
+        // A `aipm.toml` path that exists but cannot be read as a file (here,
+        // it's actually a directory) must be skipped so discovery keeps
+        // walking up to find a valid workspace root further up the tree.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(&subdir).unwrap();
+        // "aipm.toml" here is a directory, not a file — `exists` returns
+        // true but `read_to_string` fails with an I/O error.
+        std::fs::create_dir_all(subdir.join("aipm.toml")).unwrap();
+        let leaf = subdir.join("leaf");
+        std::fs::create_dir_all(&leaf).unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &leaf);
+        assert_eq!(result.as_deref(), Some(root));
+    }
+
+    #[test]
+    fn find_root_skips_unparseable_manifest_and_continues_up() {
+        // An `aipm.toml` that fails to parse as TOML must be skipped (not
+        // treated as an error) so discovery keeps walking up to find a
+        // valid workspace root further up the tree.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(&subdir).unwrap();
+        // Malformed TOML at the intermediate level — cannot parse.
+        std::fs::write(subdir.join("aipm.toml"), "not valid = [ toml").unwrap();
+        let leaf = subdir.join("leaf");
+        std::fs::create_dir_all(&leaf).unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &leaf);
+        assert_eq!(result.as_deref(), Some(root));
+    }
+
+    #[test]
     fn find_root_returns_none_for_non_workspace() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
