@@ -388,4 +388,16 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Feed a value that cannot deserialize as `Option<Vec<String>>` (a JSON
+    /// number instead of a string array or null) so the `?` on
+    /// `Option::deserialize(deserializer)?` propagates a deserializer error,
+    /// covering that error branch.
+    #[test]
+    fn engine_set_serde_invalid_type_propagates_error() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value = serde_json::Value::Number(42.into());
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_err(), "deserializing a number should fail: {result:?}");
+    }
 }
