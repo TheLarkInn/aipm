@@ -142,4 +142,22 @@ mod tests {
         let stub: Box<dyn Adapter> = Box::new(StubAdapter);
         assert_eq!(stub.name(), "stub");
     }
+
+    #[test]
+    fn stub_adapter_to_artifact_returns_unsupported_source_error() {
+        // Exercises StubAdapter::to_artifact's error body — never reached by
+        // the other tests because applies_to() always returns false and no
+        // caller invokes to_artifact() directly.
+        let stub = StubAdapter;
+        let feat = DiscoveredFeature {
+            kind: crate::discovery::FeatureKind::Skill,
+            source: crate::discovery::types::DiscoverySource::CLAUDE,
+            layout: crate::discovery::Layout::Canonical,
+            source_root: std::path::PathBuf::from(".claude"),
+            feature_dir: None,
+            path: std::path::PathBuf::from(".claude/skills/x/SKILL.md"),
+        };
+        let result = stub.to_artifact(&feat, &crate::fs::Real);
+        assert!(matches!(result, Err(Error::UnsupportedSource(_))));
+    }
 }
