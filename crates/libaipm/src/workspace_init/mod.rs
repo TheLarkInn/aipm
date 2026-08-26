@@ -676,6 +676,59 @@ mod tests {
         let _ = std::fs::remove_dir_all(path);
     }
 
+    /// Covers the `if !any_created && any_found` True branch in `init`: when a
+    /// second `init` call runs against a directory where both the workspace
+    /// manifest and the `.ai/` marketplace (with its manifest) already exist,
+    /// every action is a `*FoundExisting` variant and none is `*Created`, so
+    /// the "nothing to do" warning path fires.
+    #[test]
+    fn init_second_run_finds_everything_existing_and_warns() {
+        let (tmp, _guard) = make_temp_dir("all-found");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+
+        // First run creates the workspace manifest and the marketplace.
+        let first = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(first.is_ok(), "first init must succeed: {first:?}");
+
+        // Second run against the same directory: everything already exists,
+        // so no `*Created` action should be produced, only `*FoundExisting`.
+        let second = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(second.is_ok(), "second init must succeed: {second:?}");
+
+        let actions = second.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(
+            actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)),
+            "expected WorkspaceFoundExisting on second run: {actions:?}"
+        );
+        assert!(
+            actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)),
+            "expected MarketplaceFoundExisting on second run: {actions:?}"
+        );
+        assert!(
+            !actions.iter().any(|a| matches!(
+                a,
+                InitAction::WorkspaceCreated
+                    | InitAction::MarketplaceCreated
+                    | InitAction::MarketplaceManifestWritten { .. }
+                    | InitAction::ToolConfigured(_)
+            )),
+            "expected no *Created/*Written/ToolConfigured action on second run: {actions:?}"
+        );
+
+        cleanup(&tmp);
+    }
+
     fn default_adaptors() -> Vec<Box<dyn ToolAdaptor>> {
         adaptors::defaults()
     }
