@@ -345,6 +345,24 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unreadable_manifest_and_continues_walking_up() {
+        // `aipm.toml` exists at `sub/` but as a *directory*, so `fs.exists()`
+        // reports it present while `fs.read_to_string()` fails. This exercises
+        // the `Err(e)` branch on the `read_to_string` match arm in
+        // `find_workspace_root`, which must log and continue walking up
+        // rather than erroring, ultimately finding the real workspace root.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(subdir.join("aipm.toml")).unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
+        assert_eq!(result.as_deref(), Some(root));
+    }
+
+    #[test]
     fn discover_members_error_manifest_is_directory() {
         // If a path named "aipm.toml" exists as a directory rather than a file,
         // std::fs::read_to_string fails — this covers the error-conversion branch
