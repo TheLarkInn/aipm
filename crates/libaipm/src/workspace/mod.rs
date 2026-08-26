@@ -159,6 +159,42 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unparseable_manifest_and_continues_walking_up() {
+        // Covers the `Err(e) => { tracing::debug!(...) }` branch taken when
+        // `toml::from_str::<Manifest>` fails on a malformed `aipm.toml` — the
+        // walk should log and continue up to the parent, which does have a
+        // valid workspace manifest.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(&subdir).unwrap();
+        std::fs::write(subdir.join("aipm.toml"), "not valid toml [[[").unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
+        assert_eq!(result.as_deref(), Some(root));
+    }
+
+    #[test]
+    fn find_root_skips_unreadable_manifest_and_continues_walking_up() {
+        // Covers the `Err(e) => { tracing::debug!(...) }` branch taken when
+        // `fs.read_to_string` fails (here, "aipm.toml" is a directory rather
+        // than a file) — the walk should log and continue up to the parent,
+        // which does have a valid workspace manifest.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(&subdir).unwrap();
+        std::fs::create_dir_all(subdir.join("aipm.toml")).unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
+        assert_eq!(result.as_deref(), Some(root));
+    }
+
+    #[test]
     fn find_root_returns_none_for_non_workspace() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
