@@ -688,6 +688,32 @@ mod tests {
     }
 
     #[test]
+    fn gc_keeps_installed_entries_even_when_stale() {
+        // Covers the `!entry.installed` branch's False side in `gc()`: an
+        // entry marked installed must survive garbage collection even though
+        // it is old enough to be otherwise stale.
+        let temp = make_temp();
+        let mut cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
+        cache.gc_days = 0;
+
+        let src = create_source_plugin(&temp);
+        let _ = cache.put("installed-spec", &src, None);
+        let _ = cache.mark_installed("installed-spec", true);
+
+        // Manually set last_accessed to the past so it would be stale if not installed.
+        let _ = cache.with_index(|index| {
+            if let Some(entry) = index.entries.get_mut("installed-spec") {
+                entry.last_accessed = 0;
+            }
+        });
+
+        let _ = cache.gc();
+
+        let index = cache.read_index().unwrap_or_default();
+        assert!(index.entries.contains_key("installed-spec"));
+    }
+
+    #[test]
     fn put_replaces_old_entry_dir() {
         let (temp, cache) = test_cache(Policy::Auto);
         let spec = "replace-spec";
