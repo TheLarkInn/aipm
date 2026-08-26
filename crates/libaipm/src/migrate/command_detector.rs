@@ -242,6 +242,21 @@ mod tests {
     }
 
     #[test]
+    fn detect_command_read_to_string_error_propagates() {
+        // The command file is listed in the directory but has no matching
+        // entry in `fs.files`, so `read_to_string` returns `NotFound`. This
+        // exercises the `ok_or_else` error branch of `MockFs::read_to_string`
+        // and the `?` propagation in `CommandDetector::detect`.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/commands"));
+        fs.dirs.insert(PathBuf::from("/src/commands"), vec![de("missing.md", false)]);
+
+        let detector = CommandDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn detect_command_ignores_unknown_frontmatter_keys() {
         // A command file with an unrecognised YAML key exercises the else-if
         // False branch in parse_command_frontmatter (the key matches neither
