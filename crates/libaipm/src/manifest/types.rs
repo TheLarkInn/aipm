@@ -388,4 +388,22 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Invoke `engine_set_serde::deserialize` with a list containing only
+    /// unknown engine names so that the "all entries unknown" error arm
+    /// (the `if set.is_empty()` branch after the name loop) is covered.
+    /// This must reject rather than silently widen to "all engines".
+    #[test]
+    fn engine_set_serde_all_unknown_names_returns_error() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value =
+            serde_json::json!(["totally-unknown-engine", "another-fake-engine"]);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_err(), "all-unknown names should be rejected: {result:?}");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("contains no known engine names"),
+            "error should explain the rejection: {err}"
+        );
+    }
 }
