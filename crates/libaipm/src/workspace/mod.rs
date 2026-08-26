@@ -158,6 +158,45 @@ mod tests {
         assert_eq!(result.as_deref(), Some(root));
     }
 
+    /// Fs mock whose `read_to_string` always errors, used to exercise the
+    /// "could not read manifest" branch in `find_workspace_root` — the
+    /// manifest exists (per `exists`) but reading it fails with an I/O error.
+    struct UnreadableManifestFs;
+
+    impl crate::fs::Fs for UnreadableManifestFs {
+        fn exists(&self, _path: &Path) -> bool {
+            true
+        }
+
+        fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _path: &Path, _content: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _path: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::other("simulated read failure"))
+        }
+
+        fn read_dir(&self, _path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn find_root_skips_manifest_that_fails_to_read() {
+        // The manifest "exists" but reading it errors, so `find_workspace_root`
+        // should log and continue walking up rather than propagating the error.
+        // Since the mock reports every path as existing, and `pop()` on a
+        // relative single-component path eventually fails, the walk terminates
+        // with `None`.
+        let start = Path::new("only-component");
+        let result = find_workspace_root(&UnreadableManifestFs, start);
+        assert!(result.is_none());
+    }
+
     #[test]
     fn find_root_returns_none_for_non_workspace() {
         let tmp = tempfile::tempdir().unwrap();
