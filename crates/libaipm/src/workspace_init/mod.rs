@@ -861,6 +861,30 @@ mod tests {
     }
 
     #[test]
+    fn init_with_no_flags_produces_no_actions_and_skips_warn() {
+        // Both `workspace` and `marketplace` are false, so `actions` stays
+        // empty: `any_created` and `any_found` are both false, covering the
+        // `!any_created && any_found` false arm at line 208 (neither side
+        // is true) without hitting the "found nothing to do" warn.
+        let (tmp, _guard) = make_temp_dir("no-flags");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real).expect("init should succeed");
+        assert!(result.actions.is_empty(), "no flags means no actions should be produced");
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_with_no_adaptors() {
         let (tmp, _guard) = make_temp_dir("no-adaptors");
         let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
