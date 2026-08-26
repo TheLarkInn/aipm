@@ -861,6 +861,68 @@ mod tests {
     }
 
     #[test]
+    fn init_skips_nothing_to_do_warning_when_partially_created() {
+        // Covers the `false` branch of `!any_created && any_found` (L208):
+        // when the workspace already exists (FoundExisting) but the
+        // marketplace is freshly created (Created), `any_created` is true,
+        // so the "found nothing to do" warning must NOT be emitted even
+        // though a `*FoundExisting` action is also present.
+        let (tmp, _guard) = make_temp_dir("mixed-created-found");
+
+        // Pre-create a valid aipm.toml so the workspace phase reports
+        // `FoundExisting` rather than `Created`.
+        let existing = generate_workspace_manifest(None);
+        std::fs::write(tmp.join("aipm.toml"), &existing).ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "mixed created/found init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+        assert!(actions.iter().any(|a| matches!(a, InitAction::MarketplaceCreated)));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn init_with_both_phases_disabled_emits_no_warning() {
+        // Covers the `false` branch of `any_found` in `!any_created &&
+        // any_found` (L208): with both `workspace` and `marketplace`
+        // disabled, `actions` stays empty, so both `any_created` and
+        // `any_found` are false and the "nothing to do" warning must not
+        // fire (there is nothing the user asked for that pre-existed).
+        let (tmp, _guard) = make_temp_dir("both-disabled");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "no-op init must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty());
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_with_no_adaptors() {
         let (tmp, _guard) = make_temp_dir("no-adaptors");
         let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
