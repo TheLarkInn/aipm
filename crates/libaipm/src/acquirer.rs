@@ -362,6 +362,34 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the success path of `acquire_local` itself (line 101, `Ok(dest)`):
+    /// a valid relative plugin path, resolved against the current directory,
+    /// is copied, passes the file-count check and structure validation, and
+    /// the resulting destination path is returned.
+    #[test]
+    fn acquire_local_success_returns_dest_path() {
+        let temp = make_temp();
+        let _src = make_local_plugin(&temp, "source-plugin");
+        let dest = temp.path().join("dest");
+        std::fs::create_dir_all(&dest).unwrap_or_else(|_| {});
+
+        let orig_cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        if std::env::set_current_dir(temp.path()).is_err() {
+            return;
+        }
+
+        let path = ValidatedPath::new("source-plugin").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &dest, Engine::Claude);
+
+        let _ = std::env::set_current_dir(&orig_cwd);
+
+        assert!(result.is_ok(), "expected Ok, got: {result:?}");
+        let plugin_path = result.unwrap_or_else(|_| PathBuf::new());
+        assert_eq!(plugin_path, dest.join("source-plugin"));
+        assert!(plugin_path.join(".claude-plugin/plugin.json").exists());
+        assert!(plugin_path.join("README.md").exists());
+    }
+
     #[test]
     fn acquire_local_from_source_not_found() {
         let temp = make_temp();
