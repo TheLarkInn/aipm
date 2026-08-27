@@ -248,4 +248,14 @@ mod tests {
         let result = read_package(tmp.path(), "nonexistent");
         assert!(result.is_err());
     }
+
+    /// Covers the `package_path(name)?` error-propagation branch in
+    /// `read_package`: an invalid package name should short-circuit before
+    /// any filesystem access is attempted.
+    #[test]
+    fn read_package_invalid_name_propagates_error() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = read_package(tmp.path(), "");
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
 }
