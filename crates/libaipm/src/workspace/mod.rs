@@ -290,6 +290,42 @@ mod tests {
         assert!(members.contains_key("tool-b"));
     }
 
+    /// An `Fs` that reports a manifest as existing but always fails to read
+    /// it, to exercise the read-error branch of `find_workspace_root`.
+    struct UnreadableManifestFs;
+
+    impl crate::fs::Fs for UnreadableManifestFs {
+        fn exists(&self, _path: &Path) -> bool {
+            true
+        }
+
+        fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _path: &Path, _content: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _path: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"))
+        }
+
+        fn read_dir(&self, _path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn find_root_skips_unreadable_manifest() {
+        // The manifest "exists" at every directory level but reading it
+        // always errors, so `find_workspace_root` must log and keep walking
+        // up until it exhausts the path and returns `None`.
+        let start = Path::new("/some/nested/dir");
+        let result = find_workspace_root(&UnreadableManifestFs, start);
+        assert!(result.is_none(), "should skip unreadable manifest, got: {result:?}");
+    }
+
     #[test]
     fn find_root_skips_invalid_toml() {
         let tmp = tempfile::tempdir().unwrap();
