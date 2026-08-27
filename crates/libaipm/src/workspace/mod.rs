@@ -291,6 +291,40 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unreadable_manifest() {
+        // Mock `Fs` where `aipm.toml` reports as existing but reading it
+        // always fails. Exercises the `read_to_string` `Err(e)` branch in
+        // `find_workspace_root`, distinct from the unparseable-TOML branch
+        // covered by `find_root_skips_invalid_toml`.
+        struct UnreadableFs;
+
+        impl crate::fs::Fs for UnreadableFs {
+            fn exists(&self, path: &Path) -> bool {
+                path.file_name().is_some_and(|n| n == "aipm.toml")
+            }
+
+            fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+                Ok(())
+            }
+
+            fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+                Ok(())
+            }
+
+            fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+                Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"))
+            }
+
+            fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+                Ok(Vec::new())
+            }
+        }
+
+        let result = find_workspace_root(&UnreadableFs, Path::new("/project/sub"));
+        assert!(result.is_none(), "should skip unreadable manifest, got: {result:?}");
+    }
+
+    #[test]
     fn find_root_skips_invalid_toml() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
