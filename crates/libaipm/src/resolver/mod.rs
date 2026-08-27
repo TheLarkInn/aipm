@@ -918,6 +918,45 @@ mod tests {
     }
 
     #[test]
+    fn backtrack_retries_through_multiple_still_conflicting_candidates() {
+        // BDD: "Backtrack past multiple still-conflicting candidates"
+        //
+        // skill-a has three candidate versions, ordered highest-first:
+        //   1.3.0 -> common-util =2.0.0  (conflicts with skill-b's =2.2.0)
+        //   1.2.0 -> common-util =2.1.0  (still conflicts)
+        //   1.1.0 -> common-util ^2.0.0  (compatible with 2.2.0)
+        // skill-b -> common-util =2.2.0
+        //
+        // First activation picks skill-a@1.3.0, conflicts, backtrack picks
+        // 1.2.0, which STILL conflicts with the already-activated common-util
+        // (covers `backtrack_and_retry`'s line 394 `continue` branch), then
+        // backtrack picks 1.1.0, which is compatible.
+        let mut reg = MockRegistry::new();
+        reg.add_package(
+            "skill-a",
+            vec![
+                ("1.1.0", vec![dep("common-util", "^2.0.0")]),
+                ("1.2.0", vec![dep("common-util", "=2.1.0")]),
+                ("1.3.0", vec![dep("common-util", "=2.0.0")]),
+            ],
+        );
+        reg.add_package("skill-b", vec![("1.0.0", vec![dep("common-util", "=2.2.0")])]);
+        reg.add_package(
+            "common-util",
+            vec![("2.0.0", vec![]), ("2.1.0", vec![]), ("2.2.0", vec![])],
+        );
+
+        let deps = vec![root_dep("skill-a", "^1.0"), root_dep("skill-b", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg).unwrap();
+
+        let skill_a = result.packages.iter().find(|p| p.name == "skill-a").unwrap();
+        assert_eq!(skill_a.version.to_string(), "1.1.0");
+
+        let common = result.packages.iter().find(|p| p.name == "common-util").unwrap();
+        assert_eq!(common.version.to_string(), "2.2.0");
+    }
+
+    #[test]
     fn report_unsolvable_conflicts() {
         // BDD: "Report unsolvable conflicts clearly"
         // skill-a depends on common-util =1.0.0
