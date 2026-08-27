@@ -158,6 +158,46 @@ mod tests {
         assert_eq!(result.as_deref(), Some(root));
     }
 
+    /// `Fs` stub where `exists` always reports true but `read_to_string`
+    /// always fails — exercises the "manifest exists but cannot be read"
+    /// branch of `find_workspace_root`, distinct from the unparseable-TOML
+    /// branch covered by `find_root_skips_invalid_toml`.
+    struct UnreadableFs;
+
+    impl crate::fs::Fs for UnreadableFs {
+        fn exists(&self, _path: &Path) -> bool {
+            true
+        }
+
+        fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _path: &Path, _content: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _path: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"))
+        }
+
+        fn read_dir(&self, _path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn find_root_skips_manifest_that_exists_but_cannot_be_read() {
+        // Every directory level "has" an aipm.toml (per UnreadableFs::exists)
+        // but reading it always fails, so the walk should skip every level
+        // and eventually return None at the filesystem root.
+        let result = find_workspace_root(&UnreadableFs, Path::new("/some/deep/start"));
+        assert!(
+            result.is_none(),
+            "should return None when manifest is unreadable, got: {result:?}"
+        );
+    }
+
     #[test]
     fn find_root_returns_none_for_non_workspace() {
         let tmp = tempfile::tempdir().unwrap();
