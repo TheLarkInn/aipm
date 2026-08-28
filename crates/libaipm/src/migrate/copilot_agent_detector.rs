@@ -332,6 +332,27 @@ mod tests {
     }
 
     #[test]
+    fn dotfile_with_empty_stem_is_skipped() {
+        // A file named exactly ".md" has extension "md" but an empty
+        // file_stem, so it must be skipped rather than producing an
+        // artifact with an empty name.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(PathBuf::from("/src/agents"), vec![de(".md", false), de("real.md", false)]);
+        fs.files.insert(
+            PathBuf::from("/src/agents/real.md"),
+            "---\nname: real\n---\nReal.".to_string(),
+        );
+
+        let detector = CopilotAgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.len(), 1);
+        assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("real"));
+    }
+
+    #[test]
     fn has_agent_md_suffix_edge_cases() {
         assert!(has_agent_md_suffix("foo.agent.md"));
         assert!(!has_agent_md_suffix(".agent.md")); // name would be empty, too short
