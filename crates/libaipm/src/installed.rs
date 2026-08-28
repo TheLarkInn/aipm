@@ -701,6 +701,15 @@ mod tests {
     }
 
     #[test]
+    fn is_name_shorthand_false_when_at_symbol_present_without_colon() {
+        // Covers the `!identifier.contains(':') && !identifier.contains('@')`
+        // short-circuit path where the first term is true (no ':') but the
+        // second term is false (has '@'), so the overall expression is
+        // false and the identifier is treated as a full spec, not shorthand.
+        assert!(!is_name_shorthand("plugin@1.0.0"));
+    }
+
+    #[test]
     fn install_unparseable_spec_skips_conflict_check() {
         // Covers the `Err(_) => return Ok(())` branch in `check_name_conflicts`:
         // when the spec string cannot be parsed as a `Spec`, the name-conflict
