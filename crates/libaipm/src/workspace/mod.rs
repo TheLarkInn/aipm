@@ -322,6 +322,42 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unreadable_manifest() {
+        // Exercises the `fs.read_to_string` error branch in `find_workspace_root`
+        // (distinct from the TOML-parse-error branch covered above): `exists`
+        // reports the manifest is present, but reading it fails, so the debug
+        // log at lines 52-58 fires and the loop continues walking up.
+        struct UnreadableManifestFs;
+
+        impl crate::fs::Fs for UnreadableManifestFs {
+            fn exists(&self, _path: &Path) -> bool {
+                true
+            }
+
+            fn read_to_string(&self, _path: &Path) -> std::io::Result<String> {
+                Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"))
+            }
+
+            fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+                Ok(())
+            }
+
+            fn write_file(&self, _path: &Path, _content: &[u8]) -> std::io::Result<()> {
+                Ok(())
+            }
+
+            fn read_dir(&self, _path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+                Ok(Vec::new())
+            }
+        }
+
+        // `exists` always returns true, so `find_workspace_root` keeps hitting
+        // the read error at every level until it walks off the root.
+        let result = find_workspace_root(&UnreadableManifestFs, Path::new("/a/b/c"));
+        assert!(result.is_none());
+    }
+
+    #[test]
     fn discover_members_empty_when_no_matches() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
