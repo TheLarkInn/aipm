@@ -276,6 +276,17 @@ mod tests {
     }
 
     #[test]
+    fn validate_url_encoded_traversal_without_literal_dots_rejected() {
+        // "foo%2e%2ebar" contains no literal ".." substring, so it only
+        // exercises the `lower.contains("%2e%2e")` disjunct of the raw-string
+        // scan (the `lower.contains("..")` disjunct is false here). This
+        // covers the previously-uncovered standalone-true branch at that
+        // condition.
+        let result = validate_plugin_path("foo%2e%2ebar");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
+    #[test]
     fn plugin_path_new_url_encoded_traversal_returns_error() {
         // "%2e%2e" passes the component check but is caught by the
         // `lower.contains("%2e%2e")` condition.  Exercises that sub-branch
