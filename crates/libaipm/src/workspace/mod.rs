@@ -159,6 +159,25 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unreadable_manifest_and_continues_walking_up() {
+        // Covers the `Err(e)` branch of `fs.read_to_string` (line 52-58): an
+        // `aipm.toml` path that exists but cannot be read as a string (here,
+        // it's a directory, so `read_to_string` fails) should be skipped, and
+        // the walk should continue up to the ancestor's valid workspace root.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+        let subdir = root.join("sub");
+        // Make "aipm.toml" a directory instead of a file so `exists()` is true
+        // but `read_to_string` fails.
+        std::fs::create_dir_all(subdir.join("aipm.toml")).unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
+        assert_eq!(result.as_deref(), Some(root));
+    }
+
+    #[test]
     fn find_root_returns_none_for_non_workspace() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
