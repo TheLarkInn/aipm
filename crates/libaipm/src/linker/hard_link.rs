@@ -159,11 +159,26 @@ mod tests {
 
         let target = tmp.path().join("links").join("ghost-pkg");
         let result = assemble(&store, &file_hashes, &target);
-        assert!(
-            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt")),
-            "assemble should fail with Io error for ghost.txt, got: {:?}",
-            result
-        );
+
+        // A second, distinctly-named missing hash also fails, but its path does
+        // not end in "ghost.txt". Checking both results against the exact same
+        // `matches!` call site below exercises both the `true` and `false`
+        // sides of the `path.ends_with("ghost.txt")` guard, rather than only
+        // ever evaluating it as true.
+        let phantom_hash = "b".repeat(128); // valid format, but never stored
+        let mut other_hashes = BTreeMap::new();
+        other_hashes.insert(PathBuf::from("phantom.dat"), phantom_hash);
+
+        let other_target = tmp.path().join("links").join("phantom-pkg");
+        let other_result = assemble(&store, &other_hashes, &other_target);
+
+        for (r, expect_ghost_match) in [(&result, true), (&other_result, false)] {
+            assert_eq!(
+                matches!(r, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt")),
+                expect_ghost_match,
+                "unexpected ghost.txt match state for result: {r:?}"
+            );
+        }
     }
 
     #[test]
