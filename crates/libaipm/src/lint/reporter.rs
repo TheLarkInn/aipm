@@ -789,6 +789,41 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_succeeded_with_issues_when_only_warnings() {
+        // Covers the True branch of
+        // `outcome.error_count == 0 && outcome.warning_count > 0` (line 372):
+        // when only warnings (no errors) are present, the reporter emits the
+        // `##vso[task.complete result=SucceededWithIssues;]` command so the
+        // Azure DevOps pipeline surfaces the issues without failing the build.
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "skill/missing-description".to_string(),
+                severity: Severity::Warning,
+                message: "SKILL.md missing required field: description".to_string(),
+                file_path: PathBuf::from(".ai/my-plugin/skills/default/SKILL.md"),
+                line: Some(1),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".to_string(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![".ai".to_string()],
+            ..Outcome::default()
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(
+            output.contains("##vso[task.complete result=SucceededWithIssues;]"),
+            "expected SucceededWithIssues command when only warnings present: {output}"
+        );
+    }
+
+    #[test]
     fn ci_azure_empty_diagnostics() {
         let outcome = Outcome {
             diagnostics: vec![],
