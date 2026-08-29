@@ -884,6 +884,48 @@ mod tests {
     }
 
     #[test]
+    fn init_both_idempotent_when_everything_already_exists() {
+        // #850 Spec G12 / Q9.5: when workspace AND marketplace are both
+        // requested but both already exist, no Created action is emitted
+        // (only FoundExisting ones), which exercises the True branch of
+        // `!any_created && any_found` (the "nothing to do" tail warning).
+        let (tmp, _guard) = make_temp_dir("both-idempotent");
+
+        let existing = generate_workspace_manifest(None);
+        std::fs::write(tmp.join("aipm.toml"), &existing).ok();
+        std::fs::create_dir_all(tmp.join(".ai")).ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            // Use an empty scaffold set so no adaptor runs (adaptors could
+            // otherwise emit a `ToolConfigured` action, which would count
+            // as "created" and mask the branch under test).
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "idempotent init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(!actions.iter().any(|a| matches!(
+            a,
+            InitAction::WorkspaceCreated
+                | InitAction::MarketplaceCreated
+                | InitAction::ToolConfigured(_)
+        )));
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+        assert!(actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn gitignore_has_managed_markers() {
         let (tmp, _guard) = make_temp_dir("gitignore");
         let adaptors = default_adaptors();
