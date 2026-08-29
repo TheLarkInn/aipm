@@ -372,6 +372,7 @@ mod engine_set_serde {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use libaipm_engine_spec::Engine;
 
     /// Directly invoke `engine_set_serde::deserialize` with a JSON `null` value so
     /// that the `let Some(names) = raw else { return Ok(None) }` arm (line 333) is
@@ -387,5 +388,24 @@ mod tests {
         assert!(result.is_ok(), "deserializing null should succeed: {result:?}");
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
+    }
+
+    /// Directly invoke `engine_set_serde::deserialize` with a mix of one known
+    /// and one unknown engine name so the `Engine::from_name` match's `None`
+    /// arm (line 354's false branch) is exercised: the unknown name is
+    /// silently skipped while the known one still populates the set, and
+    /// `set.is_empty()` (line 358) evaluates to `false` because at least one
+    /// known engine matched.
+    #[test]
+    fn engine_set_serde_mixed_known_and_unknown_names_drops_unknown() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value = serde_json::json!(["unknown-engine", Engine::Claude.name()]);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        let set = result.expect("mixed known/unknown names should deserialize successfully");
+        let set = set.expect("engines list is non-null, so result should be Some");
+        assert!(
+            set.contains(Engine::Claude.as_set()),
+            "the known engine name should still be present in the set"
+        );
     }
 }
