@@ -388,4 +388,16 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Feed a value that cannot deserialize into `Option<Vec<String>>` (a bare
+    /// string instead of an array/null) so the `?` operator on line 345
+    /// propagates a deserialization error instead of reaching the `let Some`
+    /// destructuring below it.
+    #[test]
+    fn engine_set_serde_propagates_deserialize_error_for_wrong_shape() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value = serde_json::Value::String("not-an-array".to_string());
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_err(), "deserializing a bare string should fail: {result:?}");
+    }
 }
