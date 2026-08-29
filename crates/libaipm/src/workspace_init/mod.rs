@@ -835,6 +835,52 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the True branch of `if !any_created && any_found` (line 208):
+    /// with both phases requested but everything already existing (no
+    /// adaptors so no `ToolConfigured` action, and `manifest: false` so no
+    /// manifest is written), `init` should emit the "nothing to do" warn
+    /// log instead of silently succeeding.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_emits_nothing_to_do_warn_when_all_found_existing() {
+        let (tmp, _guard) = make_temp_dir("nothing-to-do");
+        std::fs::create_dir_all(tmp.join(".ai")).ok();
+        let existing = generate_workspace_manifest(None);
+        std::fs::write(tmp.join("aipm.toml"), &existing).ok();
+
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+        assert!(actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)));
+        assert!(
+            !actions.iter().any(|a| matches!(
+                a,
+                InitAction::WorkspaceCreated
+                    | InitAction::MarketplaceCreated
+                    | InitAction::MarketplaceManifestWritten { .. }
+                    | InitAction::ToolConfigured(_)
+            )),
+            "no artifacts should have been created: {actions:?}"
+        );
+
+        assert!(logs_contain("aipm init found nothing to do"));
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_both_creates_everything() {
         let (tmp, _guard) = make_temp_dir("both");
