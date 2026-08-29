@@ -537,6 +537,29 @@ mod tests {
         let _ = outcome.actions;
     }
 
+    /// Covers the empty-`per_artifact` false branch of `if let Some(first) =
+    /// per_artifact.first_mut()` in the root-level fallback loop of
+    /// `build_plugin_plans`: a root present in `adapter_artifacts` but mapped
+    /// to an empty `Vec<Artifact>` produces an empty `per_artifact` list, so
+    /// there is no first plan to attach `other_files` to.
+    #[test]
+    fn build_plugin_plans_skips_other_files_assignment_for_empty_root_artifacts() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path().join("orphan-root");
+        std::fs::create_dir_all(&root).expect("create orphan root dir");
+
+        let mut adapter_artifacts: BTreeMap<PathBuf, Vec<Artifact>> = BTreeMap::new();
+        // Root not covered by `sources`, so it's handled by the fallback loop.
+        // Mapping it to an empty Vec means `per_artifact` ends up empty too.
+        adapter_artifacts.insert(root.clone(), Vec::new());
+
+        let plans = build_plugin_plans(&adapter_artifacts, &[], &Real).expect("build plans ok");
+        assert!(
+            plans.is_empty(),
+            "no artifacts means no plans, and no panic on empty per_artifact"
+        );
+    }
+
     /// Covers the `!source_dir.exists()` branch in `enumerate_sources` (line 192):
     /// when `opts.source` names a directory that does not exist, the migration
     /// returns an empty outcome rather than an error.
