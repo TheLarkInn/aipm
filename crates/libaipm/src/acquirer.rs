@@ -354,6 +354,31 @@ mod tests {
         let _ = path; // satisfy unused warning
     }
 
+    /// Covers the success path (`Ok(dest)` return) of `acquire_local` itself
+    /// (not the `acquire_local_from` test helper), exercising the full
+    /// pipeline: exists-check, is_dir-check, copy, file-count-check, and
+    /// marker-based plugin validation, all succeeding.
+    #[test]
+    fn acquire_local_full_success_path() {
+        let temp = make_temp();
+        // `ValidatedPath` resolves relative to the process CWD (crate root
+        // during `cargo test`), so create a real relative-path plugin dir
+        // there, then remove it afterwards.
+        let rel_name = "acquire-local-full-success-tmp";
+        let src = PathBuf::from(rel_name);
+        std::fs::create_dir_all(src.join(".claude-plugin")).unwrap_or_else(|_| {});
+        std::fs::write(src.join(".claude-plugin/plugin.json"), "{}").unwrap_or_else(|_| {});
+
+        let path = ValidatedPath::new(rel_name).unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+
+        let _ = std::fs::remove_dir_all(&src);
+
+        assert!(result.is_ok());
+        let dest = result.unwrap_or_else(|_| PathBuf::new());
+        assert!(dest.join(".claude-plugin/plugin.json").exists());
+    }
+
     #[test]
     fn acquire_local_not_found() {
         let temp = make_temp();
