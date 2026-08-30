@@ -835,6 +835,71 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `!any_created && any_found` → `true` branch (line 208) in
+    /// [`init`]: when every requested phase (workspace, marketplace,
+    /// marketplace-manifest, and every tool adaptor) finds a pre-existing
+    /// artifact and creates nothing, the tail warn must fire. All other
+    /// idempotency tests only pre-create a subset of artifacts, so at least
+    /// one `*Created`/`ToolConfigured` action is still emitted and this
+    /// branch's `true` side is never reached elsewhere.
+    #[test]
+    fn init_emits_nothing_to_do_warning_when_everything_pre_exists() {
+        let (tmp, _guard) = make_temp_dir("nothing-to-do");
+
+        // Pre-create aipm.toml so `init_workspace` reports FoundExisting.
+        let existing_manifest = generate_workspace_manifest(None);
+        std::fs::write(tmp.join("aipm.toml"), existing_manifest).ok();
+
+        // Pre-create .ai/ with a Claude marketplace manifest already in
+        // place so `scaffold_marketplace` and `scaffold_engine_marketplaces`
+        // both report FoundExisting for every requested engine.
+        std::fs::create_dir_all(tmp.join(".ai/.claude-plugin")).ok();
+        let marketplace_json = crate::generate::marketplace::create("local-repo-plugins", &[]);
+        std::fs::write(tmp.join(".ai/.claude-plugin/marketplace.json"), marketplace_json).ok();
+
+        // Pre-create a fully-configured .claude/settings.json so the Claude
+        // adaptor reports `Ok(false)` (no ToolConfigured action).
+        std::fs::create_dir_all(tmp.join(".claude")).ok();
+        std::fs::write(
+            tmp.join(".claude/settings.json"),
+            r#"{"extraKnownMarketplaces": {"local-repo-plugins": {"source": {"source": "directory", "path": "./.ai"}}}}"#,
+        )
+        .ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init over fully pre-existing artifacts must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        // Nothing was created — only *FoundExisting actions are present.
+        assert!(
+            !actions.iter().any(|a| matches!(
+                a,
+                InitAction::WorkspaceCreated
+                    | InitAction::MarketplaceCreated
+                    | InitAction::MarketplaceManifestWritten { .. }
+                    | InitAction::ToolConfigured(_)
+            )),
+            "expected no *Created/ToolConfigured actions, got: {actions:?}"
+        );
+        assert!(
+            actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)),
+            "expected WorkspaceFoundExisting, got: {actions:?}"
+        );
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_both_creates_everything() {
         let (tmp, _guard) = make_temp_dir("both");
