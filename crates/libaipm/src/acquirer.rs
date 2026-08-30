@@ -354,6 +354,36 @@ mod tests {
         let _ = path; // satisfy unused warning
     }
 
+    /// Covers the success path of `acquire_local` itself (as opposed to the
+    /// `acquire_local_from` test helper): the source directory exists, is a
+    /// directory, and validates — so the function reaches its final
+    /// `Ok(dest)` return.
+    #[test]
+    fn acquire_local_direct_success_returns_dest() {
+        static CWD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = CWD_LOCK.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+
+        let temp = make_temp();
+        let _src = make_local_plugin(&temp, "direct-plugin");
+        let dest_dir = temp.path().join("dest");
+        std::fs::create_dir_all(&dest_dir).unwrap_or_else(|_| {});
+
+        let orig = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        if std::env::set_current_dir(temp.path()).is_err() {
+            return;
+        }
+
+        let path = ValidatedPath::new("direct-plugin").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &dest_dir, Engine::Claude);
+
+        let _ = std::env::set_current_dir(&orig);
+
+        assert!(result.is_ok(), "expected Ok, got: {result:?}");
+        let plugin_path = result.unwrap_or_else(|_| PathBuf::new());
+        assert!(plugin_path.join(".claude-plugin/plugin.json").exists());
+        assert_eq!(plugin_path, dest_dir.join("direct-plugin"));
+    }
+
     #[test]
     fn acquire_local_not_found() {
         let temp = make_temp();
