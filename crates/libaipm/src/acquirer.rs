@@ -362,6 +362,35 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the full success path of `acquire_local` (the final `Ok(dest)`
+    /// return). `ValidatedPath` resolves relative to the process CWD, so this
+    /// test changes into a temp directory containing a valid plugin before
+    /// calling `acquire_local` directly, guarded by a mutex so parallel tests
+    /// don't race on the shared CWD.
+    #[test]
+    fn acquire_local_full_success_path() {
+        static CWD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = CWD_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+
+        let temp = make_temp();
+        let _src = make_local_plugin(&temp, "source-plugin");
+        let dest = temp.path().join("dest");
+        std::fs::create_dir_all(&dest).unwrap_or_else(|_| {});
+
+        let orig = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        let cwd_ok = std::env::set_current_dir(temp.path()).is_ok();
+        assert!(cwd_ok, "failed to change into temp dir");
+
+        let path = ValidatedPath::new("source-plugin").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &dest, Engine::Claude);
+
+        let _ = std::env::set_current_dir(&orig);
+
+        let plugin_path = result.unwrap_or_else(|_| PathBuf::new());
+        assert!(plugin_path.join(".claude-plugin/plugin.json").exists());
+        assert!(plugin_path.join("README.md").exists());
+    }
+
     #[test]
     fn acquire_local_from_source_not_found() {
         let temp = make_temp();
