@@ -186,4 +186,30 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_parent_dir_creation_failure_returns_io_error() {
+        // `file_hashes` is a `BTreeMap`, so entries are processed in sorted key
+        // order: "blocker" is linked as a regular file first, then "blocker/child.txt"
+        // is processed and its parent ("blocker") needs to be created as a
+        // directory — but it already exists as a file, so
+        // `create_dir_all(parent)` fails with NotADirectory, exercising the
+        // map_err branch on the parent-dir creation call.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash1 = store.store_file(b"blocker content").expect("store file 1");
+        let hash2 = store.store_file(b"child content").expect("store file 2");
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("blocker"), hash1);
+        file_hashes.insert(PathBuf::from("blocker/child.txt"), hash2);
+
+        let target = tmp.path().join("links").join("blocked-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("blocker")),
+            "assemble should fail with Io error for the blocked parent dir, got: {:?}",
+            result
+        );
+    }
 }
