@@ -246,6 +246,39 @@ mod tests {
         assert!(msg.contains("root -> src-b -> pkg"));
     }
 
+    /// A [`std::fmt::Write`] sink that always fails, used to exercise the
+    /// `?` error-propagation branch in [`ConflictDetail::fmt`] when the
+    /// underlying formatter write fails (e.g. an `io::Error` inside a
+    /// wrapping `Display`/`Debug` impl).
+    struct FailingWriter;
+
+    impl std::fmt::Write for FailingWriter {
+        fn write_str(&mut self, _s: &str) -> std::fmt::Result {
+            Err(std::fmt::Error)
+        }
+    }
+
+    #[test]
+    fn conflict_detail_display_propagates_write_error() {
+        use std::fmt::Write as _;
+
+        let detail = ConflictDetail {
+            name: "pkg".to_string(),
+            existing_req: "1.0.0".to_string(),
+            existing_source: "src-a".to_string(),
+            new_req: "=2.0.0".to_string(),
+            new_source: "src-b".to_string(),
+            existing_chain: vec!["root".to_string()],
+            new_chain: vec!["root".to_string()],
+        };
+
+        let mut sink = FailingWriter;
+        // The very first `write!` inside `ConflictDetail::fmt` fails, so the
+        // `?` operator must propagate the error rather than continuing.
+        let result = write!(sink, "{detail}");
+        assert!(result.is_err());
+    }
+
     #[test]
     fn format_chain_single_element() {
         // Single-element chain should not include " -> " separators
