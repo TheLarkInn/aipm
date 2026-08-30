@@ -458,6 +458,33 @@ mod tests {
             .expect("write marketplace.json");
     }
 
+    /// Covers the `per_artifact.first_mut()` -> `None` branch in the
+    /// fallback loop of `build_plugin_plans`: an `adapter_artifacts` entry
+    /// whose root was never claimed by `sources` (`handled_roots` stays
+    /// empty) but whose artifact list is empty produces an empty
+    /// `per_artifact`, so `first_mut()` returns `None` and the
+    /// `other_files` attachment is skipped entirely.
+    #[test]
+    fn build_plugin_plans_skips_other_files_attachment_for_empty_fallback_root() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+
+        let unclaimed_root = root.join("unclaimed");
+        std::fs::create_dir_all(&unclaimed_root).expect("create unclaimed root");
+
+        let mut adapter_artifacts: BTreeMap<PathBuf, Vec<Artifact>> = BTreeMap::new();
+        adapter_artifacts.insert(unclaimed_root.clone(), Vec::new());
+
+        // No sources at all, so `handled_roots` never contains `unclaimed_root`
+        // and the fallback loop processes it with zero artifacts.
+        let sources: Vec<DiscoveredSource> = Vec::new();
+
+        let plans = build_plugin_plans(&adapter_artifacts, &sources, &Real)
+            .expect("build_plugin_plans should succeed with an empty artifact list");
+
+        assert!(plans.is_empty(), "no plans should be produced for an empty artifact list");
+    }
+
     #[test]
     fn unified_migrate_finds_issue_725_skills() {
         let tmp = tempfile::tempdir().expect("tempdir");
