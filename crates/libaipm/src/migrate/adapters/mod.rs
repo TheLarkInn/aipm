@@ -135,6 +135,26 @@ mod tests {
     }
 
     #[test]
+    fn stub_adapter_to_artifact_returns_unsupported_source_error() {
+        // Covers the StubAdapter::to_artifact body (never exercised at
+        // runtime since applies_to always returns false, but still needs
+        // branch coverage as dead-simple dead code isn't allowed to rot
+        // uncovered).
+        let stub = StubAdapter;
+        let feat = DiscoveredFeature {
+            kind: crate::discovery::FeatureKind::Skill,
+            source: crate::discovery::types::DiscoverySource::CLAUDE,
+            layout: crate::discovery::Layout::Canonical,
+            source_root: std::path::PathBuf::from(".claude"),
+            feature_dir: None,
+            path: std::path::PathBuf::from(".claude/skills/x/SKILL.md"),
+        };
+        let fs = crate::fs::Real;
+        let result = stub.to_artifact(&feat, &fs);
+        assert!(matches!(result, Err(Error::UnsupportedSource(_))));
+    }
+
+    #[test]
     fn adapter_trait_is_object_safe() {
         // Verify dyn Adapter compiles and the methods can be called via
         // dynamic dispatch — guards against accidental introduction of
