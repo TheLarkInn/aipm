@@ -142,4 +142,43 @@ mod tests {
         let stub: Box<dyn Adapter> = Box::new(StubAdapter);
         assert_eq!(stub.name(), "stub");
     }
+
+    /// Covers `StubAdapter::to_artifact`, which is otherwise never exercised
+    /// since the registry never selects the stub at runtime.
+    #[test]
+    fn stub_adapter_to_artifact_returns_unsupported_source_error() {
+        struct NoopFs;
+        impl Fs for NoopFs {
+            fn exists(&self, _: &std::path::Path) -> bool {
+                false
+            }
+            fn create_dir_all(&self, _: &std::path::Path) -> std::io::Result<()> {
+                Ok(())
+            }
+            fn write_file(&self, _: &std::path::Path, _: &[u8]) -> std::io::Result<()> {
+                Ok(())
+            }
+            fn read_to_string(&self, _: &std::path::Path) -> std::io::Result<String> {
+                Err(std::io::Error::new(std::io::ErrorKind::NotFound, "not used"))
+            }
+            fn read_dir(&self, _: &std::path::Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+                Ok(Vec::new())
+            }
+        }
+
+        let stub = StubAdapter;
+        let feat = DiscoveredFeature {
+            kind: crate::discovery::FeatureKind::Skill,
+            source: crate::discovery::types::DiscoverySource::CLAUDE,
+            layout: crate::discovery::Layout::Canonical,
+            source_root: std::path::PathBuf::from(".claude"),
+            feature_dir: None,
+            path: std::path::PathBuf::from(".claude/skills/x/SKILL.md"),
+        };
+        let fs = NoopFs;
+        let result = stub.to_artifact(&feat, &fs);
+        assert!(
+            matches!(result, Err(Error::UnsupportedSource(msg)) if msg == "stub never produces artifacts")
+        );
+    }
 }
