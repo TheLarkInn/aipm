@@ -189,4 +189,22 @@ mod tests {
         assert_eq!(source, DiscoverySource::COPILOT);
         assert_eq!(root, PathBuf::from("/.github"));
     }
+
+    #[test]
+    fn filesystem_root_ancestor_with_none_file_name_is_skipped() {
+        // When `project_root` is unrelated to `path`, the ancestor walk
+        // reaches the filesystem root ("/") itself. `Path::file_name()`
+        // returns `None` for "/", so the `let Some(name) = ... else { continue }"
+        // branch's `None` arm must be exercised (rather than short-circuited
+        // by the `ancestor == project_root` break, as in
+        // `project_root_at_filesystem_root_works` above where project_root
+        // *is* "/"). Here project_root is a sibling path, so the walk
+        // continues past "/" without matching, and still finds `.github`
+        // higher up in the chain before reaching it.
+        let project = Path::new("/unrelated");
+        let path = Path::new("/.github/skills/x/SKILL.md");
+        let (source, root) = infer_engine_root(path, project).expect("should match");
+        assert_eq!(source, DiscoverySource::COPILOT);
+        assert_eq!(root, PathBuf::from("/.github"));
+    }
 }
