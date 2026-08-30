@@ -118,6 +118,37 @@ pub fn build_chain(
 mod tests {
     use super::*;
 
+    /// A [`std::fmt::Write`] sink that always fails, used to exercise the
+    /// `?` propagation on the first `write!` call inside
+    /// `ConflictDetail::fmt` (the formatter itself never errors in
+    /// practice, so we simulate a failing writer to reach that branch).
+    struct FailingWriter;
+
+    impl std::fmt::Write for FailingWriter {
+        fn write_str(&mut self, _s: &str) -> std::fmt::Result {
+            Err(std::fmt::Error)
+        }
+    }
+
+    #[test]
+    fn conflict_detail_display_propagates_write_error() {
+        use std::fmt::Write as _;
+
+        let detail = ConflictDetail {
+            name: "pkg".to_string(),
+            existing_req: "1.0.0".to_string(),
+            existing_source: "a".to_string(),
+            new_req: "2.0.0".to_string(),
+            new_source: "b".to_string(),
+            existing_chain: vec![],
+            new_chain: vec![],
+        };
+
+        let mut sink = FailingWriter;
+        let result = write!(sink, "{detail}");
+        assert!(result.is_err(), "expected write error to propagate through the `?` operator");
+    }
+
     #[test]
     fn conflict_error_basic_format() {
         let err = Error::Conflict(Box::new(ConflictDetail {
