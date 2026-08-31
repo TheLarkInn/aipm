@@ -201,6 +201,20 @@ mod tests {
     }
 
     #[test]
+    fn discover_skips_unclassified_files() {
+        // A file with no engine ancestor and an unrecognized name doesn't
+        // match any classifier rule, so `classify` returns `None` and
+        // `discover` takes the "skipped: no classification" branch instead
+        // of pushing a feature.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        touch(&root.join("README.txt"));
+        let set =
+            discover(root, &DiscoverOptions::default(), &Real).expect("discover should succeed");
+        assert!(set.is_empty(), "unclassified file should not produce a feature: {set:?}");
+    }
+
+    #[test]
     fn apply_source_filter_no_filter_keeps_all() {
         let mut features = vec![
             types::DiscoveredFeature {
