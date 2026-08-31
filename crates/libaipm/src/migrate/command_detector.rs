@@ -265,4 +265,35 @@ mod tests {
             Some("Review code")
         );
     }
+
+    /// Covers the `?` propagation on `fs.read_to_string(&cmd_path)` (line 40)
+    /// when the command file is listed in the directory but its content
+    /// cannot be read. This also exercises `MockFs::read_to_string`'s error
+    /// branch, which no other test in this module reaches.
+    #[test]
+    fn detect_command_propagates_read_to_string_error() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/commands"));
+        fs.dirs.insert(PathBuf::from("/src/commands"), vec![de("review.md", false)]);
+        // Deliberately omit an entry in `fs.files` for review.md so
+        // `read_to_string` returns an `Err`.
+
+        let detector = CommandDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err(), "expected read_to_string failure to propagate as an error");
+    }
+
+    /// Covers the `?` propagation on `fs.read_dir(&commands_dir)` (line 25)
+    /// when the commands directory exists but cannot actually be listed.
+    #[test]
+    fn detect_command_propagates_read_dir_error() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/commands"));
+        // Deliberately omit an entry in `fs.dirs` for the commands dir so
+        // `read_dir` returns an `Err`.
+
+        let detector = CommandDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err(), "expected read_dir failure to propagate as an error");
+    }
 }
