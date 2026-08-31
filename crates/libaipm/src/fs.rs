@@ -505,6 +505,18 @@ mod tests {
     }
 
     #[test]
+    fn write_file_with_parents_root_path_has_no_parent() {
+        // `Path::new("/").parent()` returns `None`, so the `if let Some(parent)`
+        // branch in `write_file_with_parents` is skipped entirely (unlike every
+        // other test here, which always has `Some` parent). Writing to "/" then
+        // fails because it is a directory, but that failure happens in
+        // `write_file`, after the `None` branch of the parent check was already
+        // exercised.
+        let result = Real.write_file_with_parents(Path::new("/"), b"data");
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn write_file_with_parents_empty_parent_skips_create_dir_all() {
         // When path has a bare filename (parent = Some("")), create_dir_all must
         // NOT be called. Use a CWD-change guarded by a mutex so parallel tests
