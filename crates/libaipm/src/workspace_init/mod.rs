@@ -2091,6 +2091,66 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Both `--workspace` and `--marketplace` are requested against a
+    /// directory where everything already exists (workspace manifest,
+    /// `.ai/` marketplace directory, and its `.claude-plugin/marketplace.json`)
+    /// and the adaptors have nothing to configure. `init` should therefore
+    /// emit only `*FoundExisting` actions with zero `*Created`/`Written`/
+    /// `ToolConfigured` actions, exercising the `!any_created && any_found`
+    /// True branch that triggers the "found nothing to do" tail warning.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_all_found_existing_emits_nothing_to_do_warning() {
+        let (tmp, _guard) = make_temp_dir("all-found-existing");
+
+        // Pre-create a valid workspace manifest so `init_workspace` takes
+        // the `FoundExisting` branch.
+        let existing = generate_workspace_manifest(None);
+        std::fs::write(tmp.join("aipm.toml"), &existing).ok();
+
+        // Pre-create `.ai/` with a valid claude marketplace.json so
+        // `scaffold_marketplace` and `scaffold_engine_marketplaces` both
+        // take their `FoundExisting` branches.
+        let claude_dir = tmp.join(".ai/.claude-plugin");
+        std::fs::create_dir_all(&claude_dir).ok();
+        let valid = crate::generate::marketplace::create("preexisting", &[]);
+        std::fs::write(claude_dir.join("marketplace.json"), &valid).ok();
+
+        // No adaptors configured, so no `ToolConfigured` action can be
+        // produced regardless of settings state.
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = Vec::new();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+        assert!(actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)));
+        assert!(!actions.iter().any(|a| matches!(
+            a,
+            InitAction::WorkspaceCreated
+                | InitAction::MarketplaceCreated
+                | InitAction::MarketplaceManifestWritten { .. }
+                | InitAction::ToolConfigured(_)
+        )));
+
+        assert!(
+            logs_contain("aipm init found nothing to do; all requested artifacts already exist"),
+            "expected the tail warn to fire when nothing was created"
+        );
+
+        cleanup(&tmp);
+    }
+
     /// Existing `aipm.toml` declares `engines = ["claude"]` but the
     /// wizard answer chose Copilot. Init must succeed (idempotent),
     /// leave the file unchanged, and emit a tracing::warn event naming
