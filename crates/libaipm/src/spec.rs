@@ -770,6 +770,16 @@ mod tests {
     }
 
     #[test]
+    fn parse_marketplace_location_repo_with_extra_slash_is_invalid() {
+        // `owner/repo/extra` matches `split_once('/')` giving repo =
+        // "repo/extra", but `repo.contains('/')` makes the GitHub
+        // short-format check fail, falling through to the invalid
+        // marketplace location error.
+        let result = "market:hello@owner/repo/extra".parse::<Spec>();
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn parse_marketplace_local_hash_not_ref() {
         // '#' in local paths is literal, not a ref delimiter
         let spec = parse("market:my-plugin@./my-plugins#beta");
