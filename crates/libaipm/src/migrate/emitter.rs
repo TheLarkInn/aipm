@@ -1868,6 +1868,17 @@ mod tests {
     }
 
     #[test]
+    fn convert_hooks_multiline_value_continuation_appended() {
+        // Once `current_key` and `current_value` are both `Some`, a further
+        // indented continuation line is appended (space-joined) to the
+        // existing value — exercises the `else if let Some(ref mut v) =
+        // current_value` branch (multi-line value continuation).
+        let result = convert_hooks_yaml_to_json("  nested: first\n  second\nTopKey: topval");
+        assert!(result.contains("\"nested\": \"first second\""));
+        assert!(result.contains("\"TopKey\": \"topval\""));
+    }
+
+    #[test]
     fn emit_rejects_unsafe_name_with_traversal() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/skills/../etc/SKILL.md"), "bad".to_string());
