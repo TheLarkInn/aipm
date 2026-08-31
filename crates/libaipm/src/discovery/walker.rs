@@ -302,4 +302,24 @@ mod tests {
         sorted.sort();
         assert_eq!(result.files, sorted);
     }
+
+    #[test]
+    fn take_skipped_falls_back_to_default_on_poisoned_mutex() {
+        // Covers the `unwrap_or_default()` fallback branch in `take_skipped`:
+        // when the mutex has been poisoned (a thread panicked while holding
+        // the lock), `lock()` returns `Err`, and the function must recover
+        // with an empty vec rather than panicking itself.
+        let shared: Arc<Mutex<Vec<SkipReason>>> = Arc::new(Mutex::new(Vec::new()));
+        let poison_handle = Arc::clone(&shared);
+        let join_result = std::thread::spawn(move || {
+            let _guard = poison_handle.lock().expect("lock before poisoning");
+            panic!("deliberately poison the mutex for test coverage");
+        })
+        .join();
+        assert!(join_result.is_err(), "spawned thread should have panicked");
+        assert!(shared.is_poisoned(), "mutex should be poisoned after the panic");
+
+        let result = take_skipped(&shared);
+        assert!(result.is_empty(), "poisoned mutex should fall back to an empty vec");
+    }
 }
