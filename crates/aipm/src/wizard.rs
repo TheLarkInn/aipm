@@ -1590,6 +1590,16 @@ mod tests {
     }
 
     #[test]
+    fn format_wizard_summary_no_scope_selected() {
+        // Exercises the (false, false) arm of the setup_mode match, which is
+        // otherwise unreachable through the interactive wizard flow but is a
+        // valid input to this pure function.
+        let answers = WizardAnswers { workspace: false, marketplace: false, ..make_test_answers() };
+        let summary = format_wizard_summary(&answers);
+        assert!(summary.contains("Setup mode: Nothing (no scope selected)"));
+    }
+
+    #[test]
     fn format_wizard_summary_no_starter_renders_no() {
         let answers = WizardAnswers { no_starter: true, ..make_test_answers() };
         let summary = format_wizard_summary(&answers);
