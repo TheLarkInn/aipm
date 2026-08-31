@@ -223,6 +223,20 @@ mod tests {
     }
 
     #[test]
+    fn detect_propagates_read_dir_error() {
+        // `commands_dir` exists (so the early-return branch is skipped) but
+        // has no entry in `dirs`, so `MockFs::read_dir` returns a NotFound
+        // error. Exercises the `?` propagation branch after `fs.read_dir`.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/commands"));
+        // Deliberately do not insert into fs.dirs.
+
+        let detector = CommandDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn detect_command_strips_quoted_description() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/src/commands"));
