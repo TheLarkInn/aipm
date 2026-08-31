@@ -388,4 +388,22 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Covers the `Option::deserialize(deserializer)?` error propagation path
+    /// (the `?` on line 345). A JSON number cannot deserialize into
+    /// `Option<Vec<String>>`, so `Option::deserialize` returns an `Err`
+    /// before the function ever reaches the `let Some(names) = raw` arm.
+    /// This is distinct from `engine_set_serde_null_returns_none`, which
+    /// exercises the success path where deserialization succeeds with
+    /// `None`.
+    #[test]
+    fn engine_set_serde_wrong_shape_propagates_error() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value = serde_json::Value::from(42);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(
+            result.is_err(),
+            "deserializing a number as Option<Vec<String>> should fail: {result:?}"
+        );
+    }
 }
