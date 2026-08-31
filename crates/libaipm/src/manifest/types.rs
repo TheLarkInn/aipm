@@ -388,4 +388,53 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Directly invoke `engine_set_serde::deserialize` on this (JSON) deserializer
+    /// monomorphization with an empty array, so the `if names.is_empty()` true
+    /// branch (line 349) is covered for this generic instantiation too — the
+    /// TOML-based tests in `manifest/mod.rs` exercise a different monomorphization
+    /// of this generic function and don't count toward this one's branch coverage.
+    #[test]
+    fn engine_set_serde_json_empty_list_returns_empty_set() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value = serde_json::Value::Array(Vec::new());
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_ok(), "deserializing an empty list should succeed: {result:?}");
+        assert_eq!(
+            result.unwrap_or(None),
+            Some(EngineSet::empty()),
+            "empty engines list should produce Some(EngineSet::empty())"
+        );
+    }
+
+    /// Directly invoke `engine_set_serde::deserialize` on this (JSON) deserializer
+    /// monomorphization with a known engine name, covering the `if let Some(engine)
+    /// = Engine::from_name(name)` true branch (line 354) and the final
+    /// `if set.is_empty()` false branch (line 358) for this instantiation.
+    #[test]
+    fn engine_set_serde_json_known_engine_returns_set() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value =
+            serde_json::Value::Array(vec![serde_json::Value::String("claude".to_string())]);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_ok(), "deserializing a known engine should succeed: {result:?}");
+        assert_eq!(result.unwrap_or(None), Some(libaipm_engine_spec::Engine::Claude.as_set()));
+    }
+
+    /// Directly invoke `engine_set_serde::deserialize` on this (JSON) deserializer
+    /// monomorphization with only unknown engine names, covering the `if let
+    /// Some(engine) = Engine::from_name(name)` false branch (line 354) and the
+    /// `if set.is_empty()` true (error) branch (line 358) for this instantiation.
+    #[test]
+    fn engine_set_serde_json_all_unknown_errors() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value = serde_json::Value::Array(vec![serde_json::Value::String(
+            "unknown-future-engine".to_string(),
+        )]);
+        let result: Result<Option<EngineSet>, _> =
+            engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_err(), "all-unknown engines list should error");
+        let err = result.err().map(|e| e.to_string()).unwrap_or_default();
+        assert!(err.contains("contains no known engine names"), "unexpected error: {err}");
+    }
 }
