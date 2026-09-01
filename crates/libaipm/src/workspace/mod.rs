@@ -146,6 +146,45 @@ pub fn discover_members(
 mod tests {
     use super::*;
 
+    /// Reports `aipm.toml` as existing but always fails to read it,
+    /// simulating an I/O error (e.g. permission denied) during workspace
+    /// discovery.
+    struct UnreadableManifestFs;
+
+    impl crate::fs::Fs for UnreadableManifestFs {
+        fn exists(&self, _path: &Path) -> bool {
+            true
+        }
+
+        fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _path: &Path, _content: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _path: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::other("permission denied"))
+        }
+
+        fn read_dir(&self, _path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn find_root_skips_manifest_that_fails_to_read() {
+        let fs = UnreadableManifestFs;
+        let start = Path::new("/some/nested/dir");
+
+        let result = find_workspace_root(&fs, start);
+        assert!(
+            result.is_none(),
+            "should walk up past every directory whose manifest can't be read, got: {result:?}"
+        );
+    }
+
     #[test]
     fn find_root_from_member() {
         let tmp = tempfile::tempdir().unwrap();
@@ -182,6 +221,27 @@ mod tests {
 
         let result = find_workspace_root(&crate::fs::Real, root);
         assert_eq!(result.as_deref(), Some(root));
+    }
+
+    #[test]
+    fn find_root_skips_unparseable_manifest_and_continues_upward() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Root has a valid workspace manifest.
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+
+        // An intermediate directory has a manifest that fails to parse as TOML.
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(&subdir).unwrap();
+        std::fs::write(subdir.join("aipm.toml"), "this is not valid toml [[[").unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
+        assert_eq!(
+            result.as_deref(),
+            Some(root),
+            "should skip the unparseable manifest and keep walking up to find the real workspace root"
+        );
     }
 
     #[test]
