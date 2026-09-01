@@ -160,10 +160,26 @@ mod tests {
         let target = tmp.path().join("links").join("ghost-pkg");
         let result = assemble(&store, &file_hashes, &target);
         assert!(
-            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt")),
-            "assemble should fail with Io error for ghost.txt, got: {:?}",
-            result
+            is_io_error_for_path(&result, "ghost.txt"),
+            "assemble should fail with Io error for ghost.txt, got: {result:?}"
         );
+
+        // Also exercise the guard's false arm at the same call site: an
+        // `Error::Io` whose path does NOT end with "ghost.txt" must not
+        // satisfy `path.ends_with(suffix)`.
+        let other_error: Result<(), Error> =
+            Err(Error::Io { path: PathBuf::from("other.txt"), source: std::io::Error::other("x") });
+        assert!(
+            !is_io_error_for_path(&other_error, "ghost.txt"),
+            "guard should be false for a path that isn't ghost.txt"
+        );
+    }
+
+    /// Shared helper so both the true and false arms of the `matches!` guard
+    /// on `path.ends_with(suffix)` are exercised at the same call site,
+    /// keeping branch coverage attributed to this one line.
+    fn is_io_error_for_path(result: &Result<(), Error>, suffix: &str) -> bool {
+        matches!(result, Err(Error::Io { path, .. }) if path.ends_with(suffix))
     }
 
     #[test]
