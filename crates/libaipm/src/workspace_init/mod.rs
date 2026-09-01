@@ -2397,4 +2397,47 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    /// Covers the `any_found` right-hand side `false` arm of the
+    /// `!any_created && any_found` condition (line 208, col 24):
+    ///
+    /// ```text
+    /// if !any_created && any_found {
+    ///                     ^^^^^^^^^
+    ///                  col 24 — right side only reached when !any_created
+    ///                           is true, and must itself be false to skip
+    ///                           the tail warning
+    /// ```
+    ///
+    /// Every other test either creates or finds at least one artifact, so
+    /// `any_found` was always `true` whenever the right side was reached.
+    /// With both `workspace` and `marketplace` disabled, `init` produces an
+    /// empty `actions` list: `any_created` and `any_found` are both `false`,
+    /// so the tail warning is skipped and `actions` remains empty.
+    #[test]
+    fn init_with_no_phases_produces_no_actions_and_skips_tail_warning() {
+        let (tmp, _guard) = make_temp_dir("no-phases");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed with no phases requested: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(
+            actions.is_empty(),
+            "expected no actions when workspace and marketplace are both disabled: {actions:?}"
+        );
+
+        cleanup(&tmp);
+    }
 }
