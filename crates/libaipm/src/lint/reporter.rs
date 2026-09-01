@@ -1793,6 +1793,37 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_errors_present_omits_succeeded_with_issues() {
+        // Cover the `error_count == 0` FALSE branch at line 372: when
+        // error_count > 0 (even alongside warnings), the SucceededWithIssues
+        // task-complete command must NOT be emitted.
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Error,
+                message: "an error".into(),
+                file_path: PathBuf::from("file.md"),
+                line: Some(1),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 1,
+            warning_count: 1,
+            sources_scanned: vec![],
+            ..Outcome::default()
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("##vso[task.logissue"));
+        assert!(!output.contains("SucceededWithIssues"));
+    }
+
+    #[test]
     fn strip_ansi_passthrough_for_plain_text() {
         assert_eq!(strip_ansi("hello world"), "hello world");
         assert_eq!(strip_ansi(""), "");
