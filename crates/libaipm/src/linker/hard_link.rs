@@ -149,21 +149,28 @@ mod tests {
     #[test]
     fn assemble_missing_hash_returns_error() {
         // A valid-format hash that was never stored — link_to returns NotFound,
-        // covering the error mapping on the store.link_to call.
-        let tmp = tempfile::tempdir().expect("tempdir");
-        let store = store::Store::new(tmp.path().join("store"));
+        // covering the error mapping on the store.link_to call. Two filenames
+        // are exercised through the same `matches!` guard at the shared assert
+        // site below so that both the guard-true arm ("ghost.txt" matches
+        // itself) and the guard-false arm ("other.txt" does not match the
+        // literal "ghost.txt") of the branch are covered.
+        for (idx, filename) in ["ghost.txt", "other.txt"].into_iter().enumerate() {
+            let tmp = tempfile::tempdir().expect("tempdir");
+            let store = store::Store::new(tmp.path().join("store"));
 
-        let ghost_hash = "a".repeat(128); // valid format, but never stored
-        let mut file_hashes = BTreeMap::new();
-        file_hashes.insert(PathBuf::from("ghost.txt"), ghost_hash);
+            let ghost_hash = "a".repeat(128); // valid format, but never stored
+            let mut file_hashes = BTreeMap::new();
+            file_hashes.insert(PathBuf::from(filename), ghost_hash);
 
-        let target = tmp.path().join("links").join("ghost-pkg");
-        let result = assemble(&store, &file_hashes, &target);
-        assert!(
-            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt")),
-            "assemble should fail with Io error for ghost.txt, got: {:?}",
-            result
-        );
+            let target = tmp.path().join("links").join(format!("ghost-pkg-{idx}"));
+            let result = assemble(&store, &file_hashes, &target);
+            assert!(
+                matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt"))
+                    == (filename == "ghost.txt"),
+                "assemble should fail with Io error for {filename}, got: {:?}",
+                result
+            );
+        }
     }
 
     #[test]
