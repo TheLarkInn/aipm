@@ -185,6 +185,25 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unreadable_manifest_and_keeps_walking() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Root has a valid workspace manifest.
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+
+        // An intermediate directory has an "aipm.toml" that is actually a
+        // directory, not a file — `fs.exists` reports true, but
+        // `read_to_string` fails, exercising the "could not read manifest"
+        // branch (distinct from the unparseable-content branch above).
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(subdir.join("aipm.toml")).unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
+        assert_eq!(result.as_deref(), Some(root));
+    }
+
+    #[test]
     fn discover_members_single_glob() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
