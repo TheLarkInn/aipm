@@ -2397,4 +2397,52 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    #[test]
+    fn init_second_run_with_nothing_created_logs_tail_warning() {
+        // Covers the `!any_created && any_found` FALSE branch at line 208:
+        // running `init` a second time over an already-scaffolded workspace
+        // produces only `*FoundExisting` actions, so `any_created` is false
+        // and `any_found` is true — the tail warn path must be taken without
+        // panicking or erroring.
+        let (tmp, _guard) = make_temp_dir("init-second-run-nothing-created");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = Vec::new();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: None,
+        };
+
+        let first = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(first.is_ok(), "first init should succeed: {first:?}");
+
+        let second = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(second.is_ok(), "second init should succeed: {second:?}");
+        let actions = second.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(
+            actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)),
+            "expected WorkspaceFoundExisting on second run but got: {actions:?}"
+        );
+        assert!(
+            actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)),
+            "expected MarketplaceFoundExisting on second run but got: {actions:?}"
+        );
+        assert!(
+            !actions.iter().any(|a| matches!(
+                a,
+                InitAction::WorkspaceCreated
+                    | InitAction::MarketplaceCreated
+                    | InitAction::MarketplaceManifestWritten { .. }
+                    | InitAction::ToolConfigured(_)
+            )),
+            "second run should create nothing but got: {actions:?}"
+        );
+
+        cleanup(&tmp);
+    }
 }
