@@ -808,6 +808,34 @@ mod tests {
     }
 
     #[test]
+    fn init_with_neither_workspace_nor_marketplace_produces_no_actions() {
+        // When both `workspace` and `marketplace` are false, no phase
+        // runs at all: `actions` stays empty, so `any_created` is false
+        // AND `any_found` is also false. This exercises the False side
+        // of `any_found` in `!any_created && any_found` (no "nothing to
+        // do" warning should fire, and no actions should be recorded).
+        let (tmp, _guard) = make_temp_dir("no-phases");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init with no phases must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions when nothing was requested");
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_marketplace_is_idempotent_when_ai_exists() {
         let (tmp, _guard) = make_temp_dir("mp-idempotent");
         std::fs::create_dir_all(tmp.join(".ai")).ok();
