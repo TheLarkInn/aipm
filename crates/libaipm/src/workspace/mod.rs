@@ -159,6 +159,25 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unparseable_manifest_and_continues_up() {
+        // A directory with an unparseable `aipm.toml` should be skipped (not
+        // treated as a hard error), and the walk-up should continue to the
+        // parent, exercising the `Err(e)` branch of the `toml::from_str`
+        // match in `find_workspace_root`.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(&subdir).unwrap();
+        std::fs::write(subdir.join("aipm.toml"), "not valid toml :::").unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
+        assert_eq!(result.as_deref(), Some(root));
+    }
+
+    #[test]
     fn find_root_returns_none_for_non_workspace() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
