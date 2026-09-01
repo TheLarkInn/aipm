@@ -432,4 +432,28 @@ mod tests {
         assert_eq!(artifacts.len(), 1);
         assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("valid-agent"));
     }
+
+    #[test]
+    fn directory_entry_in_agents_dir_is_skipped() {
+        // A subdirectory entry (is_dir: true) inside .github/agents/ must be
+        // skipped via the `if entry.is_dir { continue; }` branch. A valid
+        // sibling agent file is still detected normally.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(
+            PathBuf::from("/src/agents"),
+            vec![de("nested", true), de("reviewer.agent.md", false)],
+        );
+        fs.files.insert(
+            PathBuf::from("/src/agents/reviewer.agent.md"),
+            "---\nname: reviewer\n---\nReview.".to_string(),
+        );
+
+        let detector = CopilotAgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.len(), 1);
+        assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("reviewer"));
+    }
 }
