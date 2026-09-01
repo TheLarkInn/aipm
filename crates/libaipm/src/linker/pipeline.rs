@@ -177,4 +177,34 @@ mod tests {
         // Assembled dir must be gone.
         assert!(!assembled_dir.exists(), "assembled_dir should have been removed");
     }
+
+    #[test]
+    fn unlink_package_removes_link_when_assembled_dir_absent() {
+        // Simulate a state where the plugin symlink exists but the assembled
+        // directory it points to has already been removed (e.g., the store
+        // was pruned out from under a stale link). This exercises the `true`
+        // branch of `directory_link::is_link(&plugin_link)` together with the
+        // `false` branch of `assembled_dir.exists()` in `unlink_package`.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let links_dir = tmp.path().join(".aipm/links");
+        let plugins_dir = tmp.path().join("claude-plugins");
+
+        // Create a real directory to link to, then remove it after linking so
+        // the symlink is left dangling but still reports as a link.
+        let source_dir = tmp.path().join("source-dir");
+        std::fs::create_dir_all(&source_dir).expect("create source dir");
+        let plugin_link = plugins_dir.join("dangling-pkg");
+        directory_link::create(&source_dir, &plugin_link).expect("create link");
+        std::fs::remove_dir_all(&source_dir).expect("remove source dir");
+
+        assert!(directory_link::is_link(&plugin_link), "plugin_link must still report as a link");
+        let assembled_dir = links_dir.join("dangling-pkg");
+        assert!(!assembled_dir.exists(), "assembled_dir must not exist for this scenario");
+
+        let result = unlink_package("dangling-pkg", &links_dir, &plugins_dir);
+        assert!(result.is_ok(), "unlink_package failed: {result:?}");
+
+        // The dangling link must have been removed.
+        assert!(!directory_link::is_link(&plugin_link));
+    }
 }
