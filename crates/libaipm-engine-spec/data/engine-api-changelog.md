@@ -2,6 +2,23 @@
 
 <!-- Entries are prepended (newest first). -->
 
+## 2026-09-01 — claude v2.1.252
+
+No API changes detected (version bump only, from v2.1.128). Verified via `strings` extraction of
+the native `claude` binary: all previously recorded hook events (`PreToolUse`, `PostToolUse`,
+`PostToolUseFailure`, `Notification`, `SessionStart`, `Stop`, `StopFailure`, `SubagentStart`,
+`SubagentStop`, `PreCompact`, `PostCompact`, `SessionEnd`, `PermissionRequest`, `Setup`,
+`TeammateIdle`, `TaskCreated`, `TaskCompleted`, `UserPromptSubmit`, `ToolError`, `Elicitation`,
+`ElicitationResult`, `ConfigChange`, `InstructionsLoaded`, `WorktreeCreate`, `WorktreeRemove`,
+`CwdChanged`, `FileChanged`) and the embedded `## Hook Events` documentation table remain present
+and unchanged. No new built-in tool-call identifiers were found beyond the existing catalog.
+
+## 2026-09-01 — copilot v1.0.82
+
+No API changes detected (version bump only, from v1.0.40). The native `copilot` binary was
+re-extracted (`strings`) and no new tool names or hook event identifiers were found beyond the
+existing catalog.
+
 ## 2026-05-05 — claude v2.1.128
 
 | Field | Change |
