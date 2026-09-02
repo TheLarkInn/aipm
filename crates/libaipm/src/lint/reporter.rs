@@ -681,6 +681,23 @@ mod tests {
     }
 
     #[test]
+    fn json_reporter_multiple_sources_scanned_are_comma_separated() {
+        // Covers the `i > 0` True branch in the `sources_scanned` loop, which
+        // only fires when there is more than one scanned source.
+        let outcome = Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![".claude".to_string(), ".ai".to_string(), ".github".to_string()],
+            ..Outcome::default()
+        };
+        let mut buf = Vec::new();
+        Json.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("\"sources_scanned\": [\".claude\", \".ai\", \".github\"]"));
+    }
+
+    #[test]
     fn json_reporter_empty() {
         let outcome = Outcome {
             diagnostics: vec![],
