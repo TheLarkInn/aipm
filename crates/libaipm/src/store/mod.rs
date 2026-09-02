@@ -547,6 +547,7 @@ mod tests {
     /// `link_to`.
     #[cfg(target_os = "linux")]
     #[test]
+    #[tracing_test::traced_test]
     fn link_to_falls_back_to_copy_on_cross_device() {
         use std::path::PathBuf;
 
@@ -572,6 +573,13 @@ mod tests {
         assert!(result.is_ok(), "expected copy-fallback to succeed: {result:?}");
         let written = std::fs::read(&target).unwrap();
         assert_eq!(written, content);
+
+        // Without an active subscriber the `tracing::warn!` call's
+        // `source.display()` / `target.display()` args (lines 176-177) are
+        // never evaluated. `#[traced_test]` installs a subscriber so those
+        // branches execute; assert the log actually fired to make sure the
+        // fallback path — not just the outer `Ok` result — was exercised.
+        assert!(logs_contain("hard-link failed (cross-volume), falling back to copy"));
     }
 
     #[cfg(unix)]
