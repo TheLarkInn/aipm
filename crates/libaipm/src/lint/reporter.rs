@@ -1122,6 +1122,41 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_emits_endgroup_between_multiple_file_groups() {
+        // Covers the `current_file.is_some()` True branch inside the main
+        // loop: diagnostics from a second, different file path must close
+        // the first file's group (`##[endgroup]`) before opening a new one.
+        let outcome = Outcome {
+            diagnostics: vec![
+                ci_azure_diag_on("a.md", "rule/one", 1),
+                ci_azure_diag_on("b.md", "rule/two", 2),
+            ],
+            error_count: 0,
+            warning_count: 2,
+            sources_scanned: vec![],
+            ..Outcome::default()
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        // Two `##[group]` openers (one per file) and two `##[endgroup]`
+        // closers (mid-loop for a.md, end-of-loop for b.md).
+        let group_count = output.matches("##[group]").count();
+        let endgroup_count = output.matches("##[endgroup]").count();
+        assert_eq!(group_count, 2, "expected one group per distinct file: {output}");
+        assert_eq!(endgroup_count, 2, "expected an endgroup between and after groups: {output}");
+
+        // The mid-loop endgroup must appear before the second file's group.
+        let first_endgroup = output.find("##[endgroup]").unwrap_or(usize::MAX);
+        let second_group = output.rfind("##[group]").unwrap_or(0);
+        assert!(
+            first_endgroup < second_group,
+            "endgroup should close the first file's group before the second opens: {output}"
+        );
+    }
+
+    #[test]
     fn ci_azure_task_complete_on_warnings_only() {
         let outcome = Outcome {
             diagnostics: vec![
