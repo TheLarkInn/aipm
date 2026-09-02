@@ -2091,6 +2091,89 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// All requested artifacts already exist and no adaptor makes a
+    /// change: `any_created` is false and `any_found` is true, so
+    /// `init()` must emit the "found nothing to do" tail warning
+    /// (covers the true branch of `if !any_created && any_found` at
+    /// the end of `init()`).
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_all_found_existing_warns_nothing_to_do() {
+        let (tmp, _guard) = make_temp_dir("all-found-nothing-to-do");
+        let claude_dir = tmp.join(".ai/.claude-plugin");
+        let copilot_dir = tmp.join(".ai/.github/plugin");
+        std::fs::create_dir_all(&claude_dir).ok();
+        std::fs::create_dir_all(&copilot_dir).ok();
+        let valid = crate::generate::marketplace::create("preexisting", &[]);
+        std::fs::write(claude_dir.join("marketplace.json"), &valid).ok();
+        std::fs::write(copilot_dir.join("marketplace.json"), &valid).ok();
+
+        // No adaptors registered, so no ToolConfigured action can be
+        // pushed; workspace is not requested, so no Workspace* action
+        // is pushed either. The only actions come from the already
+        // fully-populated `.ai/` marketplace: all Found* variants.
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = Vec::new();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE
+                | libaipm_engine_spec::EngineSet::COPILOT,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)));
+        assert!(
+            !actions.iter().any(|a| matches!(
+                a,
+                InitAction::WorkspaceCreated
+                    | InitAction::MarketplaceCreated
+                    | InitAction::MarketplaceManifestWritten { .. }
+                    | InitAction::ToolConfigured(_)
+            )),
+            "no created-style action should be present"
+        );
+
+        assert!(logs_contain("aipm init found nothing to do"));
+
+        cleanup(&tmp);
+    }
+
+    /// Both `workspace` and `marketplace` are false, so `init()` pushes
+    /// no actions at all: `any_created` and `any_found` are both false.
+    /// Covers the false branch of `any_found` in
+    /// `if !any_created && any_found` — the tail warning must NOT fire
+    /// when there is simply nothing to report either way.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_no_flags_requested_emits_no_nothing_to_do_warning() {
+        let (tmp, _guard) = make_temp_dir("no-flags-no-warning");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = Vec::new();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+        assert!(result.ok().map(|r| r.actions).unwrap_or_default().is_empty());
+
+        assert!(!logs_contain("aipm init found nothing to do"));
+
+        cleanup(&tmp);
+    }
+
     /// Existing `aipm.toml` declares `engines = ["claude"]` but the
     /// wizard answer chose Copilot. Init must succeed (idempotent),
     /// leave the file unchanged, and emit a tracing::warn event naming
