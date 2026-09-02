@@ -743,6 +743,29 @@ mod tests {
     }
 
     #[test]
+    fn init_with_no_phases_requested_emits_no_found_nothing_warning() {
+        // Both `workspace` and `marketplace` are false, so `actions` stays
+        // empty: `any_created` and `any_found` are both false, exercising
+        // the False branch of `!any_created && any_found` (no tail warn).
+        let (tmp, _guard) = make_temp_dir("no-phases");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_marketplace_creates_tree() {
         let (tmp, _guard) = make_temp_dir("mp-create");
         let adaptors = default_adaptors();
