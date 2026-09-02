@@ -547,6 +547,7 @@ mod tests {
     /// `link_to`.
     #[cfg(target_os = "linux")]
     #[test]
+    #[tracing_test::traced_test]
     fn link_to_falls_back_to_copy_on_cross_device() {
         use std::path::PathBuf;
 
@@ -572,6 +573,14 @@ mod tests {
         assert!(result.is_ok(), "expected copy-fallback to succeed: {result:?}");
         let written = std::fs::read(&target).unwrap();
         assert_eq!(written, content);
+
+        // `traced_test` installs a subscriber so the `tracing::warn!` call in
+        // the cross-device fallback branch actually formats and records its
+        // fields, covering the `source =` / `target =` argument lines.
+        tracing_test::internal::logs_with_scope_contain(
+            module_path!(),
+            "hard-link failed (cross-volume), falling back to copy",
+        );
     }
 
     #[cfg(unix)]
