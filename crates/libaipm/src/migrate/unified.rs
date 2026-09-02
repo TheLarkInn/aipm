@@ -1165,6 +1165,29 @@ mod tests {
         );
     }
 
+    /// Covers the `None` arm of `if let Some(first) = per_artifact.first_mut()`
+    /// (line 322) in the fallback loop of `build_plugin_plans`: when an
+    /// `adapter_artifacts` entry maps a root to an empty `Vec<Artifact>`
+    /// (never produced via `group_adapter_artifacts`'s `or_default().push`
+    /// path, but reachable if `build_plugin_plans` is called directly with
+    /// such a map), `per_artifact` ends up empty after the `.map()` /
+    /// `.collect()`, so `first_mut()` returns `None` and the
+    /// `first.other_files = other_files` assignment is skipped entirely.
+    #[test]
+    fn build_plugin_plans_skips_empty_artifact_list_in_fallback_loop() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        let orphan_root = root.join("orphan");
+        std::fs::create_dir_all(&orphan_root).expect("create orphan dir");
+
+        let mut adapter_artifacts: BTreeMap<PathBuf, Vec<Artifact>> = BTreeMap::new();
+        adapter_artifacts.insert(orphan_root, Vec::new());
+
+        let plans = build_plugin_plans(&adapter_artifacts, &[], &Real)
+            .expect("empty artifact list must not error");
+        assert!(plans.is_empty(), "an empty artifact list should produce no plans; got: {plans:?}");
+    }
+
     /// Covers the "else" arm of `else if let Some(artifact) = plan.artifacts.first()`
     /// (line 373 in `emit_and_register`): when a `PluginPlan` has
     /// `is_package_scoped = false` and an empty `artifacts` vec, neither
