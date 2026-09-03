@@ -2348,6 +2348,39 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `false` branch of `any_found` inside `!any_created &&
+    /// any_found` (line 208): with both `workspace` and `marketplace`
+    /// disabled, `init` performs no phases at all, so `actions` stays
+    /// empty. Both `any_created` and `any_found` are therefore `false`,
+    /// which short-circuits the outer `&&` before `any_found` is ever
+    /// evaluated as `true` — distinct from the other tests in this module,
+    /// which all request at least one phase and hit `any_found == true`.
+    #[test]
+    fn init_with_all_phases_disabled_emits_no_actions() {
+        let (tmp, _guard) = make_temp_dir("all-phases-disabled");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed with no phases requested: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions when both phases are disabled");
+        assert!(!tmp.join("aipm.toml").exists(), "aipm.toml must not be created");
+        assert!(!tmp.join(".ai").exists(), ".ai must not be created");
+
+        cleanup(&tmp);
+    }
+
     /// Covers the `ai_existed = true` branch of the `||` in
     /// `scaffold_marketplace` (line 403, col 27):
     ///
