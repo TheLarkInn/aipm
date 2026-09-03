@@ -292,6 +292,33 @@ mod tests {
     }
 
     #[test]
+    fn detect_script_reference_without_dot_slash_prefix() {
+        // Covers the `script_path.starts_with("./")` branch being false while
+        // `is_relative_script` still recognises the path as relative (no
+        // leading `./`, just a bare relative script name).
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.claude/settings.json"));
+        fs.files.insert(
+            PathBuf::from("/project/.claude/settings.json"),
+            r#"{"hooks":{"PreToolUse":[{"type":"command","command":"validate.sh --strict"}]}}"#
+                .to_string(),
+        );
+
+        let detector = HookDetector;
+        let result = detector.detect(Path::new("/project/.claude"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.first().map(|a| a.referenced_scripts.len()), Some(1));
+        assert_eq!(
+            artifacts
+                .first()
+                .and_then(|a| a.referenced_scripts.first())
+                .map(|p| p.to_string_lossy().into_owned()),
+            Some("validate.sh".to_string())
+        );
+    }
+
+    #[test]
     fn detect_ignores_bare_command_names() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.claude/settings.json"));
