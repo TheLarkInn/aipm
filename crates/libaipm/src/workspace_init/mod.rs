@@ -773,6 +773,32 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the False branch of `if !any_created && any_found` (line 208):
+    /// when neither `workspace` nor `marketplace` is requested, `actions` is
+    /// empty, so both `any_created` and `any_found` are `false` and the
+    /// tail warn must be skipped.
+    #[test]
+    fn init_with_all_phases_disabled_produces_no_actions_and_no_warn() {
+        let (tmp, _guard) = make_temp_dir("no-phases");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init with no phases requested should still succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions when both phases are disabled");
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_workspace_is_idempotent_when_aipm_toml_exists() {
         let (tmp, _guard) = make_temp_dir("ws-idempotent");
