@@ -1594,6 +1594,56 @@ mod tests {
     }
 
     #[test]
+    fn init_warns_when_everything_already_existed() {
+        // Covers the True branch of `!any_created && any_found` (line 208):
+        // when both workspace and marketplace already exist, `init()` should
+        // produce only `*FoundExisting` actions (no `*Created` actions) and
+        // emit the "nothing to do" tail warning instead of panicking or
+        // silently doing nothing.
+        let (tmp, _guard) = make_temp_dir("all-found-existing");
+
+        // Pre-create a valid aipm.toml so the workspace phase finds it
+        // existing rather than creating a new one.
+        let existing = generate_workspace_manifest(None);
+        std::fs::write(tmp.join("aipm.toml"), &existing).ok();
+
+        // Pre-create `.ai/` so the marketplace phase also finds it existing.
+        std::fs::create_dir_all(tmp.join(".ai")).ok();
+
+        // No adaptors and an empty scaffold engine set, so no
+        // `ToolConfigured` actions are produced either.
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = Vec::new();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(
+            result.is_ok(),
+            "init over pre-existing workspace+marketplace must succeed: {result:?}"
+        );
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+        assert!(actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)));
+        assert!(!actions.iter().any(|a| matches!(
+            a,
+            InitAction::WorkspaceCreated
+                | InitAction::MarketplaceCreated
+                | InitAction::MarketplaceManifestWritten { .. }
+                | InitAction::ToolConfigured(_)
+        )));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_adaptor_error_propagates() {
         // Covers the `?` error branch at the `adaptor.apply(...)? ` call in `init()`:
         // when an adaptor returns Err, the error must propagate from `init()`.
