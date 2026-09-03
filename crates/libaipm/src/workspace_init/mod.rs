@@ -836,6 +836,46 @@ mod tests {
     }
 
     #[test]
+    fn init_both_idempotent_warns_when_nothing_created() {
+        // #850 Spec G12 / Q9.5: pre-create both the workspace manifest and
+        // the marketplace directory (with its manifest) so that running
+        // `init` with both `workspace` and `marketplace` requested produces
+        // only `*FoundExisting` actions and no `*Created` actions. This
+        // exercises the `!any_created && any_found` true branch (line 208)
+        // that emits the "nothing to do" tail warning.
+        let (tmp, _guard) = make_temp_dir("both-idempotent");
+
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = Vec::new();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+
+        // First run creates everything.
+        let first = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(first.is_ok(), "first init must succeed: {first:?}");
+
+        // Second run against the same directory should find everything
+        // already present and produce only `*FoundExisting` actions.
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "idempotent init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+        assert!(actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)));
+        assert!(!actions.iter().any(|a| matches!(a, InitAction::WorkspaceCreated)));
+        assert!(!actions.iter().any(|a| matches!(a, InitAction::MarketplaceCreated)));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_both_creates_everything() {
         let (tmp, _guard) = make_temp_dir("both");
         let adaptors = default_adaptors();
