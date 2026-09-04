@@ -186,4 +186,25 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_fails_when_target_dir_creation_errors() {
+        // Create a regular file, then use a path nested underneath it as the
+        // target directory. `create_dir_all(target_dir)` cannot create a
+        // directory where a file already exists, so it returns an I/O error —
+        // exercising the Err arm of the `create_dir_all(target_dir)` call
+        // (target_dir.exists() is false here, so the removal branch is
+        // skipped entirely and we go straight to the creation failure).
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let blocker = tmp.path().join("blocker-file");
+        std::fs::write(&blocker, b"not a directory").expect("write blocker");
+
+        let target = blocker.join("nested").join("target-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "assemble should fail with Io error for the blocked target dir, got: {:?}",
+            result
+        );
+    }
 }
