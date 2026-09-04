@@ -167,6 +167,25 @@ mod tests {
     }
 
     #[test]
+    fn assemble_returns_error_when_existing_target_cannot_be_removed() {
+        // `target_dir` exists but is a regular file, not a directory, so
+        // `remove_dir_all` fails with `NotADirectory` — exercising the error
+        // branch of the initial cleanup step.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+
+        let target = tmp.path().join("not-a-dir");
+        std::fs::write(&target, b"i am a file, not a directory").expect("write file");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "assemble should fail with Io error for non-directory target, got: {:?}",
+            result
+        );
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
