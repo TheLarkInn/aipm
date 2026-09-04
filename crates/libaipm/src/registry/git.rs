@@ -513,6 +513,28 @@ mod tests {
     }
 
     #[test]
+    fn http_get_truncated_body_returns_err() {
+        // Covers the `read_to_vec().map_err(...)` branch in `http_get`: the
+        // response headers declare more body bytes than are actually sent
+        // before the connection closes, so reading the body fails even
+        // though the initial `call()` succeeded.
+        let response: &'static [u8] =
+            b"HTTP/1.1 200 OK\r\nContent-Length: 1000\r\nConnection: close\r\n\r\nshort";
+
+        let (listener, base) = bind_test_server();
+        serve_one(listener, response);
+
+        let url = format!("{base}/truncated.tar.gz");
+        let result = http_get(&url);
+        assert!(result.is_err(), "expected Err for truncated body, got Ok");
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("failed to read response body"),
+            "unexpected error message: {err_msg}"
+        );
+    }
+
+    #[test]
     fn http_get_connection_refused_returns_err() {
         // Pick a port then immediately drop the listener so it is not listening.
         let port = {
