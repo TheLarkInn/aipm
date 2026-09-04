@@ -184,6 +184,21 @@ mod tests {
     }
 
     #[test]
+    fn read_content_fails_on_invalid_utf8() {
+        // Write raw non-UTF-8 bytes directly to the file, bypassing
+        // `write_content` (which only accepts `&str`). `read_content` should
+        // then fail with `Error::Read`, exercising the `read_to_string`
+        // error-propagation branch.
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let path = temp.path().join("invalid.bin");
+        std::fs::write(&path, [0xFF, 0xFE, 0xFD]).unwrap_or_else(|_| {});
+
+        let mut locked = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
+        let result = locked.read_content();
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn open_path_with_no_parent_skips_mkdir_and_fails() {
         // Path::new("/").parent() returns None, so the `if let Some(parent)` branch
         // is skipped entirely.  Opening "/" as a regular file then fails because it
