@@ -159,6 +159,43 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unparseable_manifest_and_continues_walking_up() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Root manifest is a real workspace.
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+
+        // Intermediate manifest is not valid TOML at all — exercises the
+        // `toml::from_str` `Err(e)` branch, which should log and continue
+        // walking up rather than returning early.
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(&subdir).unwrap();
+        std::fs::write(subdir.join("aipm.toml"), "not valid toml [[[").unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
+        assert_eq!(result.as_deref(), Some(root));
+    }
+
+    #[test]
+    fn find_root_skips_unreadable_manifest_and_continues_walking_up() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Root manifest is a real workspace.
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+
+        // Intermediate "aipm.toml" is a directory, not a file — `fs.exists`
+        // returns true but `read_to_string` fails, exercising the
+        // `Err(e)` branch on the read side rather than the parse side.
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(subdir.join("aipm.toml")).unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
+        assert_eq!(result.as_deref(), Some(root));
+    }
+
+    #[test]
     fn find_root_returns_none_for_non_workspace() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
