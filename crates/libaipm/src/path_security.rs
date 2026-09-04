@@ -137,6 +137,19 @@ mod tests {
     }
 
     #[test]
+    fn validate_path_traversal_encoded_uppercase_only() {
+        // "%2E%2E" contains no raw ".." substring, so the first `contains("..")`
+        // disjunct is false; only the lowercased `contains("%2e%2e")` disjunct
+        // is true. This exercises the second sub-branch of the `||` in
+        // isolation, distinct from `validate_path_traversal_encoded` above
+        // (which is lowercase and would already short-circuit `.contains("..")`
+        // to false too, but this test makes the isolation explicit and covers
+        // the uppercase-input path through `to_lowercase()`).
+        let result = validate_plugin_path("foo/%2E%2E/bar");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
+    #[test]
     fn validate_absolute_path_unix() {
         let result = validate_plugin_path("/etc/passwd");
         assert!(matches!(result, Err(PathValidationError::AbsolutePath)));
