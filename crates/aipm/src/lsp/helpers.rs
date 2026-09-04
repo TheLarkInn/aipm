@@ -260,6 +260,26 @@ mod tests {
         assert_eq!(find_workspace_dir(&file), dir.path());
     }
 
+    /// Regression test for the parent-walk loop in [`find_workspace_dir`]: when
+    /// no `aipm.toml` or `.ai/` marker exists anywhere from the file's parent
+    /// up to the filesystem root, the loop must climb through *multiple*
+    /// ancestor directories (not just fall back after a single step) before
+    /// hitting `dir.parent()` returning `None` (or `Some(dir)` for `/`) and
+    /// breaking out, ultimately returning the original `start` directory.
+    #[test]
+    fn workspace_dir_climbs_multiple_ancestors_to_root() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let nested = dir.path().join("a/b/c");
+        std::fs::create_dir_all(&nested).expect("mkdir nested");
+        let file = nested.join("orphan.md");
+        std::fs::write(&file, "").expect("write");
+
+        // No aipm.toml/.ai marker exists anywhere on the path up to the
+        // filesystem root, so the loop must walk all the way up and break,
+        // returning the original parent directory (`start`).
+        assert_eq!(find_workspace_dir(&file), nested);
+    }
+
     // ── to_lsp_diagnostic ────────────────────────────────────────────────────
 
     #[test]
