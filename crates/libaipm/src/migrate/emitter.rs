@@ -1781,6 +1781,18 @@ mod tests {
     }
 
     #[test]
+    fn convert_hooks_yaml_three_line_continuation_appends_each_segment() {
+        // A third indented continuation line under the same key exercises the
+        // `current_value` already-Some append arm (`v.push_str`) a second
+        // time, distinct from the first continuation line which only sets
+        // `current_value` from `None`.
+        let result =
+            convert_hooks_yaml_to_json("PreToolUse:\n  first_value\n  second_value\n  third_value");
+        assert!(result.contains("PreToolUse"));
+        assert!(result.contains("first_value second_value third_value"));
+    }
+
+    #[test]
     fn convert_hooks_yaml_no_colon() {
         let result = convert_hooks_yaml_to_json("no-colon-here");
         assert_eq!(result, "{}");
