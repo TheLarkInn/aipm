@@ -303,6 +303,45 @@ mod tests {
         assert!(result.is_none(), "should skip invalid TOML, got: {result:?}");
     }
 
+    /// A minimal [`crate::fs::Fs`] mock that reports a manifest path as
+    /// existing but always fails to read it, exercising the
+    /// "could not read manifest during workspace discovery" branch in
+    /// [`find_workspace_root`] which the on-disk-backed tests above cannot
+    /// reach (a real file that exists always reads successfully).
+    struct UnreadableFs;
+
+    impl crate::fs::Fs for UnreadableFs {
+        fn exists(&self, _path: &Path) -> bool {
+            true
+        }
+
+        fn create_dir_all(&self, _path: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _path: &Path, _content: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _path: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"))
+        }
+
+        fn read_dir(&self, _path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn find_root_skips_unreadable_manifest() {
+        // `exists` always returns true so the loop enters the manifest branch,
+        // but `read_to_string` always errors, which should be logged and
+        // skipped rather than propagated — eventually returning `None` once
+        // the walk reaches the filesystem root.
+        let result = find_workspace_root(&UnreadableFs, Path::new("/some/nonexistent/dir"));
+        assert!(result.is_none(), "should skip unreadable manifest, got: {result:?}");
+    }
+
     #[test]
     fn discover_members_skips_non_directory_match() {
         let tmp = tempfile::tempdir().unwrap();
