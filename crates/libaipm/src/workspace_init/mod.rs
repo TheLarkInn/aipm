@@ -718,6 +718,31 @@ mod tests {
     }
 
     #[test]
+    fn init_with_both_phases_disabled_produces_no_actions_and_no_warn() {
+        // Covers the `any_found` False arm of the tail-warn condition
+        // (`!any_created && any_found`): with both `workspace` and
+        // `marketplace` disabled, `actions` stays empty, so neither
+        // `any_created` nor `any_found` can be true. This exercises the
+        // branch distinctly from the "everything already exists" warn
+        // path, which requires `any_found` to be true.
+        let (tmp, _guard) = make_temp_dir("both-disabled");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_workspace_creates_manifest() {
         let (tmp, _guard) = make_temp_dir("ws-create");
         let adaptors = default_adaptors();
