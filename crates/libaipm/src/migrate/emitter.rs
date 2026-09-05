@@ -1654,6 +1654,15 @@ mod tests {
     }
 
     #[test]
+    fn convert_hooks_yaml_multiline_value_continues_across_three_lines() {
+        // Three consecutive indented lines under the same key: the first
+        // starts the value, the second and third must append to it (the
+        // append branch when `current_value` is already `Some`).
+        let result = convert_hooks_yaml_to_json("PreToolUse:\n  check\n  deploy\n  now");
+        assert!(result.contains("check deploy now"));
+    }
+
+    #[test]
     fn convert_hooks_yaml_with_blank_lines() {
         let result = convert_hooks_yaml_to_json("PreToolUse: check\n\nPostToolUse: log");
         assert!(result.contains("PreToolUse"));
