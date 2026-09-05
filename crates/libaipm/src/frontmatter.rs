@@ -221,6 +221,25 @@ mod tests {
     }
 
     #[test]
+    fn parse_trailing_key_with_empty_value_and_no_continuation() {
+        // Covers the True branch of `current_multiline.is_empty()` in the
+        // final multi-line flush: the frontmatter's last line is a bare
+        // `key:` with no value and no following indented continuation
+        // lines, so it must be inserted as an empty string field.
+        let content = "---\nname: deploy\nhooks:\n---\nbody text";
+        let result = parse(content);
+        assert!(result.is_ok());
+        let fm = result.ok().and_then(|o| o).unwrap_or_else(|| Frontmatter {
+            fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
+            start_line: 0,
+            end_line: 0,
+            body: String::new(),
+        });
+        assert_eq!(fm.fields.get("hooks").map(String::as_str), Some(""));
+    }
+
+    #[test]
     fn parse_no_frontmatter() {
         let content = "just plain text";
         let result = parse(content);
