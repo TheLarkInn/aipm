@@ -67,15 +67,22 @@ impl<'de> Deserialize<'de> for Platform {
 // Platform detection
 // ---------------------------------------------------------------------------
 
-/// Return the [`Platform`] identifier for the current runtime OS.
-pub fn current_platforms() -> Vec<Platform> {
-    let os = std::env::consts::OS;
+/// Map an OS identifier string (as produced by `std::env::consts::OS`) to the
+/// matching [`Platform`] set. Extracted from [`current_platforms`] so the
+/// mapping can be exercised directly in tests for OS values other than the
+/// one the test runner happens to be executing on.
+fn platforms_for_os(os: &str) -> Vec<Platform> {
     match os {
         "windows" => vec![Platform::Windows],
         "linux" => vec![Platform::Linux],
         "macos" => vec![Platform::MacOs],
         _ => vec![],
     }
+}
+
+/// Return the [`Platform`] identifier for the current runtime OS.
+pub fn current_platforms() -> Vec<Platform> {
+    platforms_for_os(std::env::consts::OS)
 }
 
 // ---------------------------------------------------------------------------
@@ -140,6 +147,14 @@ mod tests {
             1,
             "current_platforms should return exactly one platform, got: {platforms:?}"
         );
+    }
+
+    #[test]
+    fn platforms_for_os_covers_every_branch() {
+        assert_eq!(platforms_for_os("windows"), vec![Platform::Windows]);
+        assert_eq!(platforms_for_os("linux"), vec![Platform::Linux]);
+        assert_eq!(platforms_for_os("macos"), vec![Platform::MacOs]);
+        assert_eq!(platforms_for_os("freebsd"), Vec::<Platform>::new());
     }
 
     #[test]
