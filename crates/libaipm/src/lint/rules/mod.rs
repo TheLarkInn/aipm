@@ -244,6 +244,18 @@ mod tests {
     }
 
     #[test]
+    fn locate_json_key_skips_non_matching_lines_before_match() {
+        // Multiple lines that do NOT contain the key must be scanned (and
+        // rejected) before the line that does contain it is found — this
+        // exercises the `line.find` "not found" branch across several
+        // iterations, not just the "found on first try" / "never found"
+        // extremes covered by the other tests.
+        let content = "{\n  \"other\": 1,\n  \"another\": 2,\n  \"event\": []\n}";
+        let result = locate_json_key(content, "event");
+        assert_eq!(result, Some((4, 3, 10)));
+    }
+
+    #[test]
     fn simple_diag_creates_diagnostic_with_no_positions() {
         let d = simple_diag(
             "test/rule",
