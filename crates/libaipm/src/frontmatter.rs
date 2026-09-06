@@ -449,6 +449,28 @@ mod tests {
     }
 
     #[test]
+    fn parse_empty_value_key_flushed_by_next_key_mid_loop() {
+        // A key with an empty value and no continuation lines, followed
+        // immediately by another key on the next line (not at EOF). This
+        // exercises the mid-loop pending-flush branch (as opposed to the
+        // final flush after the loop ends).
+        let content = "---\nhooks:\nname: test\n---\nbody";
+        let result = parse(content);
+        assert!(result.is_ok());
+        let fm = result.ok().and_then(|o| o);
+        assert!(fm.is_some());
+        let fm = fm.unwrap_or_else(|| Frontmatter {
+            fields: BTreeMap::new(),
+            field_lines: BTreeMap::new(),
+            start_line: 0,
+            end_line: 0,
+            body: String::new(),
+        });
+        assert_eq!(fm.fields.get("hooks").map(String::as_str), Some(""));
+        assert_eq!(fm.fields.get("name").map(String::as_str), Some("test"));
+    }
+
+    #[test]
     fn parse_multiline_key_then_eof_no_continuation() {
         // A key with empty value at the end of frontmatter (no continuation lines)
         let content = "---\nname:\n---\nbody";
