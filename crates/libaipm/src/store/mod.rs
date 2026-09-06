@@ -574,6 +574,37 @@ mod tests {
         assert_eq!(written, content);
     }
 
+    /// Same cross-device setup as `link_to_falls_back_to_copy_on_cross_device`,
+    /// but the target path is itself an existing directory, so the
+    /// `std::fs::copy` fallback fails and the error is propagated instead of
+    /// being swallowed.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn link_to_copy_fallback_error_propagates() {
+        use std::path::PathBuf;
+
+        let shm_dir = PathBuf::from("/dev/shm");
+        let store_path = shm_dir.join(format!("aipm-test-store-fail-{}", std::process::id()));
+        std::fs::create_dir_all(&store_path).unwrap();
+        let store = Store::new(store_path.clone());
+
+        let content = b"cross-device fallback failure test content";
+        let hash = store.store_file(content).unwrap();
+
+        // Target is an existing directory on /tmp (ext4), so after the
+        // cross-device hard-link fails, `std::fs::copy` also fails because
+        // it cannot write a regular file over a directory.
+        let target_dir = tempfile::tempdir().unwrap();
+        let target = target_dir.path().join("not-a-file");
+        std::fs::create_dir_all(&target).unwrap();
+
+        let result = store.link_to(&hash, &target);
+
+        let _ = std::fs::remove_dir_all(&store_path);
+
+        assert!(result.is_err(), "expected copy-fallback failure to propagate as an error");
+    }
+
     #[cfg(unix)]
     #[test]
     fn store_package_skips_symlinks() {
