@@ -1643,6 +1643,32 @@ mod tests {
     }
 
     #[test]
+    fn resolve_root_level_same_major_conflict_reported() {
+        // Two ROOT dependencies (not transitive) both request the same package name
+        // at incompatible same-major versions. Each requirement pins to a single
+        // candidate, so no choice point is recorded for either. This exercises the
+        // `try_activate_with_backtrack` same-major conflict branch (L249) directly —
+        // as opposed to `queue_transitive_dep`'s analogous check, which is covered by
+        // `transitive_conflict_same_major_reported`.
+        let mut reg = MockRegistry::new();
+        reg.add_package("shared", vec![("1.0.0", vec![]), ("1.1.0", vec![])]);
+
+        let deps = vec![root_dep("shared", "=1.0.0"), root_dep("shared", "=1.1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg);
+
+        assert!(
+            result.is_err(),
+            "expected a conflict error for incompatible root-level requirements"
+        );
+        match result {
+            Err(Error::Conflict(detail)) => {
+                assert_eq!(detail.name, "shared");
+            },
+            other => panic!("expected Error::Conflict, got {other:?}"),
+        }
+    }
+
+    #[test]
     fn compute_active_features_default_requested_but_not_defined() {
         // Covers the False branch via second operand of
         // `if dep.default_features && feature_defs.contains_key("default")`:
