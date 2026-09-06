@@ -553,6 +553,38 @@ mod tests {
         assert_eq!(outcome.sources_scanned, vec![".ai"]);
     }
 
+    /// Covers the True branch of `!RECOGNIZED_SOURCE_NAMES.contains(&name.as_str())`
+    /// at the `sources_scanned` tracking loop: a root-level instruction file (e.g.
+    /// `CLAUDE.md`) is classified with `source_root == project_root`, whose basename
+    /// is the tempdir's own name — not `.claude`/`.github`/`.ai` — so it must be
+    /// skipped rather than added to `sources_scanned`.
+    #[test]
+    fn lint_root_instruction_file_source_root_name_not_recognized() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        std::fs::write(root.join("CLAUDE.md"), "# Root instructions\n").unwrap();
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let outcome = lint(&opts, &crate::fs::Real).unwrap();
+
+        // The tempdir's own name (project root) must never be reported as a
+        // scanned source — only .claude / .github / .ai are recognized.
+        let root_name = root.file_name().map(|n| n.to_string_lossy().into_owned());
+        if let Some(name) = root_name {
+            assert!(
+                !outcome.sources_scanned.contains(&name),
+                "unrecognized root-level source_root name must not appear in sources_scanned"
+            );
+        }
+        assert!(outcome.sources_scanned.is_empty());
+    }
+
     #[test]
     fn lint_sources_scanned_deduplicates_same_source_type() {
         // Two skills from the same `.ai` source → the `sources_scanned.contains`
