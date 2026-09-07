@@ -718,6 +718,31 @@ mod tests {
     }
 
     #[test]
+    fn init_with_all_flags_disabled_emits_no_actions_and_no_warning() {
+        // Covers the `any_found` False side of `!any_created && any_found`
+        // (line 208): with both `workspace` and `marketplace` disabled,
+        // `actions` stays empty, so neither the "created" nor the "found"
+        // branch fires and the tail warn is skipped entirely.
+        let (tmp, _guard) = make_temp_dir("no-flags");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_workspace_creates_manifest() {
         let (tmp, _guard) = make_temp_dir("ws-create");
         let adaptors = default_adaptors();
