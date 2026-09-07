@@ -1096,6 +1096,19 @@ mod tests {
     }
 
     #[test]
+    fn cleanup_plan_non_skill_artifact_uses_file_label() {
+        // A non-Skill artifact that is not skipped for the report should be listed
+        // as a "file" (not "directory") in the cleanup plan, covering the False
+        // branch of `if a.kind == ArtifactKind::Skill` inside write_cleanup_plan.
+        let artifact = make_artifact("lint-hook", ArtifactKind::Hook);
+        let artifacts = vec![artifact];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", false, true, &[]);
+        assert!(report.contains("(file)"), "expected (file) label:\n{report}");
+        assert!(!report.contains("(directory)"), "no (directory) label expected:\n{report}");
+    }
+
+    #[test]
     fn recursive_report_with_other_files_in_plan() {
         // Cover the `if !all_other_files.is_empty()` branch in generate_recursive_report
         // by including a PluginPlan that has at least one OtherFile.
