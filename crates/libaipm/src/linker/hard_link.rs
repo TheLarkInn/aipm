@@ -167,6 +167,25 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_dir_removal_failure_returns_error() {
+        // If `target_dir` exists but is a plain file (not a directory),
+        // `std::fs::remove_dir_all` fails with `NotADirectory`, exercising
+        // the error-mapping branch on the initial cleanup step.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let target = tmp.path().join("links").join("my-pkg");
+
+        std::fs::create_dir_all(target.parent().expect("parent")).expect("create parent");
+        std::fs::write(&target, b"not a directory").expect("write file at target");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "assemble should fail with Io error when target_dir removal fails, got: {result:?}"
+        );
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
