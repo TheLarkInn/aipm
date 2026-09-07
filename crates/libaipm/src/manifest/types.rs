@@ -388,4 +388,17 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Covers the `Option::deserialize(deserializer)?` error propagation branch
+    /// in `engine_set_serde::deserialize` (types.rs line 345). Feeding a JSON
+    /// number where `Option<Vec<String>>` is expected makes the inner
+    /// `Option::deserialize` call fail, so the `?` operator must propagate the
+    /// error rather than reach any of the later `Some`/`None` arms.
+    #[test]
+    fn engine_set_serde_propagates_inner_deserialize_error() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value = serde_json::json!(42);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_err(), "deserializing a number as engines should fail: {result:?}");
+    }
 }
