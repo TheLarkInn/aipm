@@ -631,4 +631,19 @@ mod tests {
         let result = store.store_package(nonexistent);
         assert!(result.is_err(), "expected store_package to fail on missing directory");
     }
+
+    /// Verify that `lock()` returns an error when the store directory can be
+    /// created (or already exists), but the `.lock` file itself cannot be
+    /// created because a directory already occupies that path. This covers
+    /// the `File::create` error branch distinct from the `create_dir_all`
+    /// failure covered by `lock_errors_when_store_path_is_a_file`.
+    #[test]
+    fn lock_errors_when_lock_path_is_a_directory() {
+        let (_tmp, store) = make_store();
+        // Create a directory at the `.lock` path so `File::create` fails.
+        std::fs::create_dir_all(store.path().join(".lock")).unwrap();
+
+        let result = store.lock();
+        assert!(result.is_err(), "expected lock() to fail when .lock path is a directory");
+    }
 }
