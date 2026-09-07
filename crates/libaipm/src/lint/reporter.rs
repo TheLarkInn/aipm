@@ -2033,6 +2033,42 @@ mod tests {
     }
 
     #[test]
+    fn ci_github_reporter_error_severity_produces_error_command_line() {
+        // All prior `ci_github_diag_for_path`-based tests use `Severity::Warning`,
+        // so the filter's `l.starts_with("::error ")` disjunct is always
+        // short-circuited away (the `::warning ` prefix already matches).
+        // Build an error-level diagnostic directly so the reporter emits an
+        // `::error ` workflow command and the filter's second predicate is
+        // actually evaluated (and matches).
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "hook/unknown-event".to_string(),
+                severity: Severity::Error,
+                message: "unknown hook event".to_string(),
+                file_path: PathBuf::from(".ai/my-plugin/hooks/hooks.json"),
+                line: Some(5),
+                col: Some(1),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".to_string(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 1,
+            warning_count: 0,
+            sources_scanned: vec![],
+            ..Outcome::default()
+        };
+        let output = render_ci_github(&outcome);
+        let cmd_lines: Vec<&str> = output
+            .lines()
+            .filter(|l| l.starts_with("::warning ") || l.starts_with("::error "))
+            .collect();
+        assert_eq!(cmd_lines.len(), 1);
+        assert!(cmd_lines[0].starts_with("::error "));
+    }
+
+    #[test]
     fn ci_azure_group_line_no_second_logging_command_via_injection() {
         // PoC payload from issue #793: a filename containing
         // `\n##vso[task.setvariable…]` must not start a second ADO logging
