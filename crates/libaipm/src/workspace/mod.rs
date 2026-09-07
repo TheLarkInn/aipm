@@ -185,6 +185,29 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unparseable_manifest_and_continues_walking_up() {
+        // A malformed `aipm.toml` at an intermediate level must not abort the
+        // walk — it should be logged and skipped so a valid workspace root
+        // further up the tree is still found. Exercises the
+        // `Err(e) => { tracing::debug!(...) }` branch of the TOML-parse match.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+
+        let mid = root.join("mid");
+        std::fs::create_dir_all(&mid).unwrap();
+        // Invalid TOML syntax — `toml::from_str` will fail to parse this.
+        std::fs::write(mid.join("aipm.toml"), "this is not valid toml [[[").unwrap();
+
+        let leaf = mid.join("leaf");
+        std::fs::create_dir_all(&leaf).unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &leaf);
+        assert_eq!(result.as_deref(), Some(root));
+    }
+
+    #[test]
     fn discover_members_single_glob() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
