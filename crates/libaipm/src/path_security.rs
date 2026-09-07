@@ -125,6 +125,12 @@ mod tests {
     }
 
     #[test]
+    fn validate_path_rejects_null_byte() {
+        let result = validate_plugin_path("foo\0bar");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
+    #[test]
     fn validate_path_traversal_middle() {
         let result = validate_plugin_path("foo/../../../etc/passwd");
         assert!(matches!(result, Err(PathValidationError::PathTraversal)));
