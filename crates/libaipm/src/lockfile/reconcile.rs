@@ -232,6 +232,28 @@ mod tests {
         assert!(result.removed.is_empty());
     }
 
+    /// Exercises the short-circuit path of the `carried_forward` filter on
+    /// line 48: when `!removed.contains(&p.name)` is `false` (the package
+    /// was removed from the manifest), `&&` short-circuits and
+    /// `p.source != "workspace"` is never evaluated for that package. A
+    /// removed workspace package must therefore also be excluded, covering
+    /// the branch where the left operand alone determines the result.
+    #[test]
+    fn removed_workspace_package_excluded_from_carried_forward() {
+        let lf = make_lockfile_with_sources(&[
+            ("reg-pkg", "git+https://example.com"),
+            ("removed-ws-pkg", "workspace"),
+        ]);
+        // "removed-ws-pkg" is not in manifest_deps, so it's both removed
+        // and a workspace-sourced package.
+        let deps = dep_set(&["reg-pkg"]);
+
+        let result = reconcile(&lf, &deps);
+        assert_eq!(result.carried_forward.len(), 1);
+        assert_eq!(result.carried_forward[0].name, "reg-pkg");
+        assert!(result.removed.contains("removed-ws-pkg"));
+    }
+
     #[test]
     fn prune_orphans_empty_reachable() {
         let packages = vec![Package {
