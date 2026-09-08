@@ -1,7 +1,7 @@
 {
   "$schema": "../../../schemas/engine-api.schema.json",
   "meta_schema_version": "2.0.0",
-  "generated_at": "2026-05-05T13:04:12Z",
+  "generated_at": "2026-09-08T17:44:00Z",
   "engines": [
     {
       "name": "claude",
@@ -15,8 +15,8 @@
     }
   ],
   "versions": {
-    "claude": "2.1.128",
-    "copilot": "1.0.40"
+    "claude": "2.1.263",
+    "copilot": "1.0.83"
   },
   "apis": {
     "claude": {
@@ -206,6 +206,24 @@
           ],
           "deprecated": false,
           "notes": "Stop a running task"
+        },
+        {
+          "name": "BashOutput",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Retrieve output from a background-running Bash shell started with run_in_background"
+        },
+        {
+          "name": "KillShell",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Terminate a background-running Bash shell by its shell id"
+        },
+        {
+          "name": "SendMessage",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Send a message to a named sub-agent/teammate spawned via Task; fields: type, recipient, content, request_id, approve"
         }
       ],
       "hook_events": [
@@ -2070,6 +2088,30 @@
         "unsupported_by": [
           "claude"
         ]
+      },
+      "BashOutput": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "KillShell": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "SendMessage": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
       }
     }
   },
@@ -2087,13 +2129,17 @@
         "Test that enter_worktree/exit_worktree tools are recognized as claude-exclusive",
         "Test that notebook_edit tool is recognized as valid for claude",
         "Test that ask_user_question tool is recognized as valid for claude",
-        "Test that mcp, list_mcp_resources, read_mcp_resource are valid claude tool names"
+        "Test that mcp, list_mcp_resources, read_mcp_resource are valid claude tool names",
+        "Test that BashOutput tool is recognized as a valid claude tool for retrieving background shell output",
+        "Test that KillShell tool is recognized as a valid claude tool for terminating background shells",
+        "Test that SendMessage tool is recognized as a valid claude tool for inter-agent messaging (fields: type, recipient, content, request_id, approve)"
       ],
       "behaviour_variants": [
         "Claude supports both sync and async agent modes (agentId + outputFile for async)",
         "FileRead supports text, image (jpeg/png/gif/webp), notebook, and pdf types",
         "Bash tool supports run_in_background flag and dangerouslyDisableSandbox override",
-        "AgentOutput includes detailed toolStats (readCount, searchCount, bashCount, editFileCount, linesAdded, linesRemoved)"
+        "AgentOutput includes detailed toolStats (readCount, searchCount, bashCount, editFileCount, linesAdded, linesRemoved)",
+        "Bash tool run_in_background sessions are managed via BashOutput (poll output) and KillShell (terminate); shell ids are opaque strings returned from the initial Bash call"
       ]
     },
     "copilot": {

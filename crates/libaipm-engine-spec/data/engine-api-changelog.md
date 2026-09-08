@@ -2,6 +2,21 @@
 
 <!-- Entries are prepended (newest first). -->
 
+## 2026-09-08 — claude v2.1.263
+
+| Field | Change |
+|-------|--------|
+| `tool_calls[BashOutput]` | **Added** — retrieves output from a background-running Bash shell started with `run_in_background`. |
+| `tool_calls[KillShell]` | **Added** — terminates a background-running Bash shell by its shell id. |
+| `tool_calls[SendMessage]` | **Added** — sends a message to a named sub-agent/teammate spawned via `Task`; fields: `type`, `recipient`, `content`, `request_id`, `approve` (confirms the `Task` field addition documented in the 2026-05-05 entry). |
+| `versions.claude` | Changed (was: `2.1.128`, now: `2.1.263`) |
+
+## 2026-09-08 — copilot v1.0.83
+
+No API changes detected (version bumped from `1.0.40` to `1.0.83`, but no new manifest fields,
+folder conventions, hook events, or tool calls were observed in `app.js` / `sdk/index.js` /
+`copilot-sdk/index.js` relative to the previously recorded schema).
+
 ## 2026-05-05 — claude v2.1.128
 
 | Field | Change |
