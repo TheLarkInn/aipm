@@ -455,6 +455,22 @@ mod tests {
         let _guard = store.lock().unwrap();
     }
 
+    /// Covers the branch in `lock()` where `create_dir_all` succeeds but
+    /// creating the lock file itself fails (e.g., a directory already
+    /// occupies the `.lock` path).
+    #[test]
+    fn lock_errors_when_lock_path_is_a_directory() {
+        let (_tmp, store) = make_store();
+
+        // Pre-create the store directory, then occupy the `.lock` path with a
+        // directory so `File::create` fails with an I/O error.
+        std::fs::create_dir_all(store.path()).unwrap();
+        std::fs::create_dir_all(store.path().join(".lock")).unwrap();
+
+        let result = store.lock();
+        assert!(result.is_err(), "expected lock() to fail when .lock path is a directory");
+    }
+
     #[test]
     fn lock_creates_store_directory() {
         let tmp = tempfile::tempdir().unwrap();
