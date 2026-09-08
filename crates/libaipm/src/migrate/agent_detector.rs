@@ -126,6 +126,11 @@ mod tests {
     }
 
     #[test]
+    fn agent_detector_name() {
+        assert_eq!(AgentDetector.name(), "agent");
+    }
+
+    #[test]
     fn detect_agent_md_file() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/src/agents"));
