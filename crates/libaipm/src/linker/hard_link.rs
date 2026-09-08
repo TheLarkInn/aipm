@@ -149,21 +149,27 @@ mod tests {
     #[test]
     fn assemble_missing_hash_returns_error() {
         // A valid-format hash that was never stored — link_to returns NotFound,
-        // covering the error mapping on the store.link_to call.
+        // covering the error mapping on the store.link_to call. Two distinct
+        // file names are exercised through the *same* assertion so that both
+        // arms of the `path.ends_with("ghost.txt")` guard are hit: `true` for
+        // the "ghost.txt" case, and `false` for the "phantom.dat" case.
         let tmp = tempfile::tempdir().expect("tempdir");
         let store = store::Store::new(tmp.path().join("store"));
 
-        let ghost_hash = "a".repeat(128); // valid format, but never stored
-        let mut file_hashes = BTreeMap::new();
-        file_hashes.insert(PathBuf::from("ghost.txt"), ghost_hash);
+        for (idx, name) in ["ghost.txt", "phantom.dat"].into_iter().enumerate() {
+            let ghost_hash = "a".repeat(128); // valid format, but never stored
+            let mut file_hashes = BTreeMap::new();
+            file_hashes.insert(PathBuf::from(name), ghost_hash);
 
-        let target = tmp.path().join("links").join("ghost-pkg");
-        let result = assemble(&store, &file_hashes, &target);
-        assert!(
-            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt")),
-            "assemble should fail with Io error for ghost.txt, got: {:?}",
-            result
-        );
+            let target = tmp.path().join("links").join(format!("ghost-pkg-{idx}"));
+            let result = assemble(&store, &file_hashes, &target);
+            assert!(
+                matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt"))
+                    == (name == "ghost.txt"),
+                "assemble error path mismatch for {name}, got: {:?}",
+                result
+            );
+        }
     }
 
     #[test]
