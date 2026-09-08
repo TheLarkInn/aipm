@@ -174,6 +174,21 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unreadable_manifest() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // A directory named "aipm.toml" exists() but read_to_string fails,
+        // exercising the read-error branch distinct from the parse-error one.
+        std::fs::create_dir_all(root.join("aipm.toml")).unwrap();
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(&subdir).unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
+        assert!(result.is_none(), "should skip unreadable manifest, got: {result:?}");
+    }
+
+    #[test]
     fn find_root_from_root_itself() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
@@ -182,6 +197,16 @@ mod tests {
 
         let result = find_workspace_root(&crate::fs::Real, root);
         assert_eq!(result.as_deref(), Some(root));
+    }
+
+    #[test]
+    fn discover_members_error_invalid_glob_pattern() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // `[` is an unterminated character class — invalid glob syntax.
+        let err = discover_members(&crate::fs::Real, root, &["[".to_string()]).unwrap_err();
+        assert!(format!("{err}").contains("invalid glob pattern"));
     }
 
     #[test]
