@@ -554,6 +554,23 @@ mod tests {
     }
 
     #[test]
+    fn cache_policy_roundtrip_skips_unparseable_strings() {
+        // Covers the `Err` branch of `s.parse::<Policy>()` at the `let-else`
+        // in `cache_policy_roundtrip`: a string that does not correspond to
+        // any known `Policy` variant should hit the `else { continue }` path
+        // rather than panicking or being treated as a match.
+        let mut unexpected_parses = Vec::new();
+        for s in ["not-a-policy", "", "auto2"] {
+            let Ok(parsed) = s.parse::<Policy>() else { continue };
+            unexpected_parses.push((s, parsed));
+        }
+        assert!(
+            unexpected_parses.is_empty(),
+            "unexpected successful parses: {unexpected_parses:?}"
+        );
+    }
+
+    #[test]
     fn cache_miss_returns_none() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let result = cache.get("github:owner/repo:plugin@main");
