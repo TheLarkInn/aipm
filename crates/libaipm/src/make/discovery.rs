@@ -149,4 +149,23 @@ mod tests {
         let result = find_marketplace(Path::new("/"), &fs);
         assert!(result.is_err());
     }
+
+    /// Covers the `MockFs` stub implementations of `Fs` methods that are
+    /// unused by `find_marketplace` itself (which only calls `exists`).
+    /// Exercising them directly ensures the mock's `Ok`/`Err` branches are
+    /// not left uncovered.
+    #[test]
+    fn mock_fs_stub_methods_return_expected_results() {
+        let fs = MockFs::new();
+
+        assert!(fs.create_dir_all(Path::new("/anything")).is_ok());
+        assert!(fs.write_file(Path::new("/anything"), b"data").is_ok());
+
+        let read_err = fs.read_to_string(Path::new("/anything"));
+        assert!(read_err.is_err());
+
+        let entries = fs.read_dir(Path::new("/anything"));
+        assert!(entries.is_ok());
+        assert!(entries.unwrap_or_default().is_empty());
+    }
 }
