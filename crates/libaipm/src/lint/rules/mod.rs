@@ -386,4 +386,26 @@ mod tests {
         let rules = quality_rules_for_kind(&FeatureKind::Instructions, &config);
         assert!(rules.iter().any(|r| r.id() == "instructions/oversized"));
     }
+
+    #[test]
+    fn quality_rules_for_instructions_kind_honors_characters_option() {
+        // Covers the `characters` option's `Some(...)` path (parsed as a
+        // TOML integer and converted to `usize`) in the `FeatureKind::Instructions`
+        // branch of `quality_rules_for_kind`, as opposed to the default-value
+        // fallback exercised by `quality_rules_for_instructions_kind` above.
+        use std::collections::BTreeMap;
+
+        use crate::lint::config::RuleOverride;
+
+        let mut config = Config::default();
+        let mut opts = BTreeMap::new();
+        opts.insert("characters".to_string(), toml::Value::Integer(1234));
+        config.rule_overrides.insert(
+            "instructions/oversized".to_string(),
+            RuleOverride::Detailed { level: None, ignore: vec![], options: opts },
+        );
+
+        let rules = quality_rules_for_kind(&FeatureKind::Instructions, &config);
+        assert!(rules.iter().any(|r| r.id() == "instructions/oversized"));
+    }
 }
