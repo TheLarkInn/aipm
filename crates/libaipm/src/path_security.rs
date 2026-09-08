@@ -229,6 +229,17 @@ mod tests {
         assert!(matches!(result, Err(PathValidationError::PathTraversal)));
     }
 
+    #[test]
+    fn validate_path_traversal_encoded_uppercase() {
+        // "%2E%2E" (uppercase) contains neither a literal ".." nor a
+        // lowercase "%2e%2e" substring, so it only trips the
+        // `lower.contains("%2e%2e")` branch after lowercasing — covering
+        // the `lower.contains("..") || lower.contains("%2e%2e")` True arm
+        // for the second operand independently of the first.
+        let result = validate_plugin_path("foo/%2E%2E/bar");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
     #[cfg(windows)]
     #[test]
     fn validate_windows_absolute_path() {
