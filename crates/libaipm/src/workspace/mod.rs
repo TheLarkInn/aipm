@@ -227,6 +227,22 @@ mod tests {
     }
 
     #[test]
+    fn discover_members_error_invalid_glob_pattern() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // `[invalid` is an unterminated character class — glob::glob rejects
+        // it as a PatternError before any filesystem traversal happens.
+        let result = discover_members(&crate::fs::Real, root, &["[invalid".to_string()]);
+        assert!(result.is_err(), "expected invalid glob pattern to error, got: {result:?}");
+        let err = result.unwrap_err();
+        assert!(
+            format!("{err}").contains("invalid glob pattern"),
+            "expected 'invalid glob pattern' in error, got: {err}"
+        );
+    }
+
+    #[test]
     fn discover_members_error_duplicate_name() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
