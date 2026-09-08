@@ -365,4 +365,19 @@ mod tests {
             "expected 'failed to read' error, got: {err}"
         );
     }
+
+    #[test]
+    fn discover_members_error_invalid_glob_pattern() {
+        // An unterminated character class ("[") is rejected by `glob::glob`,
+        // exercising the `glob::glob(...).map_err(...)` branch in
+        // `discover_members`.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let err = discover_members(&crate::fs::Real, root, &["[".to_string()]).unwrap_err();
+        assert!(
+            format!("{err}").contains("invalid glob pattern"),
+            "expected 'invalid glob pattern' error, got: {err}"
+        );
+    }
 }
