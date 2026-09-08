@@ -364,6 +364,26 @@ mod tests {
     }
 
     #[test]
+    fn link_to_errors_when_parent_creation_fails() {
+        // Create a regular file, then try to link into a path nested under
+        // it as if it were a directory. `create_dir_all` cannot create a
+        // directory where a file already exists, so it returns an I/O
+        // error — exercising the parent `create_dir_all` error branch in
+        // `Store::link_to`.
+        let (_tmp, store) = make_store();
+        let content = b"blocked parent target";
+        let hash = store.store_file(content).unwrap();
+
+        let target_dir = tempfile::tempdir().unwrap();
+        let blocker = target_dir.path().join("blocker");
+        std::fs::write(&blocker, b"not a dir").unwrap();
+
+        let target = blocker.join("child").join("linked_file");
+        let result = store.link_to(&hash, &target);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn link_to_errors_on_missing_hash() {
         let (_tmp, store) = make_store();
         let fake_hash = "c".repeat(128);
