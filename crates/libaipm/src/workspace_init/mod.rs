@@ -1052,6 +1052,32 @@ mod tests {
     }
 
     #[test]
+    fn init_no_flags_produces_no_tail_warning_path() {
+        // Neither `workspace` nor `marketplace` is requested, so `actions`
+        // stays empty: `any_created` and `any_found` are both `false`.
+        // This exercises the `!any_created && any_found` condition's
+        // `any_found == false` side (line 208), distinct from the
+        // "everything already existed" warn path covered elsewhere.
+        let (tmp, _guard) = make_temp_dir("no-flags");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn marketplace_json_with_starter_is_valid() {
         let starter = crate::generate::marketplace::Entry {
             name: "starter-aipm-plugin",
