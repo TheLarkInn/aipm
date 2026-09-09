@@ -173,15 +173,29 @@ mod tests {
         assert!(result.is_none(), "should not match non-workspace manifest, got: {result:?}");
     }
 
+    /// Covers the `Err(e)` branch of the `fs.read_to_string` match arm in
+    /// `find_workspace_root`: when `aipm.toml` exists (per `fs.exists`) but
+    /// is actually a directory, reading it as a string fails with an I/O
+    /// error, which is logged and the walk-up continues past this level.
     #[test]
-    fn find_root_from_root_itself() {
+    fn find_root_skips_unreadable_manifest_and_continues_up() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
 
+        // A real workspace root one level up.
         std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
 
-        let result = find_workspace_root(&crate::fs::Real, root);
-        assert_eq!(result.as_deref(), Some(root));
+        // `sub/aipm.toml` is a *directory*, not a file: `fs.exists` returns
+        // true, but `read_to_string` fails with an I/O error.
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(subdir.join("aipm.toml")).unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
+        assert_eq!(
+            result.as_deref(),
+            Some(root),
+            "should skip unreadable manifest and continue up"
+        );
     }
 
     #[test]
