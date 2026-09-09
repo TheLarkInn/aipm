@@ -2091,6 +2091,133 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// #850 Spec G12 / Q9.5: when every requested artifact (workspace
+    /// manifest, `.ai/` marketplace, per-engine `marketplace.json`, and
+    /// every adaptor's tool config) already exists, `init` must emit only
+    /// `*FoundExisting` actions and fire the "found nothing to do" warn.
+    ///
+    /// Covers the `any_found` operand of `if !any_created && any_found`
+    /// staying `true` (not just `!any_created` alone): this is the only
+    /// test that pre-seeds *every* artifact an adaptor could touch, so
+    /// `any_created` is false via an all-Found actions list rather than
+    /// an empty one.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_all_artifacts_preexisting_warns_nothing_to_do() {
+        let (tmp, _guard) = make_temp_dir("all-preexisting-nothing-to-do");
+
+        // Pre-existing, valid workspace manifest.
+        let manifest = generate_workspace_manifest(None);
+        std::fs::write(tmp.join("aipm.toml"), &manifest).ok();
+
+        // Pre-existing .ai/ with both engines' marketplace.json already in place.
+        let claude_dir = tmp.join(".ai/.claude-plugin");
+        let copilot_dir = tmp.join(".ai/.github/plugin");
+        std::fs::create_dir_all(&claude_dir).ok();
+        std::fs::create_dir_all(&copilot_dir).ok();
+        let valid = crate::generate::marketplace::create("preexisting", &[]);
+        std::fs::write(claude_dir.join("marketplace.json"), &valid).ok();
+        std::fs::write(copilot_dir.join("marketplace.json"), &valid).ok();
+
+        // Pre-existing Claude settings.json that already registers the
+        // marketplace, so the Claude adaptor's `apply` returns `false`.
+        let mut settings = serde_json::json!({});
+        crate::generate::settings::add_known_marketplace(&mut settings, "local-repo-plugins");
+        let claude_settings_dir = tmp.join(".claude");
+        std::fs::create_dir_all(&claude_settings_dir).ok();
+        std::fs::write(
+            claude_settings_dir.join("settings.json"),
+            serde_json::to_string_pretty(&settings).unwrap_or_default(),
+        )
+        .ok();
+
+        // Pre-existing Copilot instructions file, so the Copilot adaptor's
+        // `apply` returns `false` (it never overwrites an existing file).
+        let github_dir = tmp.join(".github");
+        std::fs::create_dir_all(&github_dir).ok();
+        std::fs::write(github_dir.join("copilot-instructions.md"), "existing content").ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE
+                | libaipm_engine_spec::EngineSet::COPILOT,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init over all-preexisting artifacts must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+        assert!(actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)));
+        assert_eq!(
+            actions
+                .iter()
+                .filter(|a| matches!(a, InitAction::MarketplaceManifestFoundExisting { .. }))
+                .count(),
+            2,
+            "expected both engines' marketplace.json to be found-existing"
+        );
+        assert!(
+            !actions.iter().any(|a| matches!(
+                a,
+                InitAction::WorkspaceCreated
+                    | InitAction::MarketplaceCreated
+                    | InitAction::MarketplaceManifestWritten { .. }
+                    | InitAction::ToolConfigured(_)
+            )),
+            "no *Created/Written/ToolConfigured action should fire: {actions:?}"
+        );
+
+        assert!(
+            logs_contain("aipm init found nothing to do; all requested artifacts already exist"),
+            "expected the nothing-to-do warn event"
+        );
+
+        cleanup(&tmp);
+    }
+
+    /// Covers the `false` outcome of `any_found` in `if !any_created &&
+    /// any_found`: when neither `--workspace` nor `--marketplace` is
+    /// requested, `actions` stays empty, so both `any_created` and
+    /// `any_found` are false and the "found nothing to do" warn must NOT
+    /// fire (distinct from the all-preexisting case above, where
+    /// `any_found` is true).
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_no_phases_requested_does_not_warn_nothing_to_do() {
+        let (tmp, _guard) = make_temp_dir("no-phases-requested");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init with no phases requested must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions when no phases are requested");
+
+        assert!(
+            !logs_contain("aipm init found nothing to do; all requested artifacts already exist"),
+            "the nothing-to-do warn should not fire when nothing was requested at all"
+        );
+
+        cleanup(&tmp);
+    }
+
     /// Existing `aipm.toml` declares `engines = ["claude"]` but the
     /// wizard answer chose Copilot. Init must succeed (idempotent),
     /// leave the file unchanged, and emit a tracing::warn event naming
