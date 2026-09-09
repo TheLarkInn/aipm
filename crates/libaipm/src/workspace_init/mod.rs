@@ -835,6 +835,39 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// #850 Q9.5: when both `workspace` and `marketplace` are disabled,
+    /// `init` performs no phases at all, so `actions` stays empty and
+    /// both `any_created` and `any_found` are `false`. This covers the
+    /// `false` side of the `any_found` check — the tail warning must not
+    /// fire for a deliberate no-op run (distinct from a run where
+    /// everything requested already existed).
+    #[test]
+    fn init_with_no_phases_requested_is_a_silent_noop() {
+        let (tmp, _guard) = make_temp_dir("no-phases-noop");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "no-phase init must still succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "no phases requested means no actions taken: {actions:?}");
+        // Neither aipm.toml nor .ai/ should have been touched.
+        assert!(!tmp.join("aipm.toml").exists());
+        assert!(!tmp.join(".ai").exists());
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_both_creates_everything() {
         let (tmp, _guard) = make_temp_dir("both");
