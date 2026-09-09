@@ -210,6 +210,38 @@ mod tests {
     }
 
     #[test]
+    fn create_fails_when_parent_mkdir_errors() {
+        // `blocker` is a regular file, so `create_dir_all` cannot create a
+        // directory under it — exercising the `Error::Io` mapping on the
+        // parent-directory creation in `create()`.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let source = tmp.path().join("source");
+        std::fs::create_dir_all(&source).expect("create source");
+
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"not a dir").expect("write blocker");
+
+        let target = blocker.join("child").join("link");
+        let result = create(&source, &target);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
+    fn remove_fails_for_regular_directory() {
+        // `remove_file` fails with an I/O error (EISDIR) when given a
+        // regular directory instead of a symlink — exercising the
+        // `Error::Io` mapping in `remove_link`.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("regular_dir");
+        std::fs::create_dir_all(&dir).expect("create dir");
+
+        let result = remove(&dir);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn create_with_parentless_target_skips_parent_mkdir() {
         // Path::new("").parent() returns None, which covers the None arm of
         // `if let Some(parent) = target.parent()` in create().
