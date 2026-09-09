@@ -302,4 +302,16 @@ mod tests {
         sorted.sort();
         assert_eq!(result.files, sorted);
     }
+
+    /// Covers the `else` branch of `if let Some(parent) = path.parent()` in
+    /// the `touch` test helper: every other call site in this module joins
+    /// a directory onto a tempdir root, so `parent()` is always `Some`.
+    /// The only path whose `.parent()` is `None` is the empty path, which
+    /// also fails `fs::write` — so this exercises the skip branch and
+    /// asserts the resulting (expected) panic from the `fs::write` step.
+    #[test]
+    #[should_panic(expected = "touch file")]
+    fn touch_helper_skips_create_dir_all_when_path_has_no_parent() {
+        touch(Path::new(""));
+    }
 }
