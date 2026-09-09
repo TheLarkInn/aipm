@@ -973,6 +973,40 @@ mod tests {
         assert!(!logissue_line.contains("(see "));
     }
 
+    /// Covers the `outcome.error_count == 0 && outcome.warning_count > 0`
+    /// True branch in `CiAzure::report`: when a run has only warnings (no
+    /// errors), the reporter must emit `##vso[task.complete
+    /// result=SucceededWithIssues;]` so the Azure DevOps pipeline surfaces
+    /// the run as "succeeded with issues" rather than a clean success.
+    #[test]
+    fn ci_azure_warnings_only_emits_succeeded_with_issues() {
+        let outcome = ci_azure_single_diagnostic_outcome(None, None);
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        assert!(
+            output.contains("##vso[task.complete result=SucceededWithIssues;]"),
+            "expected SucceededWithIssues completion command for warnings-only outcome, got: {output}"
+        );
+    }
+
+    /// Covers the False side of the same branch: when there is at least
+    /// one error, the reporter must NOT emit the `SucceededWithIssues`
+    /// completion command (errors should surface as a hard failure).
+    #[test]
+    fn ci_azure_with_errors_omits_succeeded_with_issues() {
+        let outcome = sample_outcome();
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        assert!(
+            !output.contains("SucceededWithIssues"),
+            "SucceededWithIssues must not be emitted when errors are present, got: {output}"
+        );
+    }
+
     fn ci_azure_diag_on(file_path: &str, rule_id: &str, line: usize) -> Diagnostic {
         Diagnostic {
             rule_id: rule_id.into(),
