@@ -177,4 +177,26 @@ mod tests {
         // Assembled dir must be gone.
         assert!(!assembled_dir.exists(), "assembled_dir should have been removed");
     }
+
+    #[test]
+    fn unlink_package_returns_io_error_when_assembled_dir_removal_fails() {
+        // Make `assembled_dir` a regular file instead of a directory. `exists()`
+        // then returns true, but `remove_dir_all` fails (ENOTDIR/ENOENT
+        // depending on platform), exercising the `map_err` error branch on the
+        // `std::fs::remove_dir_all` call in `unlink_package`.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let links_dir = tmp.path().join(".aipm/links");
+        let plugins_dir = tmp.path().join("claude-plugins");
+
+        std::fs::create_dir_all(&links_dir).expect("create links dir");
+        let assembled_dir = links_dir.join("broken-pkg");
+        std::fs::write(&assembled_dir, b"not a directory").expect("write file in place of dir");
+
+        // No plugin link exists — directory_link::is_link branch is skipped.
+        let result = unlink_package("broken-pkg", &links_dir, &plugins_dir);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &assembled_dir),
+            "expected Io error for assembled_dir, got: {result:?}"
+        );
+    }
 }
