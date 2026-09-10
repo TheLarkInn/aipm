@@ -365,4 +365,56 @@ mod tests {
             "expected 'failed to read' error, got: {err}"
         );
     }
+
+    /// A mock `Fs` whose `read_to_string` always errors, used to exercise the
+    /// "manifest exists but cannot be read" branch of `find_workspace_root`
+    /// (as opposed to the "manifest content fails to parse" branch, which is
+    /// already covered by `find_root_skips_invalid_toml`).
+    struct UnreadableManifestFs;
+
+    impl crate::fs::Fs for UnreadableManifestFs {
+        fn exists(&self, _: &Path) -> bool {
+            true
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn find_root_skips_unreadable_manifest() {
+        // The manifest exists (per `exists`) but `read_to_string` errors, which
+        // should hit the `Err(e)` arm around the outer `read_to_string` call and
+        // continue walking up rather than returning early.
+        let result = find_workspace_root(&UnreadableManifestFs, Path::new("/a/b"));
+        assert!(result.is_none(), "should skip unreadable manifest, got: {result:?}");
+    }
+
+    #[test]
+    fn discover_members_error_invalid_glob_pattern() {
+        // "[" is not a valid glob pattern (unterminated character class),
+        // exercising the `glob::glob(...).map_err(...)` branch in
+        // `discover_members`.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let err = discover_members(&crate::fs::Real, root, &["[".to_string()]).unwrap_err();
+        assert!(
+            format!("{err}").contains("invalid glob pattern"),
+            "expected 'invalid glob pattern' error, got: {err}"
+        );
+    }
 }
