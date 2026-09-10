@@ -118,7 +118,13 @@ mod tests {
     }
 
     #[test]
+    #[tracing_test::traced_test]
     fn discover_unified_finds_issue_725_tree() {
+        // `#[traced_test]` installs a subscriber so the `tracing::trace!`
+        // call inside `discover`'s classification loop (fired once per
+        // successfully classified feature) actually executes its body —
+        // covering the `Some(feat)` branch's log statement, which is
+        // otherwise a no-op with no subscriber installed.
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path();
         for name in ["skill-alpha", "skill-beta", "skill-gamma"] {
@@ -130,6 +136,10 @@ mod tests {
         assert_eq!(counts.skills, 3, "expected 3 skills, got: {counts:?}");
         assert_eq!(counts.total(), 3);
         assert!(!set.scanned_dirs.is_empty());
+        assert!(
+            logs_contain("classified"),
+            "expected the per-feature trace! log to fire during discover()"
+        );
     }
 
     #[test]
