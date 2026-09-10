@@ -836,6 +836,37 @@ mod tests {
     }
 
     #[test]
+    fn init_with_no_phases_requested_emits_no_nothing_to_do_warning() {
+        // #850 Spec G12 / Q9.5: the tail warning fires only when
+        // `!any_created && any_found` — i.e. something was explicitly
+        // requested and found pre-existing, but nothing was created. With
+        // both `workspace` and `marketplace` disabled, `actions` stays
+        // empty, so `any_created` and `any_found` are both `false` and the
+        // `&&` short-circuits to `false`. This exercises the False side of
+        // that guard (every other test in this module drives it `true`).
+        let (tmp, _guard) = make_temp_dir("no-phases-requested");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "no-op init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "no phases requested means no actions recorded");
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_both_creates_everything() {
         let (tmp, _guard) = make_temp_dir("both");
         let adaptors = default_adaptors();
