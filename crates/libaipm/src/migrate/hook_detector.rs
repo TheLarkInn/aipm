@@ -424,6 +424,17 @@ mod tests {
         assert!(!has_windows_drive_prefix("CC:\\bad"));
     }
 
+    /// `"C:foo"` has an alphabetic first byte and `:` as the second byte,
+    /// but its third byte is neither `\` nor `/` — this exercises the
+    /// `False` side of the final `(bytes.get(2) == Some(&b'\\') ||
+    /// bytes.get(2) == Some(&b'/'))` branch in `has_windows_drive_prefix`,
+    /// which every other case in this suite short-circuits past on an
+    /// earlier condition instead of reaching.
+    #[test]
+    fn has_windows_drive_prefix_rejects_non_separator_third_byte() {
+        assert!(!has_windows_drive_prefix("C:foo"));
+    }
+
     #[test]
     fn collect_command_scripts_with_missing_command_field() {
         // A hook object with type=command but no "command" key should not produce any
