@@ -260,6 +260,24 @@ mod tests {
         assert_eq!(find_workspace_dir(&file), dir.path());
     }
 
+    #[test]
+    fn workspace_dir_walks_to_filesystem_root_without_marker() {
+        // Nest several levels deep with no `aipm.toml` or `.ai/` anywhere up
+        // the chain, so the loop keeps climbing via `dir.parent()` until it
+        // reaches the real filesystem root (where `parent()` returns `None`),
+        // covering the `_ => break` arm of the walk-up match.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let nested = dir.path().join("a/b/c");
+        std::fs::create_dir_all(&nested).expect("mkdir nested");
+        let file = nested.join("orphan.md");
+        std::fs::write(&file, "").expect("write");
+
+        // No marker exists anywhere up the chain (including real fs root in
+        // this sandboxed test environment), so the walk exhausts every
+        // ancestor and falls back to `start` (the file's immediate parent).
+        assert_eq!(find_workspace_dir(&file), nested);
+    }
+
     // ── to_lsp_diagnostic ────────────────────────────────────────────────────
 
     #[test]
