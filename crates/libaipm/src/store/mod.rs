@@ -363,6 +363,26 @@ mod tests {
         assert!(target.exists());
     }
 
+    /// When the target's parent path component is itself a regular file,
+    /// `create_dir_all(parent)` fails with `ENOTDIR`, and `link_to` must
+    /// propagate that error instead of proceeding to the hard-link step.
+    #[cfg(unix)]
+    #[test]
+    fn link_to_errors_when_parent_dir_creation_fails() {
+        let (_tmp, store) = make_store();
+        let hash = store.store_file(b"content needing a parent dir").unwrap();
+
+        let target_dir = tempfile::tempdir().unwrap();
+        // Create a regular file where a directory is expected, so that
+        // `target.parent()` (this file) cannot be created as a directory.
+        let blocking_file = target_dir.path().join("blocking-file");
+        std::fs::write(&blocking_file, b"not a directory").unwrap();
+        let target = blocking_file.join("nested-target");
+
+        let result = store.link_to(&hash, &target);
+        assert!(result.is_err(), "expected link_to to fail when parent dir creation fails");
+    }
+
     #[test]
     fn link_to_errors_on_missing_hash() {
         let (_tmp, store) = make_store();
