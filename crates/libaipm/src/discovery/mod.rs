@@ -200,6 +200,30 @@ mod tests {
         assert!(set.is_empty());
     }
 
+    /// Covers the `else` branch of `discover`'s classification loop: a file
+    /// that is walked but that `classify::classify` returns `None` for (no
+    /// engine ancestor, not an instruction filename) is silently skipped
+    /// rather than added to `features`.
+    #[test]
+    fn discover_skips_unrecognized_file_with_no_classification() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        touch(&root.join("random-notes.txt"));
+        touch(&root.join(".claude/skills/x/SKILL.md"));
+        let set =
+            discover(root, &DiscoverOptions::default(), &Real).expect("discover should succeed");
+        assert_eq!(
+            set.counts().skills,
+            1,
+            "expected only the classified skill: {:?}",
+            set.counts()
+        );
+        assert!(
+            set.features.iter().all(|f| f.kind != FeatureKind::Instructions),
+            "random-notes.txt must not be classified as an instruction file"
+        );
+    }
+
     #[test]
     fn apply_source_filter_no_filter_keeps_all() {
         let mut features = vec![
