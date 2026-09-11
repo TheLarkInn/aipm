@@ -192,6 +192,20 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn read_content_returns_read_error_on_invalid_utf8() {
+        // Writing bytes that are not valid UTF-8 directly to the file (bypassing
+        // `write_content`) causes `read_to_string` to fail, exercising the
+        // `Error::Read` branch in `read_content`.
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let path = temp.path().join("invalid.json");
+        std::fs::write(&path, [0xFF, 0xFE, 0xFD]).unwrap_or_else(|_| {});
+
+        let mut locked = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
+        let result = locked.read_content();
+        assert!(result.is_err());
+    }
+
     /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
     fn unreachable_tempdir() -> tempfile::TempDir {
         tempfile::tempdir_in(".").unwrap_or_else(|_| {
