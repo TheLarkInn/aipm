@@ -861,6 +861,36 @@ mod tests {
     }
 
     #[test]
+    fn init_with_both_phases_disabled_produces_no_actions() {
+        // With `workspace: false` and `marketplace: false`, `actions` stays
+        // empty: `any_created` and `any_found` are both false, so the
+        // `!any_created && any_found` "nothing to do" warn is not triggered
+        // (its right-hand side, `any_found`, evaluates to false here) —
+        // exercising the false-false case of that condition, distinct from
+        // the true-true idempotent-rerun case covered elsewhere.
+        let (tmp, _guard) = make_temp_dir("no-phases");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "no actions should be recorded when both phases are disabled");
+        assert!(!tmp.join("aipm.toml").exists());
+        assert!(!tmp.join(".ai").exists());
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_with_no_adaptors() {
         let (tmp, _guard) = make_temp_dir("no-adaptors");
         let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
