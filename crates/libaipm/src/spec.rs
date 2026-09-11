@@ -1212,6 +1212,19 @@ mod tests {
     }
 
     #[test]
+    fn marketplace_location_no_slash_is_rejected() {
+        // "justaword" has no '/' at all, is not a URL, and is not a local
+        // path (no "./", "../", leading '/', '\\', or drive-letter prefix).
+        // `location.split_once('/')` therefore returns `None` in
+        // `parse_market_location`, exercising that branch's `None` arm and
+        // falling through to the final "invalid marketplace location" error.
+        let result = "market:hello@justaword".parse::<Spec>();
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("invalid marketplace location"));
+    }
+
+    #[test]
     fn is_local_path_parent_dir() {
         // Exercise the ../ branch (line 430)
         let spec = parse("market:my-plugin@../my-marketplace");
