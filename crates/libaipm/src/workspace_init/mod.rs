@@ -835,6 +835,34 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// #850 Q9.5: when neither `--workspace` nor `--marketplace` is
+    /// requested, `actions` stays empty, so both `any_created` and
+    /// `any_found` are `false`. This exercises the previously-uncovered
+    /// `false` arm of `!any_created && any_found` (the `any_found` side),
+    /// distinguishing the "nothing requested" no-op from the "everything
+    /// already existed" no-op which does emit a `tracing::warn!`.
+    #[test]
+    fn init_with_no_flags_emits_no_actions_and_no_warn_branch() {
+        let (tmp, _guard) = make_temp_dir("no-flags");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init with no flags must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "no flags requested should produce no actions");
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_both_creates_everything() {
         let (tmp, _guard) = make_temp_dir("both");
