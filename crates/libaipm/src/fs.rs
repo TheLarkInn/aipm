@@ -520,6 +520,16 @@ mod tests {
         assert!(tmp.path().join("bare_file.txt").exists());
     }
 
+    #[test]
+    fn write_file_with_parents_empty_path_has_no_parent() {
+        // Path::new("").parent() returns None (unlike a bare filename, whose
+        // parent is Some("")), so this exercises the `if let Some(parent)`
+        // None arm directly: create_dir_all is skipped and write_file is
+        // attempted (and fails, since "" is not a writable file target).
+        let result = Real.write_file_with_parents(Path::new(""), b"data");
+        assert!(result.is_err());
+    }
+
     // ---- read_or_default tests (JSON) ----
 
     #[derive(Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
