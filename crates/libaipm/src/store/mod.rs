@@ -465,6 +465,20 @@ mod tests {
         assert!(store_path.exists());
     }
 
+    /// Verify that `lock()` returns an error when the lock file path is
+    /// occupied by a directory instead of a regular file: `create_dir_all`
+    /// on the store path succeeds, but `File::create(&lock_path)` fails
+    /// because a directory already exists at `.lock`.
+    #[test]
+    fn lock_errors_when_lock_path_is_a_directory() {
+        let (_tmp, store) = make_store();
+        let lock_path = store.path().join(".lock");
+        std::fs::create_dir_all(&lock_path).unwrap();
+
+        let result = store.lock();
+        assert!(result.is_err(), "expected lock() to fail when .lock path is a directory");
+    }
+
     #[test]
     fn get_path_returns_some_for_existing() {
         let (_tmp, store) = make_store();
