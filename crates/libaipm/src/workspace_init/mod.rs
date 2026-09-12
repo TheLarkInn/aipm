@@ -2348,6 +2348,39 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the False arm of `any_found` in `init`'s
+    /// `if !any_created && any_found` tail-warn guard: when both
+    /// `opts.workspace` and `opts.marketplace` are `false`, `init` performs
+    /// no work at all, so `actions` stays empty and neither `any_created`
+    /// nor `any_found` becomes `true`. `!any_created` (true) still gets
+    /// evaluated, but the short-circuited `&& any_found` must observe
+    /// `false` — every other test in this module sets at least one of
+    /// `workspace` / `marketplace`, so `any_found` was always `true` at this
+    /// point once reached.
+    #[test]
+    fn init_with_no_flags_set_produces_no_actions_and_skips_warn() {
+        let (tmp, _guard) = make_temp_dir("no-flags-set");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: true,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed even with no flags set: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions when workspace/marketplace are false");
+
+        cleanup(&tmp);
+    }
+
     /// Covers the `ai_existed = true` branch of the `||` in
     /// `scaffold_marketplace` (line 403, col 27):
     ///
