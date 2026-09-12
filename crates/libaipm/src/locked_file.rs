@@ -184,6 +184,20 @@ mod tests {
     }
 
     #[test]
+    fn open_fails_when_path_itself_is_a_directory() {
+        // The parent directory exists (mkdir succeeds / is skipped), but the
+        // path being opened is itself a directory, so `OpenOptions::open`
+        // fails with an I/O error — exercising the file-open error branch in
+        // `LockedFile::open` (as opposed to the earlier mkdir error branch).
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let dir_path = temp.path().join("a_directory");
+        std::fs::create_dir_all(&dir_path).unwrap_or_else(|_| {});
+
+        let result = LockedFile::open(&dir_path);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn open_path_with_no_parent_skips_mkdir_and_fails() {
         // Path::new("/").parent() returns None, so the `if let Some(parent)` branch
         // is skipped entirely.  Opening "/" as a regular file then fails because it
