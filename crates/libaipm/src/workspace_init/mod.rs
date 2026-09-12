@@ -742,6 +742,34 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `any_found` False arm of the `!any_created && any_found`
+    /// tail-warning check (line 208): when both `opts.workspace` and
+    /// `opts.marketplace` are `false`, `init` performs no work at all, so
+    /// `actions` stays empty and neither `any_created` nor `any_found` is
+    /// true. Every other test exercises at least one flag, which always
+    /// pushes a `*Created` or `*FoundExisting` action, so this no-op case
+    /// was never reached.
+    #[test]
+    fn init_with_no_flags_performs_no_work_and_emits_no_actions() {
+        let (tmp, _guard) = make_temp_dir("no-flags");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_marketplace_creates_tree() {
         let (tmp, _guard) = make_temp_dir("mp-create");
