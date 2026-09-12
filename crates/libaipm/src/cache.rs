@@ -583,6 +583,54 @@ mod tests {
         assert_eq!(hit.unwrap_or_default(), cached_path);
     }
 
+    /// Covers the `if old_dir.exists()` True branch in `put()` (line 242):
+    /// re-`put`ting the same `spec_key` produces a new entry directory and
+    /// removes the previous one, which still exists on disk at that point.
+    #[test]
+    fn cache_put_overwrite_removes_old_directory() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let spec = "spec-overwrite";
+        let src = create_source_plugin(&temp);
+
+        let first_path = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(first_path.exists(), "first cached copy should exist");
+
+        // Re-put the same spec_key with different content; new_entry_dir_name
+        // is guaranteed unique, so the old directory is still present when
+        // `put` checks `old_dir.exists()`.
+        std::thread::sleep(Duration::from_millis(2));
+        let second_path = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert_ne!(first_path, second_path, "re-put should use a fresh entry directory");
+        assert!(second_path.exists(), "new cached copy should exist");
+        assert!(!first_path.exists(), "old cached copy should have been removed");
+    }
+
+    /// Covers the `if old_dir.exists()` False branch in `put()` (line 242):
+    /// when the previous entry directory has already been removed by the
+    /// time `put` runs its cleanup step, the removal is skipped rather than
+    /// erroring on a missing directory.
+    #[test]
+    fn cache_put_overwrite_old_directory_already_removed() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let spec = "spec-overwrite-missing";
+        let src = create_source_plugin(&temp);
+
+        let first_path = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(first_path.exists(), "first cached copy should exist");
+
+        // Simulate the old directory having disappeared out from under the
+        // cache (e.g. manual cleanup) before the overwriting `put` runs.
+        let _ = std::fs::remove_dir_all(&first_path);
+        assert!(!first_path.exists());
+
+        std::thread::sleep(Duration::from_millis(2));
+        let second_path = cache.put(spec, &src, None);
+        assert!(second_path.is_ok(), "put should succeed even if old dir is already gone");
+        let second_path = second_path.unwrap_or_else(|_| PathBuf::new());
+        assert!(second_path.exists(), "new cached copy should exist");
+        assert_ne!(first_path, second_path);
+    }
+
     #[test]
     fn cache_skip_policy_always_misses() {
         let (_temp, cache) = test_cache(Policy::SkipCache);
