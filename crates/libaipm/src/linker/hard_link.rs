@@ -167,6 +167,69 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_dir_exists_as_file_fails_remove() {
+        // If `target_dir` already exists as a regular file (not a directory),
+        // `target_dir.exists()` is true but `std::fs::remove_dir_all` fails
+        // with `NotADirectory` — exercising the error-mapping branch on the
+        // initial cleanup step in `assemble`.
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("links").join("blocker-target");
+
+        let parent = target.parent().expect("target has a parent under tempdir");
+        std::fs::create_dir_all(parent).expect("create parent");
+        std::fs::write(&target, b"not a directory").expect("write blocker file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "assemble should fail cleaning up a non-directory target, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn assemble_target_dir_parent_is_file_fails_create() {
+        // If a path component of `target_dir` is a regular file, the initial
+        // `std::fs::create_dir_all(target_dir)` call fails — exercising the
+        // error-mapping branch right after the cleanup step in `assemble`.
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let blocker = tmp.path().join("blocker-parent");
+        std::fs::write(&blocker, b"not a directory").expect("write blocker file");
+
+        let target = blocker.join("nested-target");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "assemble should fail creating target_dir under a non-directory, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn assemble_file_target_parent_is_file_fails_create() {
+        // A shorter rel_path entry ("skills") is hard-linked as a regular
+        // *file* before a longer entry ("skills/review.md") is processed.
+        // BTreeMap iterates in sorted order, so "skills" (fewer components)
+        // sorts before "skills/review.md", meaning by the time the second
+        // entry's parent directory ("skills") is created, it already exists
+        // as a plain file — exercising the per-file parent `create_dir_all`
+        // error branch inside `assemble`'s loop.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash1 = store.store_file(b"file masquerading as a dir").expect("store file 1");
+        let hash2 = store.store_file(b"nested file content").expect("store file 2");
+
+        let target = tmp.path().join("links").join("nested-pkg");
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("skills"), hash1);
+        file_hashes.insert(PathBuf::from("skills/review.md"), hash2);
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target.join("skills")),
+            "assemble should fail creating a per-file parent dir blocked by a file, got: {result:?}"
+        );
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
