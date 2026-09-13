@@ -631,4 +631,27 @@ mod tests {
         let result = store.store_package(nonexistent);
         assert!(result.is_err(), "expected store_package to fail on missing directory");
     }
+
+    /// Covers the `strip_prefix` error fallback in `collect_files`: when
+    /// `current` is not actually rooted under `base`, `path.strip_prefix(base)`
+    /// fails and the closure falls back to using the full `path` unchanged
+    /// instead of a relative path. This can't happen via the public
+    /// `store_package` entry point (which always recurses from `extracted_dir`
+    /// as both `base` and `current`), so we call the private `collect_files`
+    /// helper directly with a `base` unrelated to `current`.
+    #[test]
+    fn collect_files_falls_back_to_full_path_when_base_is_not_a_prefix() {
+        let pkg_dir = tempfile::tempdir().unwrap();
+        std::fs::write(pkg_dir.path().join("file.txt"), b"content").unwrap();
+
+        let unrelated_base = tempfile::tempdir().unwrap();
+
+        let mut out = Vec::new();
+        Store::collect_files(unrelated_base.path(), pkg_dir.path(), &mut out).unwrap();
+
+        assert_eq!(out.len(), 1);
+        // Since `unrelated_base` is not a prefix of `pkg_dir`, the fallback
+        // keeps the full absolute path rather than a stripped relative one.
+        assert_eq!(out[0].0, pkg_dir.path().join("file.txt"));
+    }
 }
