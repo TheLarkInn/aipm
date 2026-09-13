@@ -742,6 +742,35 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// With both `workspace` and `marketplace` disabled, `init` performs no
+    /// phases at all — `actions` stays empty, so both `any_created` and
+    /// `any_found` are `false`. This covers the `false` branch of `any_found`
+    /// in `!any_created && any_found` (line 208): every other test either
+    /// creates something (`any_created = true`) or reuses an existing
+    /// artifact (`any_found = true`), so this all-flags-disabled case is the
+    /// only way to observe `any_found` evaluate to `false`.
+    #[test]
+    fn init_with_no_phases_emits_no_actions_and_no_warning() {
+        let (tmp, _guard) = make_temp_dir("no-phases");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        let actions = result.map_or_else(|_| Vec::new(), |r| r.actions);
+        assert!(actions.is_empty(), "no phases requested, so no actions should be recorded");
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_marketplace_creates_tree() {
         let (tmp, _guard) = make_temp_dir("mp-create");
