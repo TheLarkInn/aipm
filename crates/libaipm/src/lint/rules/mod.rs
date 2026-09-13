@@ -386,4 +386,41 @@ mod tests {
         let rules = quality_rules_for_kind(&FeatureKind::Instructions, &config);
         assert!(rules.iter().any(|r| r.id() == "instructions/oversized"));
     }
+
+    #[test]
+    fn quality_rules_for_instructions_kind_negative_characters_option_falls_back_to_default() {
+        // A negative "characters" TOML integer cannot convert to `usize`, so
+        // `usize::try_from(v).ok()` returns `None` and the `.unwrap_or`
+        // fallback to `DEFAULT_MAX_CHARS` is exercised (the `None` arm on the
+        // `max_chars` computation).
+        let mut config = Config::default();
+        let mut opts = std::collections::BTreeMap::new();
+        opts.insert("characters".to_string(), toml::Value::Integer(-1));
+        config.rule_overrides.insert(
+            "instructions/oversized".to_string(),
+            crate::lint::config::RuleOverride::Detailed {
+                level: None,
+                ignore: vec![],
+                options: opts,
+            },
+        );
+
+        let rules = quality_rules_for_kind(&FeatureKind::Instructions, &config);
+        let rule = rules
+            .iter()
+            .find(|r| r.id() == "instructions/oversized")
+            .expect("instructions/oversized rule should be present");
+
+        // Build content one character over the default limit; if the negative
+        // override had been used instead of the default, this would behave
+        // differently (usize::MAX would never trigger the "over" diagnostic).
+        let mut fs = test_helpers::MockFs::new();
+        let content = "x".repeat(instructions_oversized::DEFAULT_MAX_CHARS + 1);
+        let path = Path::new("CLAUDE.md");
+        fs.exists.insert(path.to_path_buf());
+        fs.files.insert(path.to_path_buf(), content);
+
+        let diags = rule.check_file(path, &fs).ok().unwrap_or_default();
+        assert!(diags.iter().any(|d| d.message.contains("character limit")));
+    }
 }
