@@ -422,6 +422,10 @@ mod tests {
         assert!(!has_windows_drive_prefix(""));
         assert!(!has_windows_drive_prefix("C:"));
         assert!(!has_windows_drive_prefix("CC:\\bad"));
+        // Third byte present but not a path separator — covers the False arm of
+        // the final `bytes.get(2) == Some(&b'\\') || bytes.get(2) == Some(&b'/')`
+        // check (e.g. "C:x" has a drive-letter-shaped prefix but no separator).
+        assert!(!has_windows_drive_prefix("C:x"));
     }
 
     #[test]
