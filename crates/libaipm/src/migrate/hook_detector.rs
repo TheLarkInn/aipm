@@ -422,6 +422,10 @@ mod tests {
         assert!(!has_windows_drive_prefix(""));
         assert!(!has_windows_drive_prefix("C:"));
         assert!(!has_windows_drive_prefix("CC:\\bad"));
+        // Third byte present but neither `\` nor `/` — exercises the false
+        // side of the final `bytes.get(2) == Some(&b'\\') || bytes.get(2)
+        // == Some(&b'/')` disjunction after the earlier conditions pass.
+        assert!(!has_windows_drive_prefix("C:x"));
     }
 
     #[test]
