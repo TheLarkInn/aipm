@@ -2091,6 +2091,108 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `!any_created && any_found` branch in `init` (#850 Spec
+    /// G12 / Q9.5): both `--workspace` and `--marketplace` target
+    /// pre-existing, valid artifacts, so `init` produces only `Found*`
+    /// actions and none of the `*Created`/`*Written`/`ToolConfigured`
+    /// variants. This is the only scenario where the tail
+    /// `tracing::warn!("aipm init found nothing to do...")` fires —
+    /// every other idempotent test above mixes at least one `Created`
+    /// action in, which short-circuits `any_created` to `true` and never
+    /// exercises this branch.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_warns_when_everything_requested_already_exists() {
+        let (tmp, _guard) = make_temp_dir("all-found-warns");
+
+        // Pre-create a valid workspace manifest.
+        let existing_manifest = generate_workspace_manifest(None);
+        std::fs::write(tmp.join("aipm.toml"), &existing_manifest).ok();
+
+        // Pre-create an empty .ai/ marketplace directory. With an empty
+        // `engines_scaffold` set below, no per-engine manifest is written
+        // or looked up, so this alone is enough to make `.ai/` "found
+        // existing" rather than newly created.
+        std::fs::create_dir_all(tmp.join(".ai")).ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            // Empty scaffold set: no adaptor runs, so no `ToolConfigured`
+            // action can sneak `any_created` to `true` — isolates the
+            // scenario to purely Found* actions.
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+        assert!(
+            actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)),
+            "expected MarketplaceFoundExisting for pre-existing .ai/: {actions:?}"
+        );
+        assert!(
+            !actions.iter().any(|a| matches!(
+                a,
+                InitAction::WorkspaceCreated
+                    | InitAction::MarketplaceCreated
+                    | InitAction::MarketplaceManifestWritten { .. }
+                    | InitAction::ToolConfigured(_)
+            )),
+            "no Created/Written/ToolConfigured action should be present: {actions:?}"
+        );
+
+        // The tail warn must fire since nothing was created.
+        assert!(logs_contain("aipm init found nothing to do"));
+
+        cleanup(&tmp);
+    }
+
+    /// Covers the `false` arm of `!any_created && any_found` (line 208):
+    /// with both `--workspace` and `--marketplace` disabled, `init`
+    /// performs no actions at all, so `any_created` and `any_found` are
+    /// both `false` and the tail warn must NOT fire. Distinct from
+    /// `init_warns_when_everything_requested_already_exists` above,
+    /// which covers the `any_found = true` case.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_with_no_phases_requested_emits_no_actions_and_no_warning() {
+        let (tmp, _guard) = make_temp_dir("no-phases-requested");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(
+            actions.is_empty(),
+            "expected no actions when both phases are disabled: {actions:?}"
+        );
+
+        // Neither the "found nothing" nor any created-artifact log fires,
+        // since init did not attempt anything.
+        assert!(!logs_contain("aipm init found nothing to do"));
+
+        cleanup(&tmp);
+    }
+
     /// Existing `aipm.toml` declares `engines = ["claude"]` but the
     /// wizard answer chose Copilot. Init must succeed (idempotent),
     /// leave the file unchanged, and emit a tracing::warn event naming
