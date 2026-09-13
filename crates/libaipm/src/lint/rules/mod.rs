@@ -386,4 +386,44 @@ mod tests {
         let rules = quality_rules_for_kind(&FeatureKind::Instructions, &config);
         assert!(rules.iter().any(|r| r.id() == "instructions/oversized"));
     }
+
+    #[test]
+    fn quality_rules_for_instructions_kind_applies_custom_characters_option() {
+        // A `characters` option that parses cleanly through
+        // `usize::try_from` should override `DEFAULT_MAX_CHARS` on the
+        // constructed `Oversized` rule — exercising the `Some(v)` success
+        // path of `max_chars`'s `and_then` chain, which the default-config
+        // test above never reaches. We verify this behaviorally: content
+        // longer than the custom limit (but far short of the 15,000-char
+        // default) should trigger the rule only when the override is wired
+        // through.
+        use crate::lint::config::RuleOverride;
+        use std::collections::BTreeMap;
+
+        let mut options = BTreeMap::new();
+        options.insert("characters".to_string(), toml::Value::Integer(50));
+        let mut config = Config::default();
+        config.rule_overrides.insert(
+            "instructions/oversized".to_string(),
+            RuleOverride::Detailed { level: None, ignore: vec![], options },
+        );
+
+        let rules = quality_rules_for_kind(&FeatureKind::Instructions, &config);
+        let Some(rule) = rules.iter().find(|r| r.id() == "instructions/oversized") else {
+            return;
+        };
+
+        let mut fs = test_helpers::MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/instructions/AGENTS.md");
+        // 60 chars: over the custom 50-char limit, well under the 15,000 default.
+        let content = "a".repeat(60);
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), content);
+
+        let diagnostics = rule.check_file(&path, &fs).unwrap_or_default();
+        assert!(
+            diagnostics.iter().any(|d| d.rule_id == "instructions/oversized"),
+            "expected oversized diagnostic when custom characters option (50) is exceeded"
+        );
+    }
 }
