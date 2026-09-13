@@ -808,6 +808,98 @@ mod tests {
     }
 
     #[test]
+    fn init_warns_when_everything_already_exists() {
+        // #850 Spec G12 / Q9.5: exercises the `!any_created && any_found`
+        // True branch. Running `init` twice with the same options: the
+        // first run creates the workspace manifest and `.ai/` marketplace
+        // (all `*Created` actions), the second run finds both already in
+        // place (all `*FoundExisting` actions, none `*Created`), which is
+        // exactly the condition that should emit the tail warning.
+        let (tmp, _guard) = make_temp_dir("warn-nothing-to-do");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: None,
+        };
+
+        let first = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(first.is_ok(), "first init must succeed: {first:?}");
+        let first_actions = first.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(
+            first_actions.iter().any(|a| matches!(a, InitAction::WorkspaceCreated)),
+            "first run should create the workspace manifest"
+        );
+        assert!(
+            first_actions.iter().any(|a| matches!(a, InitAction::MarketplaceCreated)),
+            "first run should create the .ai/ marketplace"
+        );
+
+        // Second run: nothing left to create, everything is found existing.
+        let second = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(second.is_ok(), "second (idempotent) init must succeed: {second:?}");
+        let second_actions = second.ok().map(|r| r.actions).unwrap_or_default();
+
+        let any_created = second_actions.iter().any(|a| {
+            matches!(
+                a,
+                InitAction::WorkspaceCreated
+                    | InitAction::MarketplaceCreated
+                    | InitAction::MarketplaceManifestWritten { .. }
+                    | InitAction::ToolConfigured(_)
+            )
+        });
+        let any_found = second_actions.iter().any(|a| {
+            matches!(
+                a,
+                InitAction::WorkspaceFoundExisting
+                    | InitAction::MarketplaceFoundExisting
+                    | InitAction::MarketplaceManifestFoundExisting { .. }
+            )
+        });
+        assert!(!any_created, "second run should not create anything new");
+        assert!(any_found, "second run should find pre-existing artifacts");
+
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn init_no_phases_requested_skips_tail_warning() {
+        // Exercises the `!any_created && any_found` False branch via
+        // `any_found == false`: with both `workspace` and `marketplace`
+        // disabled, `actions` stays empty, so neither condition holds and
+        // the tail warning must not fire. Distinct from the `any_created`
+        // True short-circuit covered elsewhere — this hits the `any_found`
+        // operand directly.
+        let (tmp, _guard) = make_temp_dir("no-phases-requested");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: None,
+        };
+
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "no-op init must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "no phases requested should produce no actions");
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_marketplace_is_idempotent_when_ai_exists() {
         let (tmp, _guard) = make_temp_dir("mp-idempotent");
         std::fs::create_dir_all(tmp.join(".ai")).ok();
