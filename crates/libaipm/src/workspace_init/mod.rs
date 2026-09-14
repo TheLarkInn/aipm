@@ -2397,4 +2397,35 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    /// Covers the `any_found` False side of the `!any_created && any_found`
+    /// tail-warn condition (line 208, col 24) in `init`: with both `workspace`
+    /// and `marketplace` disabled, no actions are pushed at all, so
+    /// `any_created` is false AND `any_found` is false. Every other test in
+    /// this module requests at least one phase, so `any_found` had only ever
+    /// been observed as `true` whenever `!any_created` was `true`; this test
+    /// exercises the `false` side without altering the `!any_created` branch.
+    #[test]
+    fn init_with_no_phases_requested_skips_nothing_to_do_warn() {
+        let (tmp, _guard) = make_temp_dir("no-phases-requested");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed when no phases are requested: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions when workspace and marketplace are both disabled, got: {actions:?}");
+
+        cleanup(&tmp);
+    }
 }
