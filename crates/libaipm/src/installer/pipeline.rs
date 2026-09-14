@@ -2791,6 +2791,53 @@ members = [".ai/*"]
         assert!(members.contains_key("plugin-a"));
     }
 
+    #[test]
+    fn discover_workspace_members_from_manifest_duplicate_name_errors() {
+        // Two member directories declaring the same package name should
+        // surface `workspace::discover_members`'s duplicate-name error
+        // through `discover_workspace_members`'s manifest.workspace branch.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let ws_manifest = r#"
+[workspace]
+members = [".ai/*"]
+"#;
+        std::fs::write(root.join("aipm.toml"), ws_manifest).unwrap();
+
+        for subdir in &["plugin-a", "plugin-b"] {
+            let member_dir = root.join(".ai").join(subdir);
+            std::fs::create_dir_all(&member_dir).unwrap();
+            std::fs::write(
+                member_dir.join("aipm.toml"),
+                "[package]\nname = \"same-name\"\nversion = \"1.0.0\"\n",
+            )
+            .unwrap();
+        }
+
+        let manifest_content = std::fs::read_to_string(root.join("aipm.toml")).unwrap();
+        let parsed = manifest::parse_and_validate(&manifest_content, Some(root)).unwrap();
+
+        let config = InstallConfig {
+            manifest_path: root.join("aipm.toml"),
+            lockfile_path: root.join("aipm.lock"),
+            store_path: root.join(".aipm/store"),
+            links_dir: root.join(".aipm/links"),
+            plugins_dir: root.join(".ai"),
+            gitignore_path: root.join(".ai/.gitignore"),
+            link_state_path: root.join(".aipm/links.toml"),
+            workspace_root: None,
+            locked: false,
+            add_package: None,
+            generated_by: "test".to_string(),
+        };
+
+        let members = discover_workspace_members(&crate::fs::Real, &config, &parsed);
+        assert!(members.is_err(), "duplicate member names should error");
+        let err = members.unwrap_err().to_string();
+        assert!(err.contains("duplicate workspace member name"), "unexpected error message: {err}");
+    }
+
     // =========================================================================
     // discover_workspace_members: workspace_root provided
     // =========================================================================
@@ -2846,6 +2893,60 @@ members = [".ai/*"]
         let members = members.unwrap();
         assert_eq!(members.len(), 1);
         assert!(members.contains_key("plugin-x"));
+    }
+
+    #[test]
+    fn discover_workspace_members_via_workspace_root_duplicate_name_errors() {
+        // Two member directories under the workspace_root sharing a package
+        // name should surface the duplicate-name error through the
+        // `config.workspace_root` branch of `discover_workspace_members`.
+        let tmp = tempfile::tempdir().unwrap();
+        let ws_root = tmp.path().join("ws-root");
+        std::fs::create_dir_all(&ws_root).unwrap();
+
+        std::fs::write(ws_root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+
+        for subdir in &["plugin-a", "plugin-b"] {
+            let member_dir = ws_root.join(".ai").join(subdir);
+            std::fs::create_dir_all(&member_dir).unwrap();
+            std::fs::write(
+                member_dir.join("aipm.toml"),
+                "[package]\nname = \"same-name\"\nversion = \"1.0.0\"\n",
+            )
+            .unwrap();
+        }
+
+        let member_project = tmp.path().join("member-project");
+        std::fs::create_dir_all(&member_project).unwrap();
+        std::fs::write(
+            member_project.join("aipm.toml"),
+            "[package]\nname = \"member-project\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+
+        let manifest_content = std::fs::read_to_string(member_project.join("aipm.toml")).unwrap();
+        let parsed =
+            manifest::parse_and_validate(&manifest_content, Some(member_project.as_path()))
+                .unwrap();
+
+        let config = InstallConfig {
+            manifest_path: member_project.join("aipm.toml"),
+            lockfile_path: member_project.join("aipm.lock"),
+            store_path: member_project.join(".aipm/store"),
+            links_dir: member_project.join(".aipm/links"),
+            plugins_dir: member_project.join(".ai"),
+            gitignore_path: member_project.join(".ai/.gitignore"),
+            link_state_path: member_project.join(".aipm/links.toml"),
+            workspace_root: Some(ws_root),
+            locked: false,
+            add_package: None,
+            generated_by: "test".to_string(),
+        };
+
+        let members = discover_workspace_members(&crate::fs::Real, &config, &parsed);
+        assert!(members.is_err(), "duplicate member names should error");
+        let err = members.unwrap_err().to_string();
+        assert!(err.contains("duplicate workspace member name"), "unexpected error message: {err}");
     }
 
     // =========================================================================
