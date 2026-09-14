@@ -2397,4 +2397,61 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    /// Covers the `!any_created && any_found` true branch in `init` (the
+    /// tail-warning guard): when a second `init` call finds the workspace
+    /// manifest and marketplace both already present, and no engine
+    /// adaptors are selected, every action is a `*FoundExisting` variant
+    /// and none is a "created" variant, so the guard's condition is true
+    /// and the tail warning fires.
+    ///
+    /// `engines_scaffold` is empty so the adaptor loop never runs and can't
+    /// contribute a `ToolConfigured` action, which would otherwise make
+    /// `any_created` true and skip the branch under test.
+    #[test]
+    fn init_second_run_all_found_emits_tail_warning_branch() {
+        let (tmp, _guard) = make_temp_dir("all-found-tail-warning");
+
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = Vec::new();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: None,
+        };
+
+        // First run creates the workspace + marketplace.
+        let first = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(first.is_ok(), "first init must succeed: {first:?}");
+
+        // Second run: everything already exists, nothing new is created.
+        let second = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(second.is_ok(), "second init must succeed: {second:?}");
+
+        let actions = second.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(
+            actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)),
+            "expected WorkspaceFoundExisting on second run, got: {actions:?}"
+        );
+        assert!(
+            actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)),
+            "expected MarketplaceFoundExisting on second run, got: {actions:?}"
+        );
+        assert!(
+            !actions.iter().any(|a| matches!(
+                a,
+                InitAction::WorkspaceCreated
+                    | InitAction::MarketplaceCreated
+                    | InitAction::MarketplaceManifestWritten { .. }
+                    | InitAction::ToolConfigured(_)
+            )),
+            "no action should be a 'created' variant on second run, got: {actions:?}"
+        );
+
+        cleanup(&tmp);
+    }
 }
