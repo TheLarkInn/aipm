@@ -1727,6 +1727,49 @@ mod tests {
         assert!(msg.contains("lsp"), "error message should name the unsupported feature");
     }
 
+    /// `cmd_migrate` with `dry_run: true` on a workspace containing a
+    /// migratable skill covers the True branch of `if dry_run ||
+    /// !result.has_migrated_artifacts()` in the post-migration cleanup phase:
+    /// with `dry_run` true the function returns immediately (before checking
+    /// `should_clean`), skipping the cleanup entirely.
+    #[test]
+    fn cmd_migrate_dry_run_skips_cleanup_phase() {
+        let tmp = tempfile::tempdir().unwrap_or_else(|_| panic!("tempdir creation failed"));
+        let root = tmp.path();
+
+        std::fs::create_dir_all(root.join(".ai/.claude-plugin"))
+            .unwrap_or_else(|e| panic!("create .ai/.claude-plugin failed: {e}"));
+        std::fs::write(
+            root.join(".ai/.claude-plugin/marketplace.json"),
+            r#"{"name":"t","plugins":[]}"#,
+        )
+        .unwrap_or_else(|e| panic!("write marketplace.json failed: {e}"));
+
+        std::fs::create_dir_all(root.join(".claude/skills/deploy"))
+            .unwrap_or_else(|e| panic!("create skill dir failed: {e}"));
+        std::fs::write(
+            root.join(".claude/skills/deploy/SKILL.md"),
+            "---\nname: deploy\ndescription: Deploy app\n---\nDeploy",
+        )
+        .unwrap_or_else(|e| panic!("write SKILL.md failed: {e}"));
+
+        let result = cmd_migrate(
+            true, // dry_run
+            false,
+            Some(".claude"),
+            None,
+            false,
+            root.to_path_buf(),
+            true, // no_summary
+        );
+        assert!(result.is_ok(), "dry-run migrate should succeed: {result:?}");
+        // The source skill file must remain untouched since cleanup was skipped.
+        assert!(
+            root.join(".claude/skills/deploy/SKILL.md").exists(),
+            "dry run must not remove source files"
+        );
+    }
+
     /// `cmd_uninstall_global` covers the False branch of `if !changed` (line 657):
     /// when the registry entry is found and removed, `changed` is `true` and the
     /// function writes the updated registry then returns `Ok`.
