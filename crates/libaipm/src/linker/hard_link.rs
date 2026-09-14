@@ -167,6 +167,30 @@ mod tests {
     }
 
     #[test]
+    fn assemble_remove_dir_all_error_is_mapped() {
+        // When `target_dir` already exists but is a regular file (not a
+        // directory), `target_dir.exists()` is true so `remove_dir_all` is
+        // attempted, and it fails with `NotADirectory`. This covers the
+        // `map_err` branch on the initial cleanup call.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash = store.store_file(b"content").expect("store file");
+
+        let target = tmp.path().join("target-as-file");
+        std::fs::write(&target, "not a directory").expect("write stub file");
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("aipm.toml"), hash);
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "assemble should fail cleaning up a non-directory target, got: {:?}",
+            result
+        );
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
