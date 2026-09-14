@@ -280,6 +280,33 @@ mod tests {
         assert!(recorded.ends_with("node_modules"));
     }
 
+    /// Covers the poisoned-lock fallback in `take_skipped`: when the shared
+    /// `Mutex` is poisoned (a prior lock holder panicked), `.lock()` returns
+    /// `Err`, and `take_skipped` must fall back to `Vec::default()` via
+    /// `unwrap_or_default()` rather than panicking.
+    #[test]
+    fn take_skipped_falls_back_on_poisoned_mutex() {
+        let shared: Arc<Mutex<Vec<SkipReason>>> =
+            Arc::new(Mutex::new(vec![SkipReason::SkipDirByName {
+                path: PathBuf::from("/some/dir"),
+                name: "node_modules".to_string(),
+            }]));
+
+        // Poison the mutex by panicking while holding the lock in another thread.
+        let poison_shared = Arc::clone(&shared);
+        let handle = std::thread::spawn(move || {
+            let _guard = poison_shared.lock().expect("lock should succeed before poisoning");
+            panic!("intentionally poisoning the mutex for test coverage");
+        });
+        let _ = handle.join();
+
+        assert!(shared.is_poisoned(), "mutex should be poisoned after the panic");
+
+        // take_skipped must not panic; it falls back to an empty Vec.
+        let result = take_skipped(&shared);
+        assert!(result.is_empty(), "poisoned-lock fallback should yield an empty Vec");
+    }
+
     #[test]
     fn discover_options_default_walks_full_tree() {
         let tmp = tempfile::tempdir().expect("tempdir");
