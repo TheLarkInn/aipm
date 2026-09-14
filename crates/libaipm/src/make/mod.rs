@@ -506,6 +506,44 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_with_rootless_marketplace_dir_skips_engine_settings() {
+        // `Path::new("/").parent()` returns `None`, so `update_engine_settings`
+        // takes the `if let Some(project_root) = ... { .. }` `None` branch and
+        // returns without touching engine settings — no PluginEnabled or
+        // PluginAlreadyEnabled action should be emitted, but the plugin is
+        // still registered in marketplace.json.
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "root-skill",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        assert!(
+            result.actions.iter().any(
+                |a| matches!(a, Action::PluginRegistered { name, .. } if name == "root-skill")
+            ),
+            "expected PluginRegistered for root-skill"
+        );
+
+        assert!(
+            !result.actions.iter().any(|a| matches!(
+                a,
+                Action::PluginEnabled { .. } | Action::PluginAlreadyEnabled { .. }
+            )),
+            "no engine-settings action should be emitted when marketplace_dir has no parent"
+        );
+    }
+
+    #[test]
     fn make_plugin_creates_composite() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
