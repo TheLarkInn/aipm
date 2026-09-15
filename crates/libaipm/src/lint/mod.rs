@@ -1437,6 +1437,43 @@ mod tests {
     }
 
     #[test]
+    fn lint_config_negative_characters_option_falls_back_to_default() {
+        // A negative "characters" override cannot convert into `usize`, so
+        // `usize::try_from(v).ok()` returns `None` and the rule falls back
+        // to `instructions_oversized::DEFAULT_MAX_CHARS` — exercising that
+        // `.and_then(...)` → `None` branch distinctly from the "lines"
+        // option (which is covered by `lint_config_overrides_thresholds`).
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // Content well over DEFAULT_MAX_CHARS so the fallback still flags it.
+        let content = "x".repeat(rules::instructions_oversized::DEFAULT_MAX_CHARS + 1);
+        std::fs::write(root.join("CLAUDE.md"), &content).unwrap();
+        std::fs::create_dir_all(root.join(".ai")).unwrap();
+
+        let mut cfg = config::Config::default();
+        let mut opts_map = std::collections::BTreeMap::new();
+        opts_map.insert("characters".to_string(), toml::Value::Integer(-1));
+        cfg.rule_overrides.insert(
+            "instructions/oversized".to_string(),
+            config::RuleOverride::Detailed {
+                level: Some(Severity::Warning),
+                ignore: vec![],
+                options: opts_map,
+            },
+        );
+
+        let opts = Options { dir: root.to_path_buf(), source: None, config: cfg, max_depth: None };
+        let result = lint(&opts, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap();
+        assert!(
+            outcome.diagnostics.iter().any(|d| d.rule_id == "instructions/oversized"),
+            "negative characters override should fall back to default and still flag oversized content"
+        );
+    }
+
+    #[test]
     fn lint_config_allow_suppresses_instructions_oversized() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
