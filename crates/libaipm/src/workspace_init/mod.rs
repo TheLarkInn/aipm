@@ -774,6 +774,33 @@ mod tests {
     }
 
     #[test]
+    fn init_with_both_phases_disabled_emits_no_tail_warning_actions() {
+        // With `workspace: false` and `marketplace: false`, `init` performs
+        // neither phase, so `actions` stays empty: both `any_created` and
+        // `any_found` evaluate to `false`. This exercises the `false` arm of
+        // `any_found` in `!any_created && any_found` (distinct from the
+        // idempotent-rerun tests, which always populate at least one
+        // `Found*` action and so only ever hit the `true` arm).
+        let (tmp, _guard) = make_temp_dir("both-phases-disabled");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_workspace_is_idempotent_when_aipm_toml_exists() {
         let (tmp, _guard) = make_temp_dir("ws-idempotent");
 
