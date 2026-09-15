@@ -149,4 +149,17 @@ mod tests {
         let result = find_marketplace(Path::new("/"), &fs);
         assert!(result.is_err());
     }
+
+    /// `MockFs` implements the full `Fs` trait even though `find_marketplace`
+    /// only calls `exists`. Exercise the remaining methods directly so their
+    /// branches (all no-ops or fixed errors) are covered too.
+    #[test]
+    fn mock_fs_supports_full_trait_surface() {
+        let fs = MockFs::new();
+
+        assert!(fs.create_dir_all(Path::new("/unused")).is_ok());
+        assert!(fs.write_file(Path::new("/unused"), b"data").is_ok());
+        assert!(fs.read_to_string(Path::new("/unused")).is_err());
+        assert!(fs.read_dir(Path::new("/unused")).unwrap_or_default().is_empty());
+    }
 }
