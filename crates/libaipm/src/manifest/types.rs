@@ -388,4 +388,25 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Covers the `Option::deserialize(deserializer)?` early-return error
+    /// branch (line 345 in `engine_set_serde::deserialize`): when
+    /// `[package].engines` is present in the manifest but is not a string
+    /// array (e.g. an integer), `Option::<Vec<String>>::deserialize` itself
+    /// fails and the `?` propagates that error before the function reaches
+    /// its own `names.is_empty()` / unknown-name checks.
+    #[test]
+    fn engine_set_serde_propagates_underlying_deserialize_error() {
+        let toml_str = "[package]\nname = \"bad-engines\"\nversion = \"1.0.0\"\nengines = 5\n";
+        let result: Result<Manifest, _> = toml::from_str(toml_str);
+        assert!(
+            result.is_err(),
+            "engines = 5 (not a string array) should fail to deserialize: {result:?}"
+        );
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("integer") || err.contains("sequence") || err.contains("engines"),
+            "error should reference the type mismatch on `engines`: {err}"
+        );
+    }
 }
