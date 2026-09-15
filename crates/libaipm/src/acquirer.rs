@@ -558,6 +558,21 @@ mod tests {
         assert!(copy_dir_recursive(&src, &dst).is_ok());
     }
 
+    /// Covers the `Error::Io` mapping in `copy_dir_recursive` when
+    /// `std::fs::read_dir(src)` itself fails (line 290): a nonexistent
+    /// source directory cannot be read, so the error must be wrapped as
+    /// `Error::Io` and propagated rather than panicking.
+    #[test]
+    fn copy_dir_recursive_nonexistent_src_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("does-not-exist");
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(&dst).unwrap_or_else(|_| {});
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}");
+    }
+
     /// Covers the `Error::CopyFailed` error mapping in `copy_dir_recursive`
     /// (lines 307–310): when `std::fs::copy` fails because the destination path
     /// is an existing directory (EISDIR on Linux), the error is wrapped as
