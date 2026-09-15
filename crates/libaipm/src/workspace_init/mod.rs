@@ -2397,4 +2397,34 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    /// Covers the `!any_created && any_found` False branch (line 208) where
+    /// `any_found` is `false`: with both `workspace` and `marketplace` disabled,
+    /// `init` performs no work at all, so `actions` stays empty. Neither
+    /// `any_created` nor `any_found` becomes `true`, so the "nothing to do"
+    /// warning must NOT be emitted — this is a genuine no-op (nothing was
+    /// requested), distinct from the "everything requested already existed"
+    /// case that the warning is meant to describe.
+    #[test]
+    fn init_with_both_flags_disabled_is_a_true_noop() {
+        let (tmp, _guard) = make_temp_dir("both-flags-disabled");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed when both flags are disabled: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "no actions should be recorded when nothing was requested");
+
+        cleanup(&tmp);
+    }
 }
