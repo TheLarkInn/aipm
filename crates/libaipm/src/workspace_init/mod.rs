@@ -717,6 +717,35 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `False` side of `!any_created && any_found` (line 208):
+    /// when both `workspace` and `marketplace` are disabled, `init` performs
+    /// no actions at all, so `any_created` and `any_found` are both `false`
+    /// and the "found nothing to do" tail warning must NOT fire (distinct
+    /// from the case where the user asked for something that already
+    /// existed).
+    #[test]
+    fn init_with_both_flags_disabled_produces_no_actions() {
+        let (tmp, _guard) = make_temp_dir("both-disabled");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+        assert!(!tmp.join("aipm.toml").exists());
+        assert!(!tmp.join(".ai").exists());
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_workspace_creates_manifest() {
         let (tmp, _guard) = make_temp_dir("ws-create");
