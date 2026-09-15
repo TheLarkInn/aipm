@@ -167,6 +167,27 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_dir_removal_error_is_propagated() {
+        // Pre-create `target_dir` as a regular *file* instead of a directory.
+        // `target_dir.exists()` is then `true`, but `remove_dir_all` fails with
+        // `NotADirectory` — exercising the error branch of the initial cleanup
+        // step (as opposed to the happy-path cleanup covered elsewhere).
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("links").join("blocker-pkg");
+
+        std::fs::create_dir_all(target.parent().expect("target has parent"))
+            .expect("create parent dir");
+        std::fs::write(&target, b"not a directory").expect("write blocker file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "assemble should fail with Io error when target_dir removal fails, got: {:?}",
+            result
+        );
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
