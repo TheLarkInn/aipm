@@ -135,6 +135,29 @@ mod tests {
     }
 
     #[test]
+    fn stub_adapter_to_artifact_always_errs() {
+        // Exercises StubAdapter::to_artifact, whose sole purpose is to prove
+        // the trait is object-safe end-to-end (including a failing
+        // implementation) — never exercised by the other stub tests, which
+        // only call `name`/`applies_to`.
+        let stub = StubAdapter;
+        let feat = DiscoveredFeature {
+            kind: crate::discovery::FeatureKind::Skill,
+            source: crate::discovery::types::DiscoverySource::CLAUDE,
+            layout: crate::discovery::Layout::Canonical,
+            source_root: std::path::PathBuf::from(".claude"),
+            feature_dir: None,
+            path: std::path::PathBuf::from(".claude/skills/x/SKILL.md"),
+        };
+        let fs = crate::fs::Real;
+        let result = stub.to_artifact(&feat, &fs);
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(e.to_string().contains("never produces artifacts"));
+        }
+    }
+
+    #[test]
     fn adapter_trait_is_object_safe() {
         // Verify dyn Adapter compiles and the methods can be called via
         // dynamic dispatch — guards against accidental introduction of
