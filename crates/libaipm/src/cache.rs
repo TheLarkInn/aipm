@@ -998,6 +998,22 @@ mod tests {
     }
 
     #[test]
+    fn mark_installed_on_fresh_cache_with_no_index_file_creates_default_index() {
+        // Covers the `content.is_empty()` True branch inside `with_index()`
+        // (distinct from the same check in `read_index()`, already covered
+        // by `get_with_empty_index_file_returns_none`): when the index file
+        // has just been created by `LockedFile::open` and is therefore
+        // empty, `with_index` must fall back to `CacheIndex::default()`
+        // rather than trying to parse empty content as JSON.
+        let (_temp, cache) = test_cache(Policy::Auto);
+
+        // No prior `put`/`get` call has touched the index — the underlying
+        // file does not exist yet, so `LockedFile::open` creates an empty one.
+        let result = cache.mark_installed("some-spec", true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
     #[cfg(unix)]
     fn put_source_with_symlink_is_silently_skipped() {
         // Covers the `else if file_type.is_file()` False branch in
