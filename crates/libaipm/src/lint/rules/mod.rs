@@ -386,4 +386,40 @@ mod tests {
         let rules = quality_rules_for_kind(&FeatureKind::Instructions, &config);
         assert!(rules.iter().any(|r| r.id() == "instructions/oversized"));
     }
+
+    /// Covers the `usize::try_from(v).ok()` → `None` branch for the
+    /// `instructions/oversized` `lines`/`characters` options: a negative
+    /// TOML integer cannot convert to `usize`, so both options must fall
+    /// back to their documented defaults rather than panicking or silently
+    /// producing a bogus limit.
+    #[test]
+    fn quality_rules_for_instructions_kind_falls_back_on_negative_options() {
+        use crate::lint::config::RuleOverride;
+        use std::collections::BTreeMap;
+
+        let mut options = BTreeMap::new();
+        options.insert("lines".to_string(), toml::Value::Integer(-1));
+        options.insert("characters".to_string(), toml::Value::Integer(-1));
+        let mut config = Config::default();
+        config.rule_overrides.insert(
+            "instructions/oversized".to_string(),
+            RuleOverride::Detailed { level: None, ignore: vec![], options },
+        );
+
+        let rules = quality_rules_for_kind(&FeatureKind::Instructions, &config);
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].id(), "instructions/oversized");
+
+        // Exercise the fallback defaults through `check_file`: content just
+        // over the default line limit should still be flagged, proving the
+        // negative option did not silently become e.g. limit 0 or panic.
+        let mut fs = test_helpers::MockFs::new();
+        let path = std::path::PathBuf::from(".ai/p/CLAUDE.md");
+        let content = "line\n".repeat(instructions_oversized::DEFAULT_MAX_LINES + 1);
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), content);
+        let diags = rules[0].check_file(&path, &fs).ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert!(diags[0].message.contains("line limit"));
+    }
 }
