@@ -789,6 +789,63 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_groups_consecutive_diagnostics_on_same_file() {
+        // Two diagnostics for the *same* file_path back-to-back must open
+        // only one `##[group]` and not re-emit `##[endgroup]` between them
+        // — covers the `current_file != Some(d.file_path.as_path())` false
+        // branch, which never fires when every diagnostic is on a distinct
+        // file (as in `sample_outcome()`).
+        let outcome = Outcome {
+            diagnostics: vec![
+                Diagnostic {
+                    rule_id: "skill/missing-description".to_string(),
+                    severity: Severity::Warning,
+                    message: "SKILL.md missing required field: description".to_string(),
+                    file_path: PathBuf::from(".ai/my-plugin/skills/default/SKILL.md"),
+                    line: Some(1),
+                    col: None,
+                    end_line: None,
+                    end_col: None,
+                    source_type: ".ai".to_string(),
+                    help_text: None,
+                    help_url: None,
+                },
+                Diagnostic {
+                    rule_id: "skill/missing-name".to_string(),
+                    severity: Severity::Error,
+                    message: "SKILL.md missing required field: name".to_string(),
+                    file_path: PathBuf::from(".ai/my-plugin/skills/default/SKILL.md"),
+                    line: Some(2),
+                    col: None,
+                    end_line: None,
+                    end_col: None,
+                    source_type: ".ai".to_string(),
+                    help_text: None,
+                    help_url: None,
+                },
+            ],
+            error_count: 1,
+            warning_count: 1,
+            sources_scanned: vec![],
+            ..Outcome::default()
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        // Exactly one group opened for the single shared file path.
+        assert_eq!(
+            output.matches("##[group]aipm lint: .ai/my-plugin/skills/default/SKILL.md").count(),
+            1
+        );
+        // Both diagnostics are still emitted.
+        assert!(output.contains("code=skill/missing-description"));
+        assert!(output.contains("code=skill/missing-name"));
+        // Exactly one closing group at the end (not between the two diagnostics).
+        assert_eq!(output.matches("##[endgroup]").count(), 1);
+    }
+
+    #[test]
     fn ci_azure_empty_diagnostics() {
         let outcome = Outcome {
             diagnostics: vec![],
