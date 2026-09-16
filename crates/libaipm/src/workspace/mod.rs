@@ -259,6 +259,18 @@ mod tests {
     }
 
     #[test]
+    fn discover_members_error_invalid_glob_pattern() {
+        // Exercises the `glob::glob(...).map_err(...)` branch: an unbalanced
+        // `[` is a malformed glob range pattern and is rejected by the `glob`
+        // crate before any filesystem walk happens.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let err = discover_members(&crate::fs::Real, root, &["[".to_string()]).unwrap_err();
+        assert!(format!("{err}").contains("invalid glob pattern"));
+    }
+
+    #[test]
     fn discover_members_multiple_patterns() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
