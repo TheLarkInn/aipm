@@ -602,6 +602,22 @@ engines = ["claude", "copilot"]
     }
 
     #[test]
+    fn manifest_engines_field_with_wrong_type_fails_to_parse() {
+        // `engines` must be an array of strings. Covers the `?` error branch
+        // in `engine_set_serde::deserialize`'s `Option::<Vec<String>>::deserialize(...)?`
+        // call, which triggers when the raw TOML value can't deserialize into
+        // `Option<Vec<String>>` at all (e.g. a bare string instead of an array).
+        let toml = r#"
+[package]
+name = "my-plugin"
+version = "1.0.0"
+engines = "not-an-array"
+"#;
+        let manifest = parse(toml);
+        assert!(manifest.is_err(), "expected parse error for non-array engines value");
+    }
+
+    #[test]
     fn manifest_engines_field_with_only_unknown_names_fails_to_parse() {
         // A non-empty engines list whose entries are ALL unknown must
         // error rather than silently widening to "all engines"
