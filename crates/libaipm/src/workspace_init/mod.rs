@@ -836,6 +836,35 @@ mod tests {
     }
 
     #[test]
+    fn init_with_both_flags_disabled_produces_no_actions_and_no_warn() {
+        // Neither `workspace` nor `marketplace` is requested, so `init` does
+        // nothing at all: `actions` stays empty, `any_created` and
+        // `any_found` are both `false`, and the `!any_created && any_found`
+        // tail-warn guard evaluates its `any_found` operand (rather than
+        // short-circuiting on a `true` `!any_created`) and correctly stays
+        // silent. This is distinct from the idempotent-rerun tests, which
+        // request a phase that already exists (`any_found = true`).
+        let (tmp, _guard) = make_temp_dir("both-disabled");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init with both flags disabled must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "no phase was requested, so no actions should be recorded");
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_both_creates_everything() {
         let (tmp, _guard) = make_temp_dir("both");
         let adaptors = default_adaptors();
