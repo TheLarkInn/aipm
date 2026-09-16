@@ -884,6 +884,37 @@ mod tests {
     }
 
     #[test]
+    fn init_with_both_phases_disabled_produces_no_actions_and_no_warning() {
+        // Covers the false arm of `any_found` in the tail
+        // `if !any_created && any_found` warning check: with both
+        // `workspace` and `marketplace` disabled, `actions` stays empty,
+        // so both `any_created` and `any_found` are false and the
+        // "found nothing to do" warning must NOT fire (it's reserved for
+        // the case where the user asked for something that already
+        // existed, not for a no-op run where nothing was requested).
+        let (tmp, _guard) = make_temp_dir("both-disabled");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| InitResult { actions: Vec::new() });
+        assert!(result.actions.is_empty(), "expected no actions when both phases are disabled");
+        assert!(!tmp.join(".ai").exists());
+        assert!(!tmp.join("aipm.toml").exists());
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn gitignore_has_managed_markers() {
         let (tmp, _guard) = make_temp_dir("gitignore");
         let adaptors = default_adaptors();
