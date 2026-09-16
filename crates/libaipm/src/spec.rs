@@ -1212,6 +1212,17 @@ mod tests {
     }
 
     #[test]
+    fn marketplace_location_without_slash_is_invalid() {
+        // Exercise the False branch of `if let Some((owner, repo)) =
+        // location.split_once('/')` in parse_market_location: a location with
+        // no '/' at all is neither a URL, a local path, nor a valid GitHub
+        // short form, so split_once returns None and the function falls
+        // through to the final error.
+        let result = "market:hello@justaname".parse::<Spec>();
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn is_local_path_parent_dir() {
         // Exercise the ../ branch (line 430)
         let spec = parse("market:my-plugin@../my-marketplace");
