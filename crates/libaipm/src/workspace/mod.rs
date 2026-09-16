@@ -332,6 +332,21 @@ mod tests {
     }
 
     #[test]
+    fn discover_members_error_invalid_glob_pattern() {
+        // An unterminated character class ("[") is rejected by `glob::glob`
+        // itself, exercising the `map_err` branch that converts a
+        // `glob::PatternError` into `Error::Discovery`.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let err = discover_members(&crate::fs::Real, root, &["[".to_string()]).unwrap_err();
+        assert!(
+            format!("{err}").contains("invalid glob pattern"),
+            "expected 'invalid glob pattern' error, got: {err}"
+        );
+    }
+
+    #[test]
     fn discover_members_error_invalid_manifest_content() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
