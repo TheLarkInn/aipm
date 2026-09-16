@@ -718,6 +718,38 @@ mod tests {
     }
 
     #[test]
+    fn init_no_flags_emits_no_actions_and_no_warning() {
+        // Spec G12 / Q9.5: the "nothing to do" tail warning must only fire
+        // when the user explicitly requested work (workspace and/or
+        // marketplace) and everything they asked for already existed
+        // (any_created == false && any_found == true). With both flags
+        // disabled, `actions` stays empty, so both any_created and any_found
+        // are false — covers the previously-missed False branch of
+        // `any_found` at the `if !any_created && any_found` guard.
+        let (tmp, _guard) = make_temp_dir("no-flags");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init with no flags should still succeed: {result:?}");
+        let init_result = result.unwrap_or_else(|_| InitResult { actions: Vec::new() });
+        assert!(
+            init_result.actions.is_empty(),
+            "no actions expected when both workspace and marketplace are disabled"
+        );
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_workspace_creates_manifest() {
         let (tmp, _guard) = make_temp_dir("ws-create");
         let adaptors = default_adaptors();
