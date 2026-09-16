@@ -743,6 +743,32 @@ mod tests {
     }
 
     #[test]
+    fn init_with_both_flags_false_produces_no_warn_action() {
+        // Neither `workspace` nor `marketplace` is requested, so no actions
+        // are recorded at all: `any_created` and `any_found` are both
+        // `false`. This exercises the `!any_created && any_found` False
+        // branch (via `any_found` being `false`) distinct from every other
+        // test in this module, which always requests at least one phase.
+        let (tmp, _guard) = make_temp_dir("ws-no-op");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_marketplace_creates_tree() {
         let (tmp, _guard) = make_temp_dir("mp-create");
         let adaptors = default_adaptors();
