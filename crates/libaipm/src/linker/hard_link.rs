@@ -159,9 +159,20 @@ mod tests {
 
         let target = tmp.path().join("links").join("ghost-pkg");
         let result = assemble(&store, &file_hashes, &target);
+
+        // A shared closure so both the matching and mismatched suffix checks
+        // share the same `matches!` guard region — exercising both branch
+        // outcomes (`path.ends_with(...)` true and false) at one source site.
+        let matches_suffix =
+            |suffix: &str| matches!(&result, Err(Error::Io { path, .. }) if path.ends_with(suffix));
         assert!(
-            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt")),
+            matches_suffix("ghost.txt"),
             "assemble should fail with Io error for ghost.txt, got: {:?}",
+            result
+        );
+        assert!(
+            !matches_suffix("not-the-file.txt"),
+            "guard should reject a mismatched suffix, got: {:?}",
             result
         );
     }
