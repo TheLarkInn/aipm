@@ -385,6 +385,25 @@ mod tests {
     }
 
     #[test]
+    fn link_to_errors_when_parent_creation_fails() {
+        // Create a regular file, then ask `link_to` to place the target
+        // underneath it as if it were a directory. `create_dir_all` cannot
+        // create a directory where a file already exists, so this exercises
+        // the mkdir error branch in `Store::link_to`.
+        let (_tmp, store) = make_store();
+        let content = b"blocked parent creation";
+        let hash = store.store_file(content).unwrap();
+
+        let target_dir = tempfile::tempdir().unwrap();
+        let blocker = target_dir.path().join("blocker");
+        std::fs::write(&blocker, b"not a dir").unwrap();
+
+        let target = blocker.join("child").join("linked_file");
+        let result = store.link_to(&hash, &target);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn store_package_walks_directory() {
         let (_tmp, store) = make_store();
         let pkg_dir = tempfile::tempdir().unwrap();
