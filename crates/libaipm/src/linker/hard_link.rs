@@ -167,6 +167,28 @@ mod tests {
     }
 
     #[test]
+    fn assemble_missing_hash_error_path_does_not_match_other_filename() {
+        // Same scenario as `assemble_missing_hash_returns_error`, but the
+        // stored key is a different filename. This exercises the `false`
+        // arm of the `path.ends_with("ghost.txt")` match guard, which the
+        // other test only ever evaluates as `true`.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+
+        let missing_hash = "b".repeat(128); // valid format, but never stored
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("other.txt"), missing_hash);
+
+        let target = tmp.path().join("links").join("other-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            !matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt")),
+            "error path should not end with ghost.txt, got: {:?}",
+            result
+        );
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
