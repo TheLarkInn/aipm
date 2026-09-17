@@ -853,6 +853,23 @@ mod tests {
     }
 
     #[test]
+    fn put_with_corrupted_index_json_returns_index_parse_error() {
+        // Covers the `with_index` malformed-JSON branch: an existing,
+        // non-empty index file that fails to deserialize as `CacheIndex`
+        // must surface `Error::IndexParse`, not panic or silently reset.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&_temp);
+
+        cache.ensure_dirs().unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "not valid json{{{").unwrap_or_else(|_| {});
+
+        let result = cache.put("spec", &src, None);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(matches!(err, Error::IndexParse { .. }));
+    }
+
+    #[test]
     fn auto_returns_none_when_dir_missing() {
         let (temp, cache) = test_cache(Policy::Auto);
         let src = create_source_plugin(&temp);
