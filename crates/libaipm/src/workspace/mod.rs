@@ -291,6 +291,25 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unreadable_manifest() {
+        // If "aipm.toml" exists as a directory rather than a file, `exists()`
+        // returns true but `read_to_string` fails with an I/O error ("Is a
+        // directory"). This exercises the `Err(e)` branch in
+        // `find_workspace_root` (the "could not read manifest" debug log),
+        // distinct from `find_root_skips_invalid_toml` which covers the TOML
+        // parse-error branch instead.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        std::fs::create_dir_all(root.join("aipm.toml")).unwrap();
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(&subdir).unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
+        assert!(result.is_none(), "should skip unreadable manifest, got: {result:?}");
+    }
+
+    #[test]
     fn find_root_skips_invalid_toml() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
