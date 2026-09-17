@@ -506,6 +506,30 @@ mod tests {
         }
     }
 
+    /// A `Write` implementation that always fails, used to exercise the `?`
+    /// error-propagation branches in reporters' `writeln!`/`write!` calls.
+    struct FailingWriter;
+
+    impl Write for FailingWriter {
+        fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::other("simulated write failure"))
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Err(std::io::Error::other("simulated flush failure"))
+        }
+    }
+
+    #[test]
+    fn ci_github_reporter_propagates_write_error() {
+        // Exercises the `?` error branch on the `writeln!` call in
+        // `CiGitHub::report` — the writer always errors, so `report` must
+        // surface that error instead of panicking or swallowing it.
+        let outcome = sample_outcome();
+        let result = CiGitHub.report(&outcome, &mut FailingWriter);
+        assert!(result.is_err(), "expected write failure to propagate");
+    }
+
     #[test]
     fn text_reporter_formats_diagnostics() {
         let outcome = sample_outcome();
