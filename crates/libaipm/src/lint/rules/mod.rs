@@ -244,6 +244,16 @@ mod tests {
     }
 
     #[test]
+    fn locate_json_key_returns_none_across_multiple_non_matching_lines() {
+        // Every line lacks the needle, so `line.find(&needle)` returns `None`
+        // on each iteration of the loop, exercising the `false` arm of the
+        // `if let Some(pos)` branch on line 49 repeatedly with no `true` hit,
+        // falling through to the final `None` after the loop completes.
+        let content = "{\n  \"other\": []\n  ,\"another\": 1\n}";
+        assert_eq!(locate_json_key(content, "event"), None);
+    }
+
+    #[test]
     fn simple_diag_creates_diagnostic_with_no_positions() {
         let d = simple_diag(
             "test/rule",
