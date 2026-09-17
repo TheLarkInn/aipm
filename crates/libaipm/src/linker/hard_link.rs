@@ -167,6 +167,31 @@ mod tests {
     }
 
     #[test]
+    fn assemble_parent_dir_creation_error_is_propagated() {
+        // BTreeMap iterates keys in sorted order, so "blocker" is linked
+        // first (creating a regular file at target_dir/blocker), then
+        // "blocker/child.txt" is processed: its parent (target_dir/blocker)
+        // already exists as a file, so `create_dir_all` fails — exercising
+        // the error-mapping branch on the parent-directory creation call.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash1 = store.store_file(b"blocker content").expect("store blocker");
+        let hash2 = store.store_file(b"child content").expect("store child");
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("blocker"), hash1);
+        file_hashes.insert(PathBuf::from("blocker/child.txt"), hash2);
+
+        let target = tmp.path().join("links").join("blocked-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("blocker")),
+            "assemble should fail with Io error for the blocked parent dir, got: {:?}",
+            result
+        );
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
