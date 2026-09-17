@@ -167,6 +167,24 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_dir_exists_as_file_returns_io_error() {
+        // `target_dir` exists but as a regular file, not a directory. The
+        // `target_dir.exists()` check passes, but `remove_dir_all` then fails
+        // with `NotADirectory`, exercising the `map_err` branch on that call.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+
+        let target = tmp.path().join("not-a-dir");
+        std::fs::write(&target, "i am a file, not a directory").expect("write file");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "assemble should fail with Io error when target_dir is a file, got: {result:?}"
+        );
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
