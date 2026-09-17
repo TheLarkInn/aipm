@@ -388,4 +388,17 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Invoke `engine_set_serde::deserialize` with a JSON value that cannot
+    /// deserialize into `Option<Vec<String>>` (a bare number instead of an
+    /// array/null) so the `Option::deserialize(deserializer)?` early-return
+    /// (line 345) propagates a deserialization error instead of reaching the
+    /// `let Some(names) = raw else { ... }` destructure.
+    #[test]
+    fn engine_set_serde_wrong_type_propagates_error() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value = serde_json::Value::from(42);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_err(), "deserializing a number as engines should fail: {result:?}");
+    }
 }
