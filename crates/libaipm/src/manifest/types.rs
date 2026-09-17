@@ -388,4 +388,23 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Directly invoke `engine_set_serde::deserialize` with a non-null JSON
+    /// array so that the `let Some(names) = raw else { .. }` arm's `Some`
+    /// side is covered for this same `serde_json::Value` deserializer
+    /// monomorphization. The `null_returns_none` test above only exercises
+    /// the `None`/`else` side for this deserializer; the TOML-backed tests
+    /// elsewhere cover the `Some` side for a *different* deserializer type,
+    /// so branch coverage tracked per-monomorphization still shows this
+    /// arm's `Some` case as unexercised without this test.
+    #[test]
+    fn engine_set_serde_array_returns_some() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value =
+            serde_json::Value::Array(vec![serde_json::Value::String("claude".to_string())]);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_ok(), "deserializing array should succeed: {result:?}");
+        let result: Result<Option<EngineSet>, _> = result;
+        assert!(result.unwrap().is_some(), "non-null engines should produce Some");
+    }
 }
