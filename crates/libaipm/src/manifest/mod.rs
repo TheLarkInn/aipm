@@ -621,6 +621,22 @@ engines = ["unknown-future-engine"]
     }
 
     #[test]
+    fn manifest_engines_field_wrong_toml_type_fails_to_parse() {
+        // `engines` must be a string array. A non-array value (here, an
+        // integer) makes `Option::<Vec<String>>::deserialize` itself fail,
+        // exercising the `?` propagation in `engine_set_serde::deserialize`
+        // (manifest/types.rs) rather than any of the array-content checks.
+        let toml = r#"
+[package]
+name = "my-plugin"
+version = "1.0.0"
+engines = 5
+"#;
+        let manifest = parse(toml);
+        assert!(manifest.is_err(), "expected parse error for non-array engines field");
+    }
+
+    #[test]
     fn manifest_engines_mixed_known_and_unknown_drops_unknowns() {
         // Mixed list (known + unknown) is permitted: the known names
         // form the bitset, unknowns are silently dropped — keeps
