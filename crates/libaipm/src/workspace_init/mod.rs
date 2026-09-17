@@ -718,6 +718,33 @@ mod tests {
     }
 
     #[test]
+    fn init_neither_workspace_nor_marketplace_emits_no_actions_and_no_warn() {
+        // With both `workspace` and `marketplace` false, `init` performs no work
+        // at all: `actions` stays empty, so both `any_created` and `any_found`
+        // evaluate to `false`. This covers the `!any_found` arm of `if
+        // !any_created && any_found` — every other test in this module requests
+        // at least one phase, so `any_found` is otherwise always `true` whenever
+        // `any_created` is `false` (a pre-existing workspace/marketplace found).
+        let (tmp, _guard) = make_temp_dir("no-op-init");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_workspace_creates_manifest() {
         let (tmp, _guard) = make_temp_dir("ws-create");
         let adaptors = default_adaptors();
