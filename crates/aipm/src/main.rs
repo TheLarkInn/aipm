@@ -1968,4 +1968,21 @@ mod tests {
             ".ai segment should be recognised"
         );
     }
+
+    /// `cmd_migrate` on an empty directory produces no `PluginCreated` action,
+    /// so `result.has_migrated_artifacts()` is `false` and `!result.has_migrated_artifacts()`
+    /// is `true` — covering the early-return arm of the post-migration cleanup check.
+    /// The function must return `Ok(())` without attempting any cleanup prompt.
+    #[test]
+    fn cmd_migrate_empty_dir_skips_cleanup_and_returns_ok() {
+        let tmp = tempfile::tempdir().unwrap_or_else(|_| panic!("tempdir creation failed"));
+        // `migrate()` requires `.ai/` to exist before scanning for sources;
+        // an otherwise-empty project directory yields zero artifacts.
+        std::fs::create_dir_all(tmp.path().join(".ai"))
+            .unwrap_or_else(|e| panic!("create .ai dir failed: {e}"));
+
+        let result = cmd_migrate(false, true, None, None, false, tmp.path().to_path_buf(), true);
+
+        assert!(result.is_ok(), "migrate on empty dir should succeed: {result:?}");
+    }
 }
