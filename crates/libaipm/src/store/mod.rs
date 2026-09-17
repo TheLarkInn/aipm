@@ -631,4 +631,28 @@ mod tests {
         let result = store.store_package(nonexistent);
         assert!(result.is_err(), "expected store_package to fail on missing directory");
     }
+
+    /// `link_to` creates the target's parent directory before hard-linking.
+    /// When that parent path is already occupied by a regular file,
+    /// `create_dir_all` fails with `ENOTDIR`, exercising the distinct parent
+    /// creation error branch in `link_to` (separate from `lock()`'s and
+    /// `store_file()`'s own parent/prefix creation failure branches).
+    #[cfg(unix)]
+    #[test]
+    fn link_to_errors_when_target_parent_creation_fails() {
+        let (_tmp, store) = make_store();
+        let content = b"content for blocked parent test";
+        let hash = store.store_file(content).unwrap();
+
+        let target_dir = tempfile::tempdir().unwrap();
+        let blocker = target_dir.path().join("blocker");
+        std::fs::write(&blocker, b"not a dir").unwrap();
+
+        // `blocker` is a regular file, so treating it as the parent directory
+        // of `target` makes `create_dir_all` fail.
+        let target = blocker.join("nested").join("linked_file");
+
+        let result = store.link_to(&hash, &target);
+        assert!(result.is_err(), "expected link_to to fail when target parent creation fails");
+    }
 }
