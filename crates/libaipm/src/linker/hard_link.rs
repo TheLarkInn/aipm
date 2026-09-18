@@ -167,6 +167,26 @@ mod tests {
     }
 
     #[test]
+    fn assemble_returns_error_when_existing_target_cannot_be_removed() {
+        // `target_dir` already exists but is a regular file, not a directory.
+        // `std::fs::remove_dir_all` then fails with "Not a directory", exercising
+        // the error-mapping branch on the `target_dir.exists()` true arm.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+
+        let target = tmp.path().join("links").join("blocked-pkg");
+        std::fs::create_dir_all(target.parent().expect("target has parent"))
+            .expect("create parent dir");
+        std::fs::write(&target, b"not a directory").expect("write blocking file");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "assemble should fail with Io error when target_dir cannot be removed, got: {result:?}"
+        );
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
