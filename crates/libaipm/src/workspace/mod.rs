@@ -365,4 +365,36 @@ mod tests {
             "expected 'failed to read' error, got: {err}"
         );
     }
+
+    #[test]
+    fn discover_members_error_invalid_glob_pattern() {
+        // "[" is not a valid glob pattern (unterminated character class), so
+        // `glob::glob` returns a `PatternError` — covers the `map_err` branch
+        // that converts a glob-syntax failure into `Error::Discovery`.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let err = discover_members(&crate::fs::Real, root, &["[".to_string()]).unwrap_err();
+        assert!(
+            format!("{err}").contains("invalid glob pattern"),
+            "expected 'invalid glob pattern' error, got: {err}"
+        );
+    }
+
+    #[test]
+    fn find_root_skips_manifest_that_is_a_directory() {
+        // If a path named "aipm.toml" exists as a directory rather than a
+        // file, `fs.exists` returns true but `read_to_string` fails — this
+        // covers the "could not read manifest" error-logging branch in
+        // `find_workspace_root`, distinct from the unparseable-TOML branch.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        std::fs::create_dir_all(root.join("aipm.toml")).unwrap();
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(&subdir).unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
+        assert!(result.is_none(), "should skip unreadable manifest, got: {result:?}");
+    }
 }
