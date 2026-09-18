@@ -120,6 +120,51 @@ mod tests {
     }
 
     #[test]
+    fn assemble_returns_error_when_target_dir_ancestor_is_a_file() {
+        // `target_dir` itself does not exist, so the cleanup branch is
+        // skipped, but a path *ancestor* of `target_dir` is a regular file.
+        // `create_dir_all(target_dir)` then fails with `NotADirectory`,
+        // exercising the error-mapping branch on the top-level directory
+        // creation (as opposed to the cleanup or per-file parent creation).
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, "not a dir").expect("write blocker file");
+        let target = blocker.join("nested-target");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            result.is_err(),
+            "assemble should fail creating target_dir under a file ancestor, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn assemble_returns_error_when_file_parent_ancestor_is_a_file() {
+        // Two `rel_path` entries: "blocker" is hard-linked into place first
+        // (BTreeMap iterates it before "blocker/sub/file.txt" since it is a
+        // lexicographic prefix). Once "blocker" exists as a *file* under
+        // `target_dir`, the second entry's `create_dir_all(target/blocker/sub)`
+        // fails because "blocker" is not a directory — exercising the
+        // per-file parent-directory error-mapping branch inside the loop.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash1 = store.store_file(b"blocker content").expect("store file 1");
+        let hash2 = store.store_file(b"nested content").expect("store file 2");
+        let target = tmp.path().join("target");
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("blocker"), hash1);
+        file_hashes.insert(PathBuf::from("blocker/sub/file.txt"), hash2);
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            result.is_err(),
+            "assemble should fail creating a parent dir under a file ancestor, got: {result:?}"
+        );
+    }
+
+    #[test]
     fn assemble_empty_package() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let store = store::Store::new(tmp.path().join("store"));
@@ -163,6 +208,23 @@ mod tests {
             matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt")),
             "assemble should fail with Io error for ghost.txt, got: {:?}",
             result
+        );
+    }
+
+    #[test]
+    fn assemble_returns_error_when_target_exists_as_a_file() {
+        // `target_dir.exists()` is true, but the path is a regular file, not
+        // a directory. `remove_dir_all` on a file fails with `NotADirectory`,
+        // exercising the error-mapping branch on the cleanup step.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let target = tmp.path().join("target-is-a-file");
+        std::fs::write(&target, "not a directory").expect("write file");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            result.is_err(),
+            "assemble should fail cleaning up a non-directory target, got: {result:?}"
         );
     }
 
