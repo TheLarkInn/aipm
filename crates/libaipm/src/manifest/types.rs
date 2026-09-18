@@ -388,4 +388,19 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Feeds a JSON string (not a sequence) into `engine_set_serde::deserialize`
+    /// so that `Option::<Vec<String>>::deserialize(deserializer)?` fails and
+    /// the `?` propagates a `D::Error` out of the function. TOML manifests can
+    /// never reach this branch (a scalar `engines = "claude"` fails the outer
+    /// `Vec<String>` deserialization the same way, but exercising the
+    /// deserializer boundary directly is the only way to cover the `?`
+    /// error-propagation edge deterministically).
+    #[test]
+    fn engine_set_serde_non_sequence_propagates_error() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value = serde_json::Value::String("not-an-array".to_string());
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_err(), "deserializing a scalar string should fail: {result:?}");
+    }
 }
