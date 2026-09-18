@@ -631,4 +631,30 @@ mod tests {
         let result = store.store_package(nonexistent);
         assert!(result.is_err(), "expected store_package to fail on missing directory");
     }
+
+    /// `collect_files` classifies the entry as a regular file (`is_file()`
+    /// returns `true`), but the subsequent `std::fs::read` call fails
+    /// because the file's read permission bit has been stripped. This
+    /// exercises the `std::fs::read` error branch inside `collect_files`
+    /// distinctly from the `read_dir`/`file_type` error branches already
+    /// covered above.
+    #[cfg(unix)]
+    #[test]
+    fn store_package_errors_when_file_read_permission_denied() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let (_tmp, store) = make_store();
+        let pkg_dir = tempfile::tempdir().unwrap();
+        let unreadable = pkg_dir.path().join("unreadable.txt");
+        std::fs::write(&unreadable, b"secret").unwrap();
+        std::fs::set_permissions(&unreadable, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+        let result = store.store_package(pkg_dir.path());
+
+        // Restore permissions so the tempdir can be cleaned up regardless
+        // of the assertion outcome.
+        std::fs::set_permissions(&unreadable, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+        assert!(result.is_err(), "expected store_package to fail when a file is unreadable");
+    }
 }
