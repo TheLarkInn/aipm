@@ -195,6 +195,20 @@ existing-pkg = "^1.0"
     }
 
     #[test]
+    fn add_dependency_fails_on_invalid_toml() {
+        // Covers the `parse::<toml_edit::DocumentMut>()` error branch in
+        // `add_dependency`: malformed TOML content must surface as
+        // `Error::Manifest` rather than panicking.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let manifest = tmp.path().join("aipm.toml");
+        std::fs::write(&manifest, "[package\nname = \"broken\"").expect("write");
+
+        let result = add_dependency(FS, &manifest, "new-pkg", "^1.0");
+        assert!(result.is_err());
+        assert!(matches!(result, Err(Error::Manifest { .. })));
+    }
+
+    #[test]
     fn add_dependency_fails_when_dependencies_is_scalar() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let manifest = tmp.path().join("aipm.toml");
