@@ -335,4 +335,21 @@ mod tests {
         }
         assert!(!sources.is_empty(), "expected at least one source");
     }
+
+    #[test]
+    fn discover_source_dirs_respects_max_depth() {
+        // Exercises the `Some(depth)` arm of `if let Some(depth) = max_depth`.
+        // Root-level `.github` is at depth 1 (within a max_depth of 1), while
+        // `packages/auth/.github` is at depth 3 and must be excluded.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+
+        std::fs::create_dir_all(root.join(".github")).expect("root .github");
+        std::fs::create_dir_all(root.join("packages").join("auth").join(".github"))
+            .expect("nested .github");
+
+        let sources = discover_source_dirs(root, &[".github"], Some(1)).expect("ok");
+        assert_eq!(sources.len(), 1);
+        assert!(sources.first().is_some_and(|s| s.package_name.is_none()));
+    }
 }
