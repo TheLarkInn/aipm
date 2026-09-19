@@ -365,4 +365,56 @@ mod tests {
             "expected 'failed to read' error, got: {err}"
         );
     }
+
+    #[test]
+    fn find_root_skips_manifest_it_cannot_read() {
+        // Create a *directory* called "aipm.toml" so `exists()` returns true
+        // but `read_to_string` errors with "Is a directory" — this covers
+        // the `Err(e)` arm of the outer read match (the "could not read
+        // manifest" debug-log branch), distinct from the invalid-TOML case
+        // covered by `find_root_skips_invalid_toml`.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        std::fs::create_dir_all(root.join("aipm.toml")).unwrap();
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(&subdir).unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
+        assert!(
+            result.is_none(),
+            "should skip an unreadable manifest and keep walking up, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn discover_members_skips_non_directory_match_at_walker_root() {
+        // The glob pattern matches a plain file rather than a directory,
+        // exercising the `!dir.is_dir() { continue }` branch when the file
+        // itself is the sole match (no valid directory match alongside it).
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        std::fs::create_dir_all(root.join(".ai")).unwrap();
+        std::fs::write(root.join(".ai/plain-file"), "not a directory").unwrap();
+
+        let members = discover_members(&crate::fs::Real, root, &[".ai/*".to_string()]).unwrap();
+        assert!(members.is_empty(), "non-directory glob matches should be skipped entirely");
+    }
+
+    #[test]
+    fn discover_members_error_invalid_glob_pattern() {
+        // `[` alone is an unterminated character-class pattern, rejected by
+        // the `glob` crate at parse time — exercising the
+        // `glob::glob(..).map_err(..)` branch (as opposed to a traversal
+        // error on an otherwise-valid pattern).
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let err = discover_members(&crate::fs::Real, root, &["[".to_string()]).unwrap_err();
+        assert!(
+            format!("{err}").contains("invalid glob pattern"),
+            "expected 'invalid glob pattern' error, got: {err}"
+        );
+    }
 }
