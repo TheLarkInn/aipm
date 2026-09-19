@@ -260,6 +260,16 @@ mod tests {
         assert_eq!(find_workspace_dir(&file), dir.path());
     }
 
+    #[test]
+    fn workspace_dir_stops_at_filesystem_root() {
+        // No aipm.toml or .ai marker exists anywhere up to the filesystem
+        // root, so the walk-up loop must exhaust `dir.parent()` down to
+        // `/`, whose own parent is `None` — exercising the `_ => break`
+        // arm (as opposed to `Some(parent) if parent != dir`).
+        let file = Path::new("/nonexistent-aipm-lsp-test-marker.md");
+        assert_eq!(find_workspace_dir(file), Path::new("/"));
+    }
+
     // ── to_lsp_diagnostic ────────────────────────────────────────────────────
 
     #[test]
