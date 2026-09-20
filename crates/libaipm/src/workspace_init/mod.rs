@@ -835,6 +835,80 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// #850 Q9.5: when both `--workspace` and `--marketplace` are requested
+    /// but everything already exists (no engine adaptors selected, so no
+    /// manifests are scaffolded either), `init` must emit only `Found*`
+    /// actions and hit the `!any_created && any_found` tail-warning branch.
+    #[test]
+    fn init_both_found_existing_emits_no_created_actions() {
+        let (tmp, _guard) = make_temp_dir("both-found-existing");
+        std::fs::write(tmp.join("aipm.toml"), generate_workspace_manifest(None)).ok();
+        std::fs::create_dir_all(tmp.join(".ai")).ok();
+
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            // Empty engine set: no adaptors run and no engine marketplace
+            // manifests are scaffolded, so the only actions possible are
+            // WorkspaceFoundExisting and MarketplaceFoundExisting.
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+        assert!(actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)));
+        assert!(
+            !actions.iter().any(|a| matches!(
+                a,
+                InitAction::WorkspaceCreated
+                    | InitAction::MarketplaceCreated
+                    | InitAction::MarketplaceManifestWritten { .. }
+                    | InitAction::ToolConfigured(_)
+            )),
+            "expected no Created/Written actions, got: {actions:?}"
+        );
+
+        cleanup(&tmp);
+    }
+
+    /// #850 Q9.5: when neither `--workspace` nor `--marketplace` is
+    /// requested, `init` emits no actions at all — `any_created` and
+    /// `any_found` are both false, and the short-circuited `&&` in
+    /// `!any_created && any_found` never evaluates `any_found` to `true`.
+    /// This is the genuine no-op case, distinct from
+    /// `init_both_found_existing_emits_no_created_actions` where the user
+    /// asked for something that already existed.
+    #[test]
+    fn init_with_no_flags_emits_no_actions() {
+        let (tmp, _guard) = make_temp_dir("no-flags");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions at all, got: {actions:?}");
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_both_creates_everything() {
         let (tmp, _guard) = make_temp_dir("both");
