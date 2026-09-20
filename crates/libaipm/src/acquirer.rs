@@ -401,6 +401,25 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the `create_dir_all` error branch in `acquire_local_from` (and by
+    /// extension `acquire_local`): when the destination folder name collides
+    /// with an existing regular file, `create_dir_all` cannot create a
+    /// directory there and returns an `Error::Io`.
+    #[test]
+    fn acquire_local_dest_create_dir_fails_returns_io_error() {
+        let temp = make_temp();
+        let src = make_local_plugin(&temp, "source-plugin");
+
+        let dest_dir = temp.path().join("dest");
+        std::fs::create_dir_all(&dest_dir).unwrap_or_else(|_| {});
+        // Place a regular file where the plugin's destination directory
+        // would need to be created, forcing `create_dir_all` to fail.
+        std::fs::write(dest_dir.join("source-plugin"), "blocker").unwrap_or_else(|_| {});
+
+        let result = acquire_local_from(&src, &dest_dir, Engine::Claude, "source-plugin");
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}");
+    }
+
     #[test]
     fn file_count_check_passes_normal() {
         let temp = make_temp();
