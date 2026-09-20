@@ -469,6 +469,37 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
+    /// A [`Write`] implementation that always fails, used to exercise the
+    /// `?` error-propagation branches after the diagnostics loop in each
+    /// reporter (e.g. the final summary `writeln!` calls).
+    struct FailingWriter;
+
+    impl Write for FailingWriter {
+        fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::new(std::io::ErrorKind::Other, "simulated write failure"))
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Err(std::io::Error::new(std::io::ErrorKind::Other, "simulated flush failure"))
+        }
+    }
+
+    #[test]
+    fn text_reporter_propagates_write_error_on_warning_summary() {
+        // Covers the `?` Err branch after the "N warning(s) emitted" writeln!
+        // in `Text::report` — a writer failure must surface as an error
+        // rather than being swallowed.
+        let outcome = Outcome {
+            diagnostics: vec![],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+            ..Outcome::default()
+        };
+        let result = Text.report(&outcome, &mut FailingWriter);
+        assert!(result.is_err());
+    }
+
     fn sample_outcome() -> Outcome {
         Outcome {
             diagnostics: vec![
