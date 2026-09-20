@@ -260,6 +260,15 @@ mod tests {
         assert_eq!(find_workspace_dir(&file), dir.path());
     }
 
+    #[test]
+    fn workspace_dir_root_path_has_no_parent() {
+        // `Path::new("/").parent()` is `None`, so `map_or_else`'s `None` arm
+        // (falling back to `path.to_path_buf()`) is exercised instead of the
+        // usual "start from the parent" branch.
+        let root = Path::new("/");
+        assert_eq!(find_workspace_dir(root), root.to_path_buf());
+    }
+
     // ── to_lsp_diagnostic ────────────────────────────────────────────────────
 
     #[test]
