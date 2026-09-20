@@ -2397,4 +2397,32 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    #[test]
+    fn init_with_both_flags_disabled_produces_no_warning_actions() {
+        // Covers the `any_found` false branch of `if !any_created && any_found`
+        // (tail-warning guard): when both `workspace` and `marketplace` are
+        // `false`, `init` performs no work at all, so `actions` stays empty.
+        // `any_created` is false (no actions), and `any_found` must also be
+        // false (no actions), which previously was never exercised because
+        // every other test enables at least one of the two flags.
+        let (tmp, _guard) = make_temp_dir("no-flags");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed with both flags disabled: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "no actions should be produced when both flags are false");
+
+        cleanup(&tmp);
+    }
 }
