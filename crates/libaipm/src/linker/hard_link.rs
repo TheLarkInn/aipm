@@ -146,6 +146,14 @@ mod tests {
         assert!(target.join("a/b/c/d/file.txt").exists());
     }
 
+    /// Checks whether an `assemble` result's `Error::Io` path ends with
+    /// `expected_suffix`. Used from two tests with a matching and a
+    /// non-matching suffix so the same `matches!` call site (and its guard
+    /// branch) is exercised for both the true and false outcomes.
+    fn io_error_path_ends_with(result: &Result<(), Error>, expected_suffix: &str) -> bool {
+        matches!(result, Err(Error::Io { path, .. }) if path.ends_with(expected_suffix))
+    }
+
     #[test]
     fn assemble_missing_hash_returns_error() {
         // A valid-format hash that was never stored — link_to returns NotFound,
@@ -160,8 +168,31 @@ mod tests {
         let target = tmp.path().join("links").join("ghost-pkg");
         let result = assemble(&store, &file_hashes, &target);
         assert!(
-            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt")),
+            io_error_path_ends_with(&result, "ghost.txt"),
             "assemble should fail with Io error for ghost.txt, got: {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn assemble_missing_hash_error_path_does_not_match_other_name() {
+        // Same failure as `assemble_missing_hash_returns_error`, but checks the
+        // `matches!` guard (`path.ends_with(...)`) against a filename that does
+        // NOT match the actual failing path. This exercises the guard's false
+        // branch, which the passing test above never reaches (it always uses
+        // the matching filename).
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+
+        let ghost_hash = "a".repeat(128); // valid format, but never stored
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("ghost.txt"), ghost_hash);
+
+        let target = tmp.path().join("links").join("ghost-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            !io_error_path_ends_with(&result, "wrong-name.txt"),
+            "guard should be false for a non-matching filename, got: {:?}",
             result
         );
     }
