@@ -452,6 +452,53 @@ mod tests {
         fs.seed(&marketplace_json, content.as_bytes());
     }
 
+    /// An `Fs` whose `create_dir_all` always fails, used to exercise the `?`
+    /// error-propagation branch on the plugin directory creation step in
+    /// [`plugin`].
+    struct FailingCreateDirFs;
+
+    impl crate::fs::Fs for FailingCreateDirFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Err(std::io::Error::other("simulated create_dir_all failure"))
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "not used"))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    /// Covers the `?` error-propagation branch after
+    /// `fs.create_dir_all(&plugin_dir)?` in [`plugin`]: when directory
+    /// creation fails, `plugin()` must return an `Error::Io` instead of
+    /// continuing the scaffolding pipeline.
+    #[test]
+    fn make_plugin_returns_io_error_when_create_dir_all_fails() {
+        let fs = FailingCreateDirFs;
+        let marketplace_dir = Path::new("/project/.ai");
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "unwritable-plugin",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(matches!(result, Err(Error::Io(_))), "expected Error::Io");
+    }
+
     #[test]
     fn make_plugin_creates_skill_plugin() {
         let fs = MockFs::new();
