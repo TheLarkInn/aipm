@@ -627,6 +627,24 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the `create_dir_all` error branch in `acquire_local`: when
+    /// `dest_dir` is actually a regular file (not a directory), joining it
+    /// with the plugin folder name and calling `create_dir_all` fails
+    /// because a file cannot have children created underneath it.
+    #[test]
+    fn acquire_local_dest_dir_creation_fails() {
+        let temp = make_temp();
+        let blocker = temp.path().join("blocker-file");
+        std::fs::write(&blocker, b"not a directory").unwrap_or_else(|_| {});
+
+        // "tests" always exists as a directory in the crate-root CWD during
+        // `cargo test`, so the source exists/is_dir checks pass and the flow
+        // reaches `create_dir_all(&dest)`, where `dest_dir` (blocker) is a file.
+        let path = ValidatedPath::new("tests").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &blocker, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
