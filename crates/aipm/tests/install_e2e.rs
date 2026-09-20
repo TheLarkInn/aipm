@@ -126,6 +126,33 @@ fn install_workspace_no_deps() {
 }
 
 // =========================================================================
+// workspace-no-deps: update after install reports 0 packages
+// =========================================================================
+//
+// Exercises `cmd_update` (crates/aipm/src/main.rs), which previously had no
+// test coverage at all: it builds an `UpdateConfig`, drives
+// `libaipm::installer::pipeline::update`, and reports the resulting counts.
+
+#[test]
+fn update_workspace_no_deps_after_install() {
+    let (_tmp, dir) = setup_fixture("workspace-no-deps");
+
+    // Install first so the (empty) lockfile already exists on disk.
+    aipm()
+        .args(["install", "--dir", dir.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Installed 0 package(s)"));
+
+    // Update with no root [dependencies] should also report 0 packages.
+    aipm()
+        .args(["update", "--dir", dir.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Updated 0 package(s), 0 up-to-date, 0 removed"));
+}
+
+// =========================================================================
 // workspace-separate-plugins-dir: install creates junctions in plugins/
 // =========================================================================
 
