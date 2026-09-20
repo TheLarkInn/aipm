@@ -606,6 +606,25 @@ mod tests {
         assert!(result.is_err(), "expected lock() to fail when store path is a file");
     }
 
+    /// Verify that `lock()` returns an error when the lock file itself
+    /// cannot be created because a directory already occupies that path.
+    /// `create_dir_all` on the store path succeeds (it's a real directory),
+    /// but `File::create(&lock_path)` then fails with EISDIR, exercising the
+    /// `Error::Io` mapping around the lock-file creation call.
+    #[cfg(unix)]
+    #[test]
+    fn lock_errors_when_lock_file_path_is_a_directory() {
+        let tmp = tempfile::tempdir().unwrap();
+        let store_path = tmp.path().join("store");
+        std::fs::create_dir_all(&store_path).unwrap();
+        // Occupy the `.lock` path with a directory instead of a file.
+        std::fs::create_dir_all(store_path.join(".lock")).unwrap();
+
+        let store = Store::new(store_path);
+        let result = store.lock();
+        assert!(result.is_err(), "expected lock() to fail when .lock path is a directory");
+    }
+
     /// Verify that `store_file()` returns an error when directory creation
     /// for the prefix shard fails (e.g., parent path is a file, not a dir).
     #[cfg(unix)]
