@@ -314,6 +314,25 @@ mod tests {
         assert!(sources.first().is_some_and(|s| s.package_name.is_none()));
     }
 
+    /// Exercises the `Some(depth)` arm of `if let Some(depth) = max_depth`,
+    /// which every other test in this module leaves uncovered by always
+    /// passing `None`. A `max_depth` of `1` should stop the walk before it
+    /// reaches a `.github` directory nested two levels deep, while a
+    /// `.github` directory at the root (depth 1) is still found.
+    #[test]
+    fn discover_source_dirs_respects_max_depth() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+
+        std::fs::create_dir_all(root.join(".github")).expect("root .github");
+        std::fs::create_dir_all(root.join("packages").join("auth").join(".github"))
+            .expect("nested .github");
+
+        let sources = discover_source_dirs(root, &[".github"], Some(1)).expect("ok");
+        assert_eq!(sources.len(), 1);
+        assert!(sources.first().is_some_and(|s| s.package_name.is_none()));
+    }
+
     #[test]
     fn error_display() {
         let err = Error::WalkFailed("permission denied".to_string());
