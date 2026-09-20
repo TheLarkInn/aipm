@@ -167,6 +167,32 @@ mod tests {
     }
 
     #[test]
+    fn assemble_parent_dir_creation_failure_returns_error() {
+        // `file_hashes` is a `BTreeMap`, so entries are iterated in key order.
+        // "blocker" sorts before "blocker/nested/file.txt", so the loop first
+        // hard-links "blocker" as a regular file directly under `target_dir`,
+        // then attempts to create `target_dir/blocker/nested` as a parent
+        // directory for the second entry. Since "blocker" is now a file (not
+        // a directory), `create_dir_all` fails — covering the error arm of
+        // `if let Some(parent) = file_target.parent() { create_dir_all(...) }`.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash = store.store_file(b"content").expect("store file");
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("blocker"), hash.clone());
+        file_hashes.insert(PathBuf::from("blocker/nested/file.txt"), hash);
+
+        let target = tmp.path().join("links").join("blocked-parent-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("blocker/nested")),
+            "assemble should fail creating the blocked parent dir, got: {:?}",
+            result
+        );
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
