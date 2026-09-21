@@ -836,6 +836,36 @@ mod tests {
     }
 
     #[test]
+    fn init_with_both_flags_disabled_produces_no_tail_warn_branches() {
+        // Covers the `any_found` False side of `!any_created && any_found`
+        // (the "nothing to do" tail-warn guard). With both `--workspace`
+        // and `--marketplace` disabled, `actions` stays empty, so both
+        // `any_created` and `any_found` vacuously evaluate to `false` —
+        // exercising the previously-uncovered False branch of `any_found`
+        // (it was only ever observed as `true` via the FoundExisting
+        // idempotency tests).
+        let (tmp, _guard) = make_temp_dir("both-disabled");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init with both flags disabled must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "no actions expected when both flags are disabled");
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_both_creates_everything() {
         let (tmp, _guard) = make_temp_dir("both");
         let adaptors = default_adaptors();
