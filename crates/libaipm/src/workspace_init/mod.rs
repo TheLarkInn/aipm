@@ -2397,4 +2397,30 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    #[test]
+    fn init_with_both_phases_disabled_produces_no_actions_and_skips_warn() {
+        // With both `workspace` and `marketplace` false, `actions` stays
+        // empty, so `any_created` and `any_found` are both `false`. This
+        // exercises the previously-uncovered `any_found == false` side of
+        // the `!any_created && any_found` tail-warn condition in `init`.
+        let (tmp, _guard) = make_temp_dir("both-phases-disabled");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed as a no-op: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions but got: {actions:?}");
+
+        cleanup(&tmp);
+    }
 }
