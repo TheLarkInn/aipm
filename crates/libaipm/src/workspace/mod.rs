@@ -159,6 +159,24 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unparseable_manifest() {
+        // `aipm.toml` exists but is not valid TOML, so `toml::from_str` fails.
+        // `find_workspace_root` must log and keep walking up instead of
+        // stopping, and eventually find the real workspace root above it.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+
+        let subdir = root.join("bad");
+        std::fs::create_dir_all(&subdir).unwrap();
+        std::fs::write(subdir.join("aipm.toml"), "this is not valid toml [[[").unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
+        assert_eq!(result.as_deref(), Some(root));
+    }
+
+    #[test]
     fn find_root_returns_none_for_non_workspace() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
@@ -224,6 +242,18 @@ mod tests {
         let members = discover_members(&crate::fs::Real, root, &[".ai/*".to_string()]).unwrap();
         assert_eq!(members.len(), 1);
         assert!(members.contains_key("valid-plugin"));
+    }
+
+    #[test]
+    fn discover_members_error_invalid_glob_pattern() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // `[` is an unterminated character class in glob syntax, so
+        // `glob::glob` returns a `PatternError`, exercising the invalid
+        // glob pattern branch of `discover_members`.
+        let err = discover_members(&crate::fs::Real, root, &["[".to_string()]).unwrap_err();
+        assert!(format!("{err}").contains("invalid glob pattern"));
     }
 
     #[test]
