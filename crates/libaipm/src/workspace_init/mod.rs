@@ -743,6 +743,32 @@ mod tests {
     }
 
     #[test]
+    fn init_with_neither_workspace_nor_marketplace_produces_no_actions() {
+        // With both `workspace` and `marketplace` false, `actions` stays
+        // empty: `any_created` and `any_found` are both `false`, exercising
+        // the `!any_created && any_found` guard's false/false combination
+        // (distinct from the true/false and false/true combinations already
+        // covered by other init_* tests).
+        let (tmp, _guard) = make_temp_dir("neither");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_marketplace_creates_tree() {
         let (tmp, _guard) = make_temp_dir("mp-create");
         let adaptors = default_adaptors();
