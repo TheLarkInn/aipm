@@ -743,6 +743,35 @@ mod tests {
     }
 
     #[test]
+    fn init_with_no_phases_requested_produces_no_actions_and_no_warn() {
+        // With both `workspace` and `marketplace` false, `actions` stays
+        // empty: `any_created` is `false` and `any_found` is also `false`
+        // (there are no `Found*` actions to observe). This exercises the
+        // `false` side of the `any_found` sub-expression in
+        // `!any_created && any_found` — previously only ever `true` when
+        // reached, because every other test always creates or finds at
+        // least one artifact.
+        let (tmp, _guard) = make_temp_dir("no-phases");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init with no phases requested must still succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "no phases requested should produce no actions");
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_marketplace_creates_tree() {
         let (tmp, _guard) = make_temp_dir("mp-create");
         let adaptors = default_adaptors();
