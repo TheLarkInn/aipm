@@ -159,9 +159,23 @@ mod tests {
 
         let target = tmp.path().join("links").join("ghost-pkg");
         let result = assemble(&store, &file_hashes, &target);
+
+        // A single helper call site exercises both arms of the guarded
+        // pattern match below: `suffix_matches` is `true` for "ghost.txt"
+        // (the actual error path) and `false` for an unrelated suffix,
+        // covering both branches of the `if` guard at that one location.
+        fn ends_with_suffix(result: &Result<(), Error>, suffix: &str) -> bool {
+            matches!(result, Err(Error::Io { path, .. }) if path.ends_with(suffix))
+        }
+
         assert!(
-            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt")),
+            ends_with_suffix(&result, "ghost.txt"),
             "assemble should fail with Io error for ghost.txt, got: {:?}",
+            result
+        );
+        assert!(
+            !ends_with_suffix(&result, "unrelated.txt"),
+            "error path should not end with an unrelated filename, got: {:?}",
             result
         );
     }
