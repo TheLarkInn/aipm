@@ -388,4 +388,17 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Covers the `Option::deserialize(deserializer)?` propagate branch:
+    /// when `engines` holds a value that cannot deserialize as
+    /// `Option<Vec<String>>` (e.g. a bare integer instead of a string
+    /// array), the leading `?` must forward the underlying serde error
+    /// rather than reach the `let Some(names) = raw else { .. }` arm.
+    #[test]
+    fn engine_set_serde_wrong_type_propagates_error() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value = serde_json::Value::Number(serde_json::Number::from(42));
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_err(), "deserializing a non-array value should fail: {result:?}");
+    }
 }
