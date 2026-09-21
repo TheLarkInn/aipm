@@ -631,4 +631,17 @@ mod tests {
         let result = store.store_package(nonexistent);
         assert!(result.is_err(), "expected store_package to fail on missing directory");
     }
+
+    /// `lock()` must propagate the I/O error when the lock file itself
+    /// cannot be created — here because `.lock` already exists as a
+    /// directory, so `File::create` fails with an `IsADirectory`-class
+    /// error even though `create_dir_all(&self.store_path)` succeeds.
+    #[test]
+    fn lock_errors_when_lock_path_is_a_directory() {
+        let (_tmp, store) = make_store();
+        std::fs::create_dir_all(store.path().join(".lock")).unwrap();
+
+        let result = store.lock();
+        assert!(result.is_err(), "expected lock() to fail when .lock path is a directory");
+    }
 }
