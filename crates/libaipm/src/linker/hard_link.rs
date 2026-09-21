@@ -147,6 +147,50 @@ mod tests {
     }
 
     #[test]
+    fn assemble_fails_when_target_dir_creation_errors() {
+        // `target_dir` sits underneath a regular file, so `create_dir_all`
+        // cannot create it and `assemble` must propagate the mkdir error,
+        // covering the `create_dir_all(target_dir)` error-mapping branch.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"not a dir").expect("write blocker");
+
+        let target = blocker.join("nested-pkg");
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "assemble should fail with Io error for the blocked target dir, got: {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn assemble_fails_when_parent_dir_creation_errors() {
+        // The first entry ("sub") lands as a plain file at `target_dir/sub`.
+        // The second entry ("sub/child.txt") then needs `target_dir/sub` to be
+        // a directory for its parent, but it's a file, so `create_dir_all`
+        // for the parent fails — covering the parent-mkdir error branch.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash1 = store.store_file(b"blocker file content").expect("store file 1");
+        let hash2 = store.store_file(b"child content").expect("store file 2");
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("sub"), hash1);
+        file_hashes.insert(PathBuf::from("sub/child.txt"), hash2);
+
+        let target = tmp.path().join("links").join("blocked-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("sub")),
+            "assemble should fail with Io error for the blocked parent dir, got: {:?}",
+            result
+        );
+    }
+
+    #[test]
     fn assemble_missing_hash_returns_error() {
         // A valid-format hash that was never stored — link_to returns NotFound,
         // covering the error mapping on the store.link_to call.
