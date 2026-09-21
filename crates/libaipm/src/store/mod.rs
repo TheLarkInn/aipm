@@ -384,6 +384,26 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// When the target's parent path is blocked by an existing regular file,
+    /// `create_dir_all` fails and `link_to` must propagate that I/O error
+    /// instead of attempting the hard-link.
+    #[cfg(unix)]
+    #[test]
+    fn link_to_errors_when_target_parent_creation_fails() {
+        let (_tmp, store) = make_store();
+        let content = b"blocked parent test";
+        let hash = store.store_file(content).unwrap();
+
+        let target_dir = tempfile::tempdir().unwrap();
+        let blocker = target_dir.path().join("blocker");
+        std::fs::write(&blocker, b"not a dir").unwrap();
+
+        // `blocker` is a file, so treating it as a parent directory fails.
+        let target = blocker.join("child").join("file");
+        let result = store.link_to(&hash, &target);
+        assert!(result.is_err(), "expected link_to to fail when parent dir creation fails");
+    }
+
     #[test]
     fn store_package_walks_directory() {
         let (_tmp, store) = make_store();
