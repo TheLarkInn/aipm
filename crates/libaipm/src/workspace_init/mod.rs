@@ -774,6 +774,31 @@ mod tests {
     }
 
     #[test]
+    fn init_with_no_flags_produces_no_actions_and_no_warn() {
+        // Covers the `false` side of `!any_created && any_found` (line 208):
+        // with both `workspace` and `marketplace` disabled, `actions` stays
+        // empty, so `any_found` is false and the tail "nothing to do" warn
+        // is skipped entirely.
+        let (tmp, _guard) = make_temp_dir("no-flags");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_workspace_is_idempotent_when_aipm_toml_exists() {
         let (tmp, _guard) = make_temp_dir("ws-idempotent");
 
