@@ -627,6 +627,64 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the full success path of `acquire_local` — the only test that
+    /// exercises `acquire_local` (not the `acquire_local_from` helper) end to
+    /// end, so it's the only one that runs the final `Ok(dest)` return inside
+    /// the public function's own body (as opposed to the duplicated
+    /// `acquire_local_from` test helper below, which has its own separate
+    /// `Ok` site). `ValidatedPath` resolves relative to the process CWD, so
+    /// this temporarily `chdir`s into a scratch directory containing a valid
+    /// `.claude-plugin/plugin.json`-marked plugin folder.
+    #[test]
+    fn acquire_local_success_returns_dest_path() {
+        static CWD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = CWD_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+        let cwd_root = make_temp();
+        let _plugin_dir = make_local_plugin(&cwd_root, "my-plugin");
+        let dest_root = make_temp();
+
+        let orig = std::env::current_dir().unwrap_or_else(|_| std::process::abort());
+        std::env::set_current_dir(cwd_root.path()).unwrap_or_else(|_| std::process::abort());
+
+        let path = ValidatedPath::new("my-plugin").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, dest_root.path(), Engine::Claude);
+
+        std::env::set_current_dir(&orig).unwrap_or_else(|_| std::process::abort());
+
+        let dest = result.unwrap_or_else(|_| PathBuf::new());
+        assert_eq!(dest, dest_root.path().join("my-plugin"));
+        assert!(dest.join(".claude-plugin/plugin.json").exists());
+        assert!(dest.join("README.md").exists());
+    }
+
+    /// Covers `acquire_local`'s `create_dir_all(&dest).map_err(..)` branch:
+    /// pre-create a regular *file* at the exact `dest` path
+    /// (`dest_dir/<folder_name>`) so `create_dir_all` returns `AlreadyExists`
+    /// instead of succeeding, driving the function into the `Io` error arm.
+    #[test]
+    fn acquire_local_dest_create_dir_all_fails_returns_io_error() {
+        static CWD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        let _guard = CWD_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+        let cwd_root = make_temp();
+        let _plugin_dir = make_local_plugin(&cwd_root, "my-plugin");
+        let dest_root = make_temp();
+        // Pre-create a file where `acquire_local` needs to create a directory.
+        std::fs::write(dest_root.path().join("my-plugin"), "blocking file")
+            .unwrap_or_else(|_| std::process::abort());
+
+        let orig = std::env::current_dir().unwrap_or_else(|_| std::process::abort());
+        std::env::set_current_dir(cwd_root.path()).unwrap_or_else(|_| std::process::abort());
+
+        let path = ValidatedPath::new("my-plugin").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, dest_root.path(), Engine::Claude);
+
+        std::env::set_current_dir(&orig).unwrap_or_else(|_| std::process::abort());
+
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}");
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
