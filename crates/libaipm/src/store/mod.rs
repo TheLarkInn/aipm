@@ -547,6 +547,7 @@ mod tests {
     /// `link_to`.
     #[cfg(target_os = "linux")]
     #[test]
+    #[tracing_test::traced_test]
     fn link_to_falls_back_to_copy_on_cross_device() {
         use std::path::PathBuf;
 
@@ -572,6 +573,10 @@ mod tests {
         assert!(result.is_ok(), "expected copy-fallback to succeed: {result:?}");
         let written = std::fs::read(&target).unwrap();
         assert_eq!(written, content);
+
+        // With a subscriber active (via `#[traced_test]`), the warn! macro's
+        // format arguments are actually evaluated, covering the branch body.
+        assert!(logs_contain("hard-link failed"));
     }
 
     #[cfg(unix)]
