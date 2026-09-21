@@ -602,6 +602,23 @@ engines = ["claude", "copilot"]
     }
 
     #[test]
+    fn manifest_engines_field_with_wrong_type_fails_to_parse() {
+        // `engines` must be a string array. A scalar value fails the
+        // `Option<Vec<String>>::deserialize` call itself (the `?` in
+        // `engine_set_serde::deserialize`), distinct from the "all names
+        // unknown" error which only triggers once the array has been
+        // successfully parsed into strings.
+        let toml = r#"
+[package]
+name = "my-plugin"
+version = "1.0.0"
+engines = 123
+"#;
+        let manifest = parse(toml);
+        assert!(manifest.is_err(), "expected parse error for non-array engines value");
+    }
+
+    #[test]
     fn manifest_engines_field_with_only_unknown_names_fails_to_parse() {
         // A non-empty engines list whose entries are ALL unknown must
         // error rather than silently widening to "all engines"
