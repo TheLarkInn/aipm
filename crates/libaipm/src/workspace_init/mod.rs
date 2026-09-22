@@ -807,6 +807,39 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `any_found` False branch (line 208, col 24) in `init()`:
+    /// when both `--workspace` and `--marketplace` are disabled, `init`
+    /// performs no phase at all, so `actions` stays empty — `any_created`
+    /// and `any_found` are both `false` and the `!any_created && any_found`
+    /// guard must short-circuit without emitting the "found nothing to do"
+    /// warning (there was nothing the user asked for in the first place).
+    #[test]
+    fn init_with_no_phases_requested_emits_no_actions() {
+        let (tmp, _guard) = make_temp_dir("no-phases");
+
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = Vec::new();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(
+            actions.is_empty(),
+            "no actions should be emitted when neither phase is requested: {actions:?}"
+        );
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_marketplace_is_idempotent_when_ai_exists() {
         let (tmp, _guard) = make_temp_dir("mp-idempotent");
