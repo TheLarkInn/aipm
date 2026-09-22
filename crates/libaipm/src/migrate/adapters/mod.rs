@@ -142,4 +142,26 @@ mod tests {
         let stub: Box<dyn Adapter> = Box::new(StubAdapter);
         assert_eq!(stub.name(), "stub");
     }
+
+    #[test]
+    fn stub_adapter_to_artifact_returns_unsupported_source_error() {
+        let stub = StubAdapter;
+        let feat = DiscoveredFeature {
+            kind: crate::discovery::FeatureKind::Skill,
+            source: crate::discovery::types::DiscoverySource::CLAUDE,
+            layout: crate::discovery::Layout::Canonical,
+            source_root: std::path::PathBuf::from(".claude"),
+            feature_dir: None,
+            path: std::path::PathBuf::from(".claude/skills/x/SKILL.md"),
+        };
+        // `StubAdapter::to_artifact` never touches the filesystem, so the
+        // real `Fs` implementation is safe to reuse here.
+        let fs = crate::fs::Real;
+        let result = stub.to_artifact(&feat, &fs);
+        let err = result.err().map_or_else(String::new, |e| e.to_string());
+        assert_eq!(
+            err,
+            "unsupported source type 'stub never produces artifacts' — supported sources: .claude, .github"
+        );
+    }
 }
