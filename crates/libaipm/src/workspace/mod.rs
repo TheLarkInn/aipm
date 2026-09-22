@@ -345,6 +345,19 @@ mod tests {
     }
 
     #[test]
+    fn discover_members_error_invalid_glob_pattern() {
+        // "[" is an unterminated character class and is rejected by
+        // `glob::glob` itself, exercising the `Error::Discovery` conversion
+        // branch on the `glob::glob(...)` call (as opposed to the later
+        // per-entry traversal error branch).
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let err = discover_members(&crate::fs::Real, root, &["[".to_string()]).unwrap_err();
+        assert!(format!("{err}").contains("invalid glob pattern"));
+    }
+
+    #[test]
     fn discover_members_error_manifest_is_directory() {
         // If a path named "aipm.toml" exists as a directory rather than a file,
         // std::fs::read_to_string fails — this covers the error-conversion branch
