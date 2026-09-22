@@ -159,10 +159,21 @@ mod tests {
 
         let target = tmp.path().join("links").join("ghost-pkg");
         let result = assemble(&store, &file_hashes, &target);
-        assert!(
-            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt")),
-            "assemble should fail with Io error for ghost.txt, got: {:?}",
-            result
+        assert_error_path_matches(&result, "ghost.txt", true);
+        // Same guard expression (`path.ends_with(..)`), evaluated against a
+        // suffix that does not match the actual error path — exercises the
+        // guard's False arm, which the call above never reaches.
+        assert_error_path_matches(&result, "unrelated.txt", false);
+    }
+
+    /// Shared assertion helper so the `matches!(.., if path.ends_with(suffix))`
+    /// guard is evaluated at one source location with both a matching and a
+    /// non-matching `suffix`, covering both branch outcomes.
+    fn assert_error_path_matches(result: &Result<(), Error>, suffix: &str, expected: bool) {
+        assert_eq!(
+            matches!(result, Err(Error::Io { path, .. }) if path.ends_with(suffix)),
+            expected,
+            "unexpected match result for suffix {suffix:?}: {result:?}"
         );
     }
 
