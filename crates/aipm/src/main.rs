@@ -1891,6 +1891,16 @@ mod tests {
         assert!(result.is_ok(), "color=always should succeed on a clean dir: {result:?}");
     }
 
+    /// `cmd_lint` with `no_summary = true` covers the `if !no_summary` False
+    /// branch: the scan summary is skipped and no summary is written to
+    /// stderr, but the lint outcome is still returned successfully.
+    #[test]
+    fn cmd_lint_no_summary_skips_summary_output() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = cmd_lint(tmp.path().to_path_buf(), None, "human", "auto", None, None, true);
+        assert!(result.is_ok(), "no_summary=true should still succeed on a clean dir: {result:?}");
+    }
+
     /// `derive_summary_sources` silently skips path components that cannot be
     /// decoded as UTF-8, exercising the `None` branch of `os.to_str()` in the
     /// inner loop.  On Unix, `OsStr::from_bytes` lets us construct a path
