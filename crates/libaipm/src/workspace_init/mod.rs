@@ -861,6 +861,38 @@ mod tests {
     }
 
     #[test]
+    #[tracing_test::traced_test]
+    fn init_with_no_flags_is_pure_noop_without_warn() {
+        // Covers the previously-uncovered False branch of `any_found` in
+        // `init()`: when neither `--workspace` nor `--marketplace` is
+        // requested, no actions are produced at all, so both
+        // `any_created` and `any_found` are false. `!any_created &&
+        // any_found` must evaluate to false, and the "found nothing to
+        // do" tail warning must NOT fire — this is a pure no-op run,
+        // distinct from a run where everything already existed.
+        let (tmp, _guard) = make_temp_dir("no-flags-noop");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions when both flags are false");
+        assert!(!logs_contain("aipm init found nothing to do"));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_with_no_adaptors() {
         let (tmp, _guard) = make_temp_dir("no-adaptors");
         let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
