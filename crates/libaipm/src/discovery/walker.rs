@@ -126,6 +126,31 @@ mod tests {
     use super::*;
     use std::fs;
 
+    #[test]
+    fn take_skipped_falls_back_to_default_on_poisoned_mutex() {
+        // Poison the mutex by panicking while holding the lock in another
+        // thread, then verify `take_skipped` falls back to `Vec::default()`
+        // instead of propagating the poison error — covers the `unwrap_or_default`
+        // False branch of `shared.lock()`.
+        let shared: Arc<Mutex<Vec<SkipReason>>> =
+            Arc::new(Mutex::new(vec![SkipReason::SkipDirByName {
+                path: PathBuf::from("node_modules"),
+                name: "node_modules".to_string(),
+            }]));
+
+        let poison_handle = Arc::clone(&shared);
+        let result = std::thread::spawn(move || {
+            let _guard = poison_handle.lock().expect("lock should succeed before poisoning");
+            panic!("intentionally poison the mutex");
+        })
+        .join();
+        assert!(result.is_err(), "spawned thread should have panicked");
+        assert!(shared.is_poisoned(), "mutex should be poisoned after the panic");
+
+        let recovered = take_skipped(&shared);
+        assert!(recovered.is_empty(), "poisoned mutex should fall back to an empty default");
+    }
+
     fn touch(path: &Path) {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).expect("create parent dir");
