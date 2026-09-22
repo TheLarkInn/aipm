@@ -1190,4 +1190,34 @@ mod tests {
             outcome.actions.iter().filter(|a| matches!(a, Action::PluginCreated { .. })).count();
         assert_eq!(created, 0, "no plugin should be created for an empty-artifact plan");
     }
+
+    /// Covers the `None` arm of `if let Some(first) = per_artifact.first_mut()`
+    /// in the fallback loop of `build_plugin_plans` (line 322): when an
+    /// `adapter_artifacts` entry has a root that is absent from
+    /// `handled_roots` but an empty artifact `Vec`, `sorted` stays empty,
+    /// `per_artifact` is built empty too, and `first_mut()` returns `None`
+    /// — the `other_files` re-attachment is skipped entirely rather than
+    /// panicking or misbehaving.
+    #[test]
+    fn build_plugin_plans_fallback_root_with_no_artifacts_skips_first_mut() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        // The root must exist so `reconciler::reconcile` can walk it without
+        // erroring, but it need not contain any artifact-producing files.
+        std::fs::create_dir_all(root.join("orphan-root")).expect("create orphan root dir");
+
+        let mut adapter_artifacts: BTreeMap<PathBuf, Vec<Artifact>> = BTreeMap::new();
+        adapter_artifacts.insert(root.join("orphan-root"), Vec::new());
+
+        // No sources, so `handled_roots` stays empty and the fallback loop
+        // processes every entry in `adapter_artifacts`.
+        let sources: Vec<DiscoveredSource> = Vec::new();
+
+        let plans = build_plugin_plans(&adapter_artifacts, &sources, &Real)
+            .expect("empty-artifact fallback root must not error");
+        assert!(
+            plans.is_empty(),
+            "an empty-artifact root must not produce any plugin plans, got: {plans:?}"
+        );
+    }
 }
