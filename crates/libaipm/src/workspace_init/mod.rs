@@ -743,6 +743,33 @@ mod tests {
     }
 
     #[test]
+    fn init_with_neither_workspace_nor_marketplace_emits_no_actions() {
+        // Covers the False branch of `if !any_created && any_found` in `init()`:
+        // with both `workspace` and `marketplace` disabled, `actions` stays
+        // empty, so `any_created` and `any_found` are both `false` — the
+        // "found nothing to do" warning must not fire, and `init` must still
+        // succeed with an empty action list.
+        let (tmp, _guard) = make_temp_dir("ws-noop");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init with both flags disabled should still succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions when neither flag is set: {actions:?}");
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_marketplace_creates_tree() {
         let (tmp, _guard) = make_temp_dir("mp-create");
         let adaptors = default_adaptors();
