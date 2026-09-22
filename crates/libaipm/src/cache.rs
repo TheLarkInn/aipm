@@ -711,6 +711,38 @@ mod tests {
     }
 
     #[test]
+    fn put_replaces_old_entry_dir_already_removed() {
+        // Covers the `false` branch of `if old_dir.exists()` in `put` (the old
+        // directory was already removed — e.g. by a prior `gc()` or manual
+        // cleanup — before the entry is replaced). `put` must not error when
+        // trying to clean up a directory that is already gone.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let spec = "replace-spec-missing-dir";
+
+        let src1 = temp.path().join("src1");
+        std::fs::create_dir_all(&src1).unwrap_or_else(|_| {});
+        std::fs::write(src1.join("version.txt"), "v1").unwrap_or_else(|_| {});
+        let dir1 = cache.put(spec, &src1, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(dir1.exists());
+
+        // Manually remove the old entry directory so it no longer exists on
+        // disk, while the index still references it.
+        std::fs::remove_dir_all(&dir1).unwrap_or_else(|_| {});
+        assert!(!dir1.exists());
+
+        let src2 = temp.path().join("src2");
+        std::fs::create_dir_all(&src2).unwrap_or_else(|_| {});
+        std::fs::write(src2.join("version.txt"), "v2").unwrap_or_else(|_| {});
+        let result = cache.put(spec, &src2, None);
+        assert!(result.is_ok(), "put should succeed even if the old dir was already removed");
+
+        let dir2 = result.unwrap_or_else(|_| PathBuf::new());
+        assert!(dir2.exists());
+        let content = std::fs::read_to_string(dir2.join("version.txt")).unwrap_or_default();
+        assert_eq!(content, "v2");
+    }
+
+    #[test]
     fn gc_removes_unreferenced_directories() {
         let temp = make_temp();
         let mut cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
