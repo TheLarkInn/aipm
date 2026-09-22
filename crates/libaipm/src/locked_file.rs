@@ -192,6 +192,21 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn write_content_fails_when_set_len_errors() {
+        // `/dev/full` always reports ENOSPC on write and rejects `ftruncate`
+        // with EINVAL, so it lets us exercise the `set_len` error branch in
+        // `write_content` without needing real disk exhaustion.
+        let path = Path::new("/dev/full");
+        let mut locked = match LockedFile::open(path) {
+            Ok(locked) => locked,
+            Err(_) => return,
+        };
+        let result = locked.write_content("anything");
+        assert!(result.is_err());
+    }
+
     /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
     fn unreachable_tempdir() -> tempfile::TempDir {
         tempfile::tempdir_in(".").unwrap_or_else(|_| {
