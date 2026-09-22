@@ -835,6 +835,57 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `!any_created && any_found` tail-warn branch (#850 Spec
+    /// G12 / Q9.5): running `init` a second time with no adaptors and an
+    /// already-fully-scaffolded `.ai/` tree produces only `*FoundExisting`
+    /// actions — nothing is created on the second run, so the warning path
+    /// (as opposed to the never-warn "some created" path already exercised
+    /// by every create/idempotent-writes-missing test) is exercised.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_second_run_with_nothing_new_emits_tail_warn() {
+        let (tmp, _guard) = make_temp_dir("nothing-new-warn");
+
+        // First run: scaffold everything with no adaptors so there is
+        // nothing left for the second run to create.
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let no_adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let first = init(&opts, &no_adaptors, &crate::fs::Real);
+        assert!(first.is_ok(), "first init must succeed: {first:?}");
+
+        // Second run against the same directory: workspace and marketplace
+        // both already exist, and there are no adaptors to configure —
+        // only Found* actions should result.
+        let second = init(&opts, &no_adaptors, &crate::fs::Real);
+        assert!(second.is_ok(), "second init must succeed: {second:?}");
+
+        let actions = second.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+        assert!(actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)));
+        assert!(!actions.iter().any(|a| matches!(
+            a,
+            InitAction::WorkspaceCreated
+                | InitAction::MarketplaceCreated
+                | InitAction::MarketplaceManifestWritten { .. }
+                | InitAction::ToolConfigured(_)
+        )));
+        assert!(
+            logs_contain("aipm init found nothing to do; all requested artifacts already exist"),
+            "expected the tail-warn log line to fire when nothing new was created"
+        );
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_both_creates_everything() {
         let (tmp, _guard) = make_temp_dir("both");
