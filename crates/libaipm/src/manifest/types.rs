@@ -373,6 +373,18 @@ mod engine_set_serde {
 mod tests {
     use super::*;
 
+    /// Covers the `Option::deserialize(deserializer)?` early-return branch in
+    /// `engine_set_serde::deserialize`: when `[package].engines` is present
+    /// but is not a string array (here, an integer), deserializing it as
+    /// `Option<Vec<String>>` fails and the `?` operator propagates that
+    /// error immediately, before any of the "names" handling runs.
+    #[test]
+    fn engine_set_serde_non_array_value_propagates_error() {
+        let toml_str = "[package]\nname = \"test\"\nversion = \"1.0.0\"\nengines = 42\n";
+        let result = crate::manifest::parse(toml_str);
+        assert!(result.is_err(), "non-array `engines` value should fail to deserialize");
+    }
+
     /// Directly invoke `engine_set_serde::deserialize` with a JSON `null` value so
     /// that the `let Some(names) = raw else { return Ok(None) }` arm (line 333) is
     /// covered.  This path cannot be reached through TOML (which has no null literal),
