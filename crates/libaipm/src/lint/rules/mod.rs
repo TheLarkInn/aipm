@@ -386,4 +386,55 @@ mod tests {
         let rules = quality_rules_for_kind(&FeatureKind::Instructions, &config);
         assert!(rules.iter().any(|r| r.id() == "instructions/oversized"));
     }
+
+    /// Custom `lines`/`characters`/`resolve-imports` options set in config
+    /// must flow through to the constructed `Oversized` rule instance —
+    /// exercising the `and_then(|v| usize::try_from(v).ok())` branch for
+    /// `characters` (not just `lines`), and the `resolve-imports` boolean
+    /// lookup, in `quality_rules_for_kind`.
+    #[test]
+    fn quality_rules_for_instructions_kind_applies_custom_options() {
+        use crate::lint::config::RuleOverride;
+        use std::collections::BTreeMap;
+
+        let mut options = BTreeMap::new();
+        options.insert("lines".to_string(), toml::Value::Integer(500));
+        options.insert("characters".to_string(), toml::Value::Integer(5_000));
+        options.insert("resolve-imports".to_string(), toml::Value::Boolean(true));
+
+        let mut config = Config::default();
+        config.rule_overrides.insert(
+            "instructions/oversized".to_string(),
+            RuleOverride::Detailed { level: None, ignore: vec![], options },
+        );
+
+        let rules = quality_rules_for_kind(&FeatureKind::Instructions, &config);
+        assert_eq!(rules.len(), 1);
+        let rule = rules.first().unwrap_or_else(|| unreachable_rule());
+        assert_eq!(rule.id(), "instructions/oversized");
+
+        // Content is under the DEFAULT_MAX_CHARS (15,000) threshold but over
+        // the custom 5,000-char threshold and under the custom 500-line
+        // threshold — a diagnostic here can only be produced if the parsed
+        // `characters` option was actually threaded into the rule instance.
+        let content = "x".repeat(6_000);
+        let mut fs = test_helpers::MockFs::new();
+        let path = Path::new("CLAUDE.md");
+        fs.exists.insert(path.to_path_buf());
+        fs.files.insert(path.to_path_buf(), content);
+
+        let diagnostics = rule.check_file(path, &fs).unwrap_or_else(|_| Vec::new());
+        assert!(
+            !diagnostics.is_empty(),
+            "expected a diagnostic using the custom 5,000-char threshold"
+        );
+    }
+
+    /// Test-only fallback satisfying the type checker without `.unwrap()` /
+    /// `panic!()`, which the workspace lint configuration denies. Only
+    /// reached if `rules.first()` unexpectedly returns `None`, which the
+    /// preceding `assert_eq!(rules.len(), 1)` already rules out.
+    fn unreachable_rule<'a>() -> &'a Box<dyn Rule> {
+        std::process::abort();
+    }
 }
