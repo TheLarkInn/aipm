@@ -1697,6 +1697,91 @@ mod tests {
     }
 
     #[test]
+    fn init_with_both_phases_disabled_produces_no_actions() {
+        // Covers the `any_found` false branch of `!any_created && any_found`
+        // (line 208): with both `workspace` and `marketplace` disabled,
+        // `actions` stays empty, so both `any_created` and `any_found`
+        // evaluate to `false` and the "nothing to do" warn is skipped.
+        let (tmp, _guard) = make_temp_dir("both-phases-disabled");
+
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: true,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let adaptors = default_adaptors();
+
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init should succeed with no phases requested: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(
+            actions.is_empty(),
+            "expected no actions when both phases are disabled: {actions:?}"
+        );
+
+        cleanup(&tmp);
+    }
+
+    #[test]
+    fn init_warns_when_nothing_created_but_something_found() {
+        // Covers the `!any_created && any_found` true branch (line 208):
+        // running `init` a second time against an already-initialized
+        // workspace + marketplace produces only `*FoundExisting` actions
+        // (no `*Created` / `ToolConfigured`), which is exactly the
+        // "nothing to do" warning path.
+        let (tmp, _guard) = make_temp_dir("nothing-created-but-found");
+
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let adaptors = default_adaptors();
+
+        // First run creates the workspace and marketplace.
+        let first = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(first.is_ok(), "first init should succeed: {first:?}");
+
+        // Second run against the same directory: everything already
+        // exists, so `any_created` is false and `any_found` is true.
+        let second = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(second.is_ok(), "second init should succeed: {second:?}");
+        let actions = second.ok().map(|r| r.actions).unwrap_or_default();
+
+        let any_created = actions.iter().any(|a| {
+            matches!(
+                a,
+                InitAction::WorkspaceCreated
+                    | InitAction::MarketplaceCreated
+                    | InitAction::MarketplaceManifestWritten { .. }
+                    | InitAction::ToolConfigured(_)
+            )
+        });
+        let any_found = actions.iter().any(|a| {
+            matches!(
+                a,
+                InitAction::WorkspaceFoundExisting
+                    | InitAction::MarketplaceFoundExisting
+                    | InitAction::MarketplaceManifestFoundExisting { .. }
+            )
+        });
+        assert!(!any_created, "second init should not create anything: {actions:?}");
+        assert!(any_found, "second init should find pre-existing artifacts: {actions:?}");
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn make_temp_dir_cleans_up_existing_directory() {
         // Pre-create the directory so that the `if tmp.exists()` branch in
         // `make_temp_dir` (the cleanup-before-recreate path) is exercised.
