@@ -227,6 +227,34 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_plain_md_stem_keeps_first_seen() {
+        // Two plain `.md` files (neither is `.agent.md`) that resolve to the same
+        // stem via case-insensitive extension matching: `foo.md` and `foo.MD`.
+        // Covers the overall-false case of
+        // `if is_agent_md || !by_name.contains_key(&stem)` — once the first
+        // plain `.md` for a stem is registered, a second plain `.md` with the
+        // same stem must be skipped rather than overwriting it.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs
+            .insert(PathBuf::from("/src/agents"), vec![de("foo.md", false), de("foo.MD", false)]);
+        fs.files.insert(
+            PathBuf::from("/src/agents/foo.md"),
+            "---\nname: first-foo\n---\nFirst.".to_string(),
+        );
+        fs.files.insert(
+            PathBuf::from("/src/agents/foo.MD"),
+            "---\nname: second-foo\n---\nSecond.".to_string(),
+        );
+
+        let detector = CopilotAgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.len(), 1, "duplicate stem should be deduped to a single artifact");
+    }
+
+    #[test]
     fn no_agents_dir_returns_empty() {
         let fs = MockFs::new();
         let detector = CopilotAgentDetector;
