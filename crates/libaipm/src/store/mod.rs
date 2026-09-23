@@ -466,6 +466,18 @@ mod tests {
     }
 
     #[test]
+    fn lock_errors_when_lock_path_is_a_directory() {
+        // Pre-create ".lock" as a directory so `File::create(&lock_path)`
+        // fails with `IsADirectory`, exercising the `Error::Io` branch in
+        // `Store::lock` for the lock-file-creation step.
+        let (_tmp, store) = make_store();
+        std::fs::create_dir_all(store.path().join(".lock")).unwrap();
+
+        let result = store.lock();
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn get_path_returns_some_for_existing() {
         let (_tmp, store) = make_store();
         let hash = store.store_file(b"get path test").unwrap();
