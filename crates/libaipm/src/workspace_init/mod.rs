@@ -808,6 +808,39 @@ mod tests {
     }
 
     #[test]
+    fn init_with_both_flags_disabled_skips_tail_warning() {
+        // Covers the false branch of `any_found` in
+        // `if !any_created && any_found` — evaluated only when `!any_created`
+        // is true. With both `workspace` and `marketplace` disabled, `init`
+        // performs no work at all: `actions` stays empty, so both
+        // `any_created` and `any_found` are false, and the "nothing to do"
+        // tail warning must be skipped even though nothing was created.
+        let (tmp, _guard) = make_temp_dir("all-flags-disabled");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "no-op init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(
+            actions.is_empty(),
+            "expected no actions when both flags are disabled: {actions:?}"
+        );
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_marketplace_is_idempotent_when_ai_exists() {
         let (tmp, _guard) = make_temp_dir("mp-idempotent");
         std::fs::create_dir_all(tmp.join(".ai")).ok();
