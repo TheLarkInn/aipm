@@ -147,6 +147,21 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_dir_is_file_returns_error() {
+        // `target_dir` exists but is a regular file, not a directory.
+        // `exists()` is true, so `assemble` attempts `remove_dir_all`, which
+        // fails with `NotADirectory` — covering the error-mapping branch on
+        // the `remove_dir_all` call.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let target = tmp.path().join("not-a-dir");
+        std::fs::write(&target, b"i am a file").expect("write file at target path");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(result.is_err(), "assemble should fail when target_dir is a file");
+    }
+
+    #[test]
     fn assemble_missing_hash_returns_error() {
         // A valid-format hash that was never stored — link_to returns NotFound,
         // covering the error mapping on the store.link_to call.
