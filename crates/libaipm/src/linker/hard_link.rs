@@ -120,6 +120,26 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_dir_is_file_fails_to_remove() {
+        // When `target_dir` exists but is a regular file (not a directory),
+        // `target_dir.exists()` is true but `std::fs::remove_dir_all` fails
+        // with `NotADirectory` — covering the error-mapping branch on the
+        // initial cleanup call.
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("links").join("not-a-dir");
+
+        std::fs::create_dir_all(target.parent().expect("target has parent"))
+            .expect("create parent dir");
+        std::fs::write(&target, "i am a file, not a directory").expect("write blocker file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "assemble should fail with Io error when target_dir is a file, got: {result:?}"
+        );
+    }
+
+    #[test]
     fn assemble_empty_package() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let store = store::Store::new(tmp.path().join("store"));
