@@ -167,6 +167,26 @@ mod tests {
     }
 
     #[test]
+    fn assemble_returns_error_when_target_is_a_file_not_a_directory() {
+        // When `target_dir` already exists but is a regular file (not a
+        // directory), `target_dir.exists()` is true so we attempt
+        // `remove_dir_all`, which fails with `ErrorKind::NotADirectory` (or
+        // similar) — exercising the `Err` arm of the initial cleanup branch.
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("links").join("not-a-dir-pkg");
+
+        std::fs::create_dir_all(target.parent().expect("parent")).expect("create parent");
+        std::fs::write(&target, "i am a file, not a directory").expect("write file at target");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "assemble should fail with Io error when target_dir is a file, got: {:?}",
+            result
+        );
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
