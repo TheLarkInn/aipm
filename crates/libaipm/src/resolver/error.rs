@@ -210,6 +210,36 @@ mod tests {
         assert!(chain.is_empty());
     }
 
+    /// A `fmt::Write` sink that always errors. Used to force the `?` after
+    /// the initial `write!` in `ConflictDetail::fmt` (the header line) to
+    /// actually propagate a `fmt::Error`, covering that branch's `Err` arm.
+    struct AlwaysFailingWriter;
+
+    impl std::fmt::Write for AlwaysFailingWriter {
+        fn write_str(&mut self, _s: &str) -> std::fmt::Result {
+            Err(std::fmt::Error)
+        }
+    }
+
+    #[test]
+    fn conflict_error_display_propagates_write_error() {
+        // Fails on the very first write_str call, so the `?` on the header
+        // `write!` inside `ConflictDetail::fmt` returns `Err` immediately.
+        let detail = ConflictDetail {
+            name: "pkg".to_string(),
+            existing_req: "1.0.0".to_string(),
+            existing_source: "src-a".to_string(),
+            new_req: "=2.0.0".to_string(),
+            new_source: "src-b".to_string(),
+            existing_chain: vec![],
+            new_chain: vec![],
+        };
+
+        let mut sink = AlwaysFailingWriter;
+        let result = std::fmt::write(&mut sink, format_args!("{detail}"));
+        assert!(result.is_err());
+    }
+
     #[test]
     fn conflict_error_only_existing_chain() {
         // existing_chain has entries, new_chain is empty — tests the inner if branches
