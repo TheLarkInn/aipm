@@ -743,6 +743,33 @@ mod tests {
     }
 
     #[test]
+    fn init_with_both_phases_disabled_produces_no_actions() {
+        // With `workspace` and `marketplace` both false, `init` never pushes
+        // any `*Created` or `*FoundExisting` action, so `actions` stays
+        // empty. This exercises the `any_created == false && any_found ==
+        // false` combination of the tail-warn check (#850): `!any_created`
+        // is true, but `any_found` must also be false here — the branch
+        // where both operands of `!any_created && any_found` fall through
+        // to `false` without emitting the "nothing to do" warning.
+        let (tmp, _guard) = make_temp_dir("no-op-init");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_marketplace_creates_tree() {
         let (tmp, _guard) = make_temp_dir("mp-create");
         let adaptors = default_adaptors();
