@@ -548,6 +548,20 @@ mod tests {
         assert!(check_file_count(&dir).is_ok());
     }
 
+    /// Covers the `read_dir(src)` error mapping in `copy_dir_recursive`
+    /// (line 290): when `src` does not exist, `std::fs::read_dir` fails and
+    /// the error is wrapped as `Error::Io` and propagated immediately.
+    #[test]
+    fn copy_dir_recursive_nonexistent_src_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("does-not-exist");
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(&dst).unwrap_or_else(|_| {});
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}",);
+    }
+
     #[test]
     fn copy_dir_recursive_empty_src() {
         let temp = make_temp();
