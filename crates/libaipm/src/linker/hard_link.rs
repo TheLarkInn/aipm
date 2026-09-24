@@ -167,6 +167,24 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_dir_is_file_returns_error() {
+        // If `target_dir` exists but is a regular file (not a directory),
+        // `remove_dir_all` fails with `NotADirectory` — exercising the error
+        // arm of the `if target_dir.exists()` cleanup branch.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+
+        let target = tmp.path().join("not-a-dir");
+        std::fs::write(&target, "not a directory").expect("write blocker file");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "assemble should fail with Io error when target_dir is a file, got: {result:?}"
+        );
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
