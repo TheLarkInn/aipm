@@ -388,4 +388,57 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Directly invoke `engine_set_serde::deserialize` with a JSON value whose
+    /// type is incompatible with `Option<Vec<String>>` (a bare integer instead
+    /// of a string array), so the `Option::deserialize(deserializer)?` early
+    /// return (line 345) propagates a real deserialization error instead of
+    /// ever reaching the `Some`/`None` match. TOML manifests always produce a
+    /// well-typed value here, so this error path is otherwise unreachable
+    /// through the normal manifest-parsing entry point.
+    #[test]
+    fn engine_set_serde_propagates_type_mismatch_error() {
+        let de: serde_json::Value = serde_json::Value::Number(42.into());
+        let result = engine_set_serde::deserialize(de);
+        assert!(result.is_err(), "deserializing a non-array value should fail: {result:?}");
+    }
+
+    /// Exercise the successful (`Ok`) side of `Option::deserialize(deserializer)?`
+    /// using the same `serde_json::Value` deserializer type as
+    /// [`engine_set_serde_propagates_type_mismatch_error`], so both outcomes of
+    /// that branch are covered under the same monomorphization.
+    #[test]
+    fn engine_set_serde_deserializes_known_engine_list_via_json() {
+        let de: serde_json::Value = serde_json::json!(["claude"]);
+        let result = engine_set_serde::deserialize(de);
+        assert!(result.is_ok(), "deserializing a known engine list should succeed: {result:?}");
+        let set = result.unwrap_or_default();
+        assert!(set.is_some(), "a known engine name should produce Some(EngineSet)");
+    }
+
+    /// Exercise the `names.is_empty()` true arm (an explicit `engines = []`
+    /// list) under the `serde_json::Value` monomorphization, so both sides of
+    /// that branch are covered for this deserializer type too.
+    #[test]
+    fn engine_set_serde_empty_list_via_json_returns_empty_set() {
+        let de: serde_json::Value = serde_json::json!([]);
+        let result = engine_set_serde::deserialize(de);
+        assert!(result.is_ok(), "an empty engine list should succeed: {result:?}");
+        let set = result.unwrap_or_default();
+        assert_eq!(
+            set,
+            Some(EngineSet::empty()),
+            "empty list should map to Some(EngineSet::empty())"
+        );
+    }
+
+    /// Exercise the `set.is_empty()` true arm (all entries unknown) under the
+    /// `serde_json::Value` monomorphization, covering the error-rejection
+    /// path for this deserializer type too.
+    #[test]
+    fn engine_set_serde_all_unknown_names_via_json_errors() {
+        let de: serde_json::Value = serde_json::json!(["not-a-real-engine"]);
+        let result = engine_set_serde::deserialize(de);
+        assert!(result.is_err(), "all-unknown engine names should be rejected: {result:?}");
+    }
 }
