@@ -742,6 +742,31 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// With both `workspace` and `marketplace` disabled, `init` performs no
+    /// phases at all: `actions` stays empty, so both `any_created` and
+    /// `any_found` are `false`. This covers the `any_found == false` arm of
+    /// `if !any_created && any_found` (only the `true` arm was previously
+    /// exercised, via runs where a phase found an existing artifact).
+    #[test]
+    fn init_no_phases_requested_produces_no_actions_and_no_warning() {
+        let (tmp, _guard) = make_temp_dir("no-phases");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_marketplace_creates_tree() {
         let (tmp, _guard) = make_temp_dir("mp-create");
