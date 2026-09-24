@@ -167,6 +167,28 @@ mod tests {
     }
 
     #[test]
+    fn assemble_create_target_dir_fails_returns_error() {
+        // target_dir itself does not exist (so the remove_dir_all branch is
+        // skipped), but a path component of target_dir is a regular file, so
+        // create_dir_all(target_dir) fails — covering the map_err on that call.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, "not a directory").expect("write blocker file");
+
+        let target = blocker.join("nested-pkg");
+        assert!(!target.exists(), "target should not exist before assemble");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "assemble should fail with Io error for target_dir, got: {:?}",
+            result
+        );
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
