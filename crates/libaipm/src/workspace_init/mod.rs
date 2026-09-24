@@ -718,6 +718,37 @@ mod tests {
     }
 
     #[test]
+    fn init_with_both_flags_disabled_emits_no_tail_warning() {
+        // Covers the `!any_created && any_found` False arm via `any_found`
+        // being false: when both `workspace` and `marketplace` are
+        // disabled, `init` performs no actions at all — neither creates
+        // anything nor finds anything pre-existing — so the "found
+        // nothing to do" tail warning must not fire (there is nothing to
+        // warn about; the user simply didn't request any phase).
+        let (tmp, _guard) = make_temp_dir("no-op-init");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        let actions = result.map(|r| r.actions).unwrap_or_default();
+        assert!(
+            actions.is_empty(),
+            "no actions should be recorded when both flags are off: {actions:?}"
+        );
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_workspace_creates_manifest() {
         let (tmp, _guard) = make_temp_dir("ws-create");
         let adaptors = default_adaptors();
