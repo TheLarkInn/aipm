@@ -1190,4 +1190,31 @@ mod tests {
             outcome.actions.iter().filter(|a| matches!(a, Action::PluginCreated { .. })).count();
         assert_eq!(created, 0, "no plugin should be created for an empty-artifact plan");
     }
+
+    /// Covers the `None` arm of `if let Some(first) = per_artifact.first_mut()`
+    /// in `build_plugin_plans`'s fallback loop (unhandled-root branch): when
+    /// `adapter_artifacts` holds an empty `Vec<Artifact>` for a root that is
+    /// absent from `handled_roots`, `sorted` (and therefore `per_artifact`) is
+    /// empty, so `first_mut()` returns `None` and the plan list gains nothing
+    /// for that root — without erroring.
+    #[test]
+    fn build_plugin_plans_fallback_root_with_no_artifacts_yields_no_plans() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        // The root directory exists but is otherwise empty (no files for
+        // reconcile to discover), and is never returned by
+        // discover_source_dirs, so it never enters `handled_roots`.
+        let empty_root = root.join("orphan-root");
+        std::fs::create_dir_all(&empty_root).expect("create empty root dir");
+
+        let mut adapter_artifacts: BTreeMap<PathBuf, Vec<super::super::Artifact>> = BTreeMap::new();
+        adapter_artifacts.insert(empty_root, Vec::new());
+
+        let plans = build_plugin_plans(&adapter_artifacts, &[], &Real)
+            .expect("empty-artifact root must not error");
+        assert!(
+            plans.is_empty(),
+            "an unhandled root with zero artifacts must produce no plans: {plans:?}"
+        );
+    }
 }
