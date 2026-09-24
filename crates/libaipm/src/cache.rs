@@ -711,6 +711,39 @@ mod tests {
     }
 
     #[test]
+    fn put_replaces_entry_when_old_dir_already_missing() {
+        // Exercises the `!old_dir.exists()` branch in `put`: the index
+        // records a previous entry dir, but the directory itself was
+        // already removed (e.g. by an external `gc` or manual cleanup)
+        // before the next `put` call runs. The cleanup step must tolerate
+        // that and simply skip `remove_dir_all` rather than erroring.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let spec = "missing-old-dir-spec";
+
+        let src1 = temp.path().join("src1");
+        std::fs::create_dir_all(&src1).unwrap_or_else(|_| {});
+        std::fs::write(src1.join("version.txt"), "v1").unwrap_or_else(|_| {});
+        let dir1 = cache.put(spec, &src1, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(dir1.exists());
+
+        // Remove the old entry directory out-of-band, before the second
+        // `put` call, so the index still references it but the directory
+        // is already gone.
+        std::fs::remove_dir_all(&dir1).unwrap_or_else(|_| {});
+        assert!(!dir1.exists());
+
+        let src2 = temp.path().join("src2");
+        std::fs::create_dir_all(&src2).unwrap_or_else(|_| {});
+        std::fs::write(src2.join("version.txt"), "v2").unwrap_or_else(|_| {});
+        let dir2 = cache.put(spec, &src2, None).unwrap_or_else(|_| PathBuf::new());
+
+        assert!(dir2.exists());
+        let content = std::fs::read_to_string(dir2.join("version.txt")).unwrap_or_default();
+        assert_eq!(content, "v2");
+        assert_ne!(dir1, dir2);
+    }
+
+    #[test]
     fn gc_removes_unreferenced_directories() {
         let temp = make_temp();
         let mut cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
