@@ -157,6 +157,40 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    /// Covers the error-propagation branch of `remove_dir_all()` inside
+    /// `unlink_package`: when the parent of the assembled directory is
+    /// read-only, removal fails and the `map_err` converts the I/O error
+    /// into `Error::Io`, which is propagated through the `?` operator.
+    ///
+    /// Only compiled on Unix because the test relies on POSIX directory
+    /// permissions.
+    #[cfg(unix)]
+    #[test]
+    fn unlink_package_propagates_error_when_remove_dir_all_fails() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let links_dir = tmp.path().join(".aipm/links");
+        let plugins_dir = tmp.path().join("claude-plugins");
+
+        let assembled_dir = links_dir.join("locked-pkg");
+        std::fs::create_dir_all(&assembled_dir).expect("create assembled dir");
+        std::fs::write(assembled_dir.join("aipm.toml"), b"[package]").expect("write file");
+
+        // Remove write permission on links_dir so remove_dir_all cannot
+        // unlink the "locked-pkg" entry from within it.
+        let orig_perms = std::fs::metadata(&links_dir).expect("metadata").permissions();
+        std::fs::set_permissions(&links_dir, std::fs::Permissions::from_mode(0o555))
+            .expect("set read-only");
+
+        let result = unlink_package("locked-pkg", &links_dir, &plugins_dir);
+
+        // Restore permissions before the tempdir is dropped so cleanup succeeds.
+        std::fs::set_permissions(&links_dir, orig_perms).expect("restore permissions");
+
+        assert!(result.is_err(), "expected IO error when links_dir is read-only");
+    }
+
     #[test]
     fn unlink_package_cleans_assembled_dir_when_plugin_link_absent() {
         // Simulate a state where the assembled dir exists but the plugin link
