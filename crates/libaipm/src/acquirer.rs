@@ -614,6 +614,28 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the `Error::Io` branch in `acquire_local` when
+    /// `create_dir_all(&dest)` fails. `dest_dir` is a regular file, so
+    /// joining the source's folder name onto it and calling
+    /// `create_dir_all` fails with `NotADirectory` — a case the "not
+    /// found"/"not a dir" checks on `source` never exercise directly.
+    #[test]
+    fn acquire_local_dest_create_dir_fails() {
+        let temp = make_temp();
+
+        // dest_dir is a file, not a directory: joining a folder name onto it
+        // and calling create_dir_all must fail.
+        let dest_dir = temp.path().join("dest-is-a-file");
+        std::fs::write(&dest_dir, "not a directory").unwrap_or_else(|_| {});
+
+        // "tests" always exists as a directory in the crate-root CWD during
+        // `cargo test`, so the "not found"/"not a dir" checks on `source`
+        // pass and `acquire_local` proceeds to `create_dir_all(&dest)`.
+        let path = ValidatedPath::new("tests").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &dest_dir, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got {result:?}");
+    }
+
     /// Covers the `acquire_local` path where the source path exists on disk but
     /// is a regular file rather than a directory (False at "not found" check,
     /// True at "not a dir" check).
