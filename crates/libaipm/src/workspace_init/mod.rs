@@ -2348,6 +2348,39 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `False` side of `any_found` in the `!any_created && any_found`
+    /// tail-warn check (line 208, col 24): when both `opts.workspace` and
+    /// `opts.marketplace` are `false`, `init` never pushes any action at all, so
+    /// `actions` stays empty. `any_created` short-circuits `any_found` to `false`
+    /// in every other test in this module (which all set at least one of the two
+    /// flags to `true`); this is the only case that reaches the `&&`'s right-hand
+    /// side and evaluates it against an empty action list, producing `false`.
+    #[test]
+    fn init_with_no_phases_requested_produces_no_actions_and_no_warn() {
+        let (tmp, _guard) = make_temp_dir("no-phases-requested");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed when no phases are requested: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(
+            actions.is_empty(),
+            "expected no actions when both phases are disabled: {actions:?}"
+        );
+
+        cleanup(&tmp);
+    }
+
     /// Covers the `ai_existed = true` branch of the `||` in
     /// `scaffold_marketplace` (line 403, col 27):
     ///
