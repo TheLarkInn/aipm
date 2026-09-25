@@ -386,4 +386,25 @@ mod tests {
         let rules = quality_rules_for_kind(&FeatureKind::Instructions, &config);
         assert!(rules.iter().any(|r| r.id() == "instructions/oversized"));
     }
+
+    #[test]
+    fn quality_rules_for_instructions_kind_falls_back_on_negative_characters() {
+        // A negative "characters" override cannot convert to `usize`, so
+        // `usize::try_from(v).ok()` returns `None` and the factory must fall
+        // back to `DEFAULT_MAX_CHARS` instead of panicking or misconfiguring
+        // the rule.
+        let mut config = Config::default();
+        let mut opts = std::collections::BTreeMap::new();
+        opts.insert("characters".to_string(), toml::Value::Integer(-1));
+        config.rule_overrides.insert(
+            "instructions/oversized".to_string(),
+            crate::lint::config::RuleOverride::Detailed {
+                level: None,
+                ignore: vec![],
+                options: opts,
+            },
+        );
+        let rules = quality_rules_for_kind(&FeatureKind::Instructions, &config);
+        assert!(rules.iter().any(|r| r.id() == "instructions/oversized"));
+    }
 }
