@@ -3208,6 +3208,63 @@ plugin-b = { workspace = "*" }
     }
 
     // =========================================================================
+    // link_resolved_packages: Source::Workspace with no matching member
+    // =========================================================================
+
+    #[test]
+    fn link_resolved_packages_workspace_source_missing_member_errors() {
+        // Covers the `None` branch of `members.get(pkg_name).ok_or_else(...)`
+        // (line 232): a package resolved as `Source::Workspace` but absent from
+        // the `members` map must fail with a descriptive `Error::Resolution`
+        // instead of panicking or being silently skipped.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let config = InstallConfig {
+            manifest_path: root.join("aipm.toml"),
+            lockfile_path: root.join("aipm.lock"),
+            store_path: root.join(".aipm/store"),
+            links_dir: root.join(".aipm/links"),
+            plugins_dir: root.join("plugins"),
+            gitignore_path: root.join("plugins/.gitignore"),
+            link_state_path: root.join(".aipm/links.toml"),
+            workspace_root: None,
+            locked: false,
+            add_package: None,
+            generated_by: "test".to_string(),
+        };
+
+        let resolution = resolver::Resolution {
+            packages: vec![resolver::Resolved {
+                name: "missing-plugin".to_string(),
+                version: Version::parse("1.0.0").unwrap(),
+                source: resolver::Source::Workspace,
+                checksum: String::new(),
+                dependencies: vec![],
+                features: BTreeSet::new(),
+            }],
+        };
+
+        // No entry for "missing-plugin" in the members map.
+        let members = BTreeMap::new();
+        let stub = StubRegistry;
+        let result = link_resolved_packages(
+            &crate::fs::Real,
+            &config,
+            &resolution,
+            &members,
+            &BTreeSet::new(),
+            None,
+            &stub,
+        );
+
+        assert!(
+            matches!(&result, Err(Error::Resolution(msg)) if msg.contains("missing-plugin")),
+            "expected Error::Resolution mentioning the package name, got: {result:?}"
+        );
+    }
+
+    // =========================================================================
     // link_resolved_packages: package skipped when link override is active
     // =========================================================================
 
