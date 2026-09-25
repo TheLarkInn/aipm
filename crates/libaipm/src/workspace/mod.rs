@@ -258,6 +258,18 @@ mod tests {
         assert!(format!("{err}").contains("no [package] section"));
     }
 
+    /// Covers the `!members.is_empty()` False branch: when no glob patterns
+    /// are supplied, `discover_members` returns an empty map and must skip
+    /// the "discovered workspace members" log without erroring.
+    #[test]
+    fn discover_members_empty_patterns_returns_empty_map() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let members = discover_members(&crate::fs::Real, root, &[]).unwrap();
+        assert!(members.is_empty());
+    }
+
     #[test]
     fn discover_members_multiple_patterns() {
         let tmp = tempfile::tempdir().unwrap();
