@@ -259,6 +259,18 @@ mod tests {
     }
 
     #[test]
+    fn discover_members_error_invalid_glob_pattern() {
+        // "[" is an unterminated character class and is rejected by the
+        // `glob` crate itself, exercising the `glob::glob(...).map_err(...)`
+        // branch in `discover_members`.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let err = discover_members(&crate::fs::Real, root, &["[".to_string()]).unwrap_err();
+        assert!(format!("{err}").contains("invalid glob pattern"));
+    }
+
+    #[test]
     fn discover_members_multiple_patterns() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
