@@ -861,6 +861,34 @@ mod tests {
     }
 
     #[test]
+    fn init_neither_workspace_nor_marketplace_produces_no_warn_no_actions() {
+        // With both `workspace` and `marketplace` disabled, `init` produces
+        // no actions at all: `any_created` is false (nothing was created)
+        // and `any_found` is also false (no Found* action either, since
+        // neither phase ran). This exercises the right-hand `any_found`
+        // side of `if !any_created && any_found` evaluating to `false`,
+        // which every other `init` test (idempotent runs) never reaches
+        // because they always produce at least one `Found*` action.
+        let (tmp, _guard) = make_temp_dir("neither-flag");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_with_no_adaptors() {
         let (tmp, _guard) = make_temp_dir("no-adaptors");
         let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
