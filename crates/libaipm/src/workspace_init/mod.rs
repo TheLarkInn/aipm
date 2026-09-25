@@ -2397,4 +2397,73 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    /// Covers the `if !any_created && any_found` True branch in `init`: when
+    /// both `--workspace` and `--marketplace` are requested but every
+    /// requested artifact (the `aipm.toml` file, the `.ai/` directory, and its
+    /// Claude marketplace manifest) already exists and no adaptor produced a
+    /// `ToolConfigured` action, `actions` contains only `*FoundExisting`
+    /// variants — `any_created` is `false` and `any_found` is `true` — which
+    /// triggers the "found nothing to do" tail warning.
+    #[test]
+    fn init_emits_nothing_to_do_warning_when_everything_already_exists() {
+        let (tmp, _guard) = make_temp_dir("nothing-to-do");
+
+        // Pre-create a valid workspace aipm.toml.
+        let content = generate_workspace_manifest(Some(libaipm_engine_spec::EngineSet::CLAUDE));
+        std::fs::write(tmp.join("aipm.toml"), content).ok();
+
+        // Pre-create .ai/ with a valid Claude marketplace manifest so the
+        // engine fan-out also takes the FoundExisting path.
+        let manifest_path = tmp.join(".ai/.claude-plugin/marketplace.json");
+        std::fs::create_dir_all(manifest_path.parent().unwrap_or(&tmp)).ok();
+        std::fs::write(
+            &manifest_path,
+            serde_json::json!({
+                "name": "local-repo-plugins",
+                "owner": { "name": "local" },
+                "plugins": []
+            })
+            .to_string(),
+        )
+        .ok();
+
+        // No adaptors — so no ToolConfigured action can be produced.
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed when everything already exists: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(
+            actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)),
+            "expected WorkspaceFoundExisting: {actions:?}"
+        );
+        assert!(
+            actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)),
+            "expected MarketplaceFoundExisting: {actions:?}"
+        );
+        // No Created/ToolConfigured action should appear — any_created is false.
+        assert!(
+            !actions.iter().any(|a| matches!(
+                a,
+                InitAction::WorkspaceCreated
+                    | InitAction::MarketplaceCreated
+                    | InitAction::MarketplaceManifestWritten { .. }
+                    | InitAction::ToolConfigured(_)
+            )),
+            "expected no Created/ToolConfigured actions: {actions:?}"
+        );
+
+        cleanup(&tmp);
+    }
 }
