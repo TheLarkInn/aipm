@@ -291,6 +291,40 @@ mod tests {
         assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("helper"));
     }
 
+    /// Covers the `!by_name.contains_key(&stem)` False branch (line 65):
+    /// two plain `.md` files (`foo.md` and `foo.MD`) share the same
+    /// `file_stem()` ("foo") because `file_stem()` doesn't examine the
+    /// extension's case. Neither is `.agent.md`, so on the second file the
+    /// `is_agent_md || !by_name.contains_key(&stem)` check's second operand
+    /// is evaluated and is `false` — the first file wins and the second is
+    /// dropped rather than overwriting it.
+    #[test]
+    fn duplicate_stem_from_differently_cased_plain_md_keeps_first() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs
+            .insert(PathBuf::from("/src/agents"), vec![de("foo.md", false), de("foo.MD", false)]);
+        fs.files.insert(
+            PathBuf::from("/src/agents/foo.md"),
+            "---\nname: first-foo\n---\nFirst.".to_string(),
+        );
+        fs.files.insert(
+            PathBuf::from("/src/agents/foo.MD"),
+            "---\nname: second-foo\n---\nSecond.".to_string(),
+        );
+
+        let detector = CopilotAgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.len(), 1, "duplicate stem must dedupe to a single artifact");
+        assert_eq!(
+            artifacts.first().map(|a| a.name.as_str()),
+            Some("first-foo"),
+            "the first-seen plain .md file must win over a later duplicate stem"
+        );
+    }
+
     #[test]
     fn multiple_agents_detected() {
         let mut fs = MockFs::new();
