@@ -860,6 +860,39 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `any_found` False side of the `!any_created && any_found`
+    /// tail-warn check (line 208): with both `workspace` and `marketplace`
+    /// disabled, `init` produces no actions at all, so neither `any_created`
+    /// nor `any_found` becomes true and the warn is skipped without a panic.
+    #[test]
+    fn init_with_no_phases_requested_produces_no_actions() {
+        let (tmp, _guard) = make_temp_dir("no-phases");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        let Ok(init_result) = result else {
+            unreachable!("init should succeed when both phases are disabled");
+        };
+        assert!(
+            init_result.actions.is_empty(),
+            "expected no actions, got: {:?}",
+            init_result.actions
+        );
+        assert!(!tmp.join(".ai").exists());
+        assert!(!tmp.join("aipm.toml").exists());
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_with_no_adaptors() {
         let (tmp, _guard) = make_temp_dir("no-adaptors");
