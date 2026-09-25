@@ -185,6 +185,23 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unparseable_manifest() {
+        // An `aipm.toml` that isn't valid TOML should be skipped (logged and
+        // ignored) rather than causing an error, so discovery keeps walking
+        // up the tree and finds the real workspace root above it.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        std::fs::write(root.join("aipm.toml"), "[workspace]\nmembers = [\".ai/*\"]\n").unwrap();
+        let subdir = root.join("sub");
+        std::fs::create_dir_all(&subdir).unwrap();
+        std::fs::write(subdir.join("aipm.toml"), "not valid toml [[[").unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, &subdir);
+        assert_eq!(result.as_deref(), Some(root));
+    }
+
+    #[test]
     fn discover_members_single_glob() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
@@ -329,6 +346,18 @@ mod tests {
         // No .ai/ directory at all — glob finds nothing
         let members = discover_members(&crate::fs::Real, root, &[".ai/*".to_string()]).unwrap();
         assert!(members.is_empty());
+    }
+
+    #[test]
+    fn discover_members_error_invalid_glob_pattern() {
+        // `[` is an unterminated character class and is rejected by the
+        // `glob` crate before any filesystem walk happens, exercising the
+        // "invalid glob pattern" error branch in `discover_members`.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let err = discover_members(&crate::fs::Real, root, &["[".to_string()]).unwrap_err();
+        assert!(format!("{err}").contains("invalid glob pattern"));
     }
 
     #[test]
