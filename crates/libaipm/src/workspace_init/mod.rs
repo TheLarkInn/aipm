@@ -884,6 +884,37 @@ mod tests {
     }
 
     #[test]
+    fn init_with_both_flags_disabled_emits_no_warn_and_empty_actions() {
+        // Neither `--workspace` nor `--marketplace` was requested, so
+        // `actions` stays empty: `any_created` is false AND `any_found` is
+        // also false. This exercises the false arm of `any_found` inside
+        // the tail `!any_created && any_found` warn-guard (distinct from
+        // the "everything already existed" case, where `any_found` is
+        // true).
+        let (tmp, _guard) = make_temp_dir("both-flags-disabled");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        let outcome = result.unwrap_or_else(|_| InitResult { actions: Vec::new() });
+        assert!(
+            outcome.actions.is_empty(),
+            "no actions should be produced when both flags are off"
+        );
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn gitignore_has_managed_markers() {
         let (tmp, _guard) = make_temp_dir("gitignore");
         let adaptors = default_adaptors();
