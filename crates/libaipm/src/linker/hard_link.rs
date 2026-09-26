@@ -186,4 +186,29 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_create_dir_all_target_error_is_mapped() {
+        // Create a regular file where target_dir needs to be created. Since
+        // `blocker` is a file (not a directory), `create_dir_all(target_dir)`
+        // — where target_dir is a path *under* the file — fails with an I/O
+        // error, exercising the `std::fs::create_dir_all(target_dir)` error
+        // mapping branch (distinct from the `target_dir.exists()` cleanup
+        // branch, since `blocker/pkg` itself does not exist).
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"not a directory").expect("write blocker file");
+
+        let target = blocker.join("pkg");
+        let file_hashes = BTreeMap::new();
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "assemble should fail with Io error for target_dir creation, got: {:?}",
+            result
+        );
+    }
 }
