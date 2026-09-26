@@ -807,6 +807,37 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `any_created = false, any_found = false` combination in
+    /// `init`'s "found nothing to do" tail warning (line 208): when both
+    /// `--workspace` and `--marketplace` are disabled, `actions` stays
+    /// empty, so both `any_created` and `any_found` are false. The
+    /// `!any_created && any_found` guard must evaluate to false (via a
+    /// false `any_found`) and skip the warning — distinct from the
+    /// existing tests that only exercise `any_found = true` paths.
+    #[test]
+    fn init_with_no_phases_requested_skips_warning() {
+        let (tmp, _guard) = make_temp_dir("ws-no-phases");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions when no phases are requested");
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_marketplace_is_idempotent_when_ai_exists() {
         let (tmp, _guard) = make_temp_dir("mp-idempotent");
