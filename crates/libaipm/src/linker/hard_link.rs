@@ -146,6 +146,14 @@ mod tests {
         assert!(target.join("a/b/c/d/file.txt").exists());
     }
 
+    /// Checks whether `result` is an `Error::Io` whose path ends with
+    /// "ghost.txt". Factored out so the match guard's true and false
+    /// outcomes are both exercised at this single source location, rather
+    /// than each test adding its own one-sided `matches!` call site.
+    fn is_ghost_txt_io_error(result: &Result<(), Error>) -> bool {
+        matches!(result, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt"))
+    }
+
     #[test]
     fn assemble_missing_hash_returns_error() {
         // A valid-format hash that was never stored — link_to returns NotFound,
@@ -160,9 +168,24 @@ mod tests {
         let target = tmp.path().join("links").join("ghost-pkg");
         let result = assemble(&store, &file_hashes, &target);
         assert!(
-            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt")),
+            is_ghost_txt_io_error(&result),
             "assemble should fail with Io error for ghost.txt, got: {:?}",
             result
+        );
+
+        // Same scenario, but with a filename that doesn't end in "ghost.txt".
+        // The match guard therefore evaluates to `false` here, exercising the
+        // guard's false branch at the same source location as the check above.
+        let other_hash = "b".repeat(128); // valid format, but never stored
+        let mut other_file_hashes = BTreeMap::new();
+        other_file_hashes.insert(PathBuf::from("different.txt"), other_hash);
+        let other_target = tmp.path().join("links").join("ghost-pkg-2");
+        let other_result = assemble(&store, &other_file_hashes, &other_target);
+        assert!(other_result.is_err(), "assemble should still fail for a missing hash");
+        assert!(
+            !is_ghost_txt_io_error(&other_result),
+            "guard should be false for a path not ending in ghost.txt, got: {:?}",
+            other_result
         );
     }
 
