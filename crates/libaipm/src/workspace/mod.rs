@@ -345,6 +345,22 @@ mod tests {
     }
 
     #[test]
+    fn discover_members_error_invalid_glob_pattern() {
+        // `a**b` is an invalid recursive-wildcard usage (`**` must form a
+        // whole path component), so `glob::glob` returns a `PatternError`.
+        // This exercises the `invalid glob pattern` error-conversion branch
+        // in `discover_members`.
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        let err = discover_members(&crate::fs::Real, root, &["a**b".to_string()]).unwrap_err();
+        assert!(
+            format!("{err}").contains("invalid glob pattern"),
+            "expected 'invalid glob pattern' error, got: {err}"
+        );
+    }
+
+    #[test]
     fn discover_members_error_manifest_is_directory() {
         // If a path named "aipm.toml" exists as a directory rather than a file,
         // std::fs::read_to_string fails — this covers the error-conversion branch
