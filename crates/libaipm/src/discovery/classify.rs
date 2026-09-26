@@ -94,6 +94,16 @@ mod tests {
     }
 
     #[test]
+    fn path_with_no_file_name_returns_none() {
+        // `Path::file_name()` returns `None` for paths that end in `..` or
+        // the root itself, exercising the `?` early-return at the top of
+        // `classify`.
+        let root = PathBuf::from("/repo");
+        let path = PathBuf::from("/repo/src/..");
+        assert!(classify_at(&path, &root).is_none());
+    }
+
+    #[test]
     fn unrecognized_filename_returns_none() {
         let root = PathBuf::from("/repo");
         let path = PathBuf::from("/repo/.github/random.txt");
