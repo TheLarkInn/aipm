@@ -742,6 +742,35 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `!any_created && any_found` False branch (line 208):
+    /// with both `workspace` and `marketplace` disabled, `init` performs
+    /// no phases at all, so `actions` stays empty and both `any_created`
+    /// and `any_found` are `false` — `!false && false` is `false`, so the
+    /// tail warn is skipped. Distinct from the "everything already
+    /// existed" True-branch tests above.
+    #[test]
+    fn init_no_flags_produces_no_actions_and_skips_tail_warn() {
+        let (tmp, _guard) = make_temp_dir("no-flags");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+        assert!(!tmp.join("aipm.toml").exists());
+        assert!(!tmp.join(".ai").exists());
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_marketplace_creates_tree() {
         let (tmp, _guard) = make_temp_dir("mp-create");
