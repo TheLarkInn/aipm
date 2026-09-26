@@ -835,6 +835,79 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// #850 Spec G12 / Q9.5: when `init` produces only `*FoundExisting`
+    /// actions (nothing created, nothing configured), it must emit a single
+    /// tail `tracing::warn!` telling the user there was nothing to do.
+    ///
+    /// Achieved by pre-existing `.ai/` (so marketplace scaffolding is a
+    /// no-op) and an empty `engines_scaffold` set (so the per-engine
+    /// manifest fan-out and the adaptor loop both skip everything) —
+    /// `any_created` is false and `any_found` is true, covering the
+    /// `if !any_created && any_found` True branch.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_warns_when_nothing_created_but_something_found() {
+        let (tmp, _guard) = make_temp_dir("nothing-to-do");
+        std::fs::create_dir_all(tmp.join(".ai")).ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)));
+        assert!(!actions.iter().any(|a| matches!(
+            a,
+            InitAction::MarketplaceCreated
+                | InitAction::MarketplaceManifestWritten { .. }
+                | InitAction::ToolConfigured(_)
+        )));
+        assert!(logs_contain("aipm init found nothing to do"));
+
+        cleanup(&tmp);
+    }
+
+    /// Covers the `any_found` (right-hand side of `&&`) False path in the
+    /// same tail-warn check: with both `workspace` and `marketplace`
+    /// disabled, `init` performs no work at all, so `actions` stays empty —
+    /// `any_created` and `any_found` are both false and the warn must not
+    /// fire.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_with_everything_disabled_emits_no_actions_and_no_warn() {
+        let (tmp, _guard) = make_temp_dir("init-noop");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions when everything is disabled");
+        assert!(!logs_contain("aipm init found nothing to do"));
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_both_creates_everything() {
         let (tmp, _guard) = make_temp_dir("both");
