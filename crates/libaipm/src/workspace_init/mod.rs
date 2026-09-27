@@ -861,6 +861,56 @@ mod tests {
     }
 
     #[test]
+    fn init_rerun_found_nothing_to_do_warns_without_creating() {
+        // #850 Spec G12 / Q9.5: covers the `!any_created && any_found` True
+        // branch — running `init` a second time with identical options
+        // against fully-scaffolded output should surface only
+        // `*FoundExisting` actions and no `*Created`/`ToolConfigured`
+        // actions, since every artifact (workspace, marketplace, and each
+        // adaptor's settings) already matches the requested state.
+        let (tmp, _guard) = make_temp_dir("rerun-nothing-to-do");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+
+        let first = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(first.is_ok(), "first init must succeed: {first:?}");
+
+        let second = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(second.is_ok(), "second init must succeed: {second:?}");
+        let actions = second.ok().map(|r| r.actions).unwrap_or_default();
+
+        assert!(
+            actions.contains(&InitAction::WorkspaceFoundExisting),
+            "expected WorkspaceFoundExisting, got: {actions:?}"
+        );
+        assert!(
+            actions.contains(&InitAction::MarketplaceFoundExisting),
+            "expected MarketplaceFoundExisting, got: {actions:?}"
+        );
+        assert!(
+            !actions.iter().any(|a| matches!(
+                a,
+                InitAction::WorkspaceCreated
+                    | InitAction::MarketplaceCreated
+                    | InitAction::MarketplaceManifestWritten { .. }
+                    | InitAction::ToolConfigured(_)
+            )),
+            "expected no Created/ToolConfigured actions on rerun, got: {actions:?}"
+        );
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_with_no_adaptors() {
         let (tmp, _guard) = make_temp_dir("no-adaptors");
         let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
