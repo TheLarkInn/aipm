@@ -835,6 +835,108 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `any_found` True branch of `if !any_created && any_found`
+    /// (line 208): when every requested artifact (workspace manifest,
+    /// marketplace directory, marketplace manifest, and the Claude adaptor's
+    /// settings.json entry) already exists, `init` produces only `*FoundExisting`
+    /// actions and no `*Created`/`ToolConfigured` actions, so the "nothing to do"
+    /// warning path is taken.
+    #[test]
+    fn init_warns_when_everything_already_exists() {
+        let (tmp, _guard) = make_temp_dir("all-idempotent");
+
+        // Pre-existing workspace manifest.
+        let manifest = generate_workspace_manifest(None);
+        std::fs::write(tmp.join("aipm.toml"), &manifest).ok();
+
+        // Pre-existing marketplace directory with the Claude manifest already
+        // in place so `scaffold_engine_marketplaces` only validates it.
+        let claude_plugin_dir = tmp.join(".ai/.claude-plugin");
+        std::fs::create_dir_all(&claude_plugin_dir).ok();
+        std::fs::write(
+            claude_plugin_dir.join("marketplace.json"),
+            crate::generate::marketplace::create("local-repo-plugins", &[]),
+        )
+        .ok();
+
+        // Pre-existing Claude settings.json that already registers the
+        // marketplace, so the adaptor's `apply` returns `Ok(false)` (no
+        // `ToolConfigured` action) — `no_starter: true` keeps `enabledPlugins`
+        // out of consideration entirely.
+        let claude_dir = tmp.join(".claude");
+        std::fs::create_dir_all(&claude_dir).ok();
+        std::fs::write(
+            claude_dir.join("settings.json"),
+            serde_json::json!({
+                "extraKnownMarketplaces": {
+                    "local-repo-plugins": {"source": {"source": "directory", "path": "./.ai"}}
+                }
+            })
+            .to_string(),
+        )
+        .ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: true,
+            no_starter: true,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "fully idempotent init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+        assert!(actions.iter().any(|a| matches!(a, InitAction::MarketplaceFoundExisting)));
+        assert!(
+            !actions.iter().any(|a| matches!(
+                a,
+                InitAction::WorkspaceCreated
+                    | InitAction::MarketplaceCreated
+                    | InitAction::MarketplaceManifestWritten { .. }
+                    | InitAction::ToolConfigured(_)
+            )),
+            "no *Created/ToolConfigured action should fire when everything pre-exists: {actions:?}"
+        );
+
+        cleanup(&tmp);
+    }
+
+    /// Covers the `any_found` False branch of `if !any_created && any_found`
+    /// (line 208): when neither `--workspace` nor `--marketplace` is
+    /// requested, `init` performs no work at all — `actions` stays empty, so
+    /// both `any_created` and `any_found` are `false` and the "nothing to do"
+    /// warning is correctly skipped (it is reserved for cases where the user
+    /// *did* ask for something but it already existed).
+    #[test]
+    fn init_with_no_flags_skips_nothing_to_do_warning() {
+        let (tmp, _guard) = make_temp_dir("no-flags-noop");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "no-op init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "no actions should be produced with both flags disabled");
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_both_creates_everything() {
         let (tmp, _guard) = make_temp_dir("both");
