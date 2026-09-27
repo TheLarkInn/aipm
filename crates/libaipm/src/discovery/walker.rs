@@ -72,12 +72,13 @@ pub fn walk(project_root: &Path, opts: &DiscoverOptions) -> Result<WalkResult, E
         let name = entry.file_name().to_string_lossy();
         if let Some(skip_name) = SKIP_DIRS.iter().find(|&&s| name == s) {
             tracing::trace!(dir = %entry.path().display(), reason = "skip-list", "skipping directory");
-            if let Ok(mut guard) = skipped_for_filter.lock() {
-                guard.push(SkipReason::SkipDirByName {
+            record_skip(
+                &skipped_for_filter,
+                SkipReason::SkipDirByName {
                     path: entry.path().to_path_buf(),
                     name: (*skip_name).to_string(),
-                });
-            }
+                },
+            );
             return false;
         }
         true
@@ -119,6 +120,16 @@ pub fn walk(project_root: &Path, opts: &DiscoverOptions) -> Result<WalkResult, E
 /// the fallback keeps the function infallible).
 fn take_skipped(shared: &Arc<Mutex<Vec<SkipReason>>>) -> Vec<SkipReason> {
     shared.lock().map(|g| g.clone()).unwrap_or_default()
+}
+
+/// Record a skip reason under the shared lock. If the lock is poisoned (a
+/// prior panic while holding it), the reason is silently dropped rather than
+/// propagating the poison error — a missed skip-reason entry is not worth
+/// failing the whole walk over.
+fn record_skip(shared: &Arc<Mutex<Vec<SkipReason>>>, reason: SkipReason) {
+    if let Ok(mut guard) = shared.lock() {
+        guard.push(reason);
+    }
 }
 
 #[cfg(test)]
@@ -301,5 +312,33 @@ mod tests {
         let mut sorted = result.files.clone();
         sorted.sort();
         assert_eq!(result.files, sorted);
+    }
+
+    #[test]
+    fn record_skip_silently_drops_reason_on_poisoned_lock() {
+        // Poison the mutex by panicking while holding the lock in another
+        // thread, then confirm `record_skip` silently no-ops via the `Err`
+        // arm of `shared.lock()` instead of propagating the poison error —
+        // a missed skip-reason entry must not crash the walk.
+        let shared: Arc<Mutex<Vec<SkipReason>>> = Arc::new(Mutex::new(Vec::new()));
+        let poison_handle = Arc::clone(&shared);
+        let join_result = std::thread::spawn(move || {
+            let _guard = poison_handle.lock().expect("lock before poisoning");
+            panic!("intentionally poison the mutex for test coverage");
+        })
+        .join();
+        assert!(join_result.is_err(), "spawned thread should have panicked");
+        assert!(shared.is_poisoned(), "mutex should be poisoned after the panic");
+
+        record_skip(
+            &shared,
+            SkipReason::SkipDirByName {
+                path: PathBuf::from("/tmp/whatever"),
+                name: "target".to_string(),
+            },
+        );
+
+        // take_skipped also recovers gracefully, yielding an empty fallback vec.
+        assert!(take_skipped(&shared).is_empty(), "poisoned lock should yield an empty vec");
     }
 }
