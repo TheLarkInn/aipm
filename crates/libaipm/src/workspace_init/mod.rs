@@ -861,6 +861,35 @@ mod tests {
     }
 
     #[test]
+    fn init_with_both_flags_false_skips_nothing_to_do_warning() {
+        // Covers the False branch of `if !any_created && any_found` in `init`:
+        // with both `workspace` and `marketplace` disabled, `actions` stays
+        // empty, so `any_found` is false and the "nothing to do" warning must
+        // not fire (that warning is reserved for when the user asked for
+        // something but everything they asked for already existed).
+        let (tmp, _guard) = make_temp_dir("both-flags-false");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok());
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "no actions expected when both flags are false");
+        assert!(!tmp.join(".ai").exists());
+        assert!(!tmp.join("aipm.toml").exists());
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_with_no_adaptors() {
         let (tmp, _guard) = make_temp_dir("no-adaptors");
         let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
