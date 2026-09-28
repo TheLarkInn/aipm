@@ -2699,6 +2699,29 @@ no-ver = { features = ["x"] }
     // =========================================================================
 
     #[test]
+    fn resolve_transitive_workspace_deps_skips_already_visited_diamond() {
+        let mut members = BTreeMap::new();
+        let a = make_member(
+            "plugin-a",
+            "1.0.0",
+            "[dependencies]\nplugin-b = { workspace = \"*\" }\nplugin-c = { workspace = \"*\" }\n",
+        );
+        let b =
+            make_member("plugin-b", "2.0.0", "[dependencies]\nplugin-c = { workspace = \"*\" }\n");
+        let c = make_member("plugin-c", "3.0.0", "");
+        members.insert("plugin-a".to_string(), a);
+        members.insert("plugin-b".to_string(), b);
+        members.insert("plugin-c".to_string(), c);
+
+        let ws_deps = vec!["plugin-a".to_string()];
+        let result = resolve_workspace_deps(&ws_deps, &members, &BTreeSet::new());
+        assert!(result.is_ok());
+        let resolved = result.unwrap();
+        assert_eq!(resolved.iter().filter(|r| r.name == "plugin-c").count(), 1);
+        assert_eq!(resolved.len(), 3);
+    }
+
+    #[test]
     fn resolve_workspace_dep_with_detailed_non_ws_transitive() {
         let mut members = BTreeMap::new();
         let m = make_member(
