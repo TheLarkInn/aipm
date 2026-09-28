@@ -388,4 +388,18 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Directly invoke `engine_set_serde::deserialize` with a JSON value of the
+    /// wrong shape (a number, where `[package].engines` expects a list of
+    /// strings or `null`). `Option::<Vec<String>>::deserialize` fails on this
+    /// input, and the `?` operator on that call (line 345) propagates the
+    /// error out of `deserialize` — a path the null/empty/valid-list tests
+    /// never exercise, since none of them fail the initial deserialize step.
+    #[test]
+    fn engine_set_serde_wrong_type_propagates_error() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value = serde_json::Value::from(42);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_err(), "deserializing a number should fail: {result:?}");
+    }
 }
