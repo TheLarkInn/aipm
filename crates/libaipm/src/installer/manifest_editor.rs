@@ -207,6 +207,32 @@ existing-pkg = "^1.0"
     }
 
     #[test]
+    fn add_dependency_fails_on_invalid_toml() {
+        // Malformed TOML should hit the `.parse::<DocumentMut>()` error branch
+        // rather than the later "dependencies is scalar" branch.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let manifest = tmp.path().join("aipm.toml");
+        std::fs::write(&manifest, "[[not valid toml :::").expect("write");
+
+        let result = add_dependency(FS, &manifest, "new-pkg", "^1.0");
+        assert!(result.is_err());
+        assert!(matches!(result, Err(Error::Manifest { .. })));
+    }
+
+    #[test]
+    fn remove_dependency_fails_on_invalid_toml() {
+        // Same parse-error branch as `add_dependency`, but exercised on the
+        // `remove_dependency` code path (its own `.parse::<DocumentMut>()` call).
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let manifest = tmp.path().join("aipm.toml");
+        std::fs::write(&manifest, "[[not valid toml :::").expect("write");
+
+        let result = remove_dependency(FS, &manifest, "existing-pkg");
+        assert!(result.is_err());
+        assert!(matches!(result, Err(Error::Manifest { .. })));
+    }
+
+    #[test]
     fn remove_dependency_no_deps_table_is_noop() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let manifest = tmp.path().join("aipm.toml");
