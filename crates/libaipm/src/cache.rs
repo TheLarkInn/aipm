@@ -1117,6 +1117,24 @@ mod tests {
 
     #[test]
     #[cfg(unix)]
+    fn ensure_dirs_errors_when_root_is_a_regular_file() {
+        // Covers the `Err` branch of `create_dir_all` in `ensure_dirs()`:
+        // when the cache root path is occupied by a regular file (not a
+        // directory), `create_dir_all` fails with `ENOTDIR`, which must be
+        // mapped to `Error::Io`.
+        let temp = make_temp();
+        let root = temp.path().join("cache-root-file");
+        std::fs::write(&root, b"not a directory").unwrap_or_else(|_| {});
+
+        let cache = Cache::with_root(root, Policy::Auto);
+        let result = cache.ensure_dirs();
+
+        assert!(result.is_err(), "expected ensure_dirs() to fail when root is a regular file");
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
+    #[cfg(unix)]
     fn gc_silently_ignores_unreadable_entries_dir() {
         // Covers the Err branch of `if let Ok(read_dir) = std::fs::read_dir(entries_dir)` in
         // gc(): when the entries directory exists but is not readable (e.g. after a permissions
