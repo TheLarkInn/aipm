@@ -77,6 +77,28 @@ mod tests {
     }
 
     #[test]
+    fn assemble_fails_when_target_parent_is_a_file() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"x").expect("write blocker");
+
+        let result = assemble(&store, &file_hashes, &blocker.join("pkg"));
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error: {result:?}");
+    }
+
+    #[test]
+    fn assemble_fails_when_file_parent_dir_is_a_file() {
+        let (tmp, store, _) = make_store_and_package();
+        let hash = store.store_file(b"nested").expect("store file");
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("a"), hash.clone());
+        file_hashes.insert(PathBuf::from("a/b"), hash);
+
+        let result = assemble(&store, &file_hashes, &tmp.path().join("links").join("pkg"));
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error: {result:?}");
+    }
+
+    #[test]
     fn assemble_creates_directory_tree() {
         let (tmp, store, file_hashes) = make_store_and_package();
         let target = tmp.path().join("links").join("my-pkg");
