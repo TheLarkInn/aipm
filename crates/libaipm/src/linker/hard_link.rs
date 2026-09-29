@@ -147,6 +147,20 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_is_file_returns_io_error() {
+        // A regular file at target_dir exists, so remove_dir_all fails.
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("not-a-dir");
+        std::fs::write(&target, b"x").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if *path == target),
+            "expected Io error for target path, got: {result:?}"
+        );
+    }
+
+    #[test]
     fn assemble_missing_hash_returns_error() {
         // A valid-format hash that was never stored — link_to returns NotFound,
         // covering the error mapping on the store.link_to call.
