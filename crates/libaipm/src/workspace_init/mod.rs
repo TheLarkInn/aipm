@@ -808,6 +808,29 @@ mod tests {
     }
 
     #[test]
+    fn init_with_nothing_requested_takes_no_actions() {
+        let (tmp, _guard) = make_temp_dir("ws-nothing-requested");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init with no phases must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions, got: {actions:?}");
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_marketplace_is_idempotent_when_ai_exists() {
         let (tmp, _guard) = make_temp_dir("mp-idempotent");
         std::fs::create_dir_all(tmp.join(".ai")).ok();
