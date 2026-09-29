@@ -2,6 +2,18 @@
 
 <!-- Entries are prepended (newest first). -->
 
+## 2026-09-29 — claude v2.1.284
+
+| Field | Change |
+|-------|--------|
+| `hook_events` | **Added** `PostToolBatch`, `PermissionDenied`, `UserPromptExpansion` |
+| `tool_calls` | **Added** `TaskCreate`, `TaskGet`, `TaskUpdate`, `TaskList`, `EnterPlanMode`, `Workflow`, `CronCreate`, `CronDelete`, `CronList`, `ScheduleWakeup`, `RemoteTrigger`, `Monitor`, `PushNotification`, `Artifact`, `refresh_mcp_tools` |
+| `tool_calls[Task].notes` | **Changed** — `model` gains `fable`; `isolation` accepts `worktree \| remote` |
+
+## 2026-09-29 — copilot v1.0.89
+
+Version bumped from 1.0.40. Binary is a native executable; no API changes could be verified from string extraction (previous hook/tool catalog retained).
+
 ## 2026-05-05 — claude v2.1.128
 
 | Field | Change |
