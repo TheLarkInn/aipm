@@ -4359,4 +4359,10 @@ mod tests {
         assert!(result.contains("run.sh"));
         assert!(result.contains("--verbose"));
     }
+
+    #[test]
+    fn rewrite_single_command_absolute_path_unchanged() {
+        let result = rewrite_single_command("/usr/bin/check --strict", Path::new("/project"));
+        assert_eq!(result, "/usr/bin/check --strict");
+    }
 }
