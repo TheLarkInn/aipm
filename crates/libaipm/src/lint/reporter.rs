@@ -622,6 +622,37 @@ mod tests {
     }
 
     #[test]
+    fn human_reporter_empty_file_falls_back_to_origin_only() {
+        let mut mock_fs = MockFs::new();
+        mock_fs.files.insert(PathBuf::from("/project/empty.md"), String::new());
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/empty".into(),
+                severity: Severity::Error,
+                message: "empty file".into(),
+                file_path: PathBuf::from("empty.md"),
+                line: Some(1),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 1,
+            warning_count: 0,
+            sources_scanned: vec![],
+            ..Outcome::default()
+        };
+        let mut buf = Vec::new();
+        assert!(reporter.report(&outcome, &mut buf).is_ok());
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("test/empty"));
+        assert!(output.contains("empty.md"));
+    }
+
+    #[test]
     fn json_reporter_valid_json() {
         let outcome = sample_outcome();
         let mut buf = Vec::new();
