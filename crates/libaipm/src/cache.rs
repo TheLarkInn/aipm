@@ -1078,6 +1078,22 @@ mod tests {
     }
 
     #[test]
+    fn get_with_corrupt_index_returns_index_parse_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "{not valid json").is_ok());
+
+        let result = cache.get("github:owner/repo:plugin@main");
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
+    fn policy_deserialize_unknown_string_is_err() {
+        let result = serde_json::from_str::<Policy>("\"bogus\"");
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn touch_entry_missing_key_is_noop() {
         // Covers the False branch of `if let Some(entry) = index.entries.get_mut(spec_key)`
         // in touch_entry: when the spec_key is absent from the index (e.g. removed between
