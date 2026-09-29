@@ -1,7 +1,7 @@
 {
   "$schema": "../../../schemas/engine-api.schema.json",
   "meta_schema_version": "2.0.0",
-  "generated_at": "2026-05-05T13:04:12Z",
+  "generated_at": "2026-09-29T17:50:00Z",
   "engines": [
     {
       "name": "claude",
@@ -15,8 +15,8 @@
     }
   ],
   "versions": {
-    "claude": "2.1.128",
-    "copilot": "1.0.40"
+    "claude": "2.1.284",
+    "copilot": "1.0.89"
   },
   "apis": {
     "claude": {
@@ -65,7 +65,7 @@
             "Agent"
           ],
           "deprecated": false,
-          "notes": "Spawn sub-agent; supports isolation:worktree. New in 2.1.128: 'name' (addressable via SendMessage), 'team_name' (team context), 'mode' (acceptEdits|auto|bypassPermissions|default|dontAsk|plan), 'model' (sonnet|opus|haiku) override."
+          "notes": "Spawn sub-agent; supports isolation:worktree. New in 2.1.128: 'name' (addressable via SendMessage), 'team_name' (team context), 'mode' (acceptEdits|auto|bypassPermissions|default|dontAsk|plan), 'model' (sonnet|opus|haiku|fable) override. 'isolation' accepts worktree|remote."
         },
         {
           "name": "Bash",
@@ -206,6 +206,96 @@
           ],
           "deprecated": false,
           "notes": "Stop a running task"
+        },
+        {
+          "name": "TaskCreate",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Create a tracked task (new in 2.1.284 sdk-tools.d.ts)"
+        },
+        {
+          "name": "TaskGet",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Get a tracked task (new in 2.1.284 sdk-tools.d.ts)"
+        },
+        {
+          "name": "TaskUpdate",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Update a tracked task (owner, status) (new in 2.1.284 sdk-tools.d.ts)"
+        },
+        {
+          "name": "TaskList",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "List tracked tasks (new in 2.1.284 sdk-tools.d.ts)"
+        },
+        {
+          "name": "EnterPlanMode",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Enter plan mode (new in 2.1.284 sdk-tools.d.ts)"
+        },
+        {
+          "name": "Workflow",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Run a workflow script (script, scriptPath, name) (new in 2.1.284 sdk-tools.d.ts)"
+        },
+        {
+          "name": "CronCreate",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Schedule a cron task; durable persists to .claude/scheduled_tasks.json (new in 2.1.284 sdk-tools.d.ts)"
+        },
+        {
+          "name": "CronDelete",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Delete a scheduled task (new in 2.1.284 sdk-tools.d.ts)"
+        },
+        {
+          "name": "CronList",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "List scheduled tasks (new in 2.1.284 sdk-tools.d.ts)"
+        },
+        {
+          "name": "ScheduleWakeup",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Schedule a dynamic-loop wakeup (new in 2.1.284 sdk-tools.d.ts)"
+        },
+        {
+          "name": "RemoteTrigger",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Manage remote triggers (new in 2.1.284 sdk-tools.d.ts)"
+        },
+        {
+          "name": "Monitor",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Watch a command; each stdout line is an event (new in 2.1.284 sdk-tools.d.ts)"
+        },
+        {
+          "name": "PushNotification",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Send a push notification (new in 2.1.284 sdk-tools.d.ts)"
+        },
+        {
+          "name": "Artifact",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Create or update an artifact page (new in 2.1.284 sdk-tools.d.ts)"
+        },
+        {
+          "name": "refresh_mcp_tools",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Refresh MCP tools (new in 2.1.284 sdk-tools.d.ts)"
         }
       ],
       "hook_events": [
@@ -341,6 +431,21 @@
         },
         {
           "name": "FileChanged",
+          "aliases": [],
+          "deprecated": false
+        },
+        {
+          "name": "PostToolBatch",
+          "aliases": [],
+          "deprecated": false
+        },
+        {
+          "name": "PermissionDenied",
+          "aliases": [],
+          "deprecated": false
+        },
+        {
+          "name": "UserPromptExpansion",
           "aliases": [],
           "deprecated": false
         }
@@ -2070,6 +2175,126 @@
         "unsupported_by": [
           "claude"
         ]
+      },
+      "TaskCreate": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskGet": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskUpdate": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskList": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "EnterPlanMode": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Workflow": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "CronCreate": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "CronDelete": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "CronList": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ScheduleWakeup": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "RemoteTrigger": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Monitor": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "PushNotification": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Artifact": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "refresh_mcp_tools": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
       }
     }
   },
@@ -2123,7 +2348,7 @@
         "Skills can be discovered from project (.github/skills/) and personal (~/.copilot/skills/) paths",
         "GEMINI.md is also recognized as a convention file (multi-engine repo support)",
         "MCP supports three transports: stdio, sse, http",
-        "Plugin strict mode defaults to true \u2014 schema validation is strict by default",
+        "Plugin strict mode defaults to true — schema validation is strict by default",
         "managed-agents-2026-04-01 feature flag gates managed agent functionality",
         "skills-2025-10-02 feature flag gates skills API",
         "copilot_cli_mcp_allowlist and copilot_cli_mcp_enterprise_allowlist flags gate MCP server access"
