@@ -2231,6 +2231,27 @@ mod tests {
     }
 
     #[test]
+    fn emit_package_plugin_rejects_unsafe_plugin_name() {
+        let fs = MockFs::new();
+        let artifact = make_skill_artifact();
+        let result = emit_package_plugin("../evil", &[artifact], Path::new("/ai"), true, &fs);
+        let actions = result.ok().unwrap_or_default();
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions.first(), Some(Action::Skipped { .. })));
+    }
+
+    #[test]
+    fn emit_package_plugin_rejects_unsafe_artifact_name() {
+        let fs = MockFs::new();
+        let mut artifact = make_skill_artifact();
+        artifact.name = "a/b".to_string();
+        let result = emit_package_plugin("auth", &[artifact], Path::new("/ai"), true, &fs);
+        let actions = result.ok().unwrap_or_default();
+        assert_eq!(actions.len(), 1);
+        assert!(matches!(actions.first(), Some(Action::Skipped { .. })));
+    }
+
+    #[test]
     fn emit_plugin_no_manifest_skips_aipm_toml() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
