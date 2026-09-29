@@ -224,4 +224,25 @@ mod tests {
         let answers = result.unwrap_or_default();
         assert!(answers.is_empty());
     }
+
+    #[test]
+    fn execute_prompts_without_tty_returns_error_for_each_kind() {
+        if std::io::IsTerminal::is_terminal(&std::io::stdin()) {
+            return;
+        }
+        let kinds = vec![
+            PromptKind::Select { options: vec!["a", "b"], default_index: 0 },
+            PromptKind::Confirm { default: true },
+            PromptKind::Text { placeholder: "ph".to_string(), validate: true },
+            PromptKind::MultiSelect {
+                options: vec!["x", "y"],
+                defaults: vec![true, false],
+                min_selections: 1,
+            },
+        ];
+        for kind in kinds {
+            let step = PromptStep { label: "q", kind, help: Some("help") };
+            assert!(execute_prompts(&[step]).is_err());
+        }
+    }
 }
