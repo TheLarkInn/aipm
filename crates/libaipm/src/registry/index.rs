@@ -158,6 +158,12 @@ mod tests {
     }
 
     #[test]
+    fn index_path_scoped_single_char_scope() {
+        let path = package_path("@a/tool").unwrap();
+        assert_eq!(path, PathBuf::from("@a/@a/tool"));
+    }
+
+    #[test]
     fn index_path_empty_errors() {
         assert!(package_path("").is_err());
     }
