@@ -444,6 +444,19 @@ mod tests {
         }
     }
 
+    #[test]
+    fn marketplace_helpers_fall_back_on_missing_or_invalid_json() {
+        let fs = MockFs::new();
+        let missing = Path::new("/project/.ai/missing.json");
+        assert!(!is_plugin_registered(&fs, missing, "p"));
+        assert_eq!(read_marketplace_name(&fs, missing), "local-repo-plugins");
+
+        let bad = Path::new("/project/.ai/bad.json");
+        fs.seed(bad, b"not json");
+        assert!(!is_plugin_registered(&fs, bad, "p"));
+        assert_eq!(read_marketplace_name(&fs, bad), "local-repo-plugins");
+    }
+
     /// Seed a minimal marketplace.json into the MockFs so that
     /// `marketplace::register` can read-modify-write it.
     fn seed_marketplace(fs: &MockFs, marketplace_dir: &Path) {
