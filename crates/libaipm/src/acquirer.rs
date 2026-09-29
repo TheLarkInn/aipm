@@ -549,6 +549,15 @@ mod tests {
     }
 
     #[test]
+    fn copy_dir_recursive_nonexistent_src_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("missing");
+        let dst = temp.path().join("dst");
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { path, .. }) if path == src));
+    }
+
+    #[test]
     fn copy_dir_recursive_empty_src() {
         let temp = make_temp();
         let src = temp.path().join("empty-src");
