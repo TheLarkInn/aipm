@@ -2054,4 +2054,36 @@ mod tests {
         let group_line = output.lines().find(|l| l.starts_with("##[group]")).unwrap_or_default();
         assert!(group_line.contains("%0A##vso[task.setvariable"));
     }
+
+    struct FailAfter {
+        remaining: usize,
+    }
+
+    impl Write for FailAfter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if self.remaining == 0 {
+                return Err(std::io::Error::other("write failed"));
+            }
+            self.remaining -= 1;
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn json_reporter_propagates_write_error_in_sources_scanned() {
+        let outcome = sample_outcome();
+        let mut succeeded_at = None;
+        for budget in 0..400 {
+            let mut w = FailAfter { remaining: budget };
+            if Json.report(&outcome, &mut w).is_ok() {
+                succeeded_at = Some(budget);
+                break;
+            }
+        }
+        assert!(succeeded_at.is_some_and(|b| b > 0));
+    }
 }
