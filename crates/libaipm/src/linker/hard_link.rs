@@ -147,6 +147,21 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_is_file_returns_error() {
+        // remove_dir_all fails on a regular file, covering its error mapping.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, b"not a dir").expect("write");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if *path == target),
+            "expected Io error for target, got: {result:?}"
+        );
+    }
+
+    #[test]
     fn assemble_missing_hash_returns_error() {
         // A valid-format hash that was never stored — link_to returns NotFound,
         // covering the error mapping on the store.link_to call.
