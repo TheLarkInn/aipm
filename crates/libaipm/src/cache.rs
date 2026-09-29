@@ -836,6 +836,14 @@ mod tests {
     // ---- Additional coverage tests ----
 
     #[test]
+    fn put_fails_when_source_dir_missing() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let missing = temp.path().join("does_not_exist");
+        let result = cache.put("spec", &missing, None);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn cache_only_corrupted_when_dir_missing() {
         let (temp, cache) = test_cache(Policy::CacheOnly);
         let src = create_source_plugin(&temp);
