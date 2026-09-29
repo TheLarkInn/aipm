@@ -1122,6 +1122,32 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_final_endgroup_write_error_propagates() {
+        struct FailOnEndgroup;
+        impl Write for FailOnEndgroup {
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                if String::from_utf8_lossy(buf).contains("##[endgroup]") {
+                    return Err(std::io::Error::other("endgroup write failed"));
+                }
+                Ok(buf.len())
+            }
+
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let outcome = Outcome {
+            diagnostics: vec![ci_azure_diag_on("a.md", "rule/one", 1)],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+            ..Outcome::default()
+        };
+        assert!(CiAzure.report(&outcome, &mut FailOnEndgroup).is_err());
+    }
+
+    #[test]
     fn ci_azure_task_complete_on_warnings_only() {
         let outcome = Outcome {
             diagnostics: vec![
