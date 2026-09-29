@@ -984,6 +984,19 @@ mod tests {
     }
 
     #[test]
+    fn set_entry_ttl_with_corrupt_index_returns_parse_error() {
+        // Covers the `serde_json::from_str` error path in with_index():
+        // a non-empty index file that is not valid JSON must surface IndexParse.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let cache_root = temp.path().join("cache");
+        std::fs::create_dir_all(&cache_root).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "not json").unwrap_or_else(|_| {});
+
+        let result = cache.set_entry_ttl("some-spec", Some(10));
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn get_with_empty_index_file_returns_none() {
         // Covers the `content.is_empty()` True branch in read_index():
         // when the index file exists but is empty, treat it as a fresh cache.
