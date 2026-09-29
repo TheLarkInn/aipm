@@ -998,6 +998,18 @@ mod tests {
     }
 
     #[test]
+    fn with_index_corrupt_index_returns_parse_error() {
+        // Covers the `serde_json::from_str` error arm in `with_index()`:
+        // a non-empty index file that is not valid JSON must surface `IndexParse`.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        std::fs::write(cache.index_path(), "not json").unwrap_or_else(|_| {});
+
+        let result = cache.with_index(|_| {});
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn put_source_with_symlink_is_silently_skipped() {
         // Covers the `else if file_type.is_file()` False branch in
