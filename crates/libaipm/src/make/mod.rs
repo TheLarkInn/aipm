@@ -658,6 +658,29 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_claude_without_project_root_skips_settings() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "rootless",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        assert!(
+            !result.actions.iter().any(|a| matches!(a, Action::PluginEnabled { .. })),
+            "no project root means no settings update"
+        );
+    }
+
+    #[test]
     fn make_plugin_both_engines() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
