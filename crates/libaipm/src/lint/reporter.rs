@@ -1350,6 +1350,38 @@ mod tests {
     }
 
     #[test]
+    fn human_reporter_line_past_end_of_file_omits_snippet() {
+        let mut mock_fs = MockFs::new();
+        mock_fs.files.insert(PathBuf::from("/project/test.md"), "only line".to_string());
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Warning,
+                message: "past end".into(),
+                file_path: PathBuf::from("test.md"),
+                line: Some(50),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+            ..Outcome::default()
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("past end"));
+        assert!(output.contains("test.md"));
+        assert!(!output.contains("only line"));
+    }
+
+    #[test]
     fn human_reporter_directory_level_no_snippet() {
         let mock_fs = MockFs::new();
         let reporter = make_human_reporter(&mock_fs);
