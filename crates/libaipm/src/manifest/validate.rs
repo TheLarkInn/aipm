@@ -308,6 +308,22 @@ mod tests {
     }
 
     #[test]
+    fn workspace_dependencies_are_validated() {
+        let toml = r#"
+[workspace]
+members = ["plugins/*"]
+
+[workspace.dependencies]
+bad-dep = "not-a-version"
+"#;
+        let result = crate::manifest::parse_and_validate(toml, None);
+        assert!(
+            matches!(result, Err(Error::InvalidDependencyVersion { .. })),
+            "invalid workspace dependency version should be rejected: {result:?}"
+        );
+    }
+
+    #[test]
     fn catalog_refs_valid() {
         assert!(is_valid_version_req("catalog:"));
         assert!(is_valid_version_req("catalog:stable"));
