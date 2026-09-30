@@ -1253,4 +1253,27 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    #[test]
+    fn read_marketplace_name_defaults_when_missing_or_invalid() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/.ai/.claude-plugin/marketplace.json");
+        assert_eq!(read_marketplace_name(&fs, path), "local-repo-plugins");
+
+        fs.seed(path, b"not json");
+        assert_eq!(read_marketplace_name(&fs, path), "local-repo-plugins");
+
+        fs.seed(path, br#"{"name":"custom"}"#);
+        assert_eq!(read_marketplace_name(&fs, path), "custom");
+    }
+
+    #[test]
+    fn is_plugin_registered_false_when_missing_or_invalid() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/.ai/.claude-plugin/marketplace.json");
+        assert!(!is_plugin_registered(&fs, path, "x"));
+
+        fs.seed(path, b"not json");
+        assert!(!is_plugin_registered(&fs, path, "x"));
+    }
 }
