@@ -89,119 +89,100 @@ pub enum Error {
 mod tests {
     use super::*;
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
     #[test]
-    fn open_creates_parent_directories() {
-        let temp = tempfile::tempdir().unwrap_or_else(|_| {
-            // fallback: should never happen in tests
-            tempfile::tempdir_in(".").unwrap_or_else(|_| unreachable_tempdir())
-        });
+    fn open_creates_parent_directories() -> TestResult {
+        let temp = tempfile::tempdir()?;
         let nested = temp.path().join("a").join("b").join("c").join("data.json");
-        let result = LockedFile::open(&nested);
-        assert!(result.is_ok());
+        LockedFile::open(&nested)?;
         assert!(nested.exists());
+        Ok(())
     }
 
     #[test]
-    fn read_write_roundtrip() {
-        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+    fn read_write_roundtrip() -> TestResult {
+        let temp = tempfile::tempdir()?;
         let path = temp.path().join("test.json");
 
-        let mut locked = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
-        locked.write_content("{\"hello\": \"world\"}").unwrap_or_else(|_| {});
+        let mut locked = LockedFile::open(&path)?;
+        locked.write_content("{\"hello\": \"world\"}")?;
         drop(locked);
 
-        let mut locked2 = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
-        let content = locked2.read_content().unwrap_or_else(|_| String::new());
-        assert_eq!(content, "{\"hello\": \"world\"}");
+        let mut locked2 = LockedFile::open(&path)?;
+        assert_eq!(locked2.read_content()?, "{\"hello\": \"world\"}");
+        Ok(())
     }
 
     #[test]
-    fn write_truncates_previous_content() {
-        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+    fn write_truncates_previous_content() -> TestResult {
+        let temp = tempfile::tempdir()?;
         let path = temp.path().join("test.json");
 
-        // Write long content
-        let mut locked = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
-        locked.write_content("a]very long string with lots of content").unwrap_or_else(|_| {});
-
-        // Overwrite with short content
-        locked.write_content("short").unwrap_or_else(|_| {});
+        let mut locked = LockedFile::open(&path)?;
+        locked.write_content("a]very long string with lots of content")?;
+        locked.write_content("short")?;
         drop(locked);
 
-        // Verify only short content remains
-        let mut locked2 = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
-        let content = locked2.read_content().unwrap_or_else(|_| String::new());
-        assert_eq!(content, "short");
+        let mut locked2 = LockedFile::open(&path)?;
+        assert_eq!(locked2.read_content()?, "short");
+        Ok(())
     }
 
     #[test]
-    fn lock_released_on_drop() {
-        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+    fn lock_released_on_drop() -> TestResult {
+        let temp = tempfile::tempdir()?;
         let path = temp.path().join("test.json");
 
-        let locked = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
-        drop(locked);
-
-        // Second open should succeed (lock was released)
-        let result = LockedFile::open(&path);
-        assert!(result.is_ok());
+        drop(LockedFile::open(&path)?);
+        LockedFile::open(&path)?;
+        Ok(())
     }
 
     #[test]
-    fn read_empty_file_returns_empty_string() {
-        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+    fn read_empty_file_returns_empty_string() -> TestResult {
+        let temp = tempfile::tempdir()?;
         let path = temp.path().join("empty.json");
 
-        let mut locked = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
-        let content = locked.read_content().unwrap_or_else(|_| String::new());
-        assert!(content.is_empty());
+        let mut locked = LockedFile::open(&path)?;
+        assert!(locked.read_content()?.is_empty());
+        Ok(())
     }
 
     #[test]
-    fn open_file_in_current_directory() {
-        // path.parent() returns Some("") for a bare filename, not None
-        // but let's exercise the path with no nested dirs
-        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+    fn open_file_in_temp_directory() -> TestResult {
+        let temp = tempfile::tempdir()?;
         let path = temp.path().join("bare-file.json");
-        let result = LockedFile::open(&path);
-        assert!(result.is_ok());
+        LockedFile::open(&path)?;
         assert!(path.exists());
+        Ok(())
     }
 
     #[test]
-    fn open_fails_when_parent_creation_errors() {
-        // Create a regular file, then try to open a "nested" path underneath
-        // it. `create_dir_all` cannot create a directory where a file already
-        // exists, so it returns an I/O error — exercising the mkdir error
-        // branch in `LockedFile::open`.
-        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+    fn open_fails_when_parent_creation_errors() -> TestResult {
+        // `create_dir_all` cannot create a directory beneath a regular file.
+        let temp = tempfile::tempdir()?;
         let blocker = temp.path().join("blocker");
-        std::fs::write(&blocker, b"not a dir").unwrap_or_else(|_| {});
+        std::fs::write(&blocker, b"not a dir")?;
 
         let nested = blocker.join("child").join("data.json");
-        let result = LockedFile::open(&nested);
-        assert!(result.is_err());
+        assert!(matches!(LockedFile::open(&nested), Err(Error::Io { .. })));
+        Ok(())
     }
 
     #[test]
     fn open_path_with_no_parent_skips_mkdir_and_fails() {
-        // Path::new("/").parent() returns None, so the `if let Some(parent)` branch
-        // is skipped entirely.  Opening "/" as a regular file then fails because it
-        // is a directory, confirming the None branch is reachable and handled.
-        let result = LockedFile::open(Path::new("/"));
-        assert!(result.is_err());
+        // `Path::new("/").parent()` is None; opening a directory as a file then fails.
+        assert!(LockedFile::open(Path::new("/")).is_err());
     }
 
-    /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
-    fn unreachable_tempdir() -> tempfile::TempDir {
-        tempfile::tempdir_in(".").unwrap_or_else(|_| {
-            // This path is truly unreachable in tests — tempfile should always work
-            std::process::abort();
-        })
-    }
-
-    /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
-    fn unreachable_locked() -> LockedFile {
-        std::process::abort();
+    #[test]
+    fn error_variants_display() {
+        let mk = || std::io::Error::other("boom");
+        let io = Error::Io { path: "p".into(), source: mk() };
+        assert!(io.to_string().contains("boom"));
+        assert!(Error::Seek { source: mk() }.to_string().contains("seek"));
+        assert!(Error::Read { source: mk() }.to_string().contains("read"));
+        assert!(Error::Write { source: mk() }.to_string().contains("write"));
     }
 }
