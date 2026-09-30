@@ -1496,6 +1496,12 @@ mod tests {
     }
 
     #[test]
+    fn marketplace_location_owner_with_empty_repo() {
+        let result = "market:hello@owner/".parse::<Spec>();
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn marketplace_location_backslash_start() {
         // Exercise the backslash local path detection (line 432)
         let spec = parse("market:hello@\\\\server\\share");
