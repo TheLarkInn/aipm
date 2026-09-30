@@ -192,6 +192,30 @@ mod tests {
     }
 
     #[test]
+    #[tracing_test::traced_test]
+    fn discover_emits_trace_events_when_tracing_enabled() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        touch(&root.join(".claude/skills/x/SKILL.md"));
+        touch(&root.join(".claude/skills/x/notes.txt"));
+        let set =
+            discover(root, &DiscoverOptions::default(), &Real).expect("discover should succeed");
+        assert_eq!(set.counts().skills, 1);
+        assert!(logs_contain("classified"));
+        assert!(logs_contain("skipped: no classification"));
+    }
+
+    #[test]
+    fn discover_skips_files_without_classification() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        touch(&root.join(".claude/skills/x/notes.txt"));
+        let set =
+            discover(root, &DiscoverOptions::default(), &Real).expect("discover should succeed");
+        assert_eq!(set.counts().total(), 0);
+    }
+
+    #[test]
     fn discover_empty_root_returns_empty_set() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path();
