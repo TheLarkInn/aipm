@@ -177,4 +177,20 @@ mod tests {
         // Assembled dir must be gone.
         assert!(!assembled_dir.exists(), "assembled_dir should have been removed");
     }
+
+    #[test]
+    fn unlink_package_removes_plugin_link_when_assembled_dir_absent() {
+        // Plugin link exists but the assembled dir was already removed, so the
+        // `is_link` branch is taken while the `assembled_dir.exists()` branch is not.
+        let (tmp, store, file_hashes) = setup();
+        let links_dir = tmp.path().join(".aipm/links");
+        let plugins_dir = tmp.path().join("claude-plugins");
+
+        assert!(link_package(&store, &file_hashes, "my-pkg", &links_dir, &plugins_dir).is_ok());
+        std::fs::remove_dir_all(links_dir.join("my-pkg")).expect("remove assembled dir");
+
+        let result = unlink_package("my-pkg", &links_dir, &plugins_dir);
+        assert!(result.is_ok(), "unlink_package failed: {result:?}");
+        assert!(!directory_link::is_link(&plugins_dir.join("my-pkg")));
+    }
 }
