@@ -657,6 +657,14 @@ mod tests {
     }
 
     #[test]
+    fn get_with_corrupt_index_returns_index_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let _ = std::fs::create_dir_all(temp.path().join("cache"));
+        let _ = std::fs::write(temp.path().join("cache").join("cache_index.json"), "not json");
+        assert!(matches!(cache.get("any-spec"), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn new_entry_dir_name_is_unique() {
         let a = new_entry_dir_name();
         // Small delay to ensure different timestamp contribution
