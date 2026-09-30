@@ -413,6 +413,18 @@ mod tests {
     }
 
     #[test]
+    fn count_files_recurses_into_subdirs_and_ignores_missing_dir() {
+        let temp = make_temp();
+        let dir = temp.path().join("nested-plugin");
+        let sub = dir.join("a").join("b");
+        std::fs::create_dir_all(&sub).unwrap_or_else(|_| {});
+        std::fs::write(dir.join("top.txt"), "x").unwrap_or_else(|_| {});
+        std::fs::write(sub.join("deep.txt"), "x").unwrap_or_else(|_| {});
+        assert_eq!(count_files(&dir), 2);
+        assert_eq!(count_files(&temp.path().join("does-not-exist")), 0);
+    }
+
+    #[test]
     fn file_count_exceeds_limit() {
         let temp = make_temp();
         let dir = temp.path().join("huge-plugin");
