@@ -871,6 +871,17 @@ mod tests {
     }
 
     #[test]
+    fn put_succeeds_with_empty_index_file() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "").is_ok());
+
+        assert!(cache.put("spec", &src, None).is_ok());
+        assert!(matches!(cache.get("spec"), Ok(Some(_))));
+    }
+
+    #[test]
     fn skip_cache_put_returns_error() {
         let (_temp, cache) = test_cache(Policy::SkipCache);
         let src = _temp.path().join("src");
