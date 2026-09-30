@@ -1020,6 +1020,14 @@ mod tests {
     }
 
     #[test]
+    fn put_missing_source_dir_returns_io_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let missing = temp.path().join("does-not-exist");
+        let result = cache.put("github:owner/repo:plugin@main", &missing, None);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn put_handles_already_removed_old_entry_dir() {
         // Covers the `if old_dir.exists()` False branch in put():
         // Store a first entry, then manually remove its directory to simulate
