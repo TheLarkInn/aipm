@@ -728,6 +728,48 @@ mod tests {
         assert!(result.is_ok(), "expected Ok from local git clone, got: {result:?}");
     }
 
+    /// Covers the `check_file_count(&dest)?` error branch in `acquire_git`:
+    /// a cloned repository with more than `MAX_PLUGIN_FILES` files is rejected.
+    #[test]
+    fn acquire_git_too_many_files_returns_error() {
+        let source_temp = make_temp();
+        let src = source_temp.path();
+
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+
+        let Ok(init) = git(&["init", "-b", "main"]) else { return };
+        if !init.status.success() {
+            return;
+        }
+        for i in 0..=MAX_PLUGIN_FILES {
+            std::fs::write(src.join(format!("file{i}.txt")), "x").unwrap();
+        }
+        git(&["add", "."]).unwrap();
+        git(&["commit", "-m", "init"]).unwrap();
+
+        let dest_temp = make_temp();
+        let git_source = crate::spec::GitSource {
+            url: src.to_string_lossy().to_string(),
+            path: None,
+            git_ref: None,
+        };
+
+        let result = acquire_git(&git_source, dest_temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::TooManyFiles { .. })),
+            "expected TooManyFiles error, got: {result:?}"
+        );
+    }
+
     /// Covers the `Some(ref sub_path)` True branch of `acquire_git` (line 127):
     /// when `source.path` is set, the function copies just that subdirectory
     /// from the clone instead of the whole repository root.
