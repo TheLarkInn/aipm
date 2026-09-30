@@ -292,6 +292,28 @@ mod tests {
     }
 
     #[test]
+    fn detect_script_references_without_dot_slash_prefix() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.claude/settings.json"));
+        fs.files.insert(
+            PathBuf::from("/project/.claude/settings.json"),
+            r#"{"hooks":{"PreToolUse":[{"type":"command","command":"scripts/validate.sh --strict"}]}}"#.to_string(),
+        );
+
+        let detector = HookDetector;
+        let result = detector.detect(Path::new("/project/.claude"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(
+            artifacts
+                .first()
+                .and_then(|a| a.referenced_scripts.first())
+                .map(|p| p.to_string_lossy().into_owned()),
+            Some("scripts/validate.sh".to_string())
+        );
+    }
+
+    #[test]
     fn detect_ignores_bare_command_names() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.claude/settings.json"));
