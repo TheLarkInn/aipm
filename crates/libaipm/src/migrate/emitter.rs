@@ -2080,6 +2080,17 @@ mod tests {
     }
 
     #[test]
+    fn emit_package_plugin_rejects_unsafe_plugin_name() {
+        let fs = MockFs::new();
+        let artifact = make_skill_artifact();
+        let result = emit_package_plugin("../evil", &[artifact], Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+        let actions = result.unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, Action::Skipped { .. })));
+        assert!(fs.get_written(Path::new("/ai/../evil/aipm.toml")).is_none());
+    }
+
+    #[test]
     fn emit_package_plugin_single_skill() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
