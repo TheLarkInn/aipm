@@ -453,6 +453,32 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_reports_already_registered_plugin() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        let marketplace_json = marketplace_dir.join(".claude-plugin").join("marketplace.json");
+        let entry =
+            crate::generate::marketplace::Entry { name: "my-skill", description: "existing" };
+        let content = crate::generate::marketplace::create("test-marketplace", &[entry]);
+        fs.seed(&marketplace_json, content.as_bytes());
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "my-skill",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs).unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        assert!(result
+            .actions
+            .iter()
+            .any(|a| matches!(a, Action::PluginAlreadyRegistered { name } if name == "my-skill")));
+        assert!(!result.actions.iter().any(|a| matches!(a, Action::PluginRegistered { .. })));
+    }
+
+    #[test]
     fn make_plugin_creates_skill_plugin() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
