@@ -911,6 +911,16 @@ mod tests {
     }
 
     #[test]
+    fn corrupt_index_returns_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        let _ = std::fs::write(temp.path().join("cache").join("cache_index.json"), "{not json");
+
+        assert!(matches!(cache.get("spec"), Err(Error::IndexParse { .. })));
+        assert!(matches!(cache.mark_installed("spec", true), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn mark_installed_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
