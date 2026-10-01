@@ -584,6 +584,14 @@ mod tests {
     }
 
     #[test]
+    fn get_errors_on_corrupt_index() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+        assert!(matches!(cache.get("spec"), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn cache_skip_policy_always_misses() {
         let (_temp, cache) = test_cache(Policy::SkipCache);
         let result = cache.get("some-spec");
