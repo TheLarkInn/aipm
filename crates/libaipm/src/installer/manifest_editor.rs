@@ -219,4 +219,24 @@ existing-pkg = "^1.0"
         let content = std::fs::read_to_string(&manifest).expect("read");
         assert!(!content.contains("[dependencies]"));
     }
+
+    #[test]
+    fn add_dependency_fails_on_invalid_toml() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let manifest = tmp.path().join("aipm.toml");
+        std::fs::write(&manifest, "[package\nname = ").expect("write");
+
+        let result = add_dependency(FS, &manifest, "new-pkg", "^1.0");
+        assert!(matches!(result, Err(Error::Manifest { .. })));
+    }
+
+    #[test]
+    fn remove_dependency_fails_on_invalid_toml() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let manifest = tmp.path().join("aipm.toml");
+        std::fs::write(&manifest, "[package\nname = ").expect("write");
+
+        let result = remove_dependency(FS, &manifest, "pkg");
+        assert!(matches!(result, Err(Error::Manifest { .. })));
+    }
 }
