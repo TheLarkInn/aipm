@@ -1078,6 +1078,15 @@ mod tests {
     }
 
     #[test]
+    fn cache_policy_deserialize_non_string_returns_err() {
+        // Covers the error branch of `String::deserialize(deserializer)?` in
+        // `Policy::deserialize`: a non-string JSON value cannot become a String.
+        assert!(serde_json::from_str::<Policy>("123").is_err());
+        assert!(serde_json::from_str::<Policy>("\"bogus\"").is_err());
+        assert!(matches!(serde_json::from_str::<Policy>("\"auto\""), Ok(Policy::Auto)));
+    }
+
+    #[test]
     fn touch_entry_missing_key_is_noop() {
         // Covers the False branch of `if let Some(entry) = index.entries.get_mut(spec_key)`
         // in touch_entry: when the spec_key is absent from the index (e.g. removed between
