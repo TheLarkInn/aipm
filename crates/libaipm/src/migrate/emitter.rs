@@ -1980,6 +1980,35 @@ mod tests {
     }
 
     #[test]
+    fn emit_skill_keeps_unreferenced_script_when_other_script_referenced() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
+        fs.files.insert(
+            PathBuf::from("/src/skills/deploy/scripts/helper.sh"),
+            "#!/bin/bash".to_string(),
+        );
+        fs.files.insert(
+            PathBuf::from("/src/skills/deploy/scripts/deploy.sh"),
+            "#!/bin/bash".to_string(),
+        );
+        fs.exists.insert(PathBuf::from("/src/skills/deploy/scripts/deploy.sh"));
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let mut artifact = make_skill_artifact();
+        artifact.files = vec![
+            PathBuf::from("SKILL.md"),
+            PathBuf::from("scripts/helper.sh"),
+            PathBuf::from("scripts/deploy.sh"),
+        ];
+        artifact.referenced_scripts = vec![PathBuf::from("scripts/deploy.sh")];
+        let _result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+
+        assert!(fs.get_written(Path::new("/ai/deploy/skills/deploy/scripts/helper.sh")).is_some());
+        assert!(fs.get_written(Path::new("/ai/deploy/skills/deploy/scripts/deploy.sh")).is_none());
+    }
+
+    #[test]
     fn emit_preserves_nested_script_paths() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
