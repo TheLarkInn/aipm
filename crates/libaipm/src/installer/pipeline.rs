@@ -2718,6 +2718,23 @@ no-ver = { features = ["x"] }
         assert!(plugin_a.dependencies.contains(&"reg-dep ^3.0".to_string()));
     }
 
+    #[test]
+    fn resolve_workspace_dep_with_simple_registry_dep() {
+        let mut members = BTreeMap::new();
+        let m = make_member("plugin-a", "1.0.0", "[dependencies]\nreg-dep = \"^2.0\"\n");
+        members.insert("plugin-a".to_string(), m);
+
+        let ws_deps = vec!["plugin-a".to_string()];
+        let overrides = BTreeSet::new();
+
+        let result = resolve_workspace_deps(&ws_deps, &members, &overrides);
+        assert!(result.is_ok());
+        let resolved = result.unwrap();
+        assert_eq!(resolved.len(), 1);
+        let plugin_a = resolved.iter().find(|r| r.name == "plugin-a").unwrap();
+        assert!(plugin_a.dependencies.contains(&"reg-dep ^2.0".to_string()));
+    }
+
     // =========================================================================
     // resolve_workspace_deps: duplicate initial names
     // =========================================================================
