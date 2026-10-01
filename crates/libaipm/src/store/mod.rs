@@ -606,6 +606,18 @@ mod tests {
         assert!(result.is_err(), "expected lock() to fail when store path is a file");
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn lock_errors_when_lock_path_is_a_directory() {
+        let tmp = tempfile::tempdir().unwrap();
+        // A directory named `.lock` makes `File::create` fail after the store dir exists
+        std::fs::create_dir_all(tmp.path().join(".lock")).unwrap();
+
+        let store = Store::new(tmp.path().to_path_buf());
+        let result = store.lock();
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
     /// Verify that `store_file()` returns an error when directory creation
     /// for the prefix shard fails (e.g., parent path is a file, not a dir).
     #[cfg(unix)]
