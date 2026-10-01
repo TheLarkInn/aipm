@@ -621,6 +621,17 @@ engines = ["unknown-future-engine"]
     }
 
     #[test]
+    fn manifest_engines_field_with_non_list_type_fails_to_parse() {
+        let toml = r#"
+[package]
+name = "my-plugin"
+version = "1.0.0"
+engines = "claude"
+"#;
+        assert!(parse(toml).is_err(), "expected parse error for non-list engines value");
+    }
+
+    #[test]
     fn manifest_engines_mixed_known_and_unknown_drops_unknowns() {
         // Mixed list (known + unknown) is permitted: the known names
         // form the bitset, unknowns are silently dropped — keeps
