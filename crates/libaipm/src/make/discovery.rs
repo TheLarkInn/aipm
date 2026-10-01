@@ -149,4 +149,15 @@ mod tests {
         let result = find_marketplace(Path::new("/"), &fs);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn mock_fs_auxiliary_methods_behave_as_stubs() {
+        use crate::fs::Fs;
+
+        let fs = MockFs::new();
+        assert!(fs.create_dir_all(Path::new("/x")).is_ok());
+        assert!(fs.write_file(Path::new("/x/f"), b"data").is_ok());
+        assert!(fs.read_to_string(Path::new("/x/f")).is_err());
+        assert!(fs.read_dir(Path::new("/x")).is_ok_and(|entries| entries.is_empty()));
+    }
 }
