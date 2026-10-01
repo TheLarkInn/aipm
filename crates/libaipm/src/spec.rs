@@ -1621,4 +1621,38 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    /// Writer that fails once more than `limit` bytes have been written.
+    struct LimitedWriter {
+        written: usize,
+        limit: usize,
+    }
+
+    impl std::fmt::Write for LimitedWriter {
+        fn write_str(&mut self, s: &str) -> std::fmt::Result {
+            self.written += s.len();
+            if self.written > self.limit {
+                Err(std::fmt::Error)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    #[test]
+    fn display_propagates_write_errors() {
+        let git = parse("git:https://github.com/org/repo.git:sub@main");
+        let market = parse("market:plugin@org/repo#main");
+        for spec in [git, market] {
+            let full = spec.to_string().len() + 8;
+            let mut errors = 0;
+            for limit in 0..full {
+                let mut w = LimitedWriter { written: 0, limit };
+                if std::fmt::write(&mut w, format_args!("{spec}")).is_err() {
+                    errors += 1;
+                }
+            }
+            assert!(errors > 0);
+        }
+    }
 }
