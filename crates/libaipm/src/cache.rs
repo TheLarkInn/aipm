@@ -911,6 +911,14 @@ mod tests {
     }
 
     #[test]
+    fn put_missing_source_dir_returns_io_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let missing = temp.path().join("does_not_exist");
+        let result = cache.put("spec", &missing, None);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn mark_installed_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
