@@ -149,4 +149,13 @@ mod tests {
         let result = find_marketplace(Path::new("/"), &fs);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn find_marketplace_detects_copilot_manifest() {
+        let fs = MockFs::new();
+        fs.add_file("/project/.ai/.github/plugin/marketplace.json");
+
+        let result = find_marketplace(Path::new("/project/src"), &fs);
+        assert_eq!(result.unwrap_or_default(), PathBuf::from("/project/.ai"));
+    }
 }
