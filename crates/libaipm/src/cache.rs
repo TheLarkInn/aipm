@@ -688,6 +688,21 @@ mod tests {
     }
 
     #[test]
+    fn put_replaces_entry_whose_old_dir_already_removed() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let spec = "missing-old-dir-spec";
+        let src = create_source_plugin(&temp);
+
+        let dir1 = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(dir1.exists());
+        let _ = std::fs::remove_dir_all(&dir1);
+
+        let dir2 = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(dir2.exists());
+        assert_ne!(dir1, dir2);
+    }
+
+    #[test]
     fn put_replaces_old_entry_dir() {
         let (temp, cache) = test_cache(Policy::Auto);
         let spec = "replace-spec";
