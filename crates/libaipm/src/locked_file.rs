@@ -148,6 +148,17 @@ mod tests {
     }
 
     #[test]
+    fn read_invalid_utf8_returns_read_error() {
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let path = temp.path().join("bad.bin");
+        assert!(std::fs::write(&path, [0xff_u8, 0xfe, 0xfd]).is_ok());
+
+        let mut locked = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
+        let result = locked.read_content();
+        assert!(matches!(result, Err(Error::Read { .. })));
+    }
+
+    #[test]
     fn read_empty_file_returns_empty_string() {
         let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
         let path = temp.path().join("empty.json");
