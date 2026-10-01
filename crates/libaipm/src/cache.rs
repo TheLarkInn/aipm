@@ -1137,4 +1137,18 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn cache_put_overwrite_when_old_dir_already_removed() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let spec = "github:owner/repo:plugin@main";
+        let src = create_source_plugin(&temp);
+
+        let first = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(std::fs::remove_dir_all(&first).is_ok());
+
+        let second = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(second.join("plugin.json").exists());
+        assert_ne!(first, second);
+    }
 }
