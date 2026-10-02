@@ -1253,4 +1253,51 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Fs that fails `create_dir_all` for any path ending in `fail_suffix`.
+    struct FailDirFs {
+        inner: MockFs,
+        fail_suffix: &'static str,
+    }
+
+    impl crate::fs::Fs for FailDirFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            if path.ends_with(self.fail_suffix) {
+                return Err(std::io::Error::other("injected create_dir_all failure"));
+            }
+            self.inner.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_feature_scaffold_error() {
+        let fs = FailDirFs { inner: MockFs::new(), fail_suffix: "skills/my-skill" };
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs.inner, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "my-skill",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        assert!(plugin(&opts, &fs).is_err());
+    }
 }
