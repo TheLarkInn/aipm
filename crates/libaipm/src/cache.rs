@@ -998,6 +998,25 @@ mod tests {
     }
 
     #[test]
+    fn with_index_treats_empty_index_file_as_fresh() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        cache.ensure_dirs().unwrap();
+        std::fs::write(cache.index_path(), "").unwrap();
+
+        assert!(cache.set_entry_ttl("missing", Some(5)).is_ok());
+    }
+
+    #[test]
+    fn with_index_corrupt_index_returns_parse_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        cache.ensure_dirs().unwrap();
+        std::fs::write(cache.index_path(), "not json").unwrap();
+
+        let result = cache.set_entry_ttl("missing", Some(5));
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn put_source_with_symlink_is_silently_skipped() {
         // Covers the `else if file_type.is_file()` False branch in
