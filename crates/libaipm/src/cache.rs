@@ -998,6 +998,27 @@ mod tests {
     }
 
     #[test]
+    fn get_with_corrupt_index_returns_index_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(temp.path().join("cache")).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "{ not json").unwrap_or_else(|_| {});
+
+        let result = cache.get("some-spec");
+        assert!(matches!(result, Err(Error::IndexParse { .. })), "got: {result:?}");
+    }
+
+    #[test]
+    fn put_with_corrupt_index_returns_index_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        std::fs::create_dir_all(temp.path().join("cache")).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "{ not json").unwrap_or_else(|_| {});
+
+        let result = cache.put("some-spec", &src, None);
+        assert!(matches!(result, Err(Error::IndexParse { .. })), "got: {result:?}");
+    }
+
+    #[test]
     #[cfg(unix)]
     fn put_source_with_symlink_is_silently_skipped() {
         // Covers the `else if file_type.is_file()` False branch in
