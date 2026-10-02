@@ -2397,4 +2397,14 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    #[test]
+    fn compare_and_warn_handles_package_only_manifest() {
+        let content = generate_starter_manifest(None);
+        let parsed = crate::manifest::parse_and_validate(&content, None).ok();
+        assert!(parsed.as_ref().is_some_and(|m| m.workspace.is_none()));
+        if let Some(m) = parsed {
+            compare_and_warn(&m, None, Path::new("aipm.toml"));
+        }
+    }
 }
