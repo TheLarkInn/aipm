@@ -1253,4 +1253,59 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Filesystem whose `create_dir_all` or `write_file` always fails.
+    struct FailFs {
+        fail_dirs: bool,
+    }
+
+    impl crate::fs::Fs for FailFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            if self.fail_dirs {
+                Err(std::io::Error::other("dir failure"))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Err(std::io::Error::other("write failure"))
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::other("read failure"))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_create_dir_error() {
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/project/.ai"),
+            name: "p",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        assert!(plugin(&opts, &FailFs { fail_dirs: true }).is_err());
+    }
+
+    #[test]
+    fn make_plugin_propagates_write_error_for_each_feature() {
+        for feature in [Feature::Skill, Feature::Agent] {
+            let opts = PluginOpts {
+                marketplace_dir: Path::new("/project/.ai"),
+                name: "p",
+                engine: "claude",
+                features: &[feature],
+            };
+            assert!(plugin(&opts, &FailFs { fail_dirs: false }).is_err());
+        }
+    }
 }
