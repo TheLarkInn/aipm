@@ -186,4 +186,34 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_target_is_file_returns_io_error() {
+        // An existing regular file at target_dir makes remove_dir_all fail,
+        // covering the error mapping on the cleanup step.
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("not-a-dir");
+        std::fs::write(&target, b"x").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if *path == target),
+            "assemble should fail with Io error for target, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn assemble_parent_is_file_returns_io_error() {
+        // A file named like a nested directory component makes create_dir_all
+        // for the file's parent fail.
+        let (tmp, store, _) = make_store_and_package();
+        let hash = store.store_file(b"nested").expect("store file");
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("a"), hash.clone());
+        file_hashes.insert(PathBuf::from("a/b.txt"), hash);
+
+        let target = tmp.path().join("pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(&result, Err(Error::Io { .. })), "expected Io error, got: {result:?}");
+    }
 }
