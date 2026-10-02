@@ -264,6 +264,24 @@ mod tests {
     }
 
     #[test]
+    fn symlink_loop_with_follow_symlinks_returns_walk_failed() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        touch(&root.join("real/SKILL.md"));
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(root, root.join("real/loop")).expect("create symlink");
+            let opts = DiscoverOptions { follow_symlinks: true, ..DiscoverOptions::default() };
+            let result = walk(root, &opts);
+            assert!(matches!(result, Err(Error::WalkFailed(_))));
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = root;
+        }
+    }
+
+    #[test]
     fn skip_reason_records_path() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path();
