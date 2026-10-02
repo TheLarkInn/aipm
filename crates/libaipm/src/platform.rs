@@ -225,4 +225,11 @@ mod tests {
         let unknown: Result<Platform, _> = serde_json::from_str("\"freebsd\"");
         assert_eq!(unknown.ok(), Some(Platform::Unknown("freebsd".to_string())));
     }
+
+    #[test]
+    fn platform_deserialize_rejects_non_string() {
+        // Covers the error branch of `String::deserialize(..)?`.
+        let result: Result<Platform, _> = serde_json::from_str("42");
+        assert!(result.is_err());
+    }
 }
