@@ -124,6 +124,11 @@ mod tests {
     use super::*;
 
     #[test]
+    fn deserialize_non_string_is_error() {
+        assert!(serde_json::from_str::<Platform>("42").is_err());
+    }
+
+    #[test]
     fn current_platforms_includes_known_os() {
         let platforms = current_platforms();
         let has_known = platforms
