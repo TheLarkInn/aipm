@@ -803,6 +803,19 @@ mod tests {
         assert!(output.is_empty());
     }
 
+    /// Covers the `warning_count > 0` false branch of the `SucceededWithIssues`
+    /// guard: no errors and no warnings counted, yet diagnostics are present.
+    #[test]
+    fn ci_azure_no_completion_marker_when_counts_are_zero() {
+        let mut outcome = ci_azure_single_diagnostic_outcome(None, None);
+        outcome.warning_count = 0;
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("##vso[task.logissue"));
+        assert!(!output.contains("task.complete"));
+    }
+
     #[test]
     fn ci_azure_defaults_line_col() {
         let outcome = Outcome {
