@@ -192,6 +192,23 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn open_directory_reports_io_error_with_path() {
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let result = LockedFile::open(temp.path());
+        assert!(matches!(&result, Err(Error::Io { path, .. }) if path == temp.path()));
+    }
+
+    #[test]
+    fn error_variants_display_messages() {
+        let mk = || std::io::Error::other("boom");
+        let io = Error::Io { path: std::path::PathBuf::from("x.json"), source: mk() };
+        assert!(io.to_string().contains("x.json"));
+        assert!(Error::Seek { source: mk() }.to_string().contains("seek"));
+        assert!(Error::Read { source: mk() }.to_string().contains("read"));
+        assert!(Error::Write { source: mk() }.to_string().contains("write"));
+    }
+
     /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
     fn unreachable_tempdir() -> tempfile::TempDir {
         tempfile::tempdir_in(".").unwrap_or_else(|_| {
