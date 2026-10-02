@@ -1253,4 +1253,45 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Filesystem whose `create_dir_all` always fails.
+    struct FailingDirFs;
+
+    impl crate::fs::Fs for FailingDirFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"))
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("not found: {}", path.display()),
+            ))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_create_dir_failure() {
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/project/.ai"),
+            name: "broken",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &FailingDirFs);
+        assert!(result.is_err());
+    }
 }
