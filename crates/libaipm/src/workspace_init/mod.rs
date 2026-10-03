@@ -2306,6 +2306,31 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// All flags disabled: nothing is created and nothing is found, so the
+    /// "found nothing to do" tail warning (`!any_created && any_found`) must
+    /// not fire and no actions are returned.
+    #[test]
+    fn init_with_all_flags_disabled_returns_no_actions() {
+        let (tmp, _guard) = make_temp_dir("all-flags-disabled");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed with all flags disabled: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions: {actions:?}");
+
+        cleanup(&tmp);
+    }
+
     /// Covers the `if parsed.workspace.is_none()` True branch in `compare_and_warn`:
     /// when a package-only `aipm.toml` (no `[workspace]` section) already exists but
     /// `init` is called with `workspace: true`, `compare_and_warn` warns about the
