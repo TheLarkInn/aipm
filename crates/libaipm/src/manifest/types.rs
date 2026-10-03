@@ -388,4 +388,14 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Exercises the `Some(names)` arm of the generic deserializer instantiated
+    /// for `serde_json::Value`, which the null test above never reaches.
+    #[test]
+    fn engine_set_serde_json_list_returns_some() {
+        use serde::de::IntoDeserializer;
+        let de = serde_json::json!(["claude"]);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(matches!(result, Ok(Some(_))), "list of engines should produce Some: {result:?}");
+    }
 }
