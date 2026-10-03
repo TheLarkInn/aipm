@@ -919,6 +919,15 @@ mod tests {
     }
 
     #[test]
+    fn with_index_corrupt_index_returns_parse_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        let _ = std::fs::write(cache.index_path(), "not valid json");
+        let result = cache.mark_installed("spec", true);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn set_entry_ttl_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
