@@ -388,4 +388,17 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// A list mixing a known and an unknown engine name drops the unknown entry
+    /// and keeps the known one.
+    #[test]
+    fn engine_set_serde_mixed_known_and_unknown_drops_unknown() {
+        use serde::de::IntoDeserializer;
+        let de = serde_json::json!(["claude", "not-a-real-engine"]);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(
+            matches!(&result, Ok(Some(set)) if *set == libaipm_engine_spec::Engine::Claude.as_set()),
+            "unknown names should be dropped: {result:?}"
+        );
+    }
 }
