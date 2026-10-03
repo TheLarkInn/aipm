@@ -911,6 +911,19 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
+    fn put_skips_symlinks_in_source() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let linked = std::os::unix::fs::symlink(src.join("README.md"), src.join("link.md"));
+        assert!(linked.is_ok());
+
+        let cached = cache.put("spec", &src, None).unwrap_or_default();
+        assert!(cached.join("README.md").exists());
+        assert!(!cached.join("link.md").exists(), "symlink should be skipped");
+    }
+
+    #[test]
     fn mark_installed_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
