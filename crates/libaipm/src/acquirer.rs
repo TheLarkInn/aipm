@@ -627,6 +627,22 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the `create_dir_all` error mapping in `acquire_local`: the
+    /// destination path is occupied by a regular file, so it cannot be created.
+    #[test]
+    fn acquire_local_dest_is_file_returns_io_error() {
+        let temp = make_temp();
+        let dest_dir = temp.path().join("dest");
+        std::fs::create_dir_all(&dest_dir).unwrap_or_else(|_| {});
+        // "tests" exists as a directory in the crate-root CWD during `cargo test`;
+        // block its destination folder with a file.
+        std::fs::write(dest_dir.join("tests"), b"blocker").unwrap_or_else(|_| {});
+
+        let path = ValidatedPath::new("tests").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &dest_dir, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
