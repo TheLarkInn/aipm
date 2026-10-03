@@ -808,6 +808,31 @@ mod tests {
     }
 
     #[test]
+    fn init_with_all_phases_disabled_is_a_noop() {
+        let (tmp, _guard) = make_temp_dir("all-disabled");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "no-op init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "no phases requested, got: {actions:?}");
+        assert!(!tmp.join(".ai").exists());
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_marketplace_is_idempotent_when_ai_exists() {
         let (tmp, _guard) = make_temp_dir("mp-idempotent");
         std::fs::create_dir_all(tmp.join(".ai")).ok();
