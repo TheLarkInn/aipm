@@ -1138,4 +1138,12 @@ mod tests {
             "expected PathNotFound error when subpath is a file, got: {result:?}"
         );
     }
+
+    #[test]
+    fn copy_dir_recursive_missing_source_is_io_error() {
+        let temp = make_temp();
+        let missing = temp.path().join("missing");
+        let result = copy_dir_recursive(&missing, temp.path());
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
 }
