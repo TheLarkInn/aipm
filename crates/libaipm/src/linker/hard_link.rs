@@ -186,4 +186,21 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_target_dir_under_file_returns_io_error() {
+        // A regular file as an ancestor makes create_dir_all(target_dir) fail,
+        // covering the error mapping on that call.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, "not a dir").expect("write blocker");
+
+        let target = blocker.join("pkg");
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "expected Io error for target dir, got: {result:?}"
+        );
+    }
 }
