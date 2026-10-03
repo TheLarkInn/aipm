@@ -627,6 +627,21 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the `check_file_count` error propagation in `acquire_local`
+    /// when the source directory holds more than `MAX_PLUGIN_FILES` files.
+    #[test]
+    fn acquire_local_too_many_files_returns_error() {
+        let dest = make_temp();
+        let src = tempfile::tempdir_in(".").unwrap_or_else(|_| std::process::abort());
+        for i in 0..=MAX_PLUGIN_FILES {
+            std::fs::write(src.path().join(format!("f{i}.txt")), "x").unwrap_or_else(|_| {});
+        }
+        let name = src.path().file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
+        let path = ValidatedPath::new(&name).unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::TooManyFiles { .. })), "got: {result:?}");
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
