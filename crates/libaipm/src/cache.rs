@@ -554,6 +554,16 @@ mod tests {
     }
 
     #[test]
+    fn policy_serde_roundtrip_and_errors() {
+        let ok = serde_json::from_str::<Policy>("\"cache-only\"");
+        assert!(matches!(ok, Ok(Policy::CacheOnly)));
+        assert!(serde_json::from_str::<Policy>("42").is_err());
+        assert!(serde_json::from_str::<Policy>("\"bogus\"").is_err());
+        let ser = serde_json::to_string(&Policy::Auto);
+        assert!(matches!(ser.as_deref(), Ok("\"auto\"")));
+    }
+
+    #[test]
     fn cache_miss_returns_none() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let result = cache.get("github:owner/repo:plugin@main");
