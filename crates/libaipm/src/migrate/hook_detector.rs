@@ -309,6 +309,22 @@ mod tests {
     }
 
     #[test]
+    fn detect_command_hook_with_non_string_command_is_ignored() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.claude/settings.json"));
+        fs.files.insert(
+            PathBuf::from("/project/.claude/settings.json"),
+            r#"{"hooks":{"PreToolUse":[{"type":"command","command":42}]}}"#.to_string(),
+        );
+
+        let detector = HookDetector;
+        let result = detector.detect(Path::new("/project/.claude"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.first().map(|a| a.referenced_scripts.len()), Some(0));
+    }
+
+    #[test]
     fn detect_hooks_value_not_object() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.claude/settings.json"));
