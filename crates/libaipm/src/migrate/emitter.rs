@@ -1397,11 +1397,10 @@ mod tests {
 
         let toml_content = fs.get_written(Path::new("/ai/deploy/aipm.toml"));
         assert!(toml_content.is_some());
-        if let Some(content) = toml_content {
-            assert!(content.contains("name = \"deploy\""));
-            assert!(content.contains("type = \"skill\""));
-            assert!(content.contains("version = \"0.1.0\""));
-        }
+        let content = toml_content.unwrap_or_default();
+        assert!(content.contains("name = \"deploy\""));
+        assert!(content.contains("type = \"skill\""));
+        assert!(content.contains("version = \"0.1.0\""));
     }
 
     #[test]
@@ -1416,10 +1415,9 @@ mod tests {
 
         let json_content = fs.get_written(Path::new("/ai/deploy/.claude-plugin/plugin.json"));
         assert!(json_content.is_some());
-        if let Some(content) = json_content {
-            assert!(content.contains("\"name\": \"deploy\""));
-            assert!(content.contains("\"version\": \"0.1.0\""));
-        }
+        let content = json_content.unwrap_or_default();
+        assert!(content.contains("\"name\": \"deploy\""));
+        assert!(content.contains("\"version\": \"0.1.0\""));
     }
 
     #[test]
@@ -1519,9 +1517,7 @@ mod tests {
 
         let hooks_content = fs.get_written(Path::new("/ai/deploy/hooks/hooks.json"));
         assert!(hooks_content.is_some());
-        if let Some(content) = hooks_content {
-            assert!(content.contains("PreToolUse"));
-        }
+        assert!(hooks_content.unwrap_or_default().contains("PreToolUse"));
     }
 
     #[test]
@@ -1878,9 +1874,8 @@ mod tests {
         artifact.name = "../etc".to_string();
         let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
         assert!(result.is_ok());
-        if let Some((_, actions)) = result.ok() {
-            assert!(actions.iter().any(|a| matches!(a, Action::Skipped { .. })));
-        }
+        let actions = result.ok().map(|(_, actions)| actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, Action::Skipped { .. })));
     }
 
     #[test]
@@ -1894,9 +1889,8 @@ mod tests {
         artifact.name = "a/b".to_string();
         let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
         assert!(result.is_ok());
-        if let Some((_, actions)) = result.ok() {
-            assert!(actions.iter().any(|a| matches!(a, Action::Skipped { .. })));
-        }
+        let actions = result.ok().map(|(_, actions)| actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, Action::Skipped { .. })));
     }
 
     #[test]
