@@ -1857,6 +1857,27 @@ mod tests {
     }
 
     #[test]
+    fn init_with_nothing_requested_produces_no_actions() {
+        // workspace and marketplace both disabled: no Created/Found actions,
+        // so the "nothing to do" tail warning must not fire.
+        let (tmp, _guard) = make_temp_dir("nothing-requested");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real).expect("init should succeed");
+        assert!(result.actions.is_empty());
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_workspace_with_narrow_support_writes_engines_field() {
         // engines_support = Some(CLAUDE) with workspace=true → workspace
         // aipm.toml gets `engines = ["claude"]`.
