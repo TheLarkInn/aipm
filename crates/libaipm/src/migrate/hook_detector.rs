@@ -395,6 +395,12 @@ mod tests {
     }
 
     #[test]
+    fn is_relative_script_backslash_separator_without_slash() {
+        // Only a backslash separator: the `||` second operand decides the result.
+        assert!(is_relative_script("scripts\\check", Path::new(".")));
+    }
+
+    #[test]
     fn detect_absolute_path_command_not_extracted() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.claude/settings.json"));
