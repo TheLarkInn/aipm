@@ -388,4 +388,13 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// A non-list `engines` value fails at the `Option::deserialize` `?` boundary.
+    #[test]
+    fn engine_set_serde_non_list_value_errors() {
+        use serde::de::IntoDeserializer;
+        let de = serde_json::Value::String("claude".to_string());
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_err(), "non-list engines should fail: {result:?}");
+    }
 }
