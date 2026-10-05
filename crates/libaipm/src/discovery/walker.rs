@@ -126,6 +126,19 @@ mod tests {
     use super::*;
     use std::fs;
 
+    #[test]
+    fn take_skipped_returns_empty_when_mutex_poisoned() {
+        let shared: Arc<Mutex<Vec<SkipReason>>> = Arc::new(Mutex::new(Vec::new()));
+        let clone = Arc::clone(&shared);
+        let handle = std::thread::spawn(move || {
+            let _guard = clone.lock().expect("lock");
+            let missing: Option<u8> = None;
+            missing.expect("poison the mutex");
+        });
+        assert!(handle.join().is_err());
+        assert!(take_skipped(&shared).is_empty());
+    }
+
     fn touch(path: &Path) {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).expect("create parent dir");
