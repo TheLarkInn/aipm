@@ -1253,4 +1253,21 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    #[test]
+    fn make_plugin_propagates_marketplace_register_error() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        let marketplace_json = marketplace_dir.join(".claude-plugin").join("marketplace.json");
+        fs.seed(&marketplace_json, b"not valid json");
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "broken-market",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        assert!(plugin(&opts, &fs).is_err());
+    }
 }
