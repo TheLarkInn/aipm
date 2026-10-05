@@ -627,6 +627,32 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the `LocalNotFound` branch of the real `acquire_local`: the
+    /// source path does not exist.
+    #[test]
+    fn acquire_local_nonexistent_source_returns_not_found() {
+        let temp = make_temp();
+        let path = ValidatedPath::new("aipm-nonexistent-source-dir")
+            .unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::LocalNotFound { .. })),
+            "expected LocalNotFound, got: {result:?}"
+        );
+    }
+
+    /// Covers the `LocalNotDirectory` branch of the real `acquire_local`.
+    #[test]
+    fn acquire_local_file_source_returns_not_directory() {
+        let temp = make_temp();
+        let path = ValidatedPath::new("Cargo.toml").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::LocalNotDirectory { .. })),
+            "expected LocalNotDirectory, got: {result:?}"
+        );
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
