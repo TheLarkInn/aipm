@@ -558,6 +558,27 @@ mod tests {
         assert!(copy_dir_recursive(&src, &dst).is_ok());
     }
 
+    #[test]
+    fn copy_dir_recursive_nonexistent_src_returns_io_error() {
+        let temp = make_temp();
+        let result = copy_dir_recursive(&temp.path().join("missing"), temp.path());
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
+
+    #[test]
+    fn copy_dir_recursive_create_subdir_fails_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        std::fs::create_dir_all(src.join("sub")).unwrap_or_else(|_| {});
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(&dst).unwrap_or_else(|_| {});
+        // A file where the subdirectory must be created makes create_dir_all fail.
+        std::fs::write(dst.join("sub"), "x").unwrap_or_else(|_| {});
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
+
     /// Covers the `Error::CopyFailed` error mapping in `copy_dir_recursive`
     /// (lines 307–310): when `std::fs::copy` fails because the destination path
     /// is an existing directory (EISDIR on Linux), the error is wrapped as
