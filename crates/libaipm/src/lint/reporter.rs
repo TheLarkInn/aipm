@@ -506,6 +506,24 @@ mod tests {
         }
     }
 
+    struct FailingWriter;
+
+    impl Write for FailingWriter {
+        fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::other("write failed"))
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn text_reporter_propagates_write_error_for_error_summary() {
+        let outcome = Outcome { error_count: 1, ..Outcome::default() };
+        assert!(Text.report(&outcome, &mut FailingWriter).is_err());
+    }
+
     #[test]
     fn text_reporter_formats_diagnostics() {
         let outcome = sample_outcome();
