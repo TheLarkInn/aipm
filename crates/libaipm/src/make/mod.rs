@@ -978,6 +978,26 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_claude_without_marketplace_parent_skips_settings() {
+        // An empty marketplace dir has no parent, so engine settings are skipped.
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "orphan-plugin",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs).unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+        assert!(result.actions.iter().any(|a| matches!(a, Action::PluginCreated { .. })));
+        assert!(!result.actions.iter().any(|a| matches!(a, Action::PluginEnabled { .. })));
+        assert!(!result.actions.iter().any(|a| matches!(a, Action::PluginAlreadyEnabled { .. })));
+    }
+
+    #[test]
     fn is_plugin_registered_returns_false_for_missing_file() {
         let fs = MockFs::new();
         let path = Path::new("/nonexistent/marketplace.json");
