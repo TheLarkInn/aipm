@@ -1590,6 +1590,13 @@ mod tests {
     }
 
     #[test]
+    fn format_wizard_summary_no_scope_setup_mode() {
+        let answers = WizardAnswers { workspace: false, marketplace: false, ..make_test_answers() };
+        let summary = format_wizard_summary(&answers);
+        assert!(summary.contains("Setup mode: Nothing (no scope selected)"));
+    }
+
+    #[test]
     fn format_wizard_summary_no_starter_renders_no() {
         let answers = WizardAnswers { no_starter: true, ..make_test_answers() };
         let summary = format_wizard_summary(&answers);
