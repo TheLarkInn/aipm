@@ -984,6 +984,33 @@ mod tests {
     }
 
     #[test]
+    fn gc_keeps_installed_and_recent_entries() {
+        let temp = make_temp();
+        let cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
+
+        let src = create_source_plugin(&temp);
+        let _ = cache.put("recent", &src, None);
+        let _ = cache.put("installed", &src, None);
+        let _ = cache.mark_installed("installed", true);
+
+        // "installed" is ancient but protected; "recent" was just accessed.
+        let _ = cache.with_index(|index| {
+            if let Some(entry) = index.entries.get_mut("installed") {
+                entry.last_accessed = 0;
+            }
+        });
+
+        assert!(cache.gc().is_ok());
+
+        let mut kept = Vec::new();
+        let _ = cache.with_index(|index| {
+            kept = index.entries.keys().cloned().collect();
+        });
+        kept.sort();
+        assert_eq!(kept, vec!["installed".to_string(), "recent".to_string()]);
+    }
+
+    #[test]
     fn get_with_empty_index_file_returns_none() {
         // Covers the `content.is_empty()` True branch in read_index():
         // when the index file exists but is empty, treat it as a fresh cache.
