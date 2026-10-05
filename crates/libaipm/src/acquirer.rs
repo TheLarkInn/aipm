@@ -441,6 +441,21 @@ mod tests {
         assert!(!dst.join(".git").exists(), ".git directory should be skipped");
     }
 
+    /// Covers the `create_dir_all` error mapping for a subdirectory in
+    /// `copy_dir_recursive`: a file already occupies the destination path.
+    #[test]
+    fn copy_dir_recursive_subdir_create_fails_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        std::fs::create_dir_all(src.join("sub")).unwrap_or_else(|_| {});
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(&dst).unwrap_or_else(|_| {});
+        std::fs::write(dst.join("sub"), "occupied").unwrap_or_else(|_| {});
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}");
+    }
+
     #[test]
     #[cfg(unix)]
     fn copy_dir_recursive_skips_symlinks() {
