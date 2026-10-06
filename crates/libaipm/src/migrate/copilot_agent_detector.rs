@@ -411,6 +411,17 @@ mod tests {
     }
 
     #[test]
+    fn read_dir_failure_propagates_error() {
+        // The agents dir "exists" but listing it fails, so `fs.read_dir(..)?` returns Err.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+
+        let detector = CopilotAgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn empty_name_entry_is_skipped() {
         // An entry whose name is "" produces an empty stem (Path::new("").file_stem()
         // returns None → map_or_else gives ""), so `if stem.is_empty() { continue; }` fires.
