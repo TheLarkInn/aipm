@@ -1945,6 +1945,14 @@ mod tests {
         assert_eq!(output.matches("##vso[task.logissue").count(), 1);
     }
 
+    #[test]
+    fn ci_azure_with_errors_omits_succeeded_with_issues() {
+        let mut outcome = ci_azure_diag_for_path(PathBuf::from("a.md"));
+        outcome.error_count = 1;
+        let output = render_ci_azure(&outcome);
+        assert!(!output.contains("task.complete"));
+    }
+
     fn ci_github_diag_for_path(file_path: PathBuf) -> Outcome {
         Outcome {
             diagnostics: vec![Diagnostic {
