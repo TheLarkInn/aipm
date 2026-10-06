@@ -186,4 +186,14 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_errors_when_target_is_a_file() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, "not a dir").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error: {result:?}");
+    }
 }
