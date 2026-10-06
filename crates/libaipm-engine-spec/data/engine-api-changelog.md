@@ -2,6 +2,20 @@
 
 <!-- Entries are prepended (newest first). -->
 
+## 2026-10-06 — claude v2.1.291
+
+| Field | Change |
+|-------|--------|
+| `tool_calls` | **Added** — `TaskCreate`, `TaskGet`, `TaskUpdate`, `TaskList`, `Workflow`, `CronCreate`, `CronDelete`, `CronList`, `ScheduleWakeup`, `RemoteTrigger`, `Monitor`, `PushNotification`, `Artifact`, `EnterPlanMode`, `ReadMcpResourceDir`, `RefreshMcpTools`, `ReportFindings` (from `sdk-tools.d.ts`). |
+| `hook_events` | **Added** — `PostToolBatch`, `PermissionDenied`, `UserPromptExpansion`. |
+| `tool_compatibility` | **Changed** — new Claude tools are engine-exclusive. |
+
+Previously recorded version: 2.1.128.
+
+## 2026-10-06 — copilot v1.0.92
+
+Version bumped from 1.0.40. The 1.0.92 package ships a native single-file binary (no bundled JS), so string-level extraction is limited; no API changes could be confirmed.
+
 ## 2026-05-05 — claude v2.1.128
 
 | Field | Change |
