@@ -354,6 +354,23 @@ mod tests {
         let _ = path; // satisfy unused warning
     }
 
+    /// `acquire_git` returns `Error::Io` when the temp clone directory cannot
+    /// be created because `dest_dir` is a regular file.
+    #[test]
+    fn acquire_git_dest_dir_is_file_returns_io_error() {
+        let temp = make_temp();
+        let dest_file = temp.path().join("not-a-dir");
+        std::fs::write(&dest_file, "x").unwrap_or_else(|_| {});
+
+        let source = GitSource {
+            url: "https://example.invalid/repo.git".to_string(),
+            git_ref: None,
+            path: None,
+        };
+        let result = acquire_git(&source, &dest_file, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}");
+    }
+
     #[test]
     fn acquire_local_not_found() {
         let temp = make_temp();
