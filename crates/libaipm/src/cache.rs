@@ -1052,6 +1052,20 @@ mod tests {
     }
 
     #[test]
+    fn put_with_corrupt_index_returns_index_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(temp.path().join("cache")).unwrap();
+        std::fs::write(temp.path().join("cache").join("cache_index.json"), "{not json").unwrap();
+
+        let src = temp.path().join("corrupt-src");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("a.txt"), "a").unwrap();
+
+        let result = cache.put("spec", &src, None);
+        assert!(matches!(result, Err(Error::IndexParse { .. })), "got: {result:?}");
+    }
+
+    #[test]
     fn cache_policy_parse_aliases() {
         // Each variant has additional aliases beyond the canonical `to_string()` form.
         // These branches are otherwise untouched by `cache_policy_roundtrip`.
