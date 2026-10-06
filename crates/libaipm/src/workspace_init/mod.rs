@@ -2306,6 +2306,32 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `any_found == false` branch of `!any_created && any_found`:
+    /// with neither workspace nor marketplace requested, `init` produces no
+    /// actions at all and must not emit the "nothing to do" warning path.
+    #[test]
+    fn init_with_nothing_requested_produces_no_actions() {
+        let (tmp, _guard) = make_temp_dir("nothing-requested");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions: {actions:?}");
+
+        cleanup(&tmp);
+    }
+
     /// Covers the `if parsed.workspace.is_none()` True branch in `compare_and_warn`:
     /// when a package-only `aipm.toml` (no `[workspace]` section) already exists but
     /// `init` is called with `workspace: true`, `compare_and_warn` warns about the
