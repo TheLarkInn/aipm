@@ -1654,6 +1654,12 @@ mod tests {
     }
 
     #[test]
+    fn convert_hooks_yaml_continuation_appends_to_existing_value() {
+        let result = convert_hooks_yaml_to_json("PreToolUse: check\n  more\n  stuff");
+        assert_eq!(result, "{\n  \"PreToolUse\": \"check more stuff\"\n}");
+    }
+
+    #[test]
     fn convert_hooks_yaml_with_blank_lines() {
         let result = convert_hooks_yaml_to_json("PreToolUse: check\n\nPostToolUse: log");
         assert!(result.contains("PreToolUse"));
