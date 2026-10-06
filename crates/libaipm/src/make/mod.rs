@@ -1127,6 +1127,20 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_errors_when_marketplace_json_missing() {
+        // No marketplace.json seeded: `marketplace::register` fails to read it and
+        // `register_in_marketplace` propagates the error through `plugin`.
+        let fs = MockFs::new();
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/project/.ai"),
+            name: "orphan-skill",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        assert!(plugin(&opts, &fs).is_err());
+    }
+
+    #[test]
     fn is_plugin_registered_returns_false_when_file_not_found() {
         let fs = MockFs::new();
         // No file seeded — read_to_string returns NotFound, function returns false.
