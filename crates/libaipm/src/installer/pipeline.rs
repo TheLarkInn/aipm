@@ -1681,6 +1681,26 @@ features = ["extra"]
     }
 
     #[test]
+    fn install_skips_linking_for_package_with_link_override() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let config = setup_project(tmp.path());
+        let registry = make_registry();
+
+        let entry = crate::linker::link_state::LinkEntry {
+            name: "pkg-a".to_string(),
+            path: std::path::PathBuf::from("/dev/pkg-a"),
+            linked_at: "2026-01-01T00:00:00Z".to_string(),
+        };
+        crate::linker::link_state::add(&crate::fs::Real, &config.link_state_path, entry).unwrap();
+
+        let result = install(&crate::fs::Real, &config, &registry);
+        assert!(result.is_ok(), "install failed: {result:?}");
+        let result = result.unwrap();
+        assert_eq!(result.installed, 0, "overridden package must not be linked");
+        assert!(!config.links_dir.join("pkg-a").exists());
+    }
+
+    #[test]
     fn install_locked_clears_dev_links() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let mut config = setup_project(tmp.path());
