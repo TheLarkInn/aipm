@@ -752,6 +752,12 @@ mod tests {
     }
 
     #[test]
+    fn parse_marketplace_location_with_extra_segment_is_invalid() {
+        let result = "market:plugin@owner/repo/extra".parse::<Spec>();
+        assert!(matches!(result, Err(Error::Marketplace { .. })));
+    }
+
+    #[test]
     fn parse_marketplace_empty_name() {
         let result = "market:@owner/repo".parse::<Spec>();
         assert!(result.is_err());
