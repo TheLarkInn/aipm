@@ -518,6 +518,43 @@ mod tests {
         assert!(output.contains("1 error(s) emitted"));
     }
 
+    /// Writer that succeeds for `remaining` writes and then returns an error.
+    struct LimitedWriter {
+        remaining: usize,
+    }
+
+    impl Write for LimitedWriter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if self.remaining == 0 {
+                return Err(std::io::Error::other("write failed"));
+            }
+            self.remaining -= 1;
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn text_reporter_propagates_write_errors_at_every_stage() {
+        let outcome = sample_outcome();
+        let mut failures = 0;
+        for limit in 0..64 {
+            let mut writer = LimitedWriter { remaining: limit };
+            if Text.report(&outcome, &mut writer).is_err() {
+                failures += 1;
+            }
+        }
+        assert!(failures > 10);
+        assert!(failures < 64);
+
+        let empty = Outcome::default();
+        let mut writer = LimitedWriter { remaining: 0 };
+        assert!(Text.report(&empty, &mut writer).is_err());
+    }
+
     #[test]
     fn text_reporter_no_issues() {
         let outcome = Outcome {
