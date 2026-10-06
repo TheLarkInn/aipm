@@ -320,6 +320,28 @@ mod tests {
     }
 
     #[test]
+    fn unreadable_parent_directory_is_skipped_during_pruning() {
+        let mut fs = MockFs::new();
+        fs.dirs.insert(
+            PathBuf::from("/p/.claude/skills/deploy"),
+            vec![DirEntry { name: "SKILL.md".to_string(), is_dir: false }],
+        );
+        // Parent is absent from the mock, so read_dir returns an error.
+
+        let outcome =
+            make_outcome(vec![plugin_created("deploy", "/p/.claude/skills/deploy", "skill", true)]);
+
+        let result = remove_migrated_sources(&outcome, &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert_eq!(actions.len(), 1);
+        assert_eq!(
+            actions[0],
+            Action::SourceDirRemoved { path: PathBuf::from("/p/.claude/skills/deploy") }
+        );
+    }
+
+    #[test]
     fn non_empty_parent_directory_is_not_pruned() {
         let mut fs = MockFs::new();
         fs.dirs.insert(
