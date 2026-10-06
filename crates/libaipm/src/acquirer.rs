@@ -728,6 +728,43 @@ mod tests {
         assert!(result.is_ok(), "expected Ok from local git clone, got: {result:?}");
     }
 
+    /// Covers the error branch of `validate_plugin(&dest, engine)?` in
+    /// `acquire_git`: the clone succeeds but contains no plugin markers.
+    #[test]
+    fn acquire_git_invalid_plugin_structure_returns_error() {
+        let source_temp = make_temp();
+        let src = source_temp.path();
+
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+
+        let Ok(init) = git(&["init", "-b", "main"]) else { return };
+        if !init.status.success() {
+            return;
+        }
+        std::fs::write(src.join("some-file.txt"), "data").unwrap();
+        git(&["add", "."]).unwrap();
+        git(&["commit", "-m", "init"]).unwrap();
+
+        let dest_temp = make_temp();
+        let git_source = crate::spec::GitSource {
+            url: src.to_string_lossy().to_string(),
+            path: None,
+            git_ref: None,
+        };
+
+        let result = acquire_git(&git_source, dest_temp.path(), Engine::Claude);
+        assert!(result.is_err(), "expected validation error, got: {result:?}");
+    }
+
     /// Covers the `Some(ref sub_path)` True branch of `acquire_git` (line 127):
     /// when `source.path` is set, the function copies just that subdirectory
     /// from the clone instead of the whole repository root.
