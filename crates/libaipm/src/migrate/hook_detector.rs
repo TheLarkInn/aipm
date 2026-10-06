@@ -395,6 +395,15 @@ mod tests {
     }
 
     #[test]
+    fn is_relative_script_rejects_windows_drive_and_handles_extensions() {
+        use std::path::Path;
+        assert!(!is_relative_script("D:/tools/check.sh", Path::new(".")));
+        assert!(is_relative_script("RUN.SH", Path::new(".")));
+        assert!(!is_relative_script("README.md", Path::new(".")));
+        assert!(!is_relative_script("noext", Path::new(".")));
+    }
+
+    #[test]
     fn detect_absolute_path_command_not_extracted() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.claude/settings.json"));
