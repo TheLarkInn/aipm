@@ -919,6 +919,17 @@ mod tests {
     }
 
     #[test]
+    fn mark_installed_with_corrupt_index_returns_index_parse_error() {
+        // Covers the parse-error branch in with_index(): a non-empty index
+        // file that is not valid JSON must surface Error::IndexParse.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        let _ = std::fs::write(cache.index_path(), "not valid json");
+        let result = cache.mark_installed("spec", true);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn set_entry_ttl_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
