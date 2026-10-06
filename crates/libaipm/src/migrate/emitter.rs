@@ -2208,6 +2208,21 @@ mod tests {
     }
 
     #[test]
+    fn emit_package_plugin_hook_only_skips_inline_hooks_merge() {
+        // A Hook artifact must not contribute its metadata hooks to the merged
+        // hooks parts, even when `metadata.hooks` is set.
+        let fs = MockFs::new();
+        let mut hook = make_hook_artifact();
+        hook.metadata.hooks = Some("PreToolUse: ignored".to_string());
+
+        let result = emit_package_plugin("auth", &[hook], Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+
+        let hooks = fs.get_written(Path::new("/ai/auth/hooks/hooks.json"));
+        assert!(hooks.as_ref().is_some_and(|c| !c.contains("ignored")));
+    }
+
+    #[test]
     fn emit_package_plugin_missing_script() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
