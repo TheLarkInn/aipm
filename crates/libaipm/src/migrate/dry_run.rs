@@ -1166,4 +1166,35 @@ mod tests {
         );
         assert!(report.contains("settings.json"), "settings.json path should be listed:\n{report}");
     }
+
+    #[test]
+    fn recursive_report_destructive_non_skill_artifact_labelled_file() {
+        // Covers the False branch of `a.kind == ArtifactKind::Skill` in the
+        // `&[&Artifact]` monomorphization of `write_cleanup_plan`: a removable
+        // non-skill artifact is labelled "file" rather than "directory".
+        let discovered = vec![DiscoveredSource {
+            source_dir: PathBuf::from("/project/.claude"),
+            source_type: ".claude".to_string(),
+            package_name: None,
+            relative_path: PathBuf::new(),
+        }];
+
+        let mut agent = make_artifact("reviewer", ArtifactKind::Agent);
+        agent.source_path = PathBuf::from(".claude/agents/reviewer.md");
+
+        let plugin_plans = vec![PluginPlan {
+            name: "reviewer".to_string(),
+            artifacts: vec![agent],
+            is_package_scoped: false,
+            source_dir: PathBuf::from("/project/.claude"),
+            other_files: Vec::new(),
+        }];
+
+        let existing = HashSet::new();
+        let report = generate_recursive_report(&discovered, &plugin_plans, &existing, true);
+        assert!(
+            report.contains("`.claude/agents/reviewer.md` (file)"),
+            "non-skill artifact should be labelled as a file:\n{report}"
+        );
+    }
 }
