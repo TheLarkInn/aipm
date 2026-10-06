@@ -554,6 +554,13 @@ mod tests {
     }
 
     #[test]
+    fn mark_installed_unknown_key_is_noop() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.mark_installed("github:owner/repo:missing@main", true).is_ok());
+        assert!(cache.get("github:owner/repo:missing@main").is_ok_and(|r| r.is_none()));
+    }
+
+    #[test]
     fn cache_miss_returns_none() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let result = cache.get("github:owner/repo:plugin@main");
