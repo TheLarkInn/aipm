@@ -432,4 +432,23 @@ mod tests {
         assert_eq!(artifacts.len(), 1);
         assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("valid-agent"));
     }
+
+    #[test]
+    fn read_dir_failure_returns_error() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+
+        let detector = CopilotAgentDetector;
+        assert!(detector.detect(Path::new("/src"), &fs).is_err());
+    }
+
+    #[test]
+    fn read_file_failure_returns_error() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(PathBuf::from("/src/agents"), vec![de("ghost.agent.md", false)]);
+
+        let detector = CopilotAgentDetector;
+        assert!(detector.detect(Path::new("/src"), &fs).is_err());
+    }
 }
