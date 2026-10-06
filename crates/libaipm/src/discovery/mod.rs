@@ -201,6 +201,16 @@ mod tests {
     }
 
     #[test]
+    fn discover_skips_unclassified_files() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        touch(&root.join("src/random.txt"));
+        let set =
+            discover(root, &DiscoverOptions::default(), &Real).expect("discover should succeed");
+        assert!(set.is_empty());
+    }
+
+    #[test]
     fn apply_source_filter_no_filter_keeps_all() {
         let mut features = vec![
             types::DiscoveredFeature {
