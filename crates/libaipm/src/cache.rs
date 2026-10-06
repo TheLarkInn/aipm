@@ -998,6 +998,31 @@ mod tests {
     }
 
     #[test]
+    fn put_with_empty_index_file_starts_fresh() {
+        // with_index treats an existing-but-empty index file as a fresh index.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let cache_root = temp.path().join("cache");
+        std::fs::create_dir_all(&cache_root).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "").unwrap_or_else(|_| {});
+
+        let src = create_source_plugin(&temp);
+        assert!(cache.put("fresh-spec", &src, None).is_ok());
+        assert!(matches!(cache.get("fresh-spec"), Ok(Some(_))));
+    }
+
+    #[test]
+    fn put_with_corrupt_index_file_returns_index_parse_error() {
+        // with_index must surface a parse error rather than overwrite a corrupt index.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let cache_root = temp.path().join("cache");
+        std::fs::create_dir_all(&cache_root).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "{not json").unwrap_or_else(|_| {});
+
+        let src = create_source_plugin(&temp);
+        assert!(matches!(cache.put("bad-spec", &src, None), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn put_source_with_symlink_is_silently_skipped() {
         // Covers the `else if file_type.is_file()` False branch in
