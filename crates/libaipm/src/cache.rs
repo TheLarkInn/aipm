@@ -998,6 +998,29 @@ mod tests {
     }
 
     #[test]
+    fn put_with_corrupt_index_returns_index_parse_error() {
+        // Covers the `serde_json::from_str` error path in `with_index()`:
+        // a non-empty, malformed index file must surface `Error::IndexParse`.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let cache_root = temp.path().join("cache");
+        std::fs::create_dir_all(&cache_root).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "{ not valid json").unwrap_or_else(|_| {});
+        let src = create_source_plugin(&temp);
+
+        let result = cache.put("some-spec", &src, None);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
+    fn put_with_skip_cache_policy_returns_error() {
+        let (temp, cache) = test_cache(Policy::SkipCache);
+        let src = create_source_plugin(&temp);
+
+        let result = cache.put("some-spec", &src, None);
+        assert!(matches!(result, Err(Error::SkipCacheWrite)));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn put_source_with_symlink_is_silently_skipped() {
         // Covers the `else if file_type.is_file()` False branch in
