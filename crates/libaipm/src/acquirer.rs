@@ -1044,6 +1044,68 @@ mod tests {
         assert!(plugin_path.join("REAL.md").exists(), "expected REAL.md in redirected plugin");
     }
 
+    /// Covers the error branch of the `?` on the redirected `acquire_git` call in
+    /// `acquire_with_redirect`: the stub redirects to a repository that does not
+    /// exist, so the second acquisition fails and the error is propagated.
+    #[test]
+    fn acquire_with_redirect_redirect_target_missing() {
+        let stub_temp = make_temp();
+        let stub_src = stub_temp.path();
+
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(stub_src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+
+        let Ok(init) = git(&["init", "-b", "main"]) else { return };
+        if !init.status.success() {
+            return;
+        }
+        std::fs::create_dir_all(stub_src.join(".claude-plugin")).unwrap();
+        std::fs::write(stub_src.join(".claude-plugin/plugin.json"), "{}").unwrap();
+        let missing = stub_src.join("does-not-exist");
+        let redirect_toml = format!(
+            "[package]\nname = \"stub\"\nversion = \"0.0.0\"\n\
+             [package.source]\ntype = \"git\"\nurl = \"{}\"\n",
+            missing.display()
+        );
+        std::fs::write(stub_src.join("aipm.toml"), &redirect_toml).unwrap();
+        git(&["add", "."]).unwrap();
+        git(&["commit", "-m", "stub"]).unwrap();
+
+        let dest_temp = make_temp();
+        let git_source = crate::spec::GitSource {
+            url: stub_src.to_string_lossy().to_string(),
+            path: None,
+            git_ref: None,
+        };
+
+        let result = acquire_with_redirect(&git_source, dest_temp.path(), Engine::Claude);
+        assert!(result.is_err(), "expected error for missing redirect target, got: {result:?}");
+    }
+
+    /// Covers the error branch of the first `acquire_git(...)?` in
+    /// `acquire_with_redirect`: the initial source cannot be cloned.
+    #[test]
+    fn acquire_with_redirect_initial_clone_fails() {
+        let missing_temp = make_temp();
+        let dest_temp = make_temp();
+        let git_source = crate::spec::GitSource {
+            url: missing_temp.path().join("nope").to_string_lossy().to_string(),
+            path: None,
+            git_ref: None,
+        };
+
+        let result = acquire_with_redirect(&git_source, dest_temp.path(), Engine::Claude);
+        assert!(result.is_err(), "expected error for missing source, got: {result:?}");
+    }
+
     /// Covers the `check_source_redirect(&redirected_path).is_some()` True branch
     /// of `acquire_with_redirect` (line 248): when the redirected plugin also has
     /// a `[package.source]` redirect, the function returns `Error::RedirectLoop`.
