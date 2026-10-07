@@ -1019,6 +1019,34 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_reports_already_registered_when_in_marketplace() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        let marketplace_json = marketplace_dir.join(".claude-plugin").join("marketplace.json");
+        let content = serde_json::json!({
+            "name": "test-marketplace",
+            "plugins": [{ "name": "dup-plugin", "source": "./dup-plugin", "description": "x" }]
+        });
+        fs.seed(&marketplace_json, content.to_string().as_bytes());
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "dup-plugin",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs).unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+        assert!(
+            result.actions.iter().any(
+                |a| matches!(a, Action::PluginAlreadyRegistered { name } if name == "dup-plugin")
+            ),
+            "expected PluginAlreadyRegistered"
+        );
+        assert!(!result.actions.iter().any(|a| matches!(a, Action::PluginRegistered { .. })));
+    }
+
+    #[test]
     fn make_plugin_marketplace_dir_at_root_skips_settings() {
         // When marketplace_dir has no parent (e.g. "/"), update_engine_settings
         // must silently skip the settings update rather than panicking.
