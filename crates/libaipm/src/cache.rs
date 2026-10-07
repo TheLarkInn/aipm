@@ -522,6 +522,11 @@ mod tests {
         }
     }
 
+    #[test]
+    fn policy_deserialize_rejects_non_string() {
+        assert!(serde_json::from_str::<Policy>("42").is_err());
+    }
+
     fn test_cache(policy: Policy) -> (tempfile::TempDir, Cache) {
         let temp = make_temp();
         let cache = Cache::with_root(temp.path().join("cache"), policy);
