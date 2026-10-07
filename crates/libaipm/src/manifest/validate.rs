@@ -252,6 +252,13 @@ mod tests {
     use super::*;
 
     #[test]
+    fn segment_edge_cases() {
+        assert!(!is_valid_segment(""));
+        assert!(is_valid_segment("1abc"));
+        assert!(!is_valid_segment("-abc"));
+    }
+
+    #[test]
     fn valid_simple_name() {
         assert!(is_valid_name_strict("my-plugin"));
         assert!(is_valid_name_strict("plugin123"));
