@@ -237,6 +237,16 @@ mod tests {
     }
 
     #[test]
+    fn add_and_remove_propagate_read_errors() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        // A directory used as links.toml makes read() fail.
+        let add_result = add(FS, tmp.path(), make_entry("a", "/a"));
+        assert!(add_result.is_err());
+        let remove_result = remove(FS, tmp.path(), "a");
+        assert!(remove_result.is_err());
+    }
+
+    #[test]
     fn write_to_root_returns_error() {
         // write_file_with_parents on "/" fails with EISDIR or permission error.
         let result = write(FS, Path::new("/"), &State::default());
