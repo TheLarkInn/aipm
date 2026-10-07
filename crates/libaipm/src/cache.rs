@@ -998,6 +998,17 @@ mod tests {
     }
 
     #[test]
+    fn get_with_corrupt_index_file_returns_index_parse_error() {
+        // Covers the serde_json error closure in read_index().
+        let (temp, cache) = test_cache(Policy::Auto);
+        let cache_root = temp.path().join("cache");
+        std::fs::create_dir_all(&cache_root).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "{not valid json").unwrap_or_else(|_| {});
+
+        assert!(matches!(cache.get("some-spec"), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn put_source_with_symlink_is_silently_skipped() {
         // Covers the `else if file_type.is_file()` False branch in
