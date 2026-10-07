@@ -167,6 +167,43 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_is_file_returns_remove_error() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, "x").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(&result, Err(Error::Io { path, .. }) if *path == target));
+    }
+
+    #[test]
+    fn assemble_target_parent_is_file_returns_create_error() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, "x").expect("write file");
+        let target = blocker.join("pkg");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(&result, Err(Error::Io { path, .. }) if *path == target));
+    }
+
+    #[test]
+    fn assemble_file_then_nested_path_returns_parent_create_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash = store.store_file(b"content").expect("store file");
+
+        // "a" is linked as a file, so creating the parent for "a/b" must fail.
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("a"), hash.clone());
+        file_hashes.insert(PathBuf::from("a/b"), hash);
+
+        let target = tmp.path().join("links").join("conflict-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(&result, Err(Error::Io { path, .. }) if *path == target.join("a")));
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
