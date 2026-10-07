@@ -853,6 +853,23 @@ mod tests {
     }
 
     #[test]
+    fn put_replacing_entry_with_missing_old_dir_succeeds() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        assert!(cache.put("spec", &src, None).is_ok());
+
+        // Remove the old entry directory so cleanup finds nothing to delete
+        let index = cache.read_index().unwrap_or_default();
+        if let Some(entry) = index.entries.get("spec") {
+            let _ = std::fs::remove_dir_all(cache.entries_dir().join(&entry.dir_name));
+        }
+
+        assert!(cache.put("spec", &src, None).is_ok());
+        let result = cache.get("spec");
+        assert!(result.is_ok_and(|p| p.is_some()));
+    }
+
+    #[test]
     fn auto_returns_none_when_dir_missing() {
         let (temp, cache) = test_cache(Policy::Auto);
         let src = create_source_plugin(&temp);
