@@ -938,6 +938,20 @@ mod tests {
     }
 
     #[test]
+    fn backtrack_skips_conflicting_alternative_and_reports_conflict() {
+        // The pinned 1.0.0 does not satisfy ^1.1, and every alternative candidate
+        // shares its major, so backtracking exhausts all choices and errors.
+        let mut reg = MockRegistry::new();
+        reg.add_package("foo", vec![("1.1.0", vec![]), ("1.2.0", vec![]), ("1.3.0", vec![])]);
+
+        let mut pins = BTreeMap::new();
+        pins.insert("foo".to_string(), Version::parse("1.0.0").unwrap());
+
+        let result = resolve(&[root_dep("foo", "^1.1")], &pins, &reg);
+        assert!(matches!(result, Err(Error::Conflict(_))), "got: {result:?}");
+    }
+
+    #[test]
     fn prefer_highest_compatible_version() {
         // BDD: "Prefer the highest compatible version"
         let mut reg = MockRegistry::new();
