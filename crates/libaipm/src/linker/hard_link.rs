@@ -186,4 +186,26 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_target_is_file_returns_io_error() {
+        // An existing non-directory target makes remove_dir_all fail.
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, b"x").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
+
+    #[test]
+    fn assemble_target_parent_is_file_returns_io_error() {
+        // A file in the target's parent position makes create_dir_all fail.
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"x").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &blocker.join("pkg"));
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
 }
