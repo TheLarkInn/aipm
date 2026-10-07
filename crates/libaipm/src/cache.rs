@@ -1137,4 +1137,15 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn set_entry_ttl_on_empty_index_file_is_noop() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(&cache.root).unwrap();
+        std::fs::write(cache.index_path(), "").unwrap();
+
+        assert!(cache.set_entry_ttl("missing", Some(60)).is_ok());
+        let index = cache.read_index().unwrap_or_default();
+        assert!(index.entries.is_empty());
+    }
 }
