@@ -256,6 +256,21 @@ mod tests {
     }
 
     #[test]
+    fn detect_non_object_hooks_value() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.claude/settings.json"));
+        fs.files.insert(
+            PathBuf::from("/project/.claude/settings.json"),
+            r#"{"hooks":["not","an","object"]}"#.to_string(),
+        );
+
+        let detector = HookDetector;
+        let result = detector.detect(Path::new("/project/.claude"), &fs);
+        assert!(result.is_ok());
+        assert_eq!(result.ok().unwrap_or_default().len(), 0);
+    }
+
+    #[test]
     fn detect_malformed_json() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.claude/settings.json"));
