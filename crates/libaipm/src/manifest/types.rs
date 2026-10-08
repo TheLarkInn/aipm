@@ -373,6 +373,16 @@ mod engine_set_serde {
 mod tests {
     use super::*;
 
+    /// A non-list `engines` value fails inside `Option::<Vec<String>>::deserialize`,
+    /// covering the `?` error branch of `engine_set_serde::deserialize`.
+    #[test]
+    fn engine_set_serde_non_list_value_is_error() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value = serde_json::Value::Bool(true);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_err());
+    }
+
     /// Directly invoke `engine_set_serde::deserialize` with a JSON `null` value so
     /// that the `let Some(names) = raw else { return Ok(None) }` arm (line 333) is
     /// covered.  This path cannot be reached through TOML (which has no null literal),
