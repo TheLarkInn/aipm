@@ -260,6 +260,12 @@ mod tests {
         assert_eq!(find_workspace_dir(&file), dir.path());
     }
 
+    #[test]
+    fn workspace_dir_without_marker_reaches_root_and_falls_back_to_parent() {
+        let file = Path::new("/aipm-coverage-nonexistent-dir/orphan.md");
+        assert_eq!(find_workspace_dir(file), Path::new("/aipm-coverage-nonexistent-dir"));
+    }
+
     // ── to_lsp_diagnostic ────────────────────────────────────────────────────
 
     #[test]
