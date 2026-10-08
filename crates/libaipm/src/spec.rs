@@ -1621,4 +1621,48 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    /// Writer that fails once `remaining` successful `write_str` calls are used up.
+    struct FailAfter {
+        remaining: usize,
+    }
+
+    impl std::fmt::Write for FailAfter {
+        fn write_str(&mut self, _s: &str) -> std::fmt::Result {
+            if self.remaining == 0 {
+                return Err(std::fmt::Error);
+            }
+            self.remaining -= 1;
+            Ok(())
+        }
+    }
+
+    fn fails_at_every_write(spec: &Spec) -> bool {
+        // Display must propagate a writer error at each write; find the budget where it succeeds.
+        let mut budget = 0;
+        loop {
+            let mut w = FailAfter { remaining: budget };
+            if std::fmt::write(&mut w, format_args!("{spec}")).is_ok() {
+                return budget > 0;
+            }
+            budget += 1;
+            if budget > 64 {
+                return false;
+            }
+        }
+    }
+
+    #[test]
+    fn display_propagates_writer_errors_for_git_source() {
+        let spec = parse("git:https://example.com/r.git:sub/dir@main");
+        assert!(matches!(spec, Spec::Git(_)));
+        assert!(fails_at_every_write(&spec));
+    }
+
+    #[test]
+    fn display_propagates_writer_errors_for_marketplace_source() {
+        let spec = parse("market:plugin@org/repo#main");
+        assert!(matches!(spec, Spec::Marketplace(_)));
+        assert!(fails_at_every_write(&spec));
+    }
 }
