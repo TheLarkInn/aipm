@@ -389,6 +389,13 @@ mod tests {
     }
 
     #[test]
+    fn collect_existing_plugin_names_propagates_read_dir_error() {
+        let fs = MockFs::new();
+        let result = collect_existing_plugin_names(Path::new("/project/.ai"), &fs);
+        assert!(matches!(result, Err(Error::Io(_))));
+    }
+
+    #[test]
     fn migrate_errors_if_no_ai_dir() {
         let fs = MockFs::new();
         let opts = Options {
