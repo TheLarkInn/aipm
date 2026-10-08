@@ -233,6 +233,15 @@ mod tests {
     // ── find_workspace_dir ────────────────────────────────────────────────────
 
     #[test]
+    fn find_workspace_dir_stops_at_filesystem_root_without_markers() {
+        let root = Path::new(std::path::MAIN_SEPARATOR_STR);
+        if root.join("aipm.toml").exists() || root.join(".ai").exists() {
+            return;
+        }
+        assert_eq!(find_workspace_dir(root), root);
+    }
+
+    #[test]
     fn workspace_dir_with_ai_marker() {
         let dir = tempfile::tempdir().expect("tempdir");
         std::fs::create_dir_all(dir.path().join(".ai")).expect("mkdir .ai");
