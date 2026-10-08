@@ -1253,4 +1253,74 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Wraps `MockFs` and fails `create_dir_all` / `write_file` for paths containing a marker.
+    struct FailFs {
+        inner: MockFs,
+        fail_dir: Option<&'static str>,
+        fail_write: Option<&'static str>,
+    }
+
+    impl crate::fs::Fs for FailFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            match self.fail_dir {
+                Some(m) if path.to_string_lossy().contains(m) => {
+                    Err(std::io::Error::other("injected dir failure"))
+                },
+                _ => self.inner.create_dir_all(path),
+            }
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            match self.fail_write {
+                Some(m) if path.to_string_lossy().contains(m) => {
+                    Err(std::io::Error::other("injected write failure"))
+                },
+                _ => self.inner.write_file(path, content),
+            }
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    /// Covers the I/O error propagation (`?`) branches in each `scaffold_*` function.
+    #[test]
+    fn make_plugin_propagates_scaffold_io_errors() {
+        let marketplace_dir = Path::new("/project/.ai");
+        let cases: &[(Feature, Option<&'static str>, Option<&'static str>)] = &[
+            (Feature::Skill, Some("skills"), None),
+            (Feature::Skill, None, Some("SKILL.md")),
+            (Feature::Agent, Some("agents"), None),
+            (Feature::Agent, None, Some("agents")),
+            (Feature::Mcp, None, Some(".mcp.json")),
+            (Feature::Hook, Some("hooks"), None),
+            (Feature::Hook, None, Some("hooks.json")),
+            (Feature::OutputStyle, Some("output-styles"), None),
+            (Feature::OutputStyle, None, Some("output-styles")),
+            (Feature::Lsp, None, Some(".lsp.json")),
+        ];
+        for (feature, fail_dir, fail_write) in cases {
+            let inner = MockFs::new();
+            seed_marketplace(&inner, marketplace_dir);
+            let fs = FailFs { inner, fail_dir: *fail_dir, fail_write: *fail_write };
+            let features = [*feature];
+            let opts = PluginOpts {
+                marketplace_dir,
+                name: "failing",
+                engine: "claude",
+                features: &features,
+            };
+            assert!(plugin(&opts, &fs).is_err(), "expected error for {fail_dir:?}/{fail_write:?}");
+        }
+    }
 }
