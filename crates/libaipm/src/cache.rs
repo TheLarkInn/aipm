@@ -853,6 +853,29 @@ mod tests {
     }
 
     #[test]
+    fn put_succeeds_when_old_entry_dir_already_removed() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let dir1 = cache.put("gone-spec", &src, None).unwrap_or_else(|_| PathBuf::new());
+        let _ = std::fs::remove_dir_all(&dir1);
+
+        let dir2 = cache.put("gone-spec", &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(dir2.exists());
+        assert_ne!(dir1, dir2);
+    }
+
+    #[test]
+    fn with_index_reports_parse_error_for_corrupt_index() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let _ = cache.put("spec", &src, None);
+        let _ = std::fs::write(cache.index_path(), "not json");
+
+        let result = cache.with_index(|_| {});
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn auto_returns_none_when_dir_missing() {
         let (temp, cache) = test_cache(Policy::Auto);
         let src = create_source_plugin(&temp);
