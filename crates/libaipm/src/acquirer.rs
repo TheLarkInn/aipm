@@ -549,6 +549,21 @@ mod tests {
     }
 
     #[test]
+    fn check_file_count_over_limit_returns_too_many_files() {
+        let temp = make_temp();
+        let dir = temp.path().join("big");
+        std::fs::create_dir_all(&dir).unwrap_or_else(|_| {});
+        for i in 0..=MAX_PLUGIN_FILES {
+            std::fs::write(dir.join(format!("f{i}.txt")), "x").unwrap_or_else(|_| {});
+        }
+        assert!(matches!(
+            check_file_count(&dir),
+            Err(Error::TooManyFiles { count, limit })
+                if count == MAX_PLUGIN_FILES + 1 && limit == MAX_PLUGIN_FILES
+        ));
+    }
+
+    #[test]
     fn copy_dir_recursive_empty_src() {
         let temp = make_temp();
         let src = temp.path().join("empty-src");
