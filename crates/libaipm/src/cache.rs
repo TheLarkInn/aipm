@@ -998,6 +998,24 @@ mod tests {
     }
 
     #[test]
+    fn put_with_empty_index_file_creates_entry() {
+        // Covers the `content.is_empty()` True branch in with_index():
+        // an existing but empty index file is treated as a fresh cache.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        std::fs::write(cache.index_path(), "").unwrap_or_else(|_| {});
+
+        let src = temp.path().join("src-empty-index");
+        std::fs::create_dir_all(&src).unwrap_or_else(|_| {});
+        std::fs::write(src.join("plugin.json"), b"{}").unwrap_or_else(|_| {});
+
+        let result = cache.put("empty-index-spec", &src, None);
+        assert!(result.is_ok());
+        let index = cache.read_index().unwrap_or_default();
+        assert!(index.entries.contains_key("empty-index-spec"));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn put_source_with_symlink_is_silently_skipped() {
         // Covers the `else if file_type.is_file()` False branch in
