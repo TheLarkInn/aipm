@@ -1137,4 +1137,20 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn corrupt_index_yields_index_parse_error_on_get_and_put() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(temp.path().join("cache")).unwrap();
+        std::fs::write(temp.path().join("cache").join("cache_index.json"), "{not json").unwrap();
+
+        let got = cache.get("some:spec");
+        assert!(matches!(got, Err(Error::IndexParse { .. })));
+
+        let src = temp.path().join("src-corrupt");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("a.txt"), "a").unwrap();
+        let put = cache.put("some:spec", &src, None);
+        assert!(matches!(put, Err(Error::IndexParse { .. })));
+    }
 }
