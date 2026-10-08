@@ -1072,6 +1072,19 @@ mod tests {
     }
 
     #[test]
+    fn cache_policy_deserialize_non_string_returns_err() {
+        // A non-string JSON value fails at `String::deserialize` (the `?` Err path).
+        let result = serde_json::from_str::<Policy>("42");
+        assert!(result.is_err(), "non-string JSON should fail to deserialize");
+    }
+
+    #[test]
+    fn cache_policy_deserialize_unknown_string_returns_err() {
+        let result = serde_json::from_str::<Policy>("\"bogus\"");
+        assert!(result.is_err(), "unknown policy string should fail to deserialize");
+    }
+
+    #[test]
     fn cache_policy_parse_unknown_returns_err() {
         let result = "definitely-not-a-policy".parse::<Policy>();
         assert!(result.is_err(), "unknown policy string should return Err");
