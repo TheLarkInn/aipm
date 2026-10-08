@@ -690,6 +690,17 @@ mod tests {
     }
 
     #[test]
+    fn compare_and_warn_handles_package_only_manifest() {
+        let toml = "[package]\nname = \"my-plugin\"\nversion = \"0.1.0\"\n";
+        let parsed = crate::manifest::parse_and_validate(toml, None);
+        assert!(parsed.is_ok());
+        if let Ok(m) = parsed {
+            assert!(m.workspace.is_none());
+            compare_and_warn(&m, None, Path::new("aipm.toml"));
+        }
+    }
+
+    #[test]
     fn starter_manifest_round_trips() {
         let (tmp, _guard) = make_temp_dir("starter-rt");
 
