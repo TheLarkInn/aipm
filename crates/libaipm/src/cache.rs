@@ -657,6 +657,33 @@ mod tests {
     }
 
     #[test]
+    fn copy_to_session_cache_miss() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let result = cache.copy_to_session("absent", &temp.path().join("session"), "p");
+        assert!(matches!(result, Err(Error::CacheMiss { .. })));
+    }
+
+    #[test]
+    fn copy_to_session_corrupted_entry_dir_missing() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let spec = "test-spec";
+        let src = create_source_plugin(&temp);
+        let _ = cache.put(spec, &src, None);
+        let _ = std::fs::remove_dir_all(cache.entries_dir());
+
+        let result = cache.copy_to_session(spec, &temp.path().join("session"), "p");
+        assert!(matches!(result, Err(Error::CacheCorrupted { .. })));
+    }
+
+    #[test]
+    fn read_index_empty_file_returns_default() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        let _ = std::fs::write(cache.index_path(), "");
+        assert!(cache.read_index().is_ok());
+    }
+
+    #[test]
     fn new_entry_dir_name_is_unique() {
         let a = new_entry_dir_name();
         // Small delay to ensure different timestamp contribution
