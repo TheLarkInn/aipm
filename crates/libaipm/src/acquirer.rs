@@ -336,6 +336,15 @@ mod tests {
     }
 
     #[test]
+    fn copy_dir_recursive_missing_source_returns_io_error() {
+        let temp = make_temp();
+        let missing = temp.path().join("does-not-exist");
+        let dst = temp.path().join("dst");
+        let result = copy_dir_recursive(&missing, &dst);
+        assert!(matches!(result, Err(Error::Io { ref path, .. }) if *path == missing));
+    }
+
+    #[test]
     fn acquire_local_valid_plugin() {
         let temp = make_temp();
         let _src = make_local_plugin(&temp, "source-plugin");
