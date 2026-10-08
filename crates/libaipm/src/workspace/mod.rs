@@ -208,6 +208,14 @@ mod tests {
     }
 
     #[test]
+    fn discover_members_invalid_glob_pattern() {
+        let tmp = tempfile::tempdir().unwrap();
+
+        let err = discover_members(&crate::fs::Real, tmp.path(), &["[".to_string()]).unwrap_err();
+        assert!(err.to_string().contains("invalid glob pattern"), "unexpected error: {err}");
+    }
+
+    #[test]
     fn discover_members_skips_no_manifest() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
