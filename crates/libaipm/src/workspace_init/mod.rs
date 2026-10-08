@@ -2185,6 +2185,29 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// All phases disabled: nothing is created and nothing is found, so the
+    /// "found nothing to do" tail warning must not fire.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_with_all_phases_disabled_emits_no_actions_or_warning() {
+        let (tmp, _guard) = make_temp_dir("all-phases-disabled");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+        assert!(!logs_contain("found nothing to do"));
+        cleanup(&tmp);
+    }
+
     /// Pre-existing `aipm.toml` is malformed TOML. Init must surface a
     /// typed `ExistingManifestInvalid` error.
     #[test]
