@@ -651,6 +651,22 @@ mod tests {
         Ok(dest)
     }
 
+    /// Covers the `create_dir_all` error mapping at the start of `acquire_git`:
+    /// when `dest_dir` is a regular file, the temp clone dir cannot be created.
+    #[test]
+    fn acquire_git_dest_dir_is_file_returns_io_error() {
+        let temp = make_temp();
+        let file_dest = temp.path().join("not-a-dir");
+        std::fs::write(&file_dest, "x").unwrap_or_else(|_| {});
+        let source = crate::spec::GitSource {
+            url: "not-a-valid-url://nowhere".to_string(),
+            path: None,
+            git_ref: None,
+        };
+        let result = acquire_git(&source, &file_dest, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}",);
+    }
+
     /// Covers the clone-failure path in `acquire_git`: when `run_git_clone`
     /// fails (invalid URL → non-zero exit), the error propagates and the temp
     /// directory is cleaned up.
