@@ -177,4 +177,20 @@ mod tests {
         // Assembled dir must be gone.
         assert!(!assembled_dir.exists(), "assembled_dir should have been removed");
     }
+
+    #[test]
+    fn unlink_package_reports_io_error_when_assembled_path_is_a_file() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let links_dir = tmp.path().join(".aipm/links");
+        let plugins_dir = tmp.path().join("claude-plugins");
+        std::fs::create_dir_all(&links_dir).expect("create links dir");
+        let assembled_path = links_dir.join("file-pkg");
+        std::fs::write(&assembled_path, b"not a dir").expect("write file");
+
+        let result = unlink_package("file-pkg", &links_dir, &plugins_dir);
+        assert!(
+            matches!(result, Err(Error::Io { ref path, .. }) if *path == assembled_path),
+            "expected Io error, got {result:?}"
+        );
+    }
 }
