@@ -425,6 +425,16 @@ mod tests {
     }
 
     #[test]
+    fn collect_command_scripts_ignores_non_command_type() {
+        // A handler whose type is not "command" must not yield a script reference
+        // even when it carries a script-like "command" value.
+        let value = serde_json::json!({"type": "prompt", "command": "./run.sh"});
+        let mut scripts = Vec::new();
+        collect_command_scripts(&value, Path::new("/project"), &mut scripts);
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
     fn collect_command_scripts_with_missing_command_field() {
         // A hook object with type=command but no "command" key should not produce any
         // script reference — exercises the None branch of map.get("command").
