@@ -388,4 +388,22 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    #[test]
+    fn engine_set_serde_json_empty_known_and_unknown() {
+        use serde::de::IntoDeserializer;
+        let parse = |v: serde_json::Value| engine_set_serde::deserialize(v.into_deserializer());
+
+        let empty = parse(serde_json::json!([]));
+        assert!(matches!(empty, Ok(Some(s)) if s.is_empty()), "empty list: {empty:?}");
+
+        let known = parse(serde_json::json!(["claude", "bogus"]));
+        assert!(
+            matches!(known, Ok(Some(s)) if s == libaipm_engine_spec::Engine::Claude.as_set()),
+            "known: {known:?}"
+        );
+
+        let unknown = parse(serde_json::json!(["bogus"]));
+        assert!(unknown.is_err(), "only-unknown names must be rejected: {unknown:?}");
+    }
 }
