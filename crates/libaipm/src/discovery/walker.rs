@@ -134,6 +134,18 @@ mod tests {
     }
 
     #[test]
+    fn take_skipped_returns_empty_when_mutex_poisoned() {
+        let shared = Arc::new(Mutex::new(Vec::<SkipReason>::new()));
+        let clone = Arc::clone(&shared);
+        let _ = std::thread::spawn(move || {
+            let _guard = clone.lock();
+            std::panic::resume_unwind(Box::new("poison"));
+        })
+        .join();
+        assert!(take_skipped(&shared).is_empty());
+    }
+
+    #[test]
     fn empty_dir_returns_empty_files() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path();
