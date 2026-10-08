@@ -192,6 +192,33 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn read_content_invalid_utf8_returns_read_error() {
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let path = temp.path().join("binary.dat");
+        std::fs::write(&path, [0xff, 0xfe, 0xfd]).unwrap_or_else(|_| {});
+
+        let mut locked = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
+        let result = locked.read_content();
+        assert!(matches!(result, Err(Error::Read { .. })));
+        if let Err(e) = result {
+            assert!(e.to_string().starts_with("Failed to read locked file"));
+        }
+    }
+
+    #[test]
+    fn open_directory_path_returns_io_error() {
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let dir = temp.path().join("adir");
+        std::fs::create_dir_all(&dir).unwrap_or_else(|_| {});
+
+        let result = LockedFile::open(&dir);
+        assert!(matches!(result, Err(Error::Io { .. })));
+        if let Err(e) = result {
+            assert!(e.to_string().contains("Locked file I/O error"));
+        }
+    }
+
     /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
     fn unreachable_tempdir() -> tempfile::TempDir {
         tempfile::tempdir_in(".").unwrap_or_else(|_| {
