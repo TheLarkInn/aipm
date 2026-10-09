@@ -1072,6 +1072,12 @@ mod tests {
     }
 
     #[test]
+    fn cache_policy_deserialize_non_string_returns_err() {
+        let result = serde_json::from_str::<Policy>("123");
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn cache_policy_parse_unknown_returns_err() {
         let result = "definitely-not-a-policy".parse::<Policy>();
         assert!(result.is_err(), "unknown policy string should return Err");
