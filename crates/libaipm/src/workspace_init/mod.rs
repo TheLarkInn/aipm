@@ -2091,6 +2091,28 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// With every phase disabled nothing is created and nothing is found,
+    /// so the tail "found nothing to do" warning must not fire.
+    #[test]
+    fn init_all_phases_disabled_is_noop() {
+        let (tmp, _guard) = make_temp_dir("all-phases-disabled");
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &default_adaptors(), &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+        assert!(result.map(|r| r.actions.is_empty()).unwrap_or(false));
+
+        cleanup(&tmp);
+    }
+
     /// Existing `aipm.toml` declares `engines = ["claude"]` but the
     /// wizard answer chose Copilot. Init must succeed (idempotent),
     /// leave the file unchanged, and emit a tracing::warn event naming
