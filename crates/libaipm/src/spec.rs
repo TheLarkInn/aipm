@@ -1621,4 +1621,24 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    struct FailWriter;
+
+    impl std::fmt::Write for FailWriter {
+        fn write_str(&mut self, _s: &str) -> std::fmt::Result {
+            Err(std::fmt::Error)
+        }
+    }
+
+    #[test]
+    fn git_source_display_propagates_write_error() {
+        let src = GitSource { url: "https://x/y.git".to_string(), path: None, git_ref: None };
+        assert!(std::fmt::write(&mut FailWriter, format_args!("{src}")).is_err());
+    }
+
+    #[test]
+    fn marketplace_source_display_propagates_write_error() {
+        let spec = parse("market:plugin@owner/repo");
+        assert!(std::fmt::write(&mut FailWriter, format_args!("{spec}")).is_err());
+    }
 }
