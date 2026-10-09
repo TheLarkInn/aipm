@@ -984,6 +984,18 @@ mod tests {
     }
 
     #[test]
+    fn with_index_corrupt_json_returns_index_parse_error() {
+        // Covers the IndexParse error mapping in with_index() when the
+        // existing index file is non-empty but not valid JSON.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+
+        let result = cache.with_index(|_| {});
+        assert!(matches!(result, Err(Error::IndexParse { .. })), "got: {result:?}");
+    }
+
+    #[test]
     fn get_with_empty_index_file_returns_none() {
         // Covers the `content.is_empty()` True branch in read_index():
         // when the index file exists but is empty, treat it as a fresh cache.
