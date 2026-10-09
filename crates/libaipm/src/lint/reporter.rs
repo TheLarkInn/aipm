@@ -1999,6 +1999,23 @@ mod tests {
     }
 
     #[test]
+    fn ci_github_reporter_emits_error_severity_as_error_command() {
+        let mut outcome = ci_github_diag_for_path(PathBuf::from(".ai/p/SKILL.md"));
+        if let Some(d) = outcome.diagnostics.first_mut() {
+            d.severity = Severity::Error;
+        }
+        outcome.error_count = 1;
+        outcome.warning_count = 0;
+        let output = render_ci_github(&outcome);
+        let cmd_lines: Vec<&str> = output
+            .lines()
+            .filter(|l| l.starts_with("::warning ") || l.starts_with("::error "))
+            .collect();
+        assert_eq!(cmd_lines.len(), 1);
+        assert!(cmd_lines.first().is_some_and(|l| l.starts_with("::error ")));
+    }
+
+    #[test]
     fn ci_github_reporter_escapes_carriage_return_in_file_path() {
         let outcome = ci_github_diag_for_path(PathBuf::from(".ai/p\rbar/SKILL.md"));
         let output = render_ci_github(&outcome);
