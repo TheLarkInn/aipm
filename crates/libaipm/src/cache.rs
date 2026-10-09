@@ -711,6 +711,25 @@ mod tests {
     }
 
     #[test]
+    fn put_tolerates_missing_old_entry_dir() {
+        // Covers the false branch of `old_dir.exists()` in put(): the previous
+        // entry directory was already removed, so cleanup is skipped.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let spec = "missing-old-dir-spec";
+
+        let src = temp.path().join("src");
+        std::fs::create_dir_all(&src).unwrap_or_else(|_| {});
+        std::fs::write(src.join("version.txt"), "v1").unwrap_or_else(|_| {});
+        let dir1 = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(dir1.exists());
+        std::fs::remove_dir_all(&dir1).unwrap_or_else(|_| {});
+
+        let dir2 = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(dir2.exists());
+        assert_ne!(dir1, dir2);
+    }
+
+    #[test]
     fn gc_removes_unreferenced_directories() {
         let temp = make_temp();
         let mut cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
