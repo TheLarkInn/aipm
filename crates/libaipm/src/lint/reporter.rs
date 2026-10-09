@@ -506,6 +506,26 @@ mod tests {
         }
     }
 
+    struct FailingWriter;
+
+    impl Write for FailingWriter {
+        fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::other("write failed"))
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn text_and_json_reporters_propagate_write_errors() {
+        let outcome = sample_outcome();
+        assert!(Text.report(&outcome, &mut FailingWriter).is_err());
+        assert!(Json.report(&outcome, &mut FailingWriter).is_err());
+        assert!(Text.report(&Outcome::default(), &mut FailingWriter).is_err());
+    }
+
     #[test]
     fn text_reporter_formats_diagnostics() {
         let outcome = sample_outcome();
