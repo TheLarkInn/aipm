@@ -836,6 +836,23 @@ mod tests {
     // ---- Additional coverage tests ----
 
     #[test]
+    fn put_overwrite_tolerates_missing_old_dir() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let _ = cache.put("spec", &src, None);
+
+        // Remove the first entry's directory so the old-dir cleanup finds nothing.
+        let index = cache.read_index().unwrap_or_default();
+        if let Some(entry) = index.entries.get("spec") {
+            let _ = std::fs::remove_dir_all(cache.entries_dir().join(&entry.dir_name));
+        }
+
+        let result = cache.put("spec", &src, None);
+        assert!(result.is_ok());
+        assert!(result.is_ok_and(|dir| dir.exists()));
+    }
+
+    #[test]
     fn cache_only_corrupted_when_dir_missing() {
         let (temp, cache) = test_cache(Policy::CacheOnly);
         let src = create_source_plugin(&temp);
