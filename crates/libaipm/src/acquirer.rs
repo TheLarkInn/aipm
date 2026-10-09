@@ -548,6 +548,29 @@ mod tests {
         assert!(check_file_count(&dir).is_ok());
     }
 
+    /// Covers the `create_dir_all` error mapping for subdirectories in
+    /// `copy_dir_recursive`: a regular file occupies the destination path.
+    #[test]
+    fn copy_dir_recursive_subdir_create_fails_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        std::fs::create_dir_all(src.join("sub")).unwrap_or_else(|_| {});
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(&dst).unwrap_or_else(|_| {});
+        std::fs::write(dst.join("sub"), "file").unwrap_or_else(|_| {});
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
+
+    /// Covers the `read_dir` error mapping in `copy_dir_recursive`.
+    #[test]
+    fn copy_dir_recursive_missing_src_returns_io_error() {
+        let temp = make_temp();
+        let result = copy_dir_recursive(&temp.path().join("missing"), temp.path());
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
+
     #[test]
     fn copy_dir_recursive_empty_src() {
         let temp = make_temp();
