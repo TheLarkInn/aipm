@@ -631,4 +631,19 @@ mod tests {
         let result = store.store_package(nonexistent);
         assert!(result.is_err(), "expected store_package to fail on missing directory");
     }
+
+    /// `link_to()` must return `Error::Io` when the target's parent directory
+    /// cannot be created because an ancestor is a regular file.
+    #[test]
+    fn link_to_errors_when_target_parent_cannot_be_created() {
+        let (tmp, store) = make_store();
+        let hash = store.store_file(b"content").unwrap();
+
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"file").unwrap();
+        let target = blocker.join("sub").join("out.txt");
+
+        let result = store.link_to(&hash, &target);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got {result:?}");
+    }
 }
