@@ -861,6 +861,26 @@ mod tests {
     }
 
     #[test]
+    fn init_with_all_phases_disabled_is_noop() {
+        let (tmp, _guard) = make_temp_dir("all-disabled");
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &[], &crate::fs::Real);
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+        assert!(!tmp.join(".ai").exists());
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_with_no_adaptors() {
         let (tmp, _guard) = make_temp_dir("no-adaptors");
         let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
