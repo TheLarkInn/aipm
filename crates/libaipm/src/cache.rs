@@ -1137,4 +1137,21 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn put_overwrite_tolerates_missing_old_entry_dir() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        assert!(cache.put("spec", &src, None).is_ok());
+
+        let entries = cache.entries_dir();
+        if let Ok(read) = std::fs::read_dir(&entries) {
+            for entry in read.flatten() {
+                let _ = std::fs::remove_dir_all(entry.path());
+            }
+        }
+
+        assert!(cache.put("spec", &src, None).is_ok());
+        assert!(matches!(cache.get("spec"), Ok(Some(_))));
+    }
 }
