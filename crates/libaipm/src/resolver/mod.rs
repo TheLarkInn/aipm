@@ -1600,6 +1600,23 @@ mod tests {
     }
 
     #[test]
+    fn resolve_invalid_transitive_requirement_returns_version_error() {
+        // Covers the `Requirement::parse(&trans_dep.req)` error branch in
+        // `queue_transitive_dep`: a package whose dependency carries an
+        // unparseable requirement must yield `Error::Version`.
+        let mut reg = MockRegistry::new();
+        reg.add_package(
+            "plugin-a",
+            vec![("1.0.0", vec![dep("shared-lib", "not-valid-semver!!!")])],
+        );
+
+        let deps = vec![root_dep("plugin-a", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg);
+
+        assert!(matches!(result, Err(Error::Version { .. })), "got: {result:?}");
+    }
+
+    #[test]
     fn resolve_shared_transitive_dep_unifies_compatible_versions() {
         // Covers the False branch of `if !req.matches(&existing.version)` in
         // `resolve_dep` (the "same major, compatible — unified" path).
