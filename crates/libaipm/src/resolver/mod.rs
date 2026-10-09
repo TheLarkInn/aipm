@@ -931,10 +931,10 @@ mod tests {
         let deps = vec![root_dep("skill-a", "^1.0"), root_dep("skill-b", "^1.0")];
         let result = resolve(&deps, &BTreeMap::new(), &reg);
 
-        assert!(result.is_err());
-        if let Err(Error::Conflict(detail)) = &result {
-            assert_eq!(detail.name, "common-util");
-        }
+        assert!(
+            matches!(&result, Err(Error::Conflict(detail)) if detail.name == "common-util"),
+            "expected Conflict for common-util"
+        );
     }
 
     #[test]
