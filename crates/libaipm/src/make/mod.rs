@@ -1253,4 +1253,59 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Fs whose `create_dir_all` fails on the n-th call (1-based).
+    struct FailNthDirFs {
+        inner: MockFs,
+        calls: std::sync::atomic::AtomicUsize,
+        fail_at: usize,
+    }
+
+    impl crate::fs::Fs for FailNthDirFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            let n = self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+            if n == self.fail_at {
+                return Err(std::io::Error::other("injected"));
+            }
+            self.inner.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    /// A `create_dir_all` failure at each stage (plugin dir, `.claude-plugin`,
+    /// feature dir) propagates as an error.
+    #[test]
+    fn make_plugin_propagates_create_dir_failures() {
+        let marketplace_dir = Path::new("/project/.ai");
+        for fail_at in 1..=3 {
+            let fs = FailNthDirFs {
+                inner: MockFs::new(),
+                calls: std::sync::atomic::AtomicUsize::new(0),
+                fail_at,
+            };
+            seed_marketplace(&fs.inner, marketplace_dir);
+            let opts = PluginOpts {
+                marketplace_dir,
+                name: "failing",
+                engine: "claude",
+                features: &[Feature::Skill],
+            };
+            assert!(plugin(&opts, &fs).is_err(), "fail_at={fail_at} should error");
+        }
+    }
 }
