@@ -277,6 +277,19 @@ mod tests {
     }
 
     #[test]
+    fn install_existing_updates_cache_settings() {
+        let mut registry = Registry::default();
+        let _ = registry.install("local:./my-plugin".to_string(), &[], None, None);
+        let added = registry
+            .install("local:./my-plugin".to_string(), &[], Some(cache::Policy::SkipCache), Some(42))
+            .unwrap_or(true);
+        assert!(!added);
+        let plugin = registry.plugins.first();
+        assert_eq!(plugin.and_then(|p| p.cache_policy), Some(cache::Policy::SkipCache));
+        assert_eq!(plugin.and_then(|p| p.cache_ttl_secs), Some(42));
+    }
+
+    #[test]
     fn install_additive_engines() {
         let mut registry = Registry::default();
         let _ =
