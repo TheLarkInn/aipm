@@ -998,6 +998,21 @@ mod tests {
     }
 
     #[test]
+    fn with_index_handles_empty_and_corrupt_index_file() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+
+        // Empty file is treated as a fresh index.
+        std::fs::write(cache.index_path(), "").unwrap_or_else(|_| {});
+        assert!(cache.with_index(|_| {}).is_ok());
+
+        // Corrupt JSON surfaces an IndexParse error.
+        std::fs::write(cache.index_path(), "not json").unwrap_or_else(|_| {});
+        let result = cache.with_index(|_| {});
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn put_source_with_symlink_is_silently_skipped() {
         // Covers the `else if file_type.is_file()` False branch in
