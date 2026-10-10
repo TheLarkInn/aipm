@@ -1137,4 +1137,22 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn get_with_malformed_index_returns_index_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(temp.path().join("cache")).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "not json").unwrap_or_else(|_| {});
+
+        assert!(matches!(cache.get("some-spec"), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
+    fn with_index_malformed_index_returns_index_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(temp.path().join("cache")).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "not json").unwrap_or_else(|_| {});
+
+        assert!(matches!(cache.with_index(|_| {}), Err(Error::IndexParse { .. })));
+    }
 }
