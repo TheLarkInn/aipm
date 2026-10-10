@@ -515,6 +515,12 @@ fn copy_dir_contents(src: &Path, dst: &Path) -> Result<(), Error> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn policy_deserialize_non_string_is_error() {
+        let result: Result<Policy, _> = serde_json::from_str("42");
+        assert!(result.is_err());
+    }
+
     fn make_temp() -> tempfile::TempDir {
         match tempfile::tempdir() {
             Ok(t) => t,
