@@ -669,6 +669,23 @@ mod tests {
         );
     }
 
+    /// Covers the `?` error branch in `acquire_with_redirect`: when the initial
+    /// `acquire_git` call fails, the error propagates without checking redirects.
+    #[test]
+    fn acquire_with_redirect_initial_acquire_fails() {
+        let temp = make_temp();
+        let source = crate::spec::GitSource {
+            url: "not-a-valid-url://nowhere".to_string(),
+            path: None,
+            git_ref: None,
+        };
+        let result = acquire_with_redirect(&source, temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::GitClone { .. })),
+            "expected GitClone error, got: {result:?}",
+        );
+    }
+
     /// Covers the `git_ref` branch in `run_git_clone`: passing a `git_ref`
     /// causes `--branch <ref>` to be appended to the git command, which still
     /// fails for an invalid URL.
