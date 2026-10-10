@@ -640,6 +640,20 @@ mod tests {
     }
 
     #[test]
+    fn copy_to_session_unwritable_dest_returns_io_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let _ = cache.put("spec", &src, None);
+
+        // dest_dir is a regular file, so creating a child directory fails
+        let dest_file = temp.path().join("not_a_dir");
+        std::fs::write(&dest_file, "x").unwrap_or_else(|_| {});
+
+        let result = cache.copy_to_session("spec", &dest_file, "plugin");
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn copy_to_session() {
         let (temp, cache) = test_cache(Policy::Auto);
         let spec = "test-spec";
