@@ -629,6 +629,29 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_root_marketplace_dir_skips_settings() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "root-settings",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.map(|r| r.actions).unwrap_or_default();
+        assert!(!result.iter().any(|a| matches!(
+            a,
+            Action::PluginEnabled { .. } | Action::PluginAlreadyEnabled { .. }
+        )));
+        assert!(fs.get_content(Path::new("/.claude/settings.json")).is_none());
+    }
+
+    #[test]
     fn make_plugin_copilot_no_settings() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
