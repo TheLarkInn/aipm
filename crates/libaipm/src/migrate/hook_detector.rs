@@ -373,6 +373,23 @@ mod tests {
     }
 
     #[test]
+    fn detect_command_type_without_command_field() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.claude/settings.json"));
+        fs.files.insert(
+            PathBuf::from("/project/.claude/settings.json"),
+            r#"{"hooks":{"PreToolUse":[{"type":"command"},{"type":"command","command":42}]}}"#
+                .to_string(),
+        );
+
+        let detector = HookDetector;
+        let result = detector.detect(Path::new("/project/.claude"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.first().map(|a| a.referenced_scripts.len()), Some(0));
+    }
+
+    #[test]
     fn is_relative_script_detects_paths() {
         use std::path::Path;
         // Has directory separators
