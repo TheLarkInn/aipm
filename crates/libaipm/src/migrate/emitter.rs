@@ -4312,6 +4312,29 @@ mod tests {
     }
 
     #[test]
+    fn emit_package_plugin_rejects_unsafe_plugin_name() {
+        let fs = MockFs::new();
+        let artifact = make_skill_artifact();
+        let result = emit_package_plugin("..", &[artifact], Path::new("/ai"), true, &fs)
+            .ok()
+            .unwrap_or_default();
+        assert!(result.iter().any(|a| matches!(a, Action::Skipped { .. })));
+        assert!(fs.get_written(Path::new("/ai/aipm.toml")).is_none());
+    }
+
+    #[test]
+    fn emit_package_plugin_rejects_unsafe_artifact_name() {
+        let fs = MockFs::new();
+        let mut artifact = make_skill_artifact();
+        artifact.name = "a/b".to_string();
+        let result = emit_package_plugin("safe", &[artifact], Path::new("/ai"), true, &fs)
+            .ok()
+            .unwrap_or_default();
+        assert!(result.iter().any(|a| matches!(a, Action::Skipped { .. })));
+        assert!(fs.get_written(Path::new("/ai/safe/aipm.toml")).is_none());
+    }
+
+    #[test]
     fn emit_skill_files_copies_non_referenced_scripts_file() {
         // Covers the False branch of `referenced.contains(file.as_path())` in
         // `emit_skill_files` (line 135). A file whose path begins with `scripts/`
