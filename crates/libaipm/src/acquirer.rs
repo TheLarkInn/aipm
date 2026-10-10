@@ -599,6 +599,18 @@ mod tests {
         assert!(check_source_redirect(&dir).is_none());
     }
 
+    /// Covers the `read_dir` error mapping in `copy_dir_recursive` when the
+    /// source directory does not exist.
+    #[test]
+    fn copy_dir_recursive_missing_source_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("missing");
+        let dst = temp.path().join("dst");
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}");
+    }
+
     /// Covers the `acquire_local` path where the source IS a directory (False
     /// branch of `if !source.is_dir()`). The call proceeds past the dir-check,
     /// copies the directory, then fails at plugin validation because `tests/`
