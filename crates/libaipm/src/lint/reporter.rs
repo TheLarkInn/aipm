@@ -789,6 +789,19 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_with_errors_omits_succeeded_with_issues() {
+        // `error_count > 0` makes the `error_count == 0` guard false, so the
+        // SucceededWithIssues task-complete command must not be emitted.
+        let outcome = sample_outcome();
+        assert!(outcome.error_count > 0 && outcome.warning_count > 0);
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("##vso[task.logissue type=error"));
+        assert!(!output.contains("SucceededWithIssues"));
+    }
+
+    #[test]
     fn ci_azure_empty_diagnostics() {
         let outcome = Outcome {
             diagnostics: vec![],
