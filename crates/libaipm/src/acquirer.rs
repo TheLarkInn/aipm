@@ -1138,4 +1138,26 @@ mod tests {
             "expected PathNotFound error when subpath is a file, got: {result:?}"
         );
     }
+
+    /// Covers the `create_dir_all` error closure for the temp clone directory
+    /// in `acquire_git`: `dest_dir` is a regular file, so the directory cannot
+    /// be created beneath it.
+    #[test]
+    fn acquire_git_dest_dir_is_file_returns_io_error() {
+        let temp = make_temp();
+        let dest_file = temp.path().join("not-a-dir");
+        std::fs::write(&dest_file, "x").unwrap_or_else(|_| {});
+
+        let git_source = crate::spec::GitSource {
+            url: "https://invalid.example/repo.git".to_string(),
+            path: None,
+            git_ref: None,
+        };
+
+        let result = acquire_git(&git_source, &dest_file, Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::Io { .. })),
+            "expected Io error when dest_dir is a file, got: {result:?}"
+        );
+    }
 }
