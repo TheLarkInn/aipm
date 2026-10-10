@@ -424,6 +424,22 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the error propagation (`?`) after the recursive call for a
+    /// nested directory: a file inside a subdirectory cannot be copied
+    /// because the destination path is an existing directory.
+    #[test]
+    fn copy_dir_recursive_nested_copy_failure_propagates() {
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(src.join("sub")).unwrap_or_else(|_| {});
+        std::fs::write(src.join("sub/file.txt"), "x").unwrap_or_else(|_| {});
+        std::fs::create_dir_all(dst.join("sub/file.txt")).unwrap_or_else(|_| {});
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(result.is_err());
+    }
+
     #[test]
     fn copy_dir_recursive_skips_git_dir() {
         let temp = make_temp();
