@@ -1020,6 +1020,17 @@ mod tests {
     }
 
     #[test]
+    fn corrupt_index_returns_index_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        std::fs::create_dir_all(cache.root.join("entries")).unwrap();
+        std::fs::write(cache.root.join("cache_index.json"), "not json").unwrap();
+
+        assert!(matches!(cache.get("any"), Err(Error::IndexParse { .. })));
+        assert!(matches!(cache.put("any", &src, None), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn put_handles_already_removed_old_entry_dir() {
         // Covers the `if old_dir.exists()` False branch in put():
         // Store a first entry, then manually remove its directory to simulate
