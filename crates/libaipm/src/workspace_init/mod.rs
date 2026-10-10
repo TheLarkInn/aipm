@@ -884,6 +884,25 @@ mod tests {
     }
 
     #[test]
+    fn init_with_nothing_requested_yields_no_actions() {
+        let (tmp, _guard) = make_temp_dir("nothing-requested");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real).expect("init should succeed");
+        assert!(result.actions.is_empty());
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn gitignore_has_managed_markers() {
         let (tmp, _guard) = make_temp_dir("gitignore");
         let adaptors = default_adaptors();
