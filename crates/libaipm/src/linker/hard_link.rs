@@ -120,6 +120,22 @@ mod tests {
     }
 
     #[test]
+    fn assemble_parent_dir_blocked_by_file_returns_io_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash = store.store_file(b"content").expect("store file");
+        let target = tmp.path().join("links").join("conflict-pkg");
+
+        // "a" is linked as a file first, so creating the parent dir "a" for "a/b" fails.
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("a"), hash.clone());
+        file_hashes.insert(PathBuf::from("a/b"), hash);
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error: {result:?}");
+    }
+
+    #[test]
     fn assemble_empty_package() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let store = store::Store::new(tmp.path().join("store"));
