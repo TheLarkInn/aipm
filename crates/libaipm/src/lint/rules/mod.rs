@@ -386,4 +386,22 @@ mod tests {
         let rules = quality_rules_for_kind(&FeatureKind::Instructions, &config);
         assert!(rules.iter().any(|r| r.id() == "instructions/oversized"));
     }
+
+    #[test]
+    fn quality_rules_for_instructions_kind_with_custom_options() {
+        use crate::lint::config::RuleOverride;
+        use std::collections::BTreeMap;
+
+        let mut options = BTreeMap::new();
+        options.insert("lines".to_string(), toml::Value::Integer(10));
+        options.insert("characters".to_string(), toml::Value::Integer(500));
+        options.insert("resolve-imports".to_string(), toml::Value::Boolean(true));
+        let mut config = Config::default();
+        config.rule_overrides.insert(
+            "instructions/oversized".to_string(),
+            RuleOverride::Detailed { level: None, ignore: Vec::new(), options },
+        );
+        let rules = quality_rules_for_kind(&FeatureKind::Instructions, &config);
+        assert!(rules.iter().any(|r| r.id() == "instructions/oversized"));
+    }
 }
