@@ -558,6 +558,22 @@ mod tests {
         assert!(copy_dir_recursive(&src, &dst).is_ok());
     }
 
+    /// Covers the `read_dir` error mapping in `copy_dir_recursive`: a
+    /// nonexistent source directory yields `Error::Io` carrying the source path.
+    #[test]
+    fn copy_dir_recursive_nonexistent_src_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("missing-src");
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(&dst).unwrap_or_else(|_| {});
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if *path == src),
+            "expected Error::Io for missing source, got: {result:?}"
+        );
+    }
+
     /// Covers the `Error::CopyFailed` error mapping in `copy_dir_recursive`
     /// (lines 307–310): when `std::fs::copy` fails because the destination path
     /// is an existing directory (EISDIR on Linux), the error is wrapped as
