@@ -442,6 +442,19 @@ mod tests {
     }
 
     #[test]
+    fn extract_hook_script_references_command_handler_without_command_string() {
+        // A `"type": "command"` handler whose `command` is missing or not a string
+        // must be skipped — exercises the None arm of the `command` lookup.
+        let hooks = serde_json::json!({
+            "PreToolUse": [
+                { "type": "command" },
+                { "type": "command", "command": 42 }
+            ]
+        });
+        assert!(extract_hook_script_references(&hooks, Path::new(".")).is_empty());
+    }
+
+    #[test]
     fn is_relative_script_unrecognized_extension_returns_false() {
         // A bare filename with an extension that is not .sh/.py/.js should return false —
         // exercises the Some(ext) branch of extension().is_some_and(…) where the closure
