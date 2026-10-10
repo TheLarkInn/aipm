@@ -711,6 +711,27 @@ mod tests {
     }
 
     #[test]
+    fn put_replaces_entry_whose_old_dir_is_already_missing() {
+        // Covers the False branch of `if old_dir.exists()` in put(): the old
+        // index entry points at a directory that was deleted externally.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let spec = "missing-old-dir-spec";
+
+        let src = temp.path().join("src");
+        std::fs::create_dir_all(&src).unwrap_or_else(|_| {});
+        std::fs::write(src.join("version.txt"), "v1").unwrap_or_else(|_| {});
+        let dir1 = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(dir1.exists());
+        std::fs::remove_dir_all(&dir1).unwrap_or_else(|_| {});
+
+        let result = cache.put(spec, &src, None);
+        assert!(result.is_ok(), "put must succeed when old dir is missing: {result:?}");
+        let dir2 = result.unwrap_or_else(|_| PathBuf::new());
+        assert!(dir2.exists());
+        assert_ne!(dir1, dir2);
+    }
+
+    #[test]
     fn gc_removes_unreferenced_directories() {
         let temp = make_temp();
         let mut cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
