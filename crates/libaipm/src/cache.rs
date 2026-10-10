@@ -836,6 +836,18 @@ mod tests {
     // ---- Additional coverage tests ----
 
     #[test]
+    fn put_fails_with_index_parse_error_on_corrupt_index() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        assert!(cache.put("spec", &src, None).is_ok());
+
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+
+        let result = cache.put("other", &src, None);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn cache_only_corrupted_when_dir_missing() {
         let (temp, cache) = test_cache(Policy::CacheOnly);
         let src = create_source_plugin(&temp);
