@@ -984,6 +984,27 @@ mod tests {
     }
 
     #[test]
+    fn put_with_empty_index_file_starts_fresh_index() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "").is_ok());
+
+        assert!(cache.put("spec", &src, None).is_ok());
+        assert!(matches!(cache.get("spec"), Ok(Some(_))));
+    }
+
+    #[test]
+    fn put_with_corrupt_index_file_returns_index_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json {{{").is_ok());
+
+        assert!(matches!(cache.put("spec", &src, None), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn get_with_empty_index_file_returns_none() {
         // Covers the `content.is_empty()` True branch in read_index():
         // when the index file exists but is empty, treat it as a fresh cache.
