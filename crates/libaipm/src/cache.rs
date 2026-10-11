@@ -657,6 +657,16 @@ mod tests {
     }
 
     #[test]
+    fn get_with_corrupt_index_returns_index_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(temp.path().join("cache")).unwrap_or_else(|_| {});
+        std::fs::write(temp.path().join("cache").join("cache_index.json"), "not json")
+            .unwrap_or_else(|_| {});
+        let result = cache.get("github:owner/repo:plugin@main");
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn new_entry_dir_name_is_unique() {
         let a = new_entry_dir_name();
         // Small delay to ensure different timestamp contribution
