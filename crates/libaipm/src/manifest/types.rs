@@ -388,4 +388,17 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Exercises the known/unknown engine-name loop through the JSON deserializer.
+    #[test]
+    fn engine_set_serde_json_known_and_unknown_names() {
+        use serde::de::IntoDeserializer;
+        let mixed = serde_json::json!(["claude", "no-such-engine"]);
+        let set = engine_set_serde::deserialize(mixed.into_deserializer());
+        assert!(matches!(set, Ok(Some(ref s)) if !s.is_empty()), "got {set:?}");
+
+        let unknown = serde_json::json!(["no-such-engine"]);
+        let err = engine_set_serde::deserialize(unknown.into_deserializer());
+        assert!(err.is_err(), "all-unknown names must be rejected");
+    }
 }
