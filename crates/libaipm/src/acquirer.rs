@@ -354,6 +354,28 @@ mod tests {
         let _ = path; // satisfy unused warning
     }
 
+    /// Exercises the real `acquire_local` success path using a plugin dir
+    /// created under the current directory (`ValidatedPath` is CWD-relative).
+    #[test]
+    fn acquire_local_real_success_path() {
+        let src_root = tempfile::tempdir_in(".").unwrap_or_else(|_| std::process::abort());
+        let name = src_root
+            .path()
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        std::fs::create_dir_all(src_root.path().join(".claude-plugin")).unwrap_or_else(|_| {});
+        std::fs::write(src_root.path().join(".claude-plugin/plugin.json"), "{}")
+            .unwrap_or_else(|_| {});
+
+        let dest = make_temp();
+        let path = ValidatedPath::new(&name).unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(result.is_ok());
+        let plugin_path = result.unwrap_or_default();
+        assert!(plugin_path.join(".claude-plugin/plugin.json").exists());
+    }
+
     #[test]
     fn acquire_local_not_found() {
         let temp = make_temp();
