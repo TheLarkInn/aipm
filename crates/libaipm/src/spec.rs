@@ -764,6 +764,12 @@ mod tests {
     }
 
     #[test]
+    fn parse_marketplace_nested_repo_path_is_invalid() {
+        let result = "market:plugin@owner/repo/extra".parse::<Spec>();
+        assert!(matches!(result, Err(Error::Marketplace { .. })));
+    }
+
+    #[test]
     fn parse_marketplace_empty_ref_after_hash() {
         let result = "market:hello@owner/repo#".parse::<Spec>();
         assert!(result.is_err());
