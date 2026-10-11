@@ -373,6 +373,15 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_public_rejects_file_source() {
+        let temp = make_temp();
+        // Unit tests run with the crate dir as cwd, so `Cargo.toml` is a relative file.
+        let path = ValidatedPath::new("Cargo.toml").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotDirectory { .. })));
+    }
+
+    #[test]
     fn acquire_local_not_directory() {
         let temp = make_temp();
         let file_path = temp.path().join("not-a-dir");
