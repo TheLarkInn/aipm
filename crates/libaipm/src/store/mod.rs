@@ -622,6 +622,26 @@ mod tests {
         assert!(result.is_err(), "expected store_file() to fail when prefix dir creation fails");
     }
 
+    /// When a regular file inside the package is unreadable, `collect_files`
+    /// should propagate the read error.
+    #[cfg(unix)]
+    #[test]
+    fn store_package_errors_on_unreadable_file() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let (_tmp, store) = make_store();
+        let pkg = tempfile::tempdir().unwrap();
+        let file = pkg.path().join("secret.txt");
+        std::fs::write(&file, b"data").unwrap();
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+        // Privileged users can still read the file; nothing to assert then.
+        let readable = std::fs::read(&file).is_ok();
+        let result = store.store_package(pkg.path());
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert!(readable || result.is_err(), "expected store_package to fail on unreadable file");
+    }
+
     /// When `collect_files` cannot read a directory because it does not exist,
     /// `store_package` should propagate the I/O error.
     #[test]
