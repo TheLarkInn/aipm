@@ -882,6 +882,22 @@ mod tests {
     }
 
     #[test]
+    fn set_entry_ttl_on_fresh_cache_succeeds() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let result = cache.set_entry_ttl("missing", Some(5));
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn set_entry_ttl_with_corrupt_index_errors() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(cache.entries_dir()).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "not json").unwrap_or_else(|_| {});
+        let result = cache.set_entry_ttl("missing", Some(5));
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn copy_to_session_missing_spec_errors() {
         let (temp, cache) = test_cache(Policy::Auto);
         let session = temp.path().join("session");
