@@ -195,6 +195,26 @@ existing-pkg = "^1.0"
     }
 
     #[test]
+    fn add_dependency_rejects_invalid_toml() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let manifest = tmp.path().join("aipm.toml");
+        std::fs::write(&manifest, "not = [valid").expect("write");
+
+        let result = add_dependency(FS, &manifest, "pkg", "^1.0");
+        assert!(matches!(result, Err(Error::Manifest { .. })), "got {result:?}");
+    }
+
+    #[test]
+    fn remove_dependency_rejects_invalid_toml() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let manifest = tmp.path().join("aipm.toml");
+        std::fs::write(&manifest, "not = [valid").expect("write");
+
+        let result = remove_dependency(FS, &manifest, "pkg");
+        assert!(matches!(result, Err(Error::Manifest { .. })), "got {result:?}");
+    }
+
+    #[test]
     fn add_dependency_fails_when_dependencies_is_scalar() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let manifest = tmp.path().join("aipm.toml");
