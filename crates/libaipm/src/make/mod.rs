@@ -1019,6 +1019,29 @@ mod tests {
     }
 
     #[test]
+    fn register_in_marketplace_reports_already_registered() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/marketplace.json");
+        let content = serde_json::json!({ "plugins": [{ "name": "my-plugin" }] });
+        fs.seed(path, content.to_string().as_bytes());
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/project"),
+            name: "my-plugin",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        let mut actions = Vec::new();
+
+        let result = register_in_marketplace(&opts, &fs, path, &mut actions);
+
+        assert!(result.is_ok());
+        assert!(matches!(
+            actions.as_slice(),
+            [Action::PluginAlreadyRegistered { name }] if name == "my-plugin"
+        ));
+    }
+
+    #[test]
     fn make_plugin_marketplace_dir_at_root_skips_settings() {
         // When marketplace_dir has no parent (e.g. "/"), update_engine_settings
         // must silently skip the settings update rather than panicking.
