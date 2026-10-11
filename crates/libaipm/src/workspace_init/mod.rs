@@ -1290,6 +1290,52 @@ mod tests {
         }
     }
 
+    /// A mock filesystem where every path exists but reading fails.
+    struct ReadFailFs;
+
+    impl crate::fs::Fs for ReadFailFs {
+        fn exists(&self, _: &Path) -> bool {
+            true
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::other("mock: read failed"))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    /// Covers the `read_to_string(existing marketplace.json)?` error branch in
+    /// `scaffold_engine_marketplaces`.
+    #[test]
+    fn scaffold_engine_marketplaces_read_existing_fails() {
+        let ai_dir = std::path::PathBuf::from("/tmp/fake-mp-readfail/.ai");
+        let opts = Options {
+            dir: Path::new("/tmp/fake-mp-readfail"),
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let mut actions = Vec::new();
+        let result = scaffold_engine_marketplaces(&opts, &ai_dir, &ReadFailFs, &mut actions);
+        assert!(matches!(result, Err(Error::Io(_))), "expected Io error, got: {result:?}");
+        assert!(actions.is_empty());
+    }
+
     /// Covers the `write_file(marketplace.json)?` error branch (line 214): when
     /// writing marketplace.json fails, `scaffold_marketplace` propagates the error.
     #[test]
