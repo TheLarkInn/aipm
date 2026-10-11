@@ -1137,4 +1137,20 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[cfg(unix)]
+    #[test]
+    fn copy_dir_contents_skips_symlinks() {
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        let dst = temp.path().join("dst");
+        assert!(std::fs::create_dir_all(&src).is_ok());
+        assert!(std::fs::create_dir_all(&dst).is_ok());
+        assert!(std::fs::write(src.join("real.txt"), "x").is_ok());
+        assert!(std::os::unix::fs::symlink(src.join("real.txt"), src.join("link.txt")).is_ok());
+
+        assert!(copy_dir_contents(&src, &dst).is_ok());
+        assert!(dst.join("real.txt").exists());
+        assert!(!dst.join("link.txt").exists());
+    }
 }
