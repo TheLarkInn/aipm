@@ -998,6 +998,18 @@ mod tests {
     }
 
     #[test]
+    fn with_index_treats_empty_index_file_as_default() {
+        // Covers the `content.is_empty()` True branch in with_index():
+        // a write-path call on an empty index file starts from a default index.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let cache_root = temp.path().join("cache");
+        std::fs::create_dir_all(&cache_root).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "").unwrap_or_else(|_| {});
+
+        assert!(cache.mark_installed("missing-spec", true).is_ok());
+    }
+
+    #[test]
     #[cfg(unix)]
     fn put_source_with_symlink_is_silently_skipped() {
         // Covers the `else if file_type.is_file()` False branch in
