@@ -229,6 +229,20 @@ mod tests {
     }
 
     #[test]
+    fn parse_trailing_key_with_empty_value() {
+        let content = "---\nname: test\ndescription:\n---\nbody";
+        let fm = parse(content).ok().and_then(|o| o);
+        assert_eq!(
+            fm.as_ref().and_then(|f| f.fields.get("description")).map(String::as_str),
+            Some("")
+        );
+        assert_eq!(
+            fm.as_ref().and_then(|f| f.fields.get("name")).map(String::as_str),
+            Some("test")
+        );
+    }
+
+    #[test]
     fn parse_missing_closing_delimiter() {
         let content = "---\nname: test\nno closing";
         let result = parse(content);
