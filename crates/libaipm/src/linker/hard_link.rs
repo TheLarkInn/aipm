@@ -167,6 +167,47 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_is_file_returns_io_error() {
+        // remove_dir_all fails on a regular file, covering its error mapping.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, "x").expect("write file");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(matches!(&result, Err(Error::Io { path, .. }) if path == &target));
+    }
+
+    #[test]
+    fn assemble_target_parent_is_file_returns_io_error() {
+        // create_dir_all(target_dir) fails when an ancestor is a regular file.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, "x").expect("write file");
+        let target = blocker.join("pkg");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(matches!(&result, Err(Error::Io { path, .. }) if path == &target));
+    }
+
+    #[test]
+    fn assemble_file_parent_blocked_returns_io_error() {
+        // A file entry nested under a path component that is already a file
+        // makes create_dir_all(parent) fail.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash = store.store_file(b"a").expect("store file");
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("a"), hash.clone());
+        file_hashes.insert(PathBuf::from("a/b/c.txt"), hash);
+
+        let target = tmp.path().join("links").join("pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("a/b")));
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
