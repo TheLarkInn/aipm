@@ -1052,6 +1052,16 @@ mod tests {
     }
 
     #[test]
+    fn put_missing_source_dir_returns_io_error() {
+        // Covers the read_dir error closure in copy_dir_contents().
+        let (temp, cache) = test_cache(Policy::Auto);
+        let missing = temp.path().join("does_not_exist");
+
+        let result = cache.put("spec", &missing, None);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn cache_policy_parse_aliases() {
         // Each variant has additional aliases beyond the canonical `to_string()` form.
         // These branches are otherwise untouched by `cache_policy_roundtrip`.
