@@ -2000,6 +2000,24 @@ mod tests {
     }
 
     #[test]
+    fn emit_skill_skips_non_regular_skill_file() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
+        // Exists but has no content: simulates a non-regular file (e.g. symlink to a directory).
+        fs.exists.insert(PathBuf::from("/src/skills/deploy/linked"));
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let mut artifact = make_skill_artifact();
+        artifact.files = vec![PathBuf::from("SKILL.md"), PathBuf::from("linked")];
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+
+        assert!(result.is_ok());
+        assert!(fs.get_written(Path::new("/ai/deploy/skills/deploy/SKILL.md")).is_some());
+        assert!(fs.get_written(Path::new("/ai/deploy/skills/deploy/linked")).is_none());
+    }
+
+    #[test]
     fn emit_skill_with_non_skill_md_files() {
         let mut fs = MockFs::new();
         fs.files.insert(
