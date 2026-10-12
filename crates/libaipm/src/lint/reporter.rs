@@ -1075,6 +1075,25 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_propagates_logissue_write_error() {
+        struct FailOnLogIssue;
+        impl Write for FailOnLogIssue {
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                if buf.starts_with(b"##vso[task.logissue") {
+                    return Err(std::io::Error::other("write failed"));
+                }
+                Ok(buf.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let outcome = ci_azure_single_diagnostic_outcome(None, None);
+        let result = CiAzure.report(&outcome, &mut FailOnLogIssue);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn ci_azure_no_task_complete_on_clean_run() {
         let outcome = Outcome {
             diagnostics: vec![],
