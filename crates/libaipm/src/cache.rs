@@ -688,6 +688,20 @@ mod tests {
     }
 
     #[test]
+    fn put_with_empty_index_file_starts_fresh_index() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(cache.root.clone()).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "").unwrap_or_else(|_| {});
+
+        let src = create_source_plugin(&temp);
+        let result = cache.put("empty-index-spec", &src, None);
+        assert!(result.is_ok(), "put should treat an empty index file as default: {result:?}");
+
+        let index = cache.read_index().unwrap_or_default();
+        assert!(index.entries.contains_key("empty-index-spec"));
+    }
+
+    #[test]
     fn put_replaces_old_entry_dir() {
         let (temp, cache) = test_cache(Policy::Auto);
         let spec = "replace-spec";
