@@ -148,6 +148,20 @@ mod tests {
     }
 
     #[test]
+    fn link_package_propagates_assemble_error() {
+        let (tmp, store, _) = setup();
+        let links_dir = tmp.path().join(".aipm/links");
+        let plugins_dir = tmp.path().join("claude-plugins");
+
+        let mut missing = BTreeMap::new();
+        missing.insert(PathBuf::from("aipm.toml"), "0".repeat(64));
+
+        let result = link_package(&store, &missing, "bad-pkg", &links_dir, &plugins_dir);
+        assert!(result.is_err(), "expected assemble failure");
+        assert!(!plugins_dir.join("bad-pkg").exists());
+    }
+
+    #[test]
     fn unlink_nonexistent_is_noop() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let links_dir = tmp.path().join(".aipm/links");
