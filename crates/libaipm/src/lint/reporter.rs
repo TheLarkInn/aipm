@@ -1875,6 +1875,14 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_no_diagnostics_emits_no_group_markers() {
+        let outcome = Outcome::default();
+        let output = render_ci_azure(&outcome);
+        assert!(!output.contains("##[group]"));
+        assert!(!output.contains("##[endgroup]"));
+    }
+
+    #[test]
     fn ci_azure_group_line_escapes_newline_in_file_path() {
         let outcome = ci_azure_diag_for_path(PathBuf::from(".ai/p\nbar/SKILL.md"));
         let output = render_ci_azure(&outcome);
