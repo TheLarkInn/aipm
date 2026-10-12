@@ -522,6 +522,13 @@ mod tests {
         }
     }
 
+    #[test]
+    fn policy_deserialize_non_string_fails() {
+        assert!(serde_json::from_str::<Policy>("42").is_err());
+        assert!(serde_json::from_str::<Policy>("\"bogus\"").is_err());
+        assert!(matches!(serde_json::from_str::<Policy>("\"skip\""), Ok(Policy::SkipCache)));
+    }
+
     fn test_cache(policy: Policy) -> (tempfile::TempDir, Cache) {
         let temp = make_temp();
         let cache = Cache::with_root(temp.path().join("cache"), policy);
