@@ -750,6 +750,20 @@ mod tests {
     }
 
     #[test]
+    fn resolve_no_matching_candidate_returns_no_match_error() {
+        let mut reg = MockRegistry::new();
+        reg.add_package("foo", vec![("1.0.0", vec![])]);
+
+        let deps = vec![root_dep("foo", "^2.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg);
+        assert!(
+            matches!(&result, Err(Error::NoMatch { name, .. }) if name == "foo"),
+            "expected NoMatch for foo, got: {:?}",
+            result.err().map(|e| e.to_string())
+        );
+    }
+
+    #[test]
     fn resolve_empty_deps() {
         let reg = MockRegistry::new();
         let result = resolve(&[], &BTreeMap::new(), &reg).unwrap();
