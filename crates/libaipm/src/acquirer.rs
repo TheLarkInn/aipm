@@ -387,6 +387,19 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_dest_creation_failure_returns_io_error() {
+        let temp = make_temp();
+        // dest_dir is a regular file, so creating `dest_dir/src` must fail.
+        let blocker = temp.path().join("blocker");
+        std::fs::write(&blocker, "file").unwrap_or_else(|_| {});
+
+        // Cargo runs unit tests with the crate root as cwd, so `src` exists.
+        let path = ValidatedPath::new("src").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &blocker, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn acquire_local_validates_structure() {
         let temp = make_temp();
         // Create a directory without any marker files or aipm.toml
