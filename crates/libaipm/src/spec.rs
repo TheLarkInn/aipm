@@ -764,6 +764,17 @@ mod tests {
     }
 
     #[test]
+    fn parse_marketplace_github_shorthand_rejects_empty_repo_and_extra_segments() {
+        for input in ["market:plugin@owner/", "market:plugin@a/b/c"] {
+            let result = input.parse::<Spec>();
+            assert!(
+                matches!(result, Err(Error::Marketplace { .. })),
+                "expected marketplace error for {input}"
+            );
+        }
+    }
+
+    #[test]
     fn parse_marketplace_empty_ref_after_hash() {
         let result = "market:hello@owner/repo#".parse::<Spec>();
         assert!(result.is_err());
