@@ -688,6 +688,31 @@ mod tests {
     }
 
     #[test]
+    fn gc_stale_entry_with_missing_directory() {
+        // Covers the `dir.exists()` False branch for stale entries in gc():
+        // the stale entry's directory was already removed externally.
+        let temp = make_temp();
+        let mut cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
+        cache.gc_days = 0;
+
+        let src = create_source_plugin(&temp);
+        let dir = cache.put("gone-spec", &src, None).unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+
+        cache
+            .with_index(|index| {
+                if let Some(entry) = index.entries.get_mut("gone-spec") {
+                    entry.last_accessed = 0;
+                }
+            })
+            .unwrap();
+
+        assert!(cache.gc().is_ok());
+        let index = cache.read_index().unwrap();
+        assert!(!index.entries.contains_key("gone-spec"));
+    }
+
+    #[test]
     fn put_replaces_old_entry_dir() {
         let (temp, cache) = test_cache(Policy::Auto);
         let spec = "replace-spec";
