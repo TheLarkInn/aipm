@@ -367,6 +367,24 @@ mod tests {
     }
 
     #[test]
+    fn reinstall_existing_plugin_updates_cache_settings() {
+        let mut registry = Registry::default();
+        let _ = registry.install("local:./my-plugin".to_string(), &[], None, None);
+        let result = registry.install(
+            "local:./my-plugin".to_string(),
+            &[],
+            Some(cache::Policy::CacheOnly),
+            Some(60),
+        );
+        assert!(matches!(result, Ok(false)));
+        assert_eq!(registry.plugins.len(), 1);
+        assert_eq!(
+            registry.plugins.first().map(|p| (p.cache_policy, p.cache_ttl_secs)),
+            Some((Some(cache::Policy::CacheOnly), Some(60)))
+        );
+    }
+
+    #[test]
     fn uninstall_engine_missing_plugin() {
         let mut registry = Registry::default();
         assert!(!registry.uninstall_engine("nonexistent", &["claude".to_string()]));
