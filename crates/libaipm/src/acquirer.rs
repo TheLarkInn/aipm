@@ -707,11 +707,7 @@ mod tests {
                 .output()
         };
 
-        // Initialise repo; skip test if git is unavailable.
-        let Ok(init) = git(&["init", "-b", "main"]) else { return };
-        if !init.status.success() {
-            return;
-        }
+        let _ = git(&["init", "-b", "main"]);
         std::fs::create_dir_all(src.join(".claude-plugin")).unwrap();
         std::fs::write(src.join(".claude-plugin/plugin.json"), "{}").unwrap();
         git(&["add", "."]).unwrap();
@@ -747,10 +743,7 @@ mod tests {
                 .output()
         };
 
-        let Ok(init) = git(&["init", "-b", "main"]) else { return };
-        if !init.status.success() {
-            return;
-        }
+        let _ = git(&["init", "-b", "main"]);
 
         // Create subdirectory with valid Claude plugin structure
         let sub = src.join("plugins").join("my-plugin");
@@ -794,10 +787,7 @@ mod tests {
                 .output()
         };
 
-        let Ok(init) = git(&["init", "-b", "main"]) else { return };
-        if !init.status.success() {
-            return;
-        }
+        let _ = git(&["init", "-b", "main"]);
 
         // Only a top-level plugin — no "plugins/my-plugin" subdirectory
         std::fs::create_dir_all(src.join(".claude-plugin")).unwrap();
@@ -846,10 +836,7 @@ mod tests {
                 .output()
         };
 
-        let Ok(init) = sub_git(&["init", "-b", "main"]) else { return };
-        if !init.status.success() {
-            return;
-        }
+        let _ = sub_git(&["init", "-b", "main"]);
         std::fs::write(sub_src.join("stub.txt"), "stub").unwrap_or_else(|_| {});
         let _ = sub_git(&["add", "."]);
         let _ = sub_git(&["commit", "-m", "stub"]);
@@ -880,10 +867,7 @@ mod tests {
                 .output()
         };
 
-        let Ok(init) = parent_git(&["init", "-b", "main"]) else { return };
-        if !init.status.success() {
-            return;
-        }
+        let _ = parent_git(&["init", "-b", "main"]);
 
         // Write .gitmodules so git knows where the submodule lives.
         let gitmodules = format!(
@@ -902,10 +886,7 @@ mod tests {
         }
 
         let _ = parent_git(&["add", ".gitmodules"]);
-        let Ok(commit) = parent_git(&["commit", "-m", "add submodule"]) else { return };
-        if !commit.status.success() {
-            return;
-        }
+        let _ = parent_git(&["commit", "-m", "add submodule"]);
 
         // --- clone the parent (no --recurse-submodules) ----------------------
         // git creates plugins/empty-plugin/ as an empty directory because the
@@ -945,10 +926,7 @@ mod tests {
                 .output()
         };
 
-        let Ok(init) = git(&["init", "-b", "main"]) else { return };
-        if !init.status.success() {
-            return;
-        }
+        let _ = git(&["init", "-b", "main"]);
         std::fs::create_dir_all(src.join(".claude-plugin")).unwrap();
         std::fs::write(src.join(".claude-plugin/plugin.json"), "{}").unwrap();
         git(&["add", "."]).unwrap();
@@ -988,10 +966,7 @@ mod tests {
                 .output()
         };
 
-        let Ok(init) = real_git(&["init", "-b", "main"]) else { return };
-        if !init.status.success() {
-            return;
-        }
+        let _ = real_git(&["init", "-b", "main"]);
         std::fs::create_dir_all(real_src.join(".claude-plugin")).unwrap();
         std::fs::write(real_src.join(".claude-plugin/plugin.json"), "{}").unwrap();
         std::fs::write(real_src.join("REAL.md"), "real plugin").unwrap();
@@ -1013,10 +988,7 @@ mod tests {
                 .output()
         };
 
-        let Ok(stub_init) = stub_git(&["init", "-b", "main"]) else { return };
-        if !stub_init.status.success() {
-            return;
-        }
+        let _ = stub_git(&["init", "-b", "main"]);
         // Valid plugin structure so acquire_git can validate it.
         std::fs::create_dir_all(stub_src.join(".claude-plugin")).unwrap();
         std::fs::write(stub_src.join(".claude-plugin/plugin.json"), "{}").unwrap();
@@ -1064,10 +1036,7 @@ mod tests {
                 .output()
         };
 
-        let Ok(init) = git(&["init", "-b", "main"]) else { return };
-        if !init.status.success() {
-            return;
-        }
+        let _ = git(&["init", "-b", "main"]);
         // Valid plugin structure.
         std::fs::create_dir_all(repo_src.join(".claude-plugin")).unwrap();
         std::fs::write(repo_src.join(".claude-plugin/plugin.json"), "{}").unwrap();
@@ -1114,10 +1083,7 @@ mod tests {
                 .output()
         };
 
-        let Ok(init) = git(&["init", "-b", "main"]) else { return };
-        if !init.status.success() {
-            return;
-        }
+        let _ = git(&["init", "-b", "main"]);
 
         // Commit a regular file at the subpath location (not a directory)
         std::fs::write(src.join("my-plugin"), "not a directory").unwrap();
