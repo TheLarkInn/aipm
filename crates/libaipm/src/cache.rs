@@ -871,6 +871,17 @@ mod tests {
     }
 
     #[test]
+    fn mark_installed_corrupt_index_returns_index_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let root = temp.path().join("cache");
+        std::fs::create_dir_all(&root).unwrap_or_else(|_| {});
+        std::fs::write(root.join("cache_index.json"), "{ not valid json").unwrap_or_else(|_| {});
+
+        let result = cache.mark_installed("spec", true);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn skip_cache_put_returns_error() {
         let (_temp, cache) = test_cache(Policy::SkipCache);
         let src = _temp.path().join("src");
