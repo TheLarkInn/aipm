@@ -1489,6 +1489,24 @@ mod tests {
     }
 
     #[test]
+    fn emit_skill_files_copies_unreferenced_scripts_file() {
+        // A file under `scripts/` that is NOT in referenced_scripts must still be
+        // copied with the skill (false arm of `referenced.contains(..)`).
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "body".to_string());
+        fs.files.insert(PathBuf::from("/src/skills/deploy/scripts/other.sh"), "echo".to_string());
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let mut artifact = make_skill_artifact();
+        artifact.files = vec![PathBuf::from("scripts/other.sh")];
+        let _result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+
+        let copied = fs.get_written(Path::new("/ai/deploy/skills/deploy/scripts/other.sh"));
+        assert!(copied.is_some());
+    }
+
+    #[test]
     fn emit_rewrites_claude_skill_dir() {
         let mut fs = MockFs::new();
         fs.files.insert(
