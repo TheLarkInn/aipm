@@ -1078,6 +1078,18 @@ mod tests {
     }
 
     #[test]
+    fn corrupt_index_file_yields_index_parse_errors() {
+        // Covers the IndexParse error paths of read_index() and with_index()
+        // when the index file holds invalid JSON.
+        let (temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(temp.path().join("cache")).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "{not json").unwrap_or_else(|_| {});
+
+        assert!(matches!(cache.get("spec"), Err(Error::IndexParse { .. })));
+        assert!(matches!(cache.mark_installed("spec", true), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn touch_entry_missing_key_is_noop() {
         // Covers the False branch of `if let Some(entry) = index.entries.get_mut(spec_key)`
         // in touch_entry: when the spec_key is absent from the index (e.g. removed between
