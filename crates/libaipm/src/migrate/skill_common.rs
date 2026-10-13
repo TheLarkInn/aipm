@@ -725,6 +725,16 @@ mod tests {
     }
 
     #[test]
+    fn extract_pattern3_interpreter_preceded_by_tab_backtick_or_paren() {
+        // Covers the True branches of the `prev == b'\t'`, `b'`'`, and `b'('`
+        // checks in the Pattern 3 valid-start test.
+        for content in ["x\tbash scripts/a.sh", "x`bash scripts/a.sh", "x(bash scripts/a.sh"] {
+            let scripts = extract_script_references(content, "${CLAUDE_SKILL_DIR}/");
+            assert_eq!(scripts, vec![PathBuf::from("scripts/a.sh")], "content: {content:?}");
+        }
+    }
+
+    #[test]
     fn collect_files_skips_non_regular_file_entries() {
         // A DirEntry with is_dir=false but where is_file() returns false (simulates a
         // symlink-to-directory, named pipe, or other non-regular-file entry).
