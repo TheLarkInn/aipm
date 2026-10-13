@@ -1138,4 +1138,30 @@ mod tests {
             "expected PathNotFound error when subpath is a file, got: {result:?}"
         );
     }
+
+    /// Covers the `Error::Io` mapping in `copy_dir_recursive` when the source
+    /// directory cannot be read.
+    #[test]
+    fn copy_dir_recursive_missing_src_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("missing-src");
+        let dst = temp.path().join("dst");
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}");
+    }
+
+    /// Covers the `Error::Io` mapping in `acquire_git` when the temp clone
+    /// directory cannot be created because a file occupies its path.
+    #[test]
+    fn acquire_git_temp_clone_path_is_file_returns_io_error() {
+        let temp = make_temp();
+        std::fs::write(temp.path().join(".aipm-clone-temp"), "blocker").unwrap_or_else(|_| {});
+        let source = crate::spec::GitSource {
+            url: "not-a-valid-url://nowhere".to_string(),
+            path: None,
+            git_ref: None,
+        };
+        let result = acquire_git(&source, temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}");
+    }
 }
