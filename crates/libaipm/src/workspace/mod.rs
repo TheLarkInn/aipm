@@ -174,6 +174,29 @@ mod tests {
     }
 
     #[test]
+    fn find_root_skips_unparseable_manifest() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        std::fs::write(root.join("aipm.toml"), "this is = not [valid toml").unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, root);
+        assert!(result.is_none() || result.as_deref() != Some(root));
+    }
+
+    #[test]
+    fn find_root_skips_unreadable_manifest() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // A directory named aipm.toml exists but cannot be read as a file
+        std::fs::create_dir_all(root.join("aipm.toml")).unwrap();
+
+        let result = find_workspace_root(&crate::fs::Real, root);
+        assert!(result.is_none() || result.as_deref() != Some(root));
+    }
+
+    #[test]
     fn find_root_from_root_itself() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
