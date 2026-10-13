@@ -221,6 +221,18 @@ mod tests {
     }
 
     #[test]
+    fn parse_empty_value_keys_without_continuation() {
+        let content = "---\nname:\ndescription: Deploy\nhooks:\n---\nbody";
+        let fm = parse(content).ok().flatten();
+        assert_eq!(fm.as_ref().and_then(|f| f.fields.get("name")).map(String::as_str), Some(""));
+        assert_eq!(fm.as_ref().and_then(|f| f.fields.get("hooks")).map(String::as_str), Some(""));
+        assert_eq!(
+            fm.as_ref().and_then(|f| f.fields.get("description")).map(String::as_str),
+            Some("Deploy")
+        );
+    }
+
+    #[test]
     fn parse_no_frontmatter() {
         let content = "just plain text";
         let result = parse(content);
