@@ -355,6 +355,15 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_relative_file_is_not_directory() {
+        let temp = make_temp();
+        // Unit tests run with the crate root as cwd, so Cargo.toml is an existing file.
+        let path = ValidatedPath::new("Cargo.toml").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotDirectory { .. })));
+    }
+
+    #[test]
     fn acquire_local_not_found() {
         let temp = make_temp();
         let path = ValidatedPath::new("nonexistent").unwrap_or_else(|_| std::process::abort());
