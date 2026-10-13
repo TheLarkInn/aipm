@@ -2,6 +2,21 @@
 
 <!-- Entries are prepended (newest first). -->
 
+## 2026-10-13 — claude v2.1.296
+
+Previous: v2.1.128.
+
+| Field | Change |
+|-------|--------|
+| `hook_events` | **Added** — `PostToolBatch`, `UserPromptExpansion`, `PermissionDenied`, `PreModelSwitch`, `PostModelSwitch`, `DirectoryAdded`, `MessageDisplay` |
+| `hook_events[ToolError]` | **Changed** — now `deprecated: true`; absent from the 2.1.296 hook event list |
+| `tool_calls` | **Added** — `TaskCreate`, `TaskGet`, `TaskUpdate`, `TaskList`, `EnterPlanMode`, `CronCreate`, `CronDelete`, `CronList`, `ScheduleWakeup`, `Monitor`, `RemoteTrigger`, `ReportFindings`, `Workflow`, `Artifact`, `PushNotification`, `read_mcp_resource_dir`, `refresh_mcp_tools`, `send_feedback` (from `sdk-tools.d.ts` input types) |
+| `tool_compatibility.engine_exclusive_tools` | **Added** — the tools above (claude-only) |
+
+## 2026-10-13 — copilot v1.0.96
+
+Previous: v1.0.40. The package is now a thin loader plus a native binary; only string-level analysis was possible. Hook event names could not be re-verified from the binary, so `hook_events` and `tool_calls` are carried forward unchanged.
+
 ## 2026-05-05 — claude v2.1.128
 
 | Field | Change |
