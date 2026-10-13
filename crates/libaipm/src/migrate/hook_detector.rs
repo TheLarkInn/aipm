@@ -435,6 +435,12 @@ mod tests {
     }
 
     #[test]
+    fn is_relative_script_windows_drive_forward_slash_is_not_relative() {
+        assert!(!is_relative_script("C:/tools/check.sh", Path::new(".")));
+        assert!(!is_relative_script("d:/run.py", Path::new(".")));
+    }
+
+    #[test]
     fn is_relative_script_windows_backslash_path_is_relative() {
         // A Windows-style relative path using backslashes and no drive prefix should
         // be detected as a relative script — exercises the path.contains('\\') branch.
