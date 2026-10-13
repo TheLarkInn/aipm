@@ -1,7 +1,7 @@
 {
   "$schema": "../../../schemas/engine-api.schema.json",
   "meta_schema_version": "2.0.0",
-  "generated_at": "2026-05-05T13:04:12Z",
+  "generated_at": "2026-10-13T17:50:25Z",
   "engines": [
     {
       "name": "claude",
@@ -15,8 +15,8 @@
     }
   ],
   "versions": {
-    "claude": "2.1.128",
-    "copilot": "1.0.40"
+    "claude": "2.1.296",
+    "copilot": "1.0.96"
   },
   "apis": {
     "claude": {
@@ -206,6 +206,150 @@
           ],
           "deprecated": false,
           "notes": "Stop a running task"
+        },
+        {
+          "name": "TaskCreate",
+          "aliases": [
+            "TaskCreate"
+          ],
+          "deprecated": false,
+          "notes": "Create a tracked task (task-list tooling)"
+        },
+        {
+          "name": "TaskGet",
+          "aliases": [
+            "TaskGet"
+          ],
+          "deprecated": false,
+          "notes": "Get a task by id"
+        },
+        {
+          "name": "TaskUpdate",
+          "aliases": [
+            "TaskUpdate"
+          ],
+          "deprecated": false,
+          "notes": "Update a task"
+        },
+        {
+          "name": "TaskList",
+          "aliases": [
+            "TaskList"
+          ],
+          "deprecated": false,
+          "notes": "List tasks"
+        },
+        {
+          "name": "EnterPlanMode",
+          "aliases": [
+            "EnterPlanMode"
+          ],
+          "deprecated": false,
+          "notes": "Enter plan mode"
+        },
+        {
+          "name": "CronCreate",
+          "aliases": [
+            "CronCreate"
+          ],
+          "deprecated": false,
+          "notes": "Schedule a recurring prompt"
+        },
+        {
+          "name": "CronDelete",
+          "aliases": [
+            "CronDelete"
+          ],
+          "deprecated": false,
+          "notes": "Delete a scheduled prompt"
+        },
+        {
+          "name": "CronList",
+          "aliases": [
+            "CronList"
+          ],
+          "deprecated": false,
+          "notes": "List scheduled prompts"
+        },
+        {
+          "name": "ScheduleWakeup",
+          "aliases": [
+            "ScheduleWakeup"
+          ],
+          "deprecated": false,
+          "notes": "Schedule a wakeup"
+        },
+        {
+          "name": "Monitor",
+          "aliases": [
+            "Monitor"
+          ],
+          "deprecated": false,
+          "notes": "Monitor a background process"
+        },
+        {
+          "name": "RemoteTrigger",
+          "aliases": [
+            "RemoteTrigger"
+          ],
+          "deprecated": false,
+          "notes": "Trigger a remote agent"
+        },
+        {
+          "name": "ReportFindings",
+          "aliases": [
+            "ReportFindings"
+          ],
+          "deprecated": false,
+          "notes": "Report review findings"
+        },
+        {
+          "name": "Workflow",
+          "aliases": [
+            "Workflow"
+          ],
+          "deprecated": false,
+          "notes": "Run a workflow"
+        },
+        {
+          "name": "Artifact",
+          "aliases": [
+            "Artifact"
+          ],
+          "deprecated": false,
+          "notes": "Create an artifact"
+        },
+        {
+          "name": "PushNotification",
+          "aliases": [
+            "PushNotification"
+          ],
+          "deprecated": false,
+          "notes": "Send a push notification"
+        },
+        {
+          "name": "read_mcp_resource_dir",
+          "aliases": [
+            "ReadMcpResourceDir"
+          ],
+          "deprecated": false,
+          "notes": "Read an MCP resource directory"
+        },
+        {
+          "name": "refresh_mcp_tools",
+          "aliases": [
+            "RefreshMcpTools"
+          ],
+          "deprecated": false,
+          "notes": "Refresh MCP tool list"
+        },
+        {
+          "name": "send_feedback",
+          "aliases": [
+            "SendFeedback"
+          ],
+          "deprecated": false,
+          "notes": "Send feedback"
         }
       ],
       "hook_events": [
@@ -302,7 +446,8 @@
         {
           "name": "ToolError",
           "aliases": [],
-          "deprecated": false
+          "deprecated": true,
+          "notes": "Not present in the hook event list as of 2.1.296"
         },
         {
           "name": "Elicitation",
@@ -341,6 +486,41 @@
         },
         {
           "name": "FileChanged",
+          "aliases": [],
+          "deprecated": false
+        },
+        {
+          "name": "PostToolBatch",
+          "aliases": [],
+          "deprecated": false
+        },
+        {
+          "name": "UserPromptExpansion",
+          "aliases": [],
+          "deprecated": false
+        },
+        {
+          "name": "PermissionDenied",
+          "aliases": [],
+          "deprecated": false
+        },
+        {
+          "name": "PreModelSwitch",
+          "aliases": [],
+          "deprecated": false
+        },
+        {
+          "name": "PostModelSwitch",
+          "aliases": [],
+          "deprecated": false
+        },
+        {
+          "name": "DirectoryAdded",
+          "aliases": [],
+          "deprecated": false
+        },
+        {
+          "name": "MessageDisplay",
           "aliases": [],
           "deprecated": false
         }
@@ -2070,6 +2250,150 @@
         "unsupported_by": [
           "claude"
         ]
+      },
+      "TaskCreate": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskGet": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskUpdate": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskList": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "EnterPlanMode": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "CronCreate": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "CronDelete": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "CronList": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ScheduleWakeup": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Monitor": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "RemoteTrigger": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ReportFindings": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Workflow": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Artifact": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "PushNotification": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "read_mcp_resource_dir": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "refresh_mcp_tools": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "send_feedback": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
       }
     }
   },
@@ -2123,7 +2447,7 @@
         "Skills can be discovered from project (.github/skills/) and personal (~/.copilot/skills/) paths",
         "GEMINI.md is also recognized as a convention file (multi-engine repo support)",
         "MCP supports three transports: stdio, sse, http",
-        "Plugin strict mode defaults to true \u2014 schema validation is strict by default",
+        "Plugin strict mode defaults to true — schema validation is strict by default",
         "managed-agents-2026-04-01 feature flag gates managed agent functionality",
         "skills-2025-10-02 feature flag gates skills API",
         "copilot_cli_mcp_allowlist and copilot_cli_mcp_enterprise_allowlist flags gate MCP server access"
