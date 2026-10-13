@@ -425,6 +425,19 @@ mod tests {
     }
 
     #[test]
+    fn collect_command_scripts_blank_and_non_string_commands_ignored() {
+        // A whitespace-only command has no first token, and a non-string command is not
+        // a string at all; neither should yield a script reference.
+        let value = serde_json::json!([
+            {"type": "command", "command": "   "},
+            {"type": "command", "command": 42}
+        ]);
+        let mut scripts = Vec::new();
+        collect_command_scripts(&value, Path::new("/project"), &mut scripts);
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
     fn collect_command_scripts_with_missing_command_field() {
         // A hook object with type=command but no "command" key should not produce any
         // script reference — exercises the None branch of map.get("command").
