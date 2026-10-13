@@ -491,6 +491,28 @@ mod tests {
     }
 
     #[test]
+    fn unified_migrate_missing_explicit_source_yields_no_actions() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        init_marketplace(root);
+
+        let opts = Options {
+            dir: root,
+            source: Some(".does-not-exist"),
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let ai_dir = root.join(".ai");
+        let outcome = run(&opts, &ai_dir, &Real).expect("migrate succeeds");
+        assert!(
+            !outcome.actions.iter().any(|a| matches!(a, Action::PluginCreated { .. })),
+            "no plugins should be created for a missing source"
+        );
+    }
+
+    #[test]
     fn unified_migrate_dry_run_writes_report() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path();
