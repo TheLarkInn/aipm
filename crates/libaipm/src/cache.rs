@@ -563,6 +563,20 @@ mod tests {
     }
 
     #[test]
+    fn with_index_treats_empty_index_file_as_default() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "").is_ok());
+
+        let mut called = false;
+        let result = cache.with_index(|index| {
+            called = index.entries.is_empty();
+        });
+        assert!(result.is_ok());
+        assert!(called);
+    }
+
+    #[test]
     fn cache_put_and_get() {
         let (temp, cache) = test_cache(Policy::Auto);
         let spec = "github:owner/repo:plugin@main";
