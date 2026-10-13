@@ -412,6 +412,12 @@ mod tests {
     }
 
     #[test]
+    fn is_relative_script_rejects_windows_drive_path() {
+        assert!(!is_relative_script("C:\\tools\\check.sh", Path::new(".")));
+        assert!(!is_relative_script("D:/scripts/run.sh", Path::new(".")));
+    }
+
+    #[test]
     fn has_windows_drive_prefix_detects_drive_letters() {
         assert!(has_windows_drive_prefix("C:\\tools\\check.sh"));
         assert!(has_windows_drive_prefix("D:/scripts/run.sh"));
