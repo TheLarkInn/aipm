@@ -387,6 +387,24 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_public_nonexistent_returns_local_not_found() {
+        let temp = make_temp();
+        let path =
+            ValidatedPath::new("aipm-no-such-plugin-dir").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotFound { .. })));
+    }
+
+    #[test]
+    fn acquire_local_public_file_returns_local_not_directory() {
+        let temp = make_temp();
+        // Cargo.toml exists in the crate dir, which is the test working directory.
+        let path = ValidatedPath::new("Cargo.toml").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotDirectory { .. })));
+    }
+
+    #[test]
     fn acquire_local_validates_structure() {
         let temp = make_temp();
         // Create a directory without any marker files or aipm.toml
