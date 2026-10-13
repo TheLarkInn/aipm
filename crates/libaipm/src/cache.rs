@@ -984,6 +984,24 @@ mod tests {
     }
 
     #[test]
+    fn get_with_invalid_index_json_returns_index_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(temp.path().join("cache")).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "not json").unwrap_or_else(|_| {});
+
+        assert!(matches!(cache.get("some-spec"), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
+    fn get_with_unreadable_index_returns_io_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        // A directory at the index path exists but cannot be read as a file.
+        std::fs::create_dir_all(cache.index_path()).unwrap_or_else(|_| {});
+
+        assert!(matches!(cache.get("some-spec"), Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn get_with_empty_index_file_returns_none() {
         // Covers the `content.is_empty()` True branch in read_index():
         // when the index file exists but is empty, treat it as a fresh cache.
