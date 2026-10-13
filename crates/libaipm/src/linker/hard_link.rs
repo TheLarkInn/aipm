@@ -167,6 +167,47 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_is_file_returns_io_error() {
+        // remove_dir_all on a regular file fails, covering the cleanup error mapping.
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, "x").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(&result, Err(Error::Io { path, .. }) if *path == target), "{result:?}");
+    }
+
+    #[test]
+    fn assemble_target_parent_is_file_returns_io_error() {
+        // create_dir_all fails when an ancestor is a regular file.
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, "x").expect("write file");
+        let target = blocker.join("pkg");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(&result, Err(Error::Io { path, .. }) if *path == target), "{result:?}");
+    }
+
+    #[test]
+    fn assemble_file_parent_conflict_returns_io_error() {
+        // "blocker" is linked as a file first, so creating parent "blocker/" for
+        // "blocker/x" fails.
+        let (tmp, store, _) = make_store_and_package();
+        let hash = store.store_file(b"data").expect("store file");
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("blocker"), hash.clone());
+        file_hashes.insert(PathBuf::from("blocker/x"), hash);
+
+        let target = tmp.path().join("links").join("conflict-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("blocker")),
+            "{result:?}"
+        );
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
