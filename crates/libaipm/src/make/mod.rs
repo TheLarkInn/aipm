@@ -1253,4 +1253,49 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Fs whose `create_dir_all` always fails, to cover the error path of
+    /// `fs.create_dir_all(&settings_dir)?` in `update_engine_settings`.
+    struct FailingDirFs;
+
+    impl crate::fs::Fs for FailingDirFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"))
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "missing"))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn update_engine_settings_propagates_create_dir_error() {
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/project/.ai"),
+            name: "failing-plugin",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        let mut actions = Vec::new();
+        let result = update_engine_settings(
+            &opts,
+            &FailingDirFs,
+            Path::new("/project/.ai/.claude-plugin/marketplace.json"),
+            &mut actions,
+        );
+        assert!(matches!(result, Err(Error::Io(_))), "expected Io error, got {result:?}");
+        assert!(actions.is_empty(), "no actions should be recorded on failure");
+    }
 }
