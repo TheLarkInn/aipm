@@ -388,4 +388,14 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// A non-array value fails `Option::<Vec<String>>::deserialize`, covering the
+    /// `?` error propagation arm.
+    #[test]
+    fn engine_set_serde_non_array_returns_error() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value = serde_json::Value::Bool(true);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_err(), "non-array engines should fail: {result:?}");
+    }
 }
