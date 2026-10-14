@@ -1205,6 +1205,12 @@ mod tests {
     }
 
     #[test]
+    fn marketplace_location_without_slash_is_invalid() {
+        let result = "market:hello@justaname".parse::<Spec>();
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn marketplace_location_repo_has_slash() {
         // Exercise: repo.contains('/') in parse_market_location (line 419)
         let result = "market:hello@a/b/c".parse::<Spec>();
