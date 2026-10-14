@@ -1621,4 +1621,17 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    #[test]
+    fn parse_market_location_rejects_malformed_github_shorthand() {
+        // Covers the empty-repo and nested-path branches of the
+        // `owner/repo` shorthand check in `parse_market_location`.
+        for location in ["owner/", "owner/repo/extra"] {
+            let result = parse_market_location(location);
+            assert!(
+                matches!(result, Err(Error::Marketplace { .. })),
+                "expected Marketplace error for {location}"
+            );
+        }
+    }
 }
