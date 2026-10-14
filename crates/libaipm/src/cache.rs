@@ -911,6 +911,19 @@ mod tests {
     }
 
     #[test]
+    fn put_overwrite_tolerates_missing_old_dir() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let first = cache.put("spec", &src, None);
+        assert!(first.is_ok());
+        if let Ok(dir) = first {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+        let second = cache.put("spec", &src, None);
+        assert!(second.is_ok_and(|d| d.exists()));
+    }
+
+    #[test]
     fn mark_installed_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
