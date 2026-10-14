@@ -1469,6 +1469,20 @@ mod tests {
         );
     }
 
+    /// An empty rule table carries no level, ignore paths, or options, so no
+    /// override is recorded for it.
+    #[test]
+    fn load_lint_config_empty_rule_table_records_no_override() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("aipm.toml"), "[workspace.lints.\"skill/oversized\"]\n")
+            .unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert_eq!(config.severity_override("skill/oversized"), None);
+        assert!(config.rule_options("skill/oversized").is_empty());
+        assert!(config.rule_overrides.is_empty());
+    }
+
     /// Custom option keys are recorded even when `level` is absent, so that
     /// users can configure e.g. `lines = 200` without also specifying `level`.
     #[test]
