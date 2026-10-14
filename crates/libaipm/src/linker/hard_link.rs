@@ -147,6 +147,47 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_is_file_remove_failure_returns_error() {
+        // target exists but is a regular file, so remove_dir_all fails.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, b"file").expect("write target");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(matches!(&result, Err(Error::Io { path, .. }) if *path == target));
+    }
+
+    #[test]
+    fn assemble_create_target_dir_failure_returns_error() {
+        // The target's parent is a regular file, so create_dir_all fails.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"file").expect("write blocker");
+
+        let target = blocker.join("pkg");
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(matches!(&result, Err(Error::Io { path, .. }) if *path == target));
+    }
+
+    #[test]
+    fn assemble_nested_parent_creation_failure_returns_error() {
+        // "x" is linked as a file first, so creating the parent dir "x" for "x/y.txt" fails.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash = store.store_file(b"content").expect("store file");
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("x"), hash.clone());
+        file_hashes.insert(PathBuf::from("x/y.txt"), hash);
+
+        let target = tmp.path().join("links").join("pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("x")));
+    }
+
+    #[test]
     fn assemble_missing_hash_returns_error() {
         // A valid-format hash that was never stored — link_to returns NotFound,
         // covering the error mapping on the store.link_to call.
