@@ -1020,6 +1020,17 @@ mod tests {
     }
 
     #[test]
+    fn with_index_rejects_corrupt_index_json() {
+        // Covers the parse-error branch of `with_index` (non-empty, invalid JSON).
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "{not valid json").is_ok());
+
+        let result = cache.mark_installed("any-spec", true);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn put_handles_already_removed_old_entry_dir() {
         // Covers the `if old_dir.exists()` False branch in put():
         // Store a first entry, then manually remove its directory to simulate
