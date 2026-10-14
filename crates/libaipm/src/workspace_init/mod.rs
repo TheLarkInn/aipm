@@ -2091,6 +2091,29 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// With nothing requested, `init` produces no actions and must not
+    /// emit the "nothing to do" warning path (no `Found*` actions).
+    #[test]
+    fn init_with_nothing_requested_returns_no_actions() {
+        let (tmp, _guard) = make_temp_dir("init-nothing-requested");
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: None,
+        };
+        let result = init(&opts, &default_adaptors(), &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions, got {actions:?}");
+
+        cleanup(&tmp);
+    }
+
     /// Existing `aipm.toml` declares `engines = ["claude"]` but the
     /// wizard answer chose Copilot. Init must succeed (idempotent),
     /// leave the file unchanged, and emit a tracing::warn event naming
