@@ -748,4 +748,19 @@ mod tests {
             Some((14, 33))
         );
     }
+
+    #[test]
+    fn parse_trailing_key_with_empty_value_and_no_continuation() {
+        let fm = parse("---\nname: x\nhooks:\n---\nbody").ok().flatten();
+        assert_eq!(fm.as_ref().and_then(|f| f.fields.get("hooks")).map(String::as_str), Some(""));
+    }
+
+    #[test]
+    fn parse_tab_indented_continuation() {
+        let fm = parse("---\nhooks:\n\tfirst: 1\n---\n").ok().flatten();
+        assert_eq!(
+            fm.as_ref().and_then(|f| f.fields.get("hooks")).map(String::as_str),
+            Some("first: 1")
+        );
+    }
 }
