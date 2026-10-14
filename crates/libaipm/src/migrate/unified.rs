@@ -1165,6 +1165,20 @@ mod tests {
         );
     }
 
+    /// Covers the `None` arm of `if let Some(first) = per_artifact.first_mut()`
+    /// in the adapter-fallback loop of `build_plugin_plans`: an unhandled
+    /// adapter root with no artifacts yields no plans.
+    #[test]
+    fn build_plugin_plans_fallback_root_with_no_artifacts_yields_no_plans() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let mut adapter_artifacts: BTreeMap<PathBuf, Vec<Artifact>> = BTreeMap::new();
+        adapter_artifacts.insert(tmp.path().to_path_buf(), Vec::new());
+
+        let plans =
+            build_plugin_plans(&adapter_artifacts, &[], &Real).expect("empty root must not error");
+        assert!(plans.is_empty(), "no plans expected for a root without artifacts");
+    }
+
     /// Covers the "else" arm of `else if let Some(artifact) = plan.artifacts.first()`
     /// (line 373 in `emit_and_register`): when a `PluginPlan` has
     /// `is_package_scoped = false` and an empty `artifacts` vec, neither
