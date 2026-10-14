@@ -362,6 +362,24 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the success path of the real `acquire_local` (copy, file-count
+    /// check, validation) using a cwd-relative source directory.
+    #[test]
+    fn acquire_local_relative_path_success() {
+        let src_root = tempfile::tempdir_in(".").unwrap_or_else(|_| std::process::abort());
+        let name =
+            src_root.path().file_name().and_then(|n| n.to_str()).unwrap_or_default().to_string();
+        std::fs::create_dir_all(src_root.path().join(".claude-plugin")).unwrap_or_else(|_| {});
+        std::fs::write(src_root.path().join(".claude-plugin/plugin.json"), "{}")
+            .unwrap_or_else(|_| {});
+        let dest = make_temp();
+
+        let path = ValidatedPath::new(&name).unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(result.is_ok(), "expected success, got: {result:?}");
+        assert!(dest.path().join(&name).join(".claude-plugin/plugin.json").exists());
+    }
+
     #[test]
     fn acquire_local_from_source_not_found() {
         let temp = make_temp();
