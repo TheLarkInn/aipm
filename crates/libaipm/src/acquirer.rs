@@ -627,6 +627,19 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the `create_dir_all` error path in `acquire_local`: the destination
+    /// parent is a regular file, so creating `dest_dir/<folder>` fails with `Error::Io`.
+    #[test]
+    fn acquire_local_dest_dir_is_file_returns_io_error() {
+        let temp = make_temp();
+        let dest_file = temp.path().join("dest-is-a-file");
+        std::fs::write(&dest_file, "not a directory").unwrap_or_else(|_| {});
+
+        let path = ValidatedPath::new("tests").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &dest_file, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Error::Io, got {result:?}");
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
