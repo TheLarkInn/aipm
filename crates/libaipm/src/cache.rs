@@ -711,6 +711,21 @@ mod tests {
     }
 
     #[test]
+    fn put_succeeds_when_old_entry_dir_already_missing() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let spec = "missing-old-dir";
+        let src = create_source_plugin(&temp);
+
+        let dir1 = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(dir1.exists());
+        let _ = std::fs::remove_dir_all(&dir1);
+
+        let dir2 = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(dir2.exists());
+        assert_ne!(dir1, dir2);
+    }
+
+    #[test]
     fn gc_removes_unreferenced_directories() {
         let temp = make_temp();
         let mut cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
