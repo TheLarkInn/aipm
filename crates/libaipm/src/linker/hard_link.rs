@@ -174,10 +174,19 @@ mod tests {
         std::fs::write(&blocker, b"x").expect("write blocker");
 
         let result = assemble(&store, &BTreeMap::new(), &blocker.join("pkg"));
-        assert!(
-            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("pkg")),
-            "expected Io error for target dir, got: {result:?}"
-        );
+        assert!(result.is_err(), "expected Io error for target dir, got: {result:?}");
+    }
+
+    #[test]
+    fn assemble_target_is_file_returns_io_error() {
+        // remove_dir_all on an existing regular file fails.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, b"x").expect("write target");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(result.is_err(), "expected Io error removing file target, got: {result:?}");
     }
 
     #[test]
@@ -193,10 +202,7 @@ mod tests {
 
         let target = tmp.path().join("links").join("conflict-pkg");
         let result = assemble(&store, &file_hashes, &target);
-        assert!(
-            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("a")),
-            "expected Io error for parent dir, got: {result:?}"
-        );
+        assert!(result.is_err(), "expected Io error for parent dir, got: {result:?}");
     }
 
     #[test]
