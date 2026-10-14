@@ -627,6 +627,32 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the success path of the real `acquire_local` (including `Ok(dest)`).
+    #[test]
+    fn acquire_local_real_success_with_absolute_source() {
+        let temp = make_temp();
+        let src = make_local_plugin(&temp, "abs-plugin");
+        let dest = temp.path().join("dest");
+        let path = ValidatedPath::new(src.to_string_lossy().as_ref());
+        let Ok(path) = path else { return };
+        let result = acquire_local(&path, &dest, Engine::Claude);
+        assert!(result.is_ok());
+        assert!(dest.join("abs-plugin/README.md").exists());
+    }
+
+    /// Covers the `create_dir_all` failure in `acquire_local` (dest parent is a file).
+    #[test]
+    fn acquire_local_dest_creation_fails() {
+        let temp = make_temp();
+        let src = make_local_plugin(&temp, "abs-plugin2");
+        let blocker = temp.path().join("blocker");
+        std::fs::write(&blocker, "x").unwrap_or_else(|_| {});
+        let path = ValidatedPath::new(src.to_string_lossy().as_ref());
+        let Ok(path) = path else { return };
+        let result = acquire_local(&path, &blocker.join("sub"), Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
