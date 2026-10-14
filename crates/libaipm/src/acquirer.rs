@@ -627,6 +627,17 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the `acquire_local` path where the source does not exist on disk
+    /// (True branch of `if !source.exists()`).
+    #[test]
+    fn acquire_local_source_not_found() {
+        let temp = make_temp();
+        let path = ValidatedPath::new("definitely-missing-plugin-dir")
+            .unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotFound { .. })));
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
