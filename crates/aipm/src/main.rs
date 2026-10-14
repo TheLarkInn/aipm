@@ -1428,6 +1428,25 @@ mod tests {
         assert!(msg.contains("unsupported source"), "expected 'unsupported source' in: {msg}");
     }
 
+    /// `cmd_lint` accepts a supported `--source` value and proceeds past the
+    /// source validation (the `!SUPPORTED_SOURCES.contains` False branch).
+    #[test]
+    fn cmd_lint_supported_source_passes_validation() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = cmd_lint(
+            tmp.path().to_path_buf(),
+            Some(".claude".to_string()),
+            "human",
+            "never",
+            None,
+            None,
+            true,
+        );
+        if let Err(e) = result {
+            assert!(!e.to_string().contains("unsupported source"), "unexpected error: {e}");
+        }
+    }
+
     /// `load_lint_config` forwards unknown TOML keys (beyond level/ignore) into
     /// the `options` map of `RuleOverride::Detailed`.
     #[test]
