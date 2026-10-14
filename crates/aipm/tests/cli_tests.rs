@@ -421,3 +421,21 @@ fn list_global_with_installed_plugins() {
         .stdout(predicate::str::contains("local:./plugin-b"))
         .stdout(predicate::str::contains("claude"));
 }
+
+// =========================================================================
+// `update` — fails when no home directory can be determined
+// =========================================================================
+
+#[test]
+fn update_without_home_dir_fails() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    aipm()
+        .args(["update", "--dir"])
+        .arg(tmp.path())
+        .env_remove("HOME")
+        .env_remove("USERPROFILE")
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("could not determine home directory"));
+}
