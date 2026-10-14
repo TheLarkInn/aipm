@@ -1236,6 +1236,14 @@ mod tests {
     }
 
     #[test]
+    fn is_local_path_rejects_short_and_non_drive_locations() {
+        assert!(!is_local_path("a"));
+        assert!(!is_local_path("1:x"));
+        assert!(!is_local_path("ab"));
+        assert!(is_local_path("C:x"));
+    }
+
+    #[test]
     fn is_local_path_windows_drive() {
         // Exercise the Windows drive letter branch (lines 433-435)
         let spec = parse("market:my-plugin@C:\\Users\\marketplace");
