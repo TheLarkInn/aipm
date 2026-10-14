@@ -911,6 +911,19 @@ mod tests {
     }
 
     #[test]
+    fn copy_to_session_dest_is_file_errors() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        assert!(cache.put("spec", &src, None).is_ok());
+
+        let blocker = temp.path().join("blocker");
+        assert!(std::fs::write(&blocker, "x").is_ok());
+
+        let result = cache.copy_to_session("spec", &blocker, "plugin");
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn mark_installed_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
