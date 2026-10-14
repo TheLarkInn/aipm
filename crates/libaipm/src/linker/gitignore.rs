@@ -211,6 +211,17 @@ mod tests {
     }
 
     #[test]
+    fn add_entry_propagates_non_not_found_read_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        // A directory at the gitignore path makes the read fail with a non-NotFound error.
+        let gitignore = tmp.path().join(".gitignore");
+        std::fs::create_dir_all(&gitignore).expect("mkdir");
+
+        let result = add_entry(FS, &gitignore, "pkg");
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn add_entry_idempotent() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let gitignore = tmp.path().join(".gitignore");
