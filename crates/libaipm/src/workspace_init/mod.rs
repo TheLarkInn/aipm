@@ -1423,6 +1423,48 @@ mod tests {
         }
     }
 
+    struct FailReadFs;
+
+    impl crate::fs::Fs for FailReadFs {
+        fn exists(&self, _: &Path) -> bool {
+            true
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::other("mock: read failed"))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn init_workspace_fails_when_existing_manifest_unreadable() {
+        let tmp = std::path::PathBuf::from("/tmp/fake-ws-dir");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &FailReadFs);
+        assert!(result.is_err(), "expected error when existing aipm.toml cannot be read");
+    }
+
     #[test]
     fn init_workspace_fails_on_create_dir_error() {
         let tmp = std::path::PathBuf::from("/tmp/fake-ws-dir");
