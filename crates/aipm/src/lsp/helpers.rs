@@ -233,6 +233,12 @@ mod tests {
     // ── find_workspace_dir ────────────────────────────────────────────────────
 
     #[test]
+    fn workspace_dir_at_filesystem_root_falls_back_to_start() {
+        let root = std::path::Path::new("/");
+        assert_eq!(find_workspace_dir(root), root);
+    }
+
+    #[test]
     fn workspace_dir_with_ai_marker() {
         let dir = tempfile::tempdir().expect("tempdir");
         std::fs::create_dir_all(dir.path().join(".ai")).expect("mkdir .ai");
