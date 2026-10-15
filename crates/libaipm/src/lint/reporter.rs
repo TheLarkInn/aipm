@@ -1693,6 +1693,38 @@ mod tests {
     }
 
     #[test]
+    fn human_reporter_line_beyond_end_of_file_omits_snippet() {
+        let mut mock_fs = MockFs::new();
+        mock_fs.files.insert(PathBuf::from("/project/short.md"), "only line".to_string());
+        let reporter =
+            Human { fs: &mock_fs, color: ColorChoice::Never, base_dir: Path::new("/project") };
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Warning,
+                message: "line past eof".into(),
+                file_path: PathBuf::from("short.md"),
+                line: Some(50),
+                col: None,
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 0,
+            warning_count: 1,
+            sources_scanned: vec![],
+            ..Outcome::default()
+        };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("line past eof"));
+        assert!(output.contains("short.md"));
+    }
+
+    #[test]
     fn human_reporter_graceful_missing_file() {
         // File doesn't exist in mock fs — should still render without snippet
         let mock_fs = MockFs::new();
