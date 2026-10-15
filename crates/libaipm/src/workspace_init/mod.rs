@@ -2348,6 +2348,38 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `(Some(w), Some(d)) if w != d` arm in `compare_and_warn`:
+    /// an existing workspace manifest declares `engines = ["claude"]` while the
+    /// wizard selected Copilot. The on-disk file must be preserved.
+    #[test]
+    fn init_workspace_existing_engines_differ_from_wizard_preserved() {
+        let (tmp, _guard) = make_temp_dir("ws-engines-differ");
+        let existing = generate_workspace_manifest(Some(libaipm_engine_spec::EngineSet::CLAUDE));
+        std::fs::write(tmp.join("aipm.toml"), &existing).ok();
+        let original = std::fs::read(tmp.join("aipm.toml")).unwrap_or_default();
+
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = Vec::new();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: Some(libaipm_engine_spec::EngineSet::COPILOT),
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+
+        let after = std::fs::read(tmp.join("aipm.toml")).unwrap_or_default();
+        assert_eq!(original, after, "existing aipm.toml must not be overwritten");
+
+        cleanup(&tmp);
+    }
+
     /// Covers the `ai_existed = true` branch of the `||` in
     /// `scaffold_marketplace` (line 403, col 27):
     ///
