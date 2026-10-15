@@ -432,4 +432,15 @@ mod tests {
         assert_eq!(artifacts.len(), 1);
         assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("valid-agent"));
     }
+
+    #[test]
+    fn bare_agent_md_suffix_entry_is_skipped() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(PathBuf::from("/src/agents"), vec![de(".agent.md", false)]);
+
+        let detector = CopilotAgentDetector;
+        let artifacts = detector.detect(Path::new("/src"), &fs).ok().unwrap_or_default();
+        assert!(artifacts.is_empty());
+    }
 }
