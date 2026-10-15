@@ -176,6 +176,16 @@ mod tests {
     }
 
     #[test]
+    fn init_json_then_second_init_fails_with_set_global() {
+        let _guard = ENV_LOCK.lock();
+        let first = init(LevelFilter::OFF, LogFormat::Json);
+        let second = init(LevelFilter::OFF, LogFormat::Text);
+        // Whichever call ran first globally, a second call must fail.
+        assert!(matches!(second, Err(Error::SetGlobal { .. })));
+        drop(first);
+    }
+
+    #[test]
     fn error_display() {
         let e = Error::FileAppender { reason: "test".to_string() };
         assert!(e.to_string().contains("file appender"));
