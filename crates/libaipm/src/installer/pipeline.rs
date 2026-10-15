@@ -1877,6 +1877,42 @@ pkg-a = "^1.0"
         assert_eq!(removed, 1);
     }
 
+    #[test]
+    fn handle_removals_unlink_failure_returns_io_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let resolution = resolver::Resolution { packages: vec![] };
+        let old_lf = lockfile::types::Lockfile {
+            metadata: lockfile::types::Metadata {
+                lockfile_version: 1,
+                generated_by: "test".to_string(),
+            },
+            packages: vec![lockfile::types::Package {
+                name: "pkg-old".to_string(),
+                version: "9.9.9".to_string(),
+                source: "git+test".to_string(),
+                checksum: "sha512-old".to_string(),
+                dependencies: vec![],
+            }],
+        };
+
+        let links_dir = tmp.path().join(".aipm/links");
+        let plugins_dir = tmp.path().join("claude-plugins");
+        std::fs::create_dir_all(&links_dir).unwrap();
+        std::fs::create_dir_all(&plugins_dir).unwrap();
+        // A regular file where the assembled dir should be makes remove_dir_all fail.
+        std::fs::write(links_dir.join("pkg-old"), b"not a dir").unwrap();
+
+        let result = handle_removals(
+            &crate::fs::Real,
+            Some(&old_lf),
+            &resolution,
+            &links_dir,
+            &plugins_dir,
+            &plugins_dir.join(".gitignore"),
+        );
+        assert!(matches!(result, Err(Error::Io(_))), "got: {result:?}");
+    }
+
     // =========================================================================
     // clear_dev_links: state file exists with entries → entries are cleared
     // =========================================================================
