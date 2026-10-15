@@ -764,6 +764,14 @@ mod tests {
     }
 
     #[test]
+    fn parse_marketplace_invalid_locations() {
+        for loc in ["nolocation", "owner/", "a/b/c"] {
+            let result = format!("market:plugin@{loc}").parse::<Spec>();
+            assert!(matches!(result, Err(Error::Marketplace { .. })), "{loc}: {result:?}");
+        }
+    }
+
+    #[test]
     fn parse_marketplace_empty_ref_after_hash() {
         let result = "market:hello@owner/repo#".parse::<Spec>();
         assert!(result.is_err());
