@@ -554,6 +554,18 @@ mod tests {
     }
 
     #[test]
+    fn index_mutators_accept_empty_index_file() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "").is_ok());
+        assert!(cache.mark_installed("missing", true).is_ok());
+        assert!(std::fs::write(cache.index_path(), "").is_ok());
+        assert!(cache.set_entry_ttl("missing", Some(5)).is_ok());
+        assert!(std::fs::write(cache.index_path(), "").is_ok());
+        assert!(cache.gc().is_ok());
+    }
+
+    #[test]
     fn cache_miss_returns_none() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let result = cache.get("github:owner/repo:plugin@main");
