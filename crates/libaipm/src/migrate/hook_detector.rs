@@ -425,6 +425,16 @@ mod tests {
     }
 
     #[test]
+    fn collect_command_scripts_with_whitespace_only_command() {
+        // A whitespace-only command has no first token, so the fallback to the
+        // trimmed (empty) command is used and no script is recorded.
+        let value = serde_json::json!({"type": "command", "command": "   "});
+        let mut scripts = Vec::new();
+        collect_command_scripts(&value, Path::new("/project"), &mut scripts);
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
     fn collect_command_scripts_with_missing_command_field() {
         // A hook object with type=command but no "command" key should not produce any
         // script reference — exercises the None branch of map.get("command").
