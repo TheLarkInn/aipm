@@ -120,6 +120,17 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_is_file_returns_error() {
+        // An existing regular file at the target path makes the clean-up step fail.
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("not-a-dir");
+        std::fs::write(&target, "file").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(result, Err(Error::Io { ref path, .. }) if *path == target));
+    }
+
+    #[test]
     fn assemble_empty_package() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let store = store::Store::new(tmp.path().join("store"));
