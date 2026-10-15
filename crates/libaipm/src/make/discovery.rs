@@ -107,6 +107,21 @@ mod tests {
     }
 
     #[test]
+    fn mock_fs_recovers_from_poisoned_lock() {
+        let fs = std::sync::Arc::new(MockFs::new());
+        let fs2 = std::sync::Arc::clone(&fs);
+        let _ = std::thread::spawn(move || {
+            let _guard = fs2.files.lock();
+            std::panic::resume_unwind(Box::new("poison"));
+        })
+        .join();
+
+        fs.add_file("/project/.ai/.github/plugin/marketplace.json");
+        let result = find_marketplace(Path::new("/project"), fs.as_ref());
+        assert_eq!(result.unwrap_or_default(), PathBuf::from("/project/.ai"));
+    }
+
+    #[test]
     fn find_marketplace_walks_up() {
         let fs = MockFs::new();
         // Marketplace is two levels up
