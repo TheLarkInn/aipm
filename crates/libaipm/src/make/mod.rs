@@ -978,6 +978,32 @@ mod tests {
     }
 
     #[test]
+    fn register_in_marketplace_reports_already_registered() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        let marketplace_json = marketplace_dir.join(".claude-plugin").join("marketplace.json");
+        let seeded = crate::generate::marketplace::create("test-marketplace", &[]);
+        fs.seed(&marketplace_json, seeded.as_bytes());
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "dup-plugin",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        let mut actions = Vec::new();
+
+        assert!(register_in_marketplace(&opts, &fs, &marketplace_json, &mut actions).is_ok());
+        assert!(matches!(actions.first(), Some(Action::PluginRegistered { .. })));
+
+        actions.clear();
+        assert!(register_in_marketplace(&opts, &fs, &marketplace_json, &mut actions).is_ok());
+        assert!(
+            matches!(actions.first(), Some(Action::PluginAlreadyRegistered { name }) if name == "dup-plugin")
+        );
+    }
+
+    #[test]
     fn is_plugin_registered_returns_false_for_missing_file() {
         let fs = MockFs::new();
         let path = Path::new("/nonexistent/marketplace.json");
