@@ -103,6 +103,17 @@ mod tests {
     }
 
     #[test]
+    fn assemble_errors_when_target_parent_is_a_file() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, "not a dir").expect("write blocker");
+        let target = blocker.join("my-pkg");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error: {result:?}");
+    }
+
+    #[test]
     fn assemble_cleans_existing_directory() {
         let (tmp, store, file_hashes) = make_store_and_package();
         let target = tmp.path().join("links").join("my-pkg");
