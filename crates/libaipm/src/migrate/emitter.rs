@@ -1877,10 +1877,9 @@ mod tests {
         let mut artifact = make_skill_artifact();
         artifact.name = "../etc".to_string();
         let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
-        assert!(result.is_ok());
-        if let Some((_, actions)) = result.ok() {
-            assert!(actions.iter().any(|a| matches!(a, Action::Skipped { .. })));
-        }
+        assert!(result.is_ok_and(|(_, actions)| {
+            actions.iter().any(|a| matches!(a, Action::Skipped { .. }))
+        }));
     }
 
     #[test]
@@ -1893,10 +1892,9 @@ mod tests {
         let mut artifact = make_skill_artifact();
         artifact.name = "a/b".to_string();
         let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
-        assert!(result.is_ok());
-        if let Some((_, actions)) = result.ok() {
-            assert!(actions.iter().any(|a| matches!(a, Action::Skipped { .. })));
-        }
+        assert!(result.is_ok_and(|(_, actions)| {
+            actions.iter().any(|a| matches!(a, Action::Skipped { .. }))
+        }));
     }
 
     #[test]
