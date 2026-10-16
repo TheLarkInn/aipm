@@ -1138,4 +1138,28 @@ mod tests {
             "expected PathNotFound error when subpath is a file, got: {result:?}"
         );
     }
+
+    #[test]
+    fn copy_dir_recursive_skips_git_dir_and_copies_nested_dirs() {
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(src.join(".git")).unwrap();
+        std::fs::write(src.join(".git/config"), "x").unwrap();
+        std::fs::create_dir_all(src.join("nested")).unwrap();
+        std::fs::write(src.join("nested/a.txt"), "a").unwrap();
+        std::fs::create_dir_all(&dst).unwrap();
+
+        copy_dir_recursive(&src, &dst).unwrap();
+
+        assert!(!dst.join(".git").exists());
+        assert!(dst.join("nested/a.txt").is_file());
+    }
+
+    #[test]
+    fn copy_dir_recursive_missing_source_returns_io_error() {
+        let temp = make_temp();
+        let result = copy_dir_recursive(&temp.path().join("missing"), temp.path());
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
 }
