@@ -260,6 +260,14 @@ mod tests {
         assert_eq!(find_workspace_dir(&file), dir.path());
     }
 
+    #[test]
+    fn workspace_dir_walks_to_filesystem_root_and_falls_back() {
+        // No marker exists on the walk-up chain, so the loop reaches the
+        // root (parent == None) and falls back to the file's parent.
+        let file = Path::new("/aipm-nonexistent-root-test/orphan.md");
+        assert_eq!(find_workspace_dir(file), Path::new("/aipm-nonexistent-root-test"));
+    }
+
     // ── to_lsp_diagnostic ────────────────────────────────────────────────────
 
     #[test]
