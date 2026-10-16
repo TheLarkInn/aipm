@@ -682,6 +682,20 @@ mod tests {
     }
 
     #[test]
+    fn parse_trailing_key_with_empty_value() {
+        let content = "---\nname: x\nempty_key:\n---\nbody";
+        let fm = parse(content).unwrap_or_default().unwrap_or_default();
+        assert_eq!(fm.fields.get("empty_key").map(|s| s.as_str()), Some(""));
+    }
+
+    #[test]
+    fn parse_tab_indented_continuation() {
+        let content = "---\nhooks:\n\tline one\n---\nbody";
+        let fm = parse(content).unwrap_or_default().unwrap_or_default();
+        assert_eq!(fm.fields.get("hooks").map(|s| s.as_str()), Some("line one"));
+    }
+
+    #[test]
     fn parse_key_empty_value_no_continuation() {
         let content = "---\nempty_key:\nnext: value\n---\nbody";
         let result = parse(content);
