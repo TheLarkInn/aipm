@@ -919,6 +919,16 @@ mod tests {
     }
 
     #[test]
+    fn corrupt_index_returns_index_parse_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "{not json").is_ok());
+
+        assert!(matches!(cache.get("any"), Err(Error::IndexParse { .. })));
+        assert!(matches!(cache.mark_installed("any", true), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn set_entry_ttl_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
