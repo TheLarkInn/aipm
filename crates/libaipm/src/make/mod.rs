@@ -1253,4 +1253,75 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Fs whose `create_dir_all`/`write_file` fail for paths containing `needle`.
+    struct FailFs {
+        needle: &'static str,
+    }
+
+    impl FailFs {
+        fn fails(&self, path: &Path) -> bool {
+            path.to_string_lossy().contains(self.needle)
+        }
+    }
+
+    impl crate::fs::Fs for FailFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            if self.fails(path) {
+                return Err(std::io::Error::other("injected"));
+            }
+            Ok(())
+        }
+
+        fn write_file(&self, path: &Path, _: &[u8]) -> std::io::Result<()> {
+            if self.fails(path) {
+                return Err(std::io::Error::other("injected"));
+            }
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::other("injected"))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_io_errors_per_feature() {
+        let marketplace_dir = Path::new("/project/.ai");
+        let cases: [(&str, Feature); 6] = [
+            ("skills", Feature::Skill),
+            ("agents", Feature::Agent),
+            (".mcp.json", Feature::Mcp),
+            ("hooks", Feature::Hook),
+            ("output-styles", Feature::OutputStyle),
+            (".lsp.json", Feature::Lsp),
+        ];
+        for (needle, feature) in cases {
+            let fs = FailFs { needle };
+            let features = [feature];
+            let opts =
+                PluginOpts { marketplace_dir, name: "p", engine: "claude", features: &features };
+            assert!(plugin(&opts, &fs).is_err(), "expected error for {needle}");
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_plugin_dir_creation_error() {
+        let fs = FailFs { needle: "/project/.ai/p" };
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/project/.ai"),
+            name: "p",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        assert!(plugin(&opts, &fs).is_err());
+    }
 }
