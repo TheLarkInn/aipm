@@ -629,6 +629,26 @@ mod tests {
     }
 
     #[test]
+    fn update_engine_settings_skips_when_marketplace_dir_has_no_parent() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/");
+        let marketplace_json = marketplace_dir.join(".claude-plugin").join("marketplace.json");
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "rootless",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        let mut actions = Vec::new();
+
+        let result = update_engine_settings(&opts, &fs, &marketplace_json, &mut actions);
+
+        assert!(result.is_ok());
+        assert!(actions.is_empty(), "no settings actions expected without a parent dir");
+        assert!(fs.get_content(Path::new("/.claude/settings.json")).is_none());
+    }
+
+    #[test]
     fn make_plugin_copilot_no_settings() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
