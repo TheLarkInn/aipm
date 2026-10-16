@@ -627,6 +627,28 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the successful end of `acquire_local`: a valid plugin located
+    /// relative to the CWD is copied and validated, returning `Ok(dest)`.
+    #[test]
+    fn acquire_local_valid_relative_plugin_succeeds() {
+        let src_root = tempfile::Builder::new()
+            .prefix("aipm-acquire-local-")
+            .tempdir_in(".")
+            .unwrap_or_else(|_| std::process::abort());
+        make_local_plugin(&src_root, "my-plugin");
+        let rel = src_root
+            .path()
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| format!("{n}/my-plugin"))
+            .unwrap_or_default();
+        let path = ValidatedPath::new(&rel).unwrap_or_else(|_| std::process::abort());
+        let dest = make_temp();
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(result.is_ok());
+        assert!(dest.path().join("my-plugin/README.md").exists());
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
