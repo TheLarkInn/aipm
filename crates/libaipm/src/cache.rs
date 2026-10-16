@@ -554,6 +554,25 @@ mod tests {
     }
 
     #[test]
+    fn policy_from_str_aliases_and_unknown() {
+        let cases = [
+            ("AUTO", Policy::Auto),
+            ("cacheonly", Policy::CacheOnly),
+            ("skipcache", Policy::SkipCache),
+            ("skip", Policy::SkipCache),
+            ("force", Policy::ForceRefresh),
+            ("forcerefresh", Policy::ForceRefresh),
+            ("norefresh", Policy::CacheNoRefresh),
+            ("no-refresh", Policy::CacheNoRefresh),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(input.parse::<Policy>(), Ok(expected), "input: {input}");
+        }
+        let err = "bogus".parse::<Policy>();
+        assert!(err.is_err_and(|e| e.contains("Unknown cache policy: 'bogus'")));
+    }
+
+    #[test]
     fn cache_miss_returns_none() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let result = cache.get("github:owner/repo:plugin@main");
