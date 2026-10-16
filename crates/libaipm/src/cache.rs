@@ -1078,6 +1078,23 @@ mod tests {
     }
 
     #[test]
+    fn cache_policy_deserialize_unknown_returns_err() {
+        let result = serde_json::from_str::<Policy>("\"definitely-not-a-policy\"");
+        assert!(result.is_err(), "unknown policy string should fail to deserialize");
+        let non_string = serde_json::from_str::<Policy>("42");
+        assert!(non_string.is_err(), "non-string policy should fail to deserialize");
+    }
+
+    #[test]
+    fn get_with_corrupt_index_returns_parse_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(std::fs::create_dir_all(&cache.root).is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+        let result = cache.get("any-spec");
+        assert!(matches!(result, Err(Error::IndexParse { .. })), "corrupt index must error");
+    }
+
+    #[test]
     fn touch_entry_missing_key_is_noop() {
         // Covers the False branch of `if let Some(entry) = index.entries.get_mut(spec_key)`
         // in touch_entry: when the spec_key is absent from the index (e.g. removed between
