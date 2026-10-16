@@ -192,6 +192,35 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn error_variants_display_their_context() {
+        let io_err = || std::io::Error::new(std::io::ErrorKind::Other, "boom");
+
+        let msg =
+            Error::Io { path: std::path::PathBuf::from("/x/y"), source: io_err() }.to_string();
+        assert!(msg.contains("/x/y") && msg.contains("boom"));
+
+        let msg = Error::Seek { source: io_err() }.to_string();
+        assert!(msg.contains("seek") && msg.contains("boom"));
+
+        let msg = Error::Read { source: io_err() }.to_string();
+        assert!(msg.contains("read") && msg.contains("boom"));
+
+        let msg = Error::Write { source: io_err() }.to_string();
+        assert!(msg.contains("write") && msg.contains("boom"));
+    }
+
+    #[test]
+    fn read_content_fails_on_invalid_utf8() {
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let path = temp.path().join("bin.dat");
+        std::fs::write(&path, [0xff, 0xfe, 0xfd]).unwrap_or_else(|_| {});
+
+        let mut locked = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
+        let err = locked.read_content().err();
+        assert!(matches!(err, Some(Error::Read { .. })));
+    }
+
     /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
     fn unreachable_tempdir() -> tempfile::TempDir {
         tempfile::tempdir_in(".").unwrap_or_else(|_| {
