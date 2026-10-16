@@ -627,6 +627,25 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the success path of `acquire_local` using a CWD-relative plugin.
+    #[test]
+    fn acquire_local_relative_valid_plugin_succeeds() {
+        let holder = tempfile::tempdir_in(".").unwrap_or_else(|_| std::process::abort());
+        let plugin = make_local_plugin(&holder, "rel-plugin");
+        let rel = plugin
+            .strip_prefix(std::env::current_dir().unwrap_or_default())
+            .map(Path::to_path_buf)
+            .unwrap_or(plugin);
+        let rel_str = rel.to_string_lossy().replace('\\', "/");
+        let path = ValidatedPath::new(rel_str).unwrap_or_else(|_| std::process::abort());
+        let dest = make_temp();
+
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(result.is_ok());
+        let out = result.unwrap_or_default();
+        assert!(out.join("README.md").exists());
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
