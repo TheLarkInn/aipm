@@ -1525,6 +1525,14 @@ mod tests {
     }
 
     #[test]
+    fn market_location_without_slash_is_invalid() {
+        // A location with no '/' cannot be an owner/repo short form, so the
+        // `split_once('/')` fallback yields None and parsing fails.
+        let result = "market:hello@nodash".parse::<Spec>();
+        assert!(matches!(result, Err(Error::Marketplace { .. })));
+    }
+
+    #[test]
     fn git_spec_url_with_empty_path_after_colon() {
         let spec = parse("git:https://github.com/org/repo:");
         assert_eq!(spec.source_name(), "git");
