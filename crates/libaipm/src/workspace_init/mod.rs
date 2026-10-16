@@ -1290,6 +1290,51 @@ mod tests {
         }
     }
 
+    /// A mock filesystem where every path exists but reading any file fails.
+    struct ExistsReadFailFs;
+
+    impl crate::fs::Fs for ExistsReadFailFs {
+        fn exists(&self, _: &Path) -> bool {
+            true
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::new(std::io::ErrorKind::Other, "mock: read failed"))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    /// Covers the `fs.read_to_string(&manifest_path)?` error branch in
+    /// `init_workspace`: an existing `aipm.toml` that cannot be read propagates the error.
+    #[test]
+    fn init_workspace_existing_manifest_read_fails() {
+        let tmp = std::path::PathBuf::from("/tmp/fake-ws-read-fail");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: true,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &ExistsReadFailFs);
+        assert!(result.is_err(), "expected error when existing aipm.toml cannot be read");
+    }
+
     /// Covers the `write_file(marketplace.json)?` error branch (line 214): when
     /// writing marketplace.json fails, `scaffold_marketplace` propagates the error.
     #[test]
