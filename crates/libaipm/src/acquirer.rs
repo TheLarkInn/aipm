@@ -820,6 +820,48 @@ mod tests {
         );
     }
 
+    /// Covers the `!sub.is_dir()` operand of the subpath check: the subpath exists
+    /// in the clone but is a regular file, so `acquire_git` returns `PathNotFound`.
+    #[test]
+    fn acquire_git_subpath_is_file_returns_path_not_found() {
+        let source_temp = make_temp();
+        let src = source_temp.path();
+
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+
+        let Ok(init) = git(&["init", "-b", "main"]) else { return };
+        if !init.status.success() {
+            return;
+        }
+
+        std::fs::write(src.join("not-a-dir.txt"), "hello").unwrap();
+        git(&["add", "."]).unwrap();
+        git(&["commit", "-m", "init"]).unwrap();
+
+        let dest_temp = make_temp();
+        let sub_path = ValidatedPath::new("not-a-dir.txt").unwrap();
+        let git_source = crate::spec::GitSource {
+            url: src.to_string_lossy().to_string(),
+            path: Some(sub_path),
+            git_ref: None,
+        };
+
+        let result = acquire_git(&git_source, dest_temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::PathNotFound { .. })),
+            "expected PathNotFound error, got: {result:?}"
+        );
+    }
+
     /// Covers the `if is_empty` True branch in `acquire_git`: when the
     /// sub-path directory exists in the clone but contains no files (e.g. it is
     /// an uninitialised git submodule), `acquire_git` returns
