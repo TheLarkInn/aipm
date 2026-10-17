@@ -538,6 +538,19 @@ mod tests {
     }
 
     #[test]
+    fn corrupt_index_returns_parse_error_on_read_and_put() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "{not valid json").is_ok());
+
+        assert!(matches!(cache.read_index(), Err(Error::IndexParse { .. })));
+        assert!(matches!(cache.get("spec"), Err(Error::IndexParse { .. })));
+
+        let src = create_source_plugin(&temp);
+        assert!(matches!(cache.put("spec", &src, None), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn cache_policy_roundtrip() {
         for policy in [
             Policy::Auto,
