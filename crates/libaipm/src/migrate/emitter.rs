@@ -1724,6 +1724,23 @@ mod tests {
     }
 
     #[test]
+    fn generate_manifest_hook_artifact_with_hooks_metadata_lists_hooks_once() {
+        let artifact = Artifact {
+            kind: ArtifactKind::Hook,
+            name: "project-hooks".to_string(),
+            source_path: PathBuf::from("/src/settings.json"),
+            files: Vec::new(),
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata {
+                hooks: Some("PreToolUse: check".to_string()),
+                ..ArtifactMetadata::default()
+            },
+        };
+        let manifest = generate_plugin_manifest(&artifact, "project-hooks");
+        assert_eq!(manifest.matches("hooks = [\"hooks/hooks.json\"]").count(), 1);
+    }
+
+    #[test]
     fn generate_manifest_no_description() {
         let artifact = Artifact {
             kind: ArtifactKind::Command,
