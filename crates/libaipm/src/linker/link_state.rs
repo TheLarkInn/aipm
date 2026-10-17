@@ -237,6 +237,17 @@ mod tests {
     }
 
     #[test]
+    fn add_remove_list_propagate_read_errors() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("links.toml");
+        std::fs::write(&path, "not [valid toml").expect("write invalid toml");
+
+        assert!(add(FS, &path, make_entry("a", "/x")).is_err());
+        assert!(remove(FS, &path, "a").is_err());
+        assert!(list(FS, &path).is_err());
+    }
+
+    #[test]
     fn write_to_root_returns_error() {
         // write_file_with_parents on "/" fails with EISDIR or permission error.
         let result = write(FS, Path::new("/"), &State::default());
