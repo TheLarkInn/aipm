@@ -1423,6 +1423,29 @@ mod tests {
         }
     }
 
+    /// With both `workspace` and `marketplace` disabled nothing is created and
+    /// nothing is found, so the "found nothing to do" warning is skipped.
+    #[test]
+    fn init_with_all_phases_disabled_produces_no_actions() {
+        let (tmp, _guard) = make_temp_dir("init-all-disabled");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+        assert!(!tmp.join("aipm.toml").exists());
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_workspace_fails_on_create_dir_error() {
         let tmp = std::path::PathBuf::from("/tmp/fake-ws-dir");
