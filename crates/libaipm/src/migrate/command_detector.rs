@@ -128,6 +128,22 @@ mod tests {
     }
 
     #[test]
+    fn detect_skips_subdirectories_and_non_markdown_files() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/commands"));
+        fs.dirs.insert(
+            PathBuf::from("/src/commands"),
+            vec![de("nested", true), de("notes.txt", false), de("review.md", false)],
+        );
+        fs.files.insert(PathBuf::from("/src/commands/review.md"), "Review the code".to_string());
+
+        let detector = CommandDetector;
+        let artifacts = detector.detect(Path::new("/src"), &fs).ok().unwrap_or_default();
+        assert_eq!(artifacts.len(), 1);
+        assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("review"));
+    }
+
+    #[test]
     fn detect_command_md_file() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/src/commands"));
