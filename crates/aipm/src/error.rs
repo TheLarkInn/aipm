@@ -125,11 +125,7 @@ mod tests {
     #[test]
     fn from_serde_json_error() {
         // Intentionally invalid JSON — parse must fail.
-        let json_err = match serde_json::from_str::<serde_json::Value>("{{invalid") {
-            Err(e) => e,
-            Ok(_) => return,
-        };
-        let cli: CliError = json_err.into();
-        assert!(matches!(cli, CliError::Json(_)));
+        let result = serde_json::from_str::<serde_json::Value>("{{invalid").map_err(CliError::from);
+        assert!(matches!(result, Err(CliError::Json(_))));
     }
 }
