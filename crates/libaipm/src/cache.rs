@@ -538,6 +538,20 @@ mod tests {
     }
 
     #[test]
+    fn put_replacing_entry_with_missing_old_dir_succeeds() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let first = cache.put("github:owner/repo:plugin@main", &src, None);
+        assert!(first.is_ok());
+        if let Ok(old_dir) = first {
+            assert!(std::fs::remove_dir_all(&old_dir).is_ok());
+            let second = cache.put("github:owner/repo:plugin@main", &src, None);
+            assert!(second.is_ok());
+            assert!(!old_dir.exists());
+        }
+    }
+
+    #[test]
     fn cache_policy_roundtrip() {
         for policy in [
             Policy::Auto,
