@@ -518,6 +518,41 @@ mod tests {
         assert!(output.contains("1 error(s) emitted"));
     }
 
+    struct FailAfter {
+        remaining: usize,
+    }
+
+    impl Write for FailAfter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if self.remaining == 0 {
+                return Err(std::io::Error::other("write failed"));
+            }
+            self.remaining -= 1;
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn text_reporter_propagates_write_errors_at_every_stage() {
+        let outcome = sample_outcome();
+        let empty = Outcome::default();
+        let mut failures = 0;
+        for budget in 0..12 {
+            if Text.report(&outcome, &mut FailAfter { remaining: budget }).is_err() {
+                failures += 1;
+            }
+            if Text.report(&empty, &mut FailAfter { remaining: budget }).is_err() {
+                failures += 1;
+            }
+        }
+        assert!(failures >= 8);
+        assert!(Text.report(&outcome, &mut FailAfter { remaining: 1000 }).is_ok());
+    }
+
     #[test]
     fn text_reporter_no_issues() {
         let outcome = Outcome {
