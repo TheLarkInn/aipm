@@ -1137,4 +1137,17 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn with_index_treats_empty_index_file_as_default() {
+        // Covers the `content.is_empty()` True branch in with_index().
+        let (_temp, cache) = test_cache(Policy::Auto);
+        cache.ensure_dirs().unwrap();
+        std::fs::write(cache.index_path(), "").unwrap();
+
+        cache.mark_installed("missing-spec", true).unwrap();
+
+        let index = cache.read_index().unwrap();
+        assert!(index.entries.is_empty());
+    }
 }
