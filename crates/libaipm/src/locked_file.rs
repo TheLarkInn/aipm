@@ -192,6 +192,51 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn read_content_on_write_only_handle_returns_read_error() {
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let path = temp.path().join("wo.json");
+        let file = OpenOptions::new().write(true).create(true).truncate(false).open(&path);
+        assert!(file.is_ok());
+        if let Ok(file) = file {
+            let mut locked = LockedFile { file };
+            let result = locked.read_content();
+            assert!(matches!(result, Err(Error::Read { .. })));
+            if let Err(e) = result {
+                assert!(e.to_string().contains("Failed to read locked file"));
+            }
+        }
+    }
+
+    #[test]
+    fn write_content_on_read_only_handle_returns_write_error() {
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let path = temp.path().join("ro.json");
+        assert!(std::fs::write(&path, b"data").is_ok());
+        let file = File::open(&path);
+        assert!(file.is_ok());
+        if let Ok(file) = file {
+            let mut locked = LockedFile { file };
+            let result = locked.write_content("new");
+            assert!(matches!(result, Err(Error::Write { .. })));
+            if let Err(e) = result {
+                assert!(e.to_string().contains("Failed to write locked file"));
+            }
+        }
+    }
+
+    #[test]
+    fn io_error_display_includes_path() {
+        let err = Error::Io {
+            path: std::path::PathBuf::from("/x/y.json"),
+            source: std::io::Error::other("boom"),
+        };
+        let msg = err.to_string();
+        assert!(msg.contains("y.json") && msg.contains("boom"));
+        let seek = Error::Seek { source: std::io::Error::other("s") };
+        assert!(seek.to_string().contains("seek"));
+    }
+
     /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
     fn unreachable_tempdir() -> tempfile::TempDir {
         tempfile::tempdir_in(".").unwrap_or_else(|_| {
