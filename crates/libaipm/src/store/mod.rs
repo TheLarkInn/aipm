@@ -514,6 +514,13 @@ mod tests {
         assert!(!is_cross_device(&err));
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn is_cross_device_true_for_exdev() {
+        let err = std::io::Error::from_raw_os_error(18);
+        assert!(is_cross_device(&err));
+    }
+
     #[test]
     fn link_to_errors_on_existing_target_same_dir() {
         let (_tmp, store) = make_store();
