@@ -144,6 +144,15 @@ mod tests {
     }
 
     #[test]
+    fn detect_source_dir_without_parent() {
+        let fs = MockFs::new();
+        let detector = McpDetector;
+        let result = detector.detect(Path::new("/"), &fs);
+        assert!(result.is_ok());
+        assert_eq!(result.ok().unwrap_or_default().len(), 0);
+    }
+
+    #[test]
     fn detect_no_mcp_json() {
         let fs = MockFs::new();
         let detector = McpDetector;
