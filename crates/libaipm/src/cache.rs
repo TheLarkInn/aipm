@@ -1052,6 +1052,14 @@ mod tests {
     }
 
     #[test]
+    fn put_with_missing_source_dir_returns_io_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let missing = temp.path().join("does-not-exist");
+        let result = cache.put("missing-source", &missing, None);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn cache_policy_parse_aliases() {
         // Each variant has additional aliases beyond the canonical `to_string()` form.
         // These branches are otherwise untouched by `cache_policy_roundtrip`.
