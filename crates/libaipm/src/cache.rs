@@ -1078,6 +1078,18 @@ mod tests {
     }
 
     #[test]
+    fn with_index_treats_empty_index_file_as_default() {
+        // Covers the `content.is_empty()` True branch in with_index(): a present but
+        // empty index file is treated as a fresh index when taking the write lock.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "").is_ok());
+
+        let result = cache.mark_installed("some-spec", true);
+        assert!(result.is_ok(), "empty index file must be treated as an empty index");
+    }
+
+    #[test]
     fn touch_entry_missing_key_is_noop() {
         // Covers the False branch of `if let Some(entry) = index.entries.get_mut(spec_key)`
         // in touch_entry: when the spec_key is absent from the index (e.g. removed between
