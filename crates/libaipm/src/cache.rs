@@ -1052,6 +1052,18 @@ mod tests {
     }
 
     #[test]
+    fn with_index_treats_empty_index_file_as_default() {
+        // Covers the `content.is_empty()` True branch in with_index(): an
+        // existing but empty index file must be treated as an empty index.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(&cache.root).unwrap();
+        std::fs::write(cache.index_path(), "").unwrap();
+
+        assert!(cache.mark_installed("missing-spec", true).is_ok());
+        assert!(cache.set_entry_ttl("missing-spec", Some(5)).is_ok());
+    }
+
+    #[test]
     fn cache_policy_parse_aliases() {
         // Each variant has additional aliases beyond the canonical `to_string()` form.
         // These branches are otherwise untouched by `cache_policy_roundtrip`.
