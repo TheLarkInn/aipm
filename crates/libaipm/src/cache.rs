@@ -688,6 +688,20 @@ mod tests {
     }
 
     #[test]
+    fn put_replace_tolerates_missing_old_entry_dir() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let spec = "github:owner/repo:plugin@main";
+
+        let dir1 = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+        let _ = std::fs::remove_dir_all(&dir1);
+
+        let dir2 = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert_ne!(dir1, dir2);
+        assert!(dir2.exists());
+    }
+
+    #[test]
     fn put_replaces_old_entry_dir() {
         let (temp, cache) = test_cache(Policy::Auto);
         let spec = "replace-spec";
