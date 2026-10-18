@@ -1254,72 +1254,75 @@ mod tests {
         );
     }
 
-    /// Fs whose directory creation or file writes fail on demand.
-    struct FailingFs {
-        fail_dirs: bool,
-        fail_writes: bool,
+    /// Fs that fails the Nth mutating call (create_dir_all / write_file).
+    struct FailNthFs {
+        inner: MockFs,
+        calls: Mutex<usize>,
+        fail_at: usize,
     }
 
-    impl crate::fs::Fs for FailingFs {
-        fn exists(&self, _: &Path) -> bool {
-            false
-        }
-
-        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
-            if self.fail_dirs {
-                Err(std::io::Error::other("dir failure"))
+    impl FailNthFs {
+        fn tick(&self) -> std::io::Result<()> {
+            let mut calls = self.calls.lock().unwrap_or_else(|p| p.into_inner());
+            *calls += 1;
+            if *calls == self.fail_at {
+                Err(std::io::Error::other("injected failure"))
             } else {
                 Ok(())
             }
         }
+    }
 
-        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
-            if self.fail_writes {
-                Err(std::io::Error::other("write failure"))
-            } else {
-                Ok(())
-            }
+    impl crate::fs::Fs for FailNthFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
         }
 
-        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
-            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "not found"))
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            self.tick()?;
+            self.inner.create_dir_all(path)
         }
 
-        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
-            Ok(Vec::new())
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.tick()?;
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
         }
     }
 
     #[test]
-    fn make_plugin_propagates_create_dir_error() {
-        let fs = FailingFs { fail_dirs: true, fail_writes: false };
-        let opts = PluginOpts {
-            marketplace_dir: Path::new("/project/.ai"),
-            name: "x",
-            engine: "claude",
-            features: &[Feature::Skill],
-        };
-        assert!(matches!(plugin(&opts, &fs), Err(Error::Io(_))));
-    }
-
-    #[test]
-    fn make_plugin_propagates_write_error_for_each_feature() {
-        let fs = FailingFs { fail_dirs: false, fail_writes: true };
-        for feature in [
+    fn make_plugin_propagates_io_errors_at_every_step() {
+        let marketplace_dir = Path::new("/project/.ai");
+        let features = [
             Feature::Skill,
             Feature::Agent,
             Feature::Mcp,
             Feature::Hook,
             Feature::OutputStyle,
             Feature::Lsp,
-        ] {
-            let opts = PluginOpts {
-                marketplace_dir: Path::new("/project/.ai"),
-                name: "x",
-                engine: "claude",
-                features: &[feature],
-            };
-            assert!(matches!(plugin(&opts, &fs), Err(Error::Io(_))), "feature {feature:?}");
+            Feature::Extension,
+            Feature::Command,
+        ];
+        for engine in ["claude", "both"] {
+            for fail_at in 1..=60 {
+                let fs = FailNthFs { inner: MockFs::new(), calls: Mutex::new(0), fail_at };
+                seed_marketplace(&fs.inner, marketplace_dir);
+                let opts = PluginOpts { marketplace_dir, name: "x", engine, features: &features };
+                let result = plugin(&opts, &fs);
+                let calls = *fs.calls.lock().unwrap_or_else(|p| p.into_inner());
+                if calls >= fail_at {
+                    assert!(matches!(result, Err(Error::Io(_))), "{engine} fail_at={fail_at}");
+                } else {
+                    assert!(result.is_ok(), "{engine} fail_at={fail_at}");
+                }
+            }
         }
     }
 }
