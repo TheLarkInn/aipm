@@ -735,6 +735,13 @@ mod tests {
     }
 
     #[test]
+    fn parse_empty_value_on_last_key_is_flushed() {
+        let content = "---\nname: x\nhooks:\n---\nbody";
+        let fm = parse(content).ok().flatten();
+        assert_eq!(fm.as_ref().and_then(|f| f.fields.get("hooks")).map(String::as_str), Some(""));
+    }
+
+    #[test]
     fn field_value_range_trailing_spaces_trim() {
         // Trailing spaces should not extend end_col
         assert_eq!(field_value_range("name: my-skill   ", "name"), Some((7, 15)));
