@@ -1233,6 +1233,8 @@ mod tests {
         /// When set, is_file returns true and read_to_string returns PermissionDenied.
         /// Simulates a readable-looking but unreadable file (e.g. permission error).
         fail_read_path: Mutex<Option<PathBuf>>,
+        /// When true, create_dir_all returns PermissionDenied.
+        fail_create_dir: bool,
     }
 
     impl MockFs {
@@ -1244,6 +1246,7 @@ mod tests {
                 written: Mutex::new(HashMap::new()),
                 fail_write_path: Mutex::new(None),
                 fail_read_path: Mutex::new(None),
+                fail_create_dir: false,
             }
         }
 
@@ -1285,7 +1288,13 @@ mod tests {
                     .is_some_and(|p| p == path)
         }
 
-        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            if self.fail_create_dir {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    format!("mkdir denied: {}", path.display()),
+                ));
+            }
             Ok(())
         }
 
@@ -3738,6 +3747,15 @@ mod tests {
         let mut counter = 0;
         let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
         assert!(result.is_err(), "should fail when skill file is unreadable");
+    }
+
+    #[test]
+    fn emit_skill_files_returns_error_on_create_dir_failure() {
+        let mut fs = MockFs::new();
+        fs.fail_create_dir = true;
+        let artifact = make_skill_artifact();
+        let result = emit_skill_files(&artifact, Path::new("/ai/deploy"), &fs);
+        assert!(result.is_err(), "should fail when creating the destination dir fails");
     }
 
     #[test]
