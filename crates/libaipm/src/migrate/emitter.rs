@@ -1489,6 +1489,26 @@ mod tests {
     }
 
     #[test]
+    fn emit_skips_referenced_script_that_does_not_exist() {
+        // Covers the False branch of `fs.exists(&source)` in `copy_referenced_scripts`:
+        // a referenced script missing from disk is silently skipped, not written.
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/src/skills/deploy/SKILL.md"),
+            "Run ${CLAUDE_SKILL_DIR}/scripts/missing.sh".to_string(),
+        );
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let mut artifact = make_skill_artifact();
+        artifact.referenced_scripts = vec![PathBuf::from("scripts/missing.sh")];
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+
+        assert!(result.is_ok());
+        assert!(fs.get_written(Path::new("/ai/deploy/scripts/missing.sh")).is_none());
+    }
+
+    #[test]
     fn emit_rewrites_claude_skill_dir() {
         let mut fs = MockFs::new();
         fs.files.insert(
