@@ -592,6 +592,15 @@ mod tests {
     }
 
     #[test]
+    fn cache_get_corrupt_index_returns_parse_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(std::fs::create_dir_all(&cache.root).is_ok());
+        assert!(std::fs::write(cache.index_path(), "{not valid json").is_ok());
+        let result = cache.get("github:owner/repo:plugin@main");
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn cache_only_errors_on_miss() {
         let (_temp, cache) = test_cache(Policy::CacheOnly);
         let result = cache.get("missing-spec");
