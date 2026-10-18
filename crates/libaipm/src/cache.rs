@@ -515,6 +515,14 @@ fn copy_dir_contents(src: &Path, dst: &Path) -> Result<(), Error> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn policy_deserialize_rejects_unknown_value() {
+        let result: Result<Policy, _> = serde_json::from_str("\"bogus\"");
+        assert!(result.is_err());
+        let ok: Result<Policy, _> = serde_json::from_str("\"auto\"");
+        assert!(matches!(ok, Ok(Policy::Auto)));
+    }
+
     fn make_temp() -> tempfile::TempDir {
         match tempfile::tempdir() {
             Ok(t) => t,
