@@ -541,6 +541,20 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn link_to_parent_creation_failure_returns_io_error() {
+        let (tmp, store) = make_store();
+        let hash = store.store_file(b"parent creation failure").unwrap();
+
+        // A regular file as the would-be parent directory makes create_dir_all fail
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"file").unwrap();
+        let target = blocker.join("sub").join("out.txt");
+
+        let result = store.link_to(&hash, &target);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
     /// On Linux the store lives in `/dev/shm` (tmpfs) while the target lives
     /// in `/tmp` (ext4). A hard-link across those two filesystems fails with
     /// EXDEV (raw OS error 18), which triggers the copy-fallback path in
