@@ -1405,6 +1405,17 @@ features = ["json"]
     }
 
     #[test]
+    fn install_fails_on_invalid_manifest() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let config = setup_project(tmp.path());
+        std::fs::write(&config.manifest_path, "this is = not [valid toml").expect("write manifest");
+        let registry = make_registry();
+
+        let result = install(&crate::fs::Real, &config, &registry);
+        assert!(matches!(result, Err(Error::Manifest { .. })));
+    }
+
+    #[test]
     fn build_pins_from_packages() {
         let packages = vec![
             lockfile::types::Package {
