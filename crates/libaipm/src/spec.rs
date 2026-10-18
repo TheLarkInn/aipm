@@ -1621,4 +1621,52 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    /// Writer that accepts at most `remaining` bytes, then fails.
+    struct LimitedWriter {
+        remaining: usize,
+    }
+
+    impl std::fmt::Write for LimitedWriter {
+        fn write_str(&mut self, s: &str) -> std::fmt::Result {
+            if s.len() > self.remaining {
+                return Err(std::fmt::Error);
+            }
+            self.remaining -= s.len();
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn git_source_display_propagates_write_errors() {
+        // Covers the `?` error branches of `Display for GitSource` by
+        // failing the writer at each successive write.
+        let source = GitSource {
+            url: "https://example.com/r.git".to_string(),
+            path: ValidatedPath::new("sub").ok(),
+            git_ref: Some("main".to_string()),
+        };
+        let full = source.to_string().len();
+        for limit in 0..full {
+            let mut w = LimitedWriter { remaining: limit };
+            assert!(std::fmt::write(&mut w, format_args!("{source}")).is_err());
+        }
+        let mut w = LimitedWriter { remaining: full };
+        assert!(std::fmt::write(&mut w, format_args!("{source}")).is_ok());
+    }
+
+    #[test]
+    fn marketplace_source_display_propagates_write_errors() {
+        // Covers the `?` error branches of `Display for MarketplaceSource`.
+        let source = MarketplaceSource {
+            plugin_name: "p".to_string(),
+            market_location: MarketLocation::GitUrl { url: "u".to_string() },
+            git_ref: Some("v1".to_string()),
+        };
+        let full = source.to_string().len();
+        for limit in 0..full {
+            let mut w = LimitedWriter { remaining: limit };
+            assert!(std::fmt::write(&mut w, format_args!("{source}")).is_err());
+        }
+    }
 }
