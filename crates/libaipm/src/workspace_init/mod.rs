@@ -2091,6 +2091,37 @@ mod tests {
         cleanup(&tmp);
     }
 
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_only_found_existing_emits_nothing_to_do_warning() {
+        let (tmp, _guard) = make_temp_dir("only-found-existing-warns");
+        let claude_dir = tmp.join(".ai/.claude-plugin");
+        std::fs::create_dir_all(&claude_dir).ok();
+        let valid = crate::generate::marketplace::create("preexisting", &[]);
+        std::fs::write(claude_dir.join("marketplace.json"), &valid).ok();
+
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = Vec::new();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions
+            .iter()
+            .any(|a| matches!(a, InitAction::MarketplaceManifestFoundExisting { .. })));
+        assert!(logs_contain("found nothing to do"));
+
+        cleanup(&tmp);
+    }
+
     /// Existing `aipm.toml` declares `engines = ["claude"]` but the
     /// wizard answer chose Copilot. Init must succeed (idempotent),
     /// leave the file unchanged, and emit a tracing::warn event naming
