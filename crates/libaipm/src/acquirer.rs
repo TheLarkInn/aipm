@@ -1138,4 +1138,16 @@ mod tests {
             "expected PathNotFound error when subpath is a file, got: {result:?}"
         );
     }
+
+    #[test]
+    fn acquire_local_public_rejects_file_source() {
+        // Tests run with the crate dir as cwd, where Cargo.toml is a regular file.
+        let temp = make_temp();
+        let path = ValidatedPath::new("Cargo.toml").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::LocalNotDirectory { .. })),
+            "expected LocalNotDirectory, got: {result:?}"
+        );
+    }
 }
