@@ -1138,4 +1138,27 @@ mod tests {
             "expected PathNotFound error when subpath is a file, got: {result:?}"
         );
     }
+
+    /// Covers the `read_dir` error closure in `copy_dir_recursive`.
+    #[test]
+    fn copy_dir_recursive_missing_src_returns_io_error() {
+        let temp = make_temp();
+        let result = copy_dir_recursive(&temp.path().join("missing"), &temp.path().join("dst"));
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
+
+    /// Covers the temp-clone `create_dir_all` error closure in `acquire_git`.
+    #[test]
+    fn acquire_git_dest_is_file_returns_io_error() {
+        let temp = make_temp();
+        let file = temp.path().join("file");
+        std::fs::write(&file, "x").unwrap();
+        let source = crate::spec::GitSource {
+            url: "not-a-valid-url://nowhere".to_string(),
+            path: None,
+            git_ref: None,
+        };
+        let result = acquire_git(&source, &file, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
 }
