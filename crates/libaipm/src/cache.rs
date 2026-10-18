@@ -522,6 +522,16 @@ mod tests {
         }
     }
 
+    #[test]
+    fn policy_serde_round_trip_and_invalid() {
+        let json = serde_json::to_string(&Policy::CacheOnly).unwrap_or_default();
+        assert_eq!(json, "\"cache-only\"");
+        let parsed: Result<Policy, _> = serde_json::from_str(&json);
+        assert_eq!(parsed.ok(), Some(Policy::CacheOnly));
+        let bad: Result<Policy, _> = serde_json::from_str("\"bogus\"");
+        assert!(bad.is_err());
+    }
+
     fn test_cache(policy: Policy) -> (tempfile::TempDir, Cache) {
         let temp = make_temp();
         let cache = Cache::with_root(temp.path().join("cache"), policy);
