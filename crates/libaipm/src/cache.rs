@@ -538,6 +538,11 @@ mod tests {
     }
 
     #[test]
+    fn cache_policy_deserialize_rejects_non_string() {
+        assert!(serde_json::from_str::<Policy>("42").is_err());
+    }
+
+    #[test]
     fn cache_policy_roundtrip() {
         for policy in [
             Policy::Auto,
