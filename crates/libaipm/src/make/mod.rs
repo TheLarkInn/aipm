@@ -1253,4 +1253,73 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Fs whose directory creation or file writes fail on demand.
+    struct FailingFs {
+        fail_dirs: bool,
+        fail_writes: bool,
+    }
+
+    impl crate::fs::Fs for FailingFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            if self.fail_dirs {
+                Err(std::io::Error::other("dir failure"))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            if self.fail_writes {
+                Err(std::io::Error::other("write failure"))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "not found"))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_create_dir_error() {
+        let fs = FailingFs { fail_dirs: true, fail_writes: false };
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/project/.ai"),
+            name: "x",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        assert!(matches!(plugin(&opts, &fs), Err(Error::Io(_))));
+    }
+
+    #[test]
+    fn make_plugin_propagates_write_error_for_each_feature() {
+        let fs = FailingFs { fail_dirs: false, fail_writes: true };
+        for feature in [
+            Feature::Skill,
+            Feature::Agent,
+            Feature::Mcp,
+            Feature::Hook,
+            Feature::OutputStyle,
+            Feature::Lsp,
+        ] {
+            let opts = PluginOpts {
+                marketplace_dir: Path::new("/project/.ai"),
+                name: "x",
+                engine: "claude",
+                features: &[feature],
+            };
+            assert!(matches!(plugin(&opts, &fs), Err(Error::Io(_))), "feature {feature:?}");
+        }
+    }
 }
