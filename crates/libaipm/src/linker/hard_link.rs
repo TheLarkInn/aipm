@@ -103,6 +103,28 @@ mod tests {
     }
 
     #[test]
+    fn assemble_fails_when_target_parent_is_file() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, "x").expect("write blocker");
+
+        let result = assemble(&store, &file_hashes, &blocker.join("my-pkg"));
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
+    fn assemble_fails_when_entry_parent_is_file() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let hash = file_hashes.values().next().cloned().unwrap_or_default();
+        let mut conflicting = BTreeMap::new();
+        conflicting.insert(PathBuf::from("a"), hash.clone());
+        conflicting.insert(PathBuf::from("a").join("b"), hash);
+
+        let result = assemble(&store, &conflicting, &tmp.path().join("pkg"));
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn assemble_cleans_existing_directory() {
         let (tmp, store, file_hashes) = make_store_and_package();
         let target = tmp.path().join("links").join("my-pkg");
