@@ -697,6 +697,15 @@ mod tests {
     }
 
     #[test]
+    fn json_reporter_joins_multiple_sources_with_comma() {
+        let outcome = sample_outcome();
+        let mut buf = Vec::new();
+        Json.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("\"sources_scanned\": [\".claude\", \".ai\"]"));
+    }
+
+    #[test]
     fn text_reporter_file_path_and_line() {
         let outcome = sample_outcome();
         let mut buf = Vec::new();
