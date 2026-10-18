@@ -128,6 +128,20 @@ mod tests {
     }
 
     #[test]
+    fn detect_command_skips_directories_and_non_md_files() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/commands"));
+        fs.dirs.insert(
+            PathBuf::from("/src/commands"),
+            vec![de("nested.md", true), de("notes.txt", false), de("noext", false)],
+        );
+
+        let detector = CommandDetector;
+        let artifacts = detector.detect(Path::new("/src"), &fs).ok().unwrap_or_default();
+        assert!(artifacts.is_empty());
+    }
+
+    #[test]
     fn detect_command_md_file() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/src/commands"));
