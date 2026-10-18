@@ -1253,4 +1253,72 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Delegates to `MockFs` but fails the Nth mutating call (create_dir_all/write_file).
+    struct FailNthFs {
+        inner: MockFs,
+        remaining: Mutex<usize>,
+    }
+
+    impl FailNthFs {
+        fn tick(&self) -> std::io::Result<()> {
+            let mut n = self.remaining.lock().unwrap_or_else(|p| p.into_inner());
+            if *n == 0 {
+                return Err(std::io::Error::other("injected failure"));
+            }
+            *n -= 1;
+            Ok(())
+        }
+    }
+
+    impl crate::fs::Fs for FailNthFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            self.tick()?;
+            self.inner.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.tick()?;
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    /// Every fs error path in `plugin()` and the scaffolders propagates as `Err`.
+    #[test]
+    fn make_plugin_propagates_fs_errors_at_every_step() {
+        let marketplace_dir = Path::new("/project/.ai");
+        let features = [
+            Feature::Skill,
+            Feature::Agent,
+            Feature::Mcp,
+            Feature::Hook,
+            Feature::OutputStyle,
+            Feature::Lsp,
+            Feature::Extension,
+            Feature::Command,
+        ];
+        let mut errors = 0;
+        for n in 0..40 {
+            let fs = FailNthFs { inner: MockFs::new(), remaining: Mutex::new(n) };
+            seed_marketplace(&fs.inner, marketplace_dir);
+            let opts =
+                PluginOpts { marketplace_dir, name: "p", engine: "claude", features: &features };
+            if plugin(&opts, &fs).is_err() {
+                errors += 1;
+            }
+        }
+        assert!(errors >= 20, "expected many injected failures to surface, got {errors}");
+    }
 }
