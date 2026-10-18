@@ -627,6 +627,29 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the full success path of `acquire_local` using a CWD-relative
+    /// plugin directory (scratch dir under the crate root, removed on drop).
+    #[test]
+    fn acquire_local_relative_valid_plugin_succeeds() {
+        let scratch = tempfile::tempdir_in(".").unwrap_or_else(|_| std::process::abort());
+        let plugin = scratch.path().join("rel-plugin");
+        std::fs::create_dir_all(plugin.join(".claude-plugin")).unwrap_or_else(|_| {});
+        std::fs::write(plugin.join(".claude-plugin/plugin.json"), "{}").unwrap_or_else(|_| {});
+        let rel = plugin
+            .file_name()
+            .and_then(|n| n.to_str())
+            .zip(scratch.path().file_name().and_then(|n| n.to_str()))
+            .map(|(p, s)| format!("{s}/{p}"))
+            .unwrap_or_default();
+        let path = ValidatedPath::new(&rel).unwrap_or_else(|_| std::process::abort());
+
+        let dest_root = make_temp();
+        let result = acquire_local(&path, dest_root.path(), Engine::Claude);
+        assert!(result.is_ok());
+        let dest = result.unwrap_or_default();
+        assert!(dest.join(".claude-plugin/plugin.json").exists());
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
