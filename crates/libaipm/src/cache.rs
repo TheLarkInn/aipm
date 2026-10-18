@@ -1020,6 +1020,17 @@ mod tests {
     }
 
     #[test]
+    fn get_returns_error_when_index_is_corrupt() {
+        // Covers the `?` error path on `read_index()` in get().
+        let (temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(temp.path().join("cache")).unwrap();
+        std::fs::write(temp.path().join("cache").join("cache_index.json"), "not json").unwrap();
+
+        let result = cache.get("any-spec");
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn put_handles_already_removed_old_entry_dir() {
         // Covers the `if old_dir.exists()` False branch in put():
         // Store a first entry, then manually remove its directory to simulate
