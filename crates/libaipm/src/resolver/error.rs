@@ -155,6 +155,41 @@ mod tests {
     }
 
     #[test]
+    fn conflict_error_with_only_new_chain() {
+        let err = Error::Conflict(Box::new(ConflictDetail {
+            name: "util".to_string(),
+            existing_req: "1.0.0".to_string(),
+            existing_source: "root".to_string(),
+            new_req: "=2.0.0".to_string(),
+            new_source: "skill-b".to_string(),
+            existing_chain: vec![],
+            new_chain: vec!["root".to_string(), "skill-b".to_string()],
+        }));
+
+        let msg = err.to_string();
+        assert!(msg.contains("dependency chains:"));
+        assert!(msg.contains("root -> skill-b -> util"));
+        assert_eq!(msg.matches(" -> util").count(), 1);
+    }
+
+    #[test]
+    fn conflict_error_with_only_existing_chain() {
+        let err = Error::Conflict(Box::new(ConflictDetail {
+            name: "util".to_string(),
+            existing_req: "1.0.0".to_string(),
+            existing_source: "skill-a".to_string(),
+            new_req: "=2.0.0".to_string(),
+            new_source: "root".to_string(),
+            existing_chain: vec!["root".to_string(), "skill-a".to_string()],
+            new_chain: vec![],
+        }));
+
+        let msg = err.to_string();
+        assert!(msg.contains("root -> skill-a -> util"));
+        assert_eq!(msg.matches(" -> util").count(), 1);
+    }
+
+    #[test]
     fn build_chain_simple() {
         let mut source_map = std::collections::BTreeMap::new();
         source_map.insert("skill-a".to_string(), "root".to_string());
