@@ -1078,6 +1078,14 @@ mod tests {
     }
 
     #[test]
+    fn policy_deserialize_rejects_non_string_and_unknown_values() {
+        // Non-string input fails at `String::deserialize`; an unknown string fails at `parse`.
+        assert!(serde_json::from_str::<Policy>("123").is_err());
+        assert!(serde_json::from_str::<Policy>("\"definitely-not-a-policy\"").is_err());
+        assert_eq!(serde_json::from_str::<Policy>("\"skip\"").ok(), Some(Policy::SkipCache));
+    }
+
+    #[test]
     fn touch_entry_missing_key_is_noop() {
         // Covers the False branch of `if let Some(entry) = index.entries.get_mut(spec_key)`
         // in touch_entry: when the spec_key is absent from the index (e.g. removed between
