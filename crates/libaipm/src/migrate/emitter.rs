@@ -3726,6 +3726,23 @@ mod tests {
     }
 
     #[test]
+    fn emit_command_as_skill_injects_into_existing_frontmatter() {
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/src/commands/review.md"),
+            "---\ndescription: Review\n---\nBody".to_string(),
+        );
+        let artifact = make_command_artifact();
+        let result = super::emit_command_as_skill(&artifact, Path::new("/ai/review"), &fs);
+        assert!(result.is_ok());
+        let written = fs.get_written(Path::new("/ai/review/skills/review/SKILL.md"));
+        let written = written.unwrap_or_default();
+        assert!(written.contains("description: Review"));
+        assert!(written.contains("disable-model-invocation: true"));
+        assert_eq!(written.matches("---").count(), 2, "frontmatter must not be re-wrapped");
+    }
+
+    #[test]
     fn emit_skill_files_returns_error_on_read_failure() {
         // Skill file is "regular" (is_file returns true via fail_read_path) but
         // read_to_string fails → the read map_err closure body executes.
