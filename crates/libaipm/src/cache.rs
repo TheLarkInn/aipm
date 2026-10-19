@@ -1137,4 +1137,17 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn ensure_dirs_fails_when_root_is_a_file() {
+        // Covers the error mapping in `ensure_dirs` when the cache root cannot be created.
+        let temp = make_temp();
+        let root = temp.path().join("cache");
+        std::fs::write(&root, "not a directory").unwrap_or_else(|_| {});
+        let cache = Cache::with_root(root, Policy::Auto);
+
+        let result = cache.ensure_dirs();
+
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got {result:?}");
+    }
 }
