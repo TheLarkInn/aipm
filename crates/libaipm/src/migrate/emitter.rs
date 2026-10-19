@@ -2120,6 +2120,21 @@ mod tests {
     }
 
     #[test]
+    fn emit_package_plugin_dedups_shared_source_path() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
+
+        let first = make_skill_artifact();
+        let mut second = make_skill_artifact();
+        second.name = "deploy-two".to_string();
+        let result = emit_package_plugin("auth", &[first, second], Path::new("/ai"), true, &fs);
+        let actions = result.unwrap_or_default();
+
+        let created = actions.iter().filter(|a| matches!(a, Action::PluginCreated { .. })).count();
+        assert_eq!(created, 1, "shared source path must yield a single PluginCreated action");
+    }
+
+    #[test]
     fn emit_package_plugin_merges_hooks() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
