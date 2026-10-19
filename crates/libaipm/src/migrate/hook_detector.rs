@@ -442,6 +442,13 @@ mod tests {
     }
 
     #[test]
+    fn is_relative_script_empty_and_absolute_paths_are_rejected() {
+        assert!(!is_relative_script("", Path::new(".")));
+        assert!(!is_relative_script("/usr/bin/check.sh", Path::new(".")));
+        assert!(!is_relative_script("C:\\scripts\\check.sh", Path::new(".")));
+    }
+
+    #[test]
     fn is_relative_script_unrecognized_extension_returns_false() {
         // A bare filename with an extension that is not .sh/.py/.js should return false —
         // exercises the Some(ext) branch of extension().is_some_and(…) where the closure
