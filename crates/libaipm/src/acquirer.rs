@@ -1138,4 +1138,18 @@ mod tests {
             "expected PathNotFound error when subpath is a file, got: {result:?}"
         );
     }
+
+    /// Covers the `read_dir` error path in `copy_dir_recursive`: a missing
+    /// source directory yields `Error::Io`.
+    #[test]
+    fn copy_dir_recursive_missing_source_returns_io_error() {
+        let temp = make_temp();
+        let missing = temp.path().join("missing");
+        let dst = temp.path().join("dst");
+        let result = copy_dir_recursive(&missing, &dst);
+        assert!(
+            matches!(result, Err(Error::Io { ref path, .. }) if *path == missing),
+            "expected Io error for missing source, got: {result:?}"
+        );
+    }
 }
