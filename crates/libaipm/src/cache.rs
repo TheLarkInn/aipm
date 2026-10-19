@@ -984,6 +984,15 @@ mod tests {
     }
 
     #[test]
+    fn with_index_empty_index_file_is_treated_as_fresh() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        std::fs::write(cache.index_path(), "").unwrap_or_else(|_| {});
+
+        assert!(cache.mark_installed("nonexistent", true).is_ok());
+    }
+
+    #[test]
     fn get_with_empty_index_file_returns_none() {
         // Covers the `content.is_empty()` True branch in read_index():
         // when the index file exists but is empty, treat it as a fresh cache.
