@@ -563,6 +563,39 @@ mod tests {
     }
 
     #[test]
+    fn get_errors_on_corrupt_index() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+        assert!(matches!(cache.get("k"), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
+    fn get_errors_when_index_is_a_directory() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(std::fs::create_dir_all(cache.index_path()).is_ok());
+        assert!(matches!(cache.get("k"), Err(Error::Io { .. })));
+    }
+
+    #[test]
+    fn get_treats_empty_index_as_miss() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "").is_ok());
+        assert!(matches!(cache.get("k"), Ok(None)));
+    }
+
+    #[test]
+    fn ensure_dirs_errors_when_root_is_a_file() {
+        let temp = make_temp();
+        let root = temp.path().join("cache");
+        assert!(std::fs::write(&root, "x").is_ok());
+        let cache = Cache::with_root(root, Policy::Auto);
+        assert!(matches!(cache.ensure_dirs(), Err(Error::Io { .. })));
+        assert!(matches!(cache.set_entry_ttl("k", None), Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn cache_put_and_get() {
         let (temp, cache) = test_cache(Policy::Auto);
         let spec = "github:owner/repo:plugin@main";
