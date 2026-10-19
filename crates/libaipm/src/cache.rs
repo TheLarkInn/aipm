@@ -538,6 +538,15 @@ mod tests {
     }
 
     #[test]
+    fn mark_installed_with_corrupt_index_errors() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+        let result = cache.mark_installed("github:owner/repo:plugin@main", true);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn cache_policy_roundtrip() {
         for policy in [
             Policy::Auto,
