@@ -1613,6 +1613,17 @@ mod tests {
     }
 
     #[test]
+    fn market_location_with_empty_repo_is_rejected() {
+        // Covers the False branch of the `!owner.is_empty() && !repo.is_empty() &&
+        // !repo.contains('/')` guard in `parse_market_location`: a short-form
+        // location with a trailing slash has an empty repo and must be rejected.
+        for input in ["market:plugin@owner/", "market:plugin@owner/repo/extra"] {
+            let err = input.parse::<Spec>().err().map(|e| e.to_string()).unwrap_or_default();
+            assert!(err.contains("invalid marketplace location"), "got: {err}");
+        }
+    }
+
+    #[test]
     fn spec_deserialize_non_string_returns_error() {
         // Covers the `String::deserialize(deserializer)?` error branch in the
         // `Deserialize for Spec` impl (line 293).  When the JSON token is not
