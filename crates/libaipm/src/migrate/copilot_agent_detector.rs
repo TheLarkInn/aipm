@@ -411,6 +411,29 @@ mod tests {
     }
 
     #[test]
+    fn unreadable_agents_dir_returns_error() {
+        // The directory "exists" but read_dir fails, so the `?` on read_dir propagates.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+
+        let detector = CopilotAgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn missing_agent_file_returns_error() {
+        // Listed in the directory but unreadable, so the `?` on read_to_string propagates.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(PathBuf::from("/src/agents"), vec![de("ghost.agent.md", false)]);
+
+        let detector = CopilotAgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn empty_name_entry_is_skipped() {
         // An entry whose name is "" produces an empty stem (Path::new("").file_stem()
         // returns None → map_or_else gives ""), so `if stem.is_empty() { continue; }` fires.
