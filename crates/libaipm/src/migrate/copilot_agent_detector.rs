@@ -432,4 +432,23 @@ mod tests {
         assert_eq!(artifacts.len(), 1);
         assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("valid-agent"));
     }
+
+    #[test]
+    fn detect_propagates_read_dir_error() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+
+        let result = CopilotAgentDetector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn detect_propagates_read_to_string_error() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(PathBuf::from("/src/agents"), vec![de("missing.agent.md", false)]);
+
+        let result = CopilotAgentDetector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
 }
