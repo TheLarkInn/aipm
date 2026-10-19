@@ -187,6 +187,17 @@ mod tests {
     }
 
     #[test]
+    fn unreadable_lsp_json_returns_io_error() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.github/lsp.json"));
+
+        let detector = CopilotLspDetector;
+        let result = detector.detect(Path::new("/project/.github"), &fs);
+        assert!(result.is_err());
+        assert!(result.err().is_some_and(|e| matches!(e, Error::Io(_))));
+    }
+
+    #[test]
     fn malformed_json_returns_config_parse_error() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.github/lsp.json"));
