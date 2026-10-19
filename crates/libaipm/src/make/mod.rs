@@ -1253,4 +1253,71 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Filesystem whose directory creation and/or file writes fail.
+    struct FailingFs {
+        fail_dir_part: &'static str,
+        fail_file_part: &'static str,
+    }
+
+    impl crate::fs::Fs for FailingFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            if path.to_string_lossy().contains(self.fail_dir_part) {
+                Err(std::io::Error::other("dir failure"))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn write_file(&self, path: &Path, _: &[u8]) -> std::io::Result<()> {
+            if path.to_string_lossy().contains(self.fail_file_part) {
+                Err(std::io::Error::other("write failure"))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::new(std::io::ErrorKind::NotFound, path.display().to_string()))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_io_errors_for_every_feature() {
+        let marketplace_dir = Path::new("/project/.ai");
+        let cases = [
+            (Feature::Skill, "skills", "SKILL.md"),
+            (Feature::Agent, "agents", "fail-plugin.md"),
+            (Feature::Mcp, "\0", ".mcp.json"),
+            (Feature::Hook, "hooks", "hooks.json"),
+            (Feature::OutputStyle, "output-styles", "fail-plugin.md"),
+            (Feature::Lsp, "\0", ".lsp.json"),
+            (Feature::Extension, "extensions", ".gitkeep"),
+        ];
+        for (feature, dir_part, file_part) in cases {
+            for fs in [
+                FailingFs { fail_dir_part: dir_part, fail_file_part: "\0" },
+                FailingFs { fail_dir_part: "\0", fail_file_part: file_part },
+            ] {
+                let opts = PluginOpts {
+                    marketplace_dir,
+                    name: "fail-plugin",
+                    engine: "claude",
+                    features: &[feature],
+                };
+                if dir_part == "\0" && fs.fail_file_part == "\0" {
+                    continue;
+                }
+                assert!(plugin(&opts, &fs).is_err(), "expected error for {feature:?}");
+            }
+        }
+    }
 }
