@@ -2348,6 +2348,29 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `any_found == false` branch of `!any_created && any_found` in `init`:
+    /// with neither phase requested, no actions are recorded and no warning is emitted.
+    #[test]
+    fn init_with_no_phases_requested_returns_no_actions() {
+        let (tmp, _guard) = make_temp_dir("no-phases");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed with no phases: {result:?}");
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+
+        cleanup(&tmp);
+    }
+
     /// Covers the `ai_existed = true` branch of the `||` in
     /// `scaffold_marketplace` (line 403, col 27):
     ///
