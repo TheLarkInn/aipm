@@ -2261,6 +2261,34 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// `marketplace.json` exists but cannot be read (it is a directory), so the
+    /// `read_to_string(...)?` error path in the existing-manifest check propagates.
+    #[test]
+    fn init_existing_marketplace_unreadable_returns_io_error() {
+        let (tmp, _guard) = make_temp_dir("existing-marketplace-unreadable");
+        let unreadable = tmp.join(".ai/.claude-plugin/marketplace.json");
+        std::fs::create_dir_all(&unreadable).ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(
+            matches!(result, Err(Error::Io(_))),
+            "init must surface an Io error for an unreadable marketplace.json: {result:?}"
+        );
+
+        cleanup(&tmp);
+    }
+
     /// Covers the `adaptor.apply() == false` branch in `init()` (line 144).
     ///
     /// When `.github/copilot-instructions.md` already exists the Copilot
