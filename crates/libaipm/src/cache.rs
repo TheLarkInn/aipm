@@ -998,6 +998,17 @@ mod tests {
     }
 
     #[test]
+    fn mark_installed_with_corrupt_index_returns_index_parse_error() {
+        // Covers the JSON parse error path in `with_index()`.
+        let (temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(temp.path().join("cache")).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "{not valid json").unwrap_or_else(|_| {});
+
+        let result = cache.mark_installed("some-spec", true);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn put_source_with_symlink_is_silently_skipped() {
         // Covers the `else if file_type.is_file()` False branch in
