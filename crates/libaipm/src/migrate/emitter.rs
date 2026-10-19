@@ -1466,6 +1466,16 @@ mod tests {
     }
 
     #[test]
+    #[tracing_test::traced_test]
+    fn emit_skill_files_logs_warning_for_non_regular_file() {
+        let fs = MockFs::new();
+        let artifact = make_skill_artifact();
+        let result = emit_skill_files(&artifact, Path::new("/ai/plugin"), &fs);
+        assert!(result.is_ok());
+        assert!(logs_contain("skipping non-regular file during skill file migration"));
+    }
+
+    #[test]
     fn emit_copies_referenced_scripts() {
         let mut fs = MockFs::new();
         fs.files.insert(
