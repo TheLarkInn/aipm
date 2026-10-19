@@ -748,4 +748,14 @@ mod tests {
             Some((14, 33))
         );
     }
+
+    #[test]
+    fn parse_single_space_indented_continuation_kept_verbatim() {
+        let content = "---\nhooks:\n PreToolUse: check\n---\nbody";
+        let fm = parse(content).ok().and_then(|o| o);
+        assert_eq!(
+            fm.and_then(|f| f.fields.get("hooks").cloned()).as_deref(),
+            Some(" PreToolUse: check")
+        );
+    }
 }
