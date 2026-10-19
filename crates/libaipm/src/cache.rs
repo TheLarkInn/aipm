@@ -961,6 +961,24 @@ mod tests {
     }
 
     #[test]
+    fn put_replacing_entry_whose_old_dir_is_missing_succeeds() {
+        // Covers the `old_dir.exists()` False branch in `put`: the previous entry
+        // directory was already removed, so there is nothing to clean up.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let _ = cache.put("spec", &src, None);
+
+        let index = cache.read_index().unwrap_or_default();
+        if let Some(entry) = index.entries.get("spec") {
+            let _ = std::fs::remove_dir_all(cache.entries_dir().join(&entry.dir_name));
+        }
+
+        let result = cache.put("spec", &src, None);
+        assert!(result.is_ok());
+        assert!(result.is_ok_and(|dir| dir.exists()));
+    }
+
+    #[test]
     fn gc_stale_dir_that_no_longer_exists() {
         let temp = make_temp();
         let mut cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
