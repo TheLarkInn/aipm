@@ -1621,4 +1621,38 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    /// Writer that fails once `remaining` successful writes are used up.
+    struct FailingWriter {
+        remaining: usize,
+    }
+
+    impl std::fmt::Write for FailingWriter {
+        fn write_str(&mut self, _: &str) -> std::fmt::Result {
+            if self.remaining == 0 {
+                return Err(std::fmt::Error);
+            }
+            self.remaining -= 1;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn git_source_display_propagates_write_errors() {
+        // Fail at each successive write so every `write!(...)?` in
+        // `Display for GitSource` hits its error path.
+        let source = GitSource {
+            url: "https://github.com/org/repo.git".to_string(),
+            path: ValidatedPath::new("sub/dir").ok(),
+            git_ref: Some("main".to_string()),
+        };
+        let mut failures = 0;
+        for remaining in 0..8 {
+            let mut w = FailingWriter { remaining };
+            if std::fmt::write(&mut w, format_args!("{source}")).is_err() {
+                failures += 1;
+            }
+        }
+        assert!(failures >= 4);
+    }
 }
