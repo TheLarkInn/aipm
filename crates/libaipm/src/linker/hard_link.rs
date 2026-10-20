@@ -167,6 +167,35 @@ mod tests {
     }
 
     #[test]
+    fn assemble_fails_when_target_is_a_file() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, b"not a dir").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "expected Io error for target, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn assemble_fails_when_parent_path_is_a_file() {
+        let (tmp, store, _) = make_store_and_package();
+        let hash = store.store_file(b"x").expect("store");
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("a"), hash.clone());
+        file_hashes.insert(PathBuf::from("a/b"), hash);
+
+        let target = tmp.path().join("links").join("pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("a")),
+            "expected Io error for parent, got: {result:?}"
+        );
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
