@@ -998,6 +998,18 @@ mod tests {
     }
 
     #[test]
+    fn ensure_dirs_fails_when_cache_root_is_a_file() {
+        // Covers the `map_err` closure in `ensure_dirs()`: the cache root
+        // path is occupied by a regular file so `create_dir_all` fails.
+        let temp = make_temp();
+        let root = temp.path().join("cache-file");
+        std::fs::write(&root, b"x").unwrap_or_else(|_| {});
+
+        let cache = Cache::with_root(root, Policy::Auto);
+        assert!(matches!(cache.ensure_dirs(), Err(Error::Io { .. })));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn put_source_with_symlink_is_silently_skipped() {
         // Covers the `else if file_type.is_file()` False branch in
