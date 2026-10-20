@@ -614,6 +614,26 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the success path of the real `acquire_local`: copy, file-count
+    /// check, plugin validation, and `Ok(dest)`.
+    #[test]
+    fn acquire_local_valid_plugin_succeeds() {
+        let Ok(src) = tempfile::tempdir_in(".") else { return };
+        let Some(name) = src.path().file_name().and_then(|n| n.to_str()).map(str::to_owned) else {
+            return;
+        };
+        let _ = std::fs::create_dir_all(src.path().join(".claude-plugin"));
+        let _ = std::fs::write(src.path().join(".claude-plugin/plugin.json"), "{}");
+
+        let dest = make_temp();
+        let path = ValidatedPath::new(&name).unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(result.is_ok());
+        let out = result.unwrap_or_default();
+        assert_eq!(out, dest.path().join(&name));
+        assert!(out.join(".claude-plugin/plugin.json").exists());
+    }
+
     /// Covers the `acquire_local` path where the source path exists on disk but
     /// is a regular file rather than a directory (False at "not found" check,
     /// True at "not a dir" check).
