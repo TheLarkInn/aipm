@@ -1253,4 +1253,83 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Fails the Nth mutating operation (`create_dir_all` / `write_file`) so every
+    /// `?` error path in `plugin()` is exercised.
+    struct FailNthFs {
+        inner: MockFs,
+        fail_at: usize,
+        ops: std::sync::atomic::AtomicUsize,
+    }
+
+    impl FailNthFs {
+        fn tick(&self) -> std::io::Result<()> {
+            let n = self.ops.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if n == self.fail_at {
+                return Err(std::io::Error::other("injected failure"));
+            }
+            Ok(())
+        }
+    }
+
+    impl crate::fs::Fs for FailNthFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            self.tick()?;
+            self.inner.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.tick()?;
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    /// Covers the error-propagation branch of every `?` in `plugin()` and the
+    /// `scaffold_*` helpers by failing each mutating filesystem call in turn.
+    #[test]
+    fn make_plugin_propagates_fs_errors_for_every_operation() {
+        let marketplace_dir = Path::new("/project/.ai");
+        let features = [
+            Feature::Skill,
+            Feature::Agent,
+            Feature::Mcp,
+            Feature::Hook,
+            Feature::OutputStyle,
+            Feature::Lsp,
+            Feature::Extension,
+            Feature::Command,
+        ];
+        let run = |fail_at: usize| {
+            let fs = FailNthFs {
+                inner: MockFs::new(),
+                fail_at,
+                ops: std::sync::atomic::AtomicUsize::new(0),
+            };
+            seed_marketplace(&fs.inner, marketplace_dir);
+            let opts =
+                PluginOpts { marketplace_dir, name: "p", engine: "claude", features: &features };
+            let is_err = plugin(&opts, &fs).is_err();
+            (is_err, fs.ops.load(std::sync::atomic::Ordering::SeqCst))
+        };
+
+        let (ok_err, total_ops) = run(usize::MAX);
+        assert!(!ok_err, "baseline run must succeed");
+        assert!(total_ops > 10, "expected many mutating ops, got {total_ops}");
+        for n in 0..total_ops {
+            let (is_err, _) = run(n);
+            assert!(is_err, "failure injected at op {n} should propagate");
+        }
+    }
 }
