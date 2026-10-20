@@ -927,6 +927,16 @@ mod tests {
     }
 
     #[test]
+    fn corrupt_index_yields_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        std::fs::write(cache.index_path(), "not json").unwrap_or_else(|_| {});
+        assert!(matches!(cache.get("spec"), Err(Error::IndexParse { .. })));
+        let src = create_source_plugin(&temp);
+        assert!(matches!(cache.put("spec", &src, None), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn gc_with_no_entries_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
