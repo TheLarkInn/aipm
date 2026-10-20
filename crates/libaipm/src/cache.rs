@@ -1137,4 +1137,17 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn put_replacing_installed_entry_preserves_installed_flag() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let first = cache.put("spec", &src, None).ok();
+        assert!(cache.mark_installed("spec", true).is_ok());
+        let second = cache.put("spec", &src, None).ok();
+        assert_ne!(first, second);
+        let index = cache.read_index().unwrap_or_default();
+        assert_eq!(index.entries.get("spec").map(|e| e.installed), Some(true));
+        assert!(first.is_some_and(|p| !p.exists()));
+    }
 }
