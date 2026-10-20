@@ -118,6 +118,18 @@ mod tests {
     }
 
     #[test]
+    fn link_package_propagates_assemble_error() {
+        let (tmp, store, mut file_hashes) = setup();
+        file_hashes.insert(PathBuf::from("missing.md"), "0".repeat(64));
+        let links_dir = tmp.path().join(".aipm/links");
+        let plugins_dir = tmp.path().join("claude-plugins");
+
+        let result = link_package(&store, &file_hashes, "my-pkg", &links_dir, &plugins_dir);
+        assert!(result.is_err());
+        assert!(!directory_link::is_link(&plugins_dir.join("my-pkg")));
+    }
+
+    #[test]
     fn unlink_package_removes_both_tiers() {
         let (tmp, store, file_hashes) = setup();
         let links_dir = tmp.path().join(".aipm/links");
