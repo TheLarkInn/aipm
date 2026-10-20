@@ -386,6 +386,19 @@ mod tests {
         let _ = path;
     }
 
+    /// `acquire_local` rejects an existing path that is a file, not a directory.
+    /// Tests run with the crate root as cwd, so `Cargo.toml` exists as a file.
+    #[test]
+    fn acquire_local_existing_file_returns_not_directory() {
+        let temp = make_temp();
+        let path = ValidatedPath::new("Cargo.toml").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::LocalNotDirectory { .. })),
+            "expected LocalNotDirectory error, got: {result:?}"
+        );
+    }
+
     #[test]
     fn acquire_local_validates_structure() {
         let temp = make_temp();
