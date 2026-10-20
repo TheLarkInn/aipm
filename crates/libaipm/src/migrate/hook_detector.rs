@@ -373,6 +373,11 @@ mod tests {
     }
 
     #[test]
+    fn is_relative_script_rejects_empty_path() {
+        assert!(!is_relative_script("", std::path::Path::new(".")));
+    }
+
+    #[test]
     fn is_relative_script_detects_paths() {
         use std::path::Path;
         // Has directory separators
