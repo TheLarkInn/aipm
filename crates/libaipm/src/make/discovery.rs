@@ -41,9 +41,10 @@ pub fn find_marketplace(start_dir: &Path, fs: &dyn Fs) -> Result<PathBuf, Error>
 /// `ai_dir`. Iterates [`libaipm_engine_spec::Engine::ALL`] so the check
 /// stays in sync with the engine spec.
 fn has_any_engine_marketplace(ai_dir: &Path, fs: &dyn Fs) -> bool {
-    libaipm_engine_spec::Engine::ALL.iter().copied().any(|engine| {
-        manifest_exists(ai_dir, crate::engine::marketplace_manifest_path(engine), fs)
-    })
+    libaipm_engine_spec::Engine::ALL
+        .iter()
+        .copied()
+        .any(|engine| manifest_exists(ai_dir, crate::engine::marketplace_manifest_path(engine), fs))
 }
 
 /// Returns true if `rel` is non-empty and exists under `ai_dir`.
