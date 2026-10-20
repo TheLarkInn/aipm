@@ -819,6 +819,15 @@ mod tests {
     }
 
     #[test]
+    fn read_index_rejects_corrupt_json() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = std::fs::create_dir_all(&cache.root);
+        let _ = std::fs::write(cache.index_path(), "not json");
+
+        assert!(matches!(cache.read_index(), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn set_entry_ttl_updates_stored_ttl() {
         let (temp, cache) = test_cache(Policy::Auto);
         let src = create_source_plugin(&temp);
