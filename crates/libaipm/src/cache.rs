@@ -935,6 +935,16 @@ mod tests {
     }
 
     #[test]
+    fn with_index_invalid_utf8_index_returns_lock_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        std::fs::write(cache.index_path(), [0xff_u8, 0xfe, 0xfd]).unwrap_or_else(|_| {});
+
+        let result = cache.gc();
+        assert!(matches!(result, Err(Error::Lock { .. })), "got: {result:?}");
+    }
+
+    #[test]
     fn cache_no_refresh_uses_stale_entry() {
         let temp = make_temp();
         let mut cache = Cache::with_root(temp.path().join("cache"), Policy::CacheNoRefresh);
