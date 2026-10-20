@@ -425,6 +425,24 @@ mod tests {
     }
 
     #[test]
+    fn collect_command_scripts_with_non_string_command_field() {
+        // A "command" value that is not a string yields no script reference.
+        let value = serde_json::json!({"type": "command", "command": 42});
+        let mut scripts = Vec::new();
+        collect_command_scripts(&value, Path::new("/project"), &mut scripts);
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
+    fn collect_command_scripts_bare_command_not_recorded() {
+        // A bare command without "./" or a script-like path is skipped.
+        let value = serde_json::json!({"type": "command", "command": "echo hi"});
+        let mut scripts = Vec::new();
+        collect_command_scripts(&value, Path::new("/project"), &mut scripts);
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
     fn collect_command_scripts_with_missing_command_field() {
         // A hook object with type=command but no "command" key should not produce any
         // script reference — exercises the None branch of map.get("command").
