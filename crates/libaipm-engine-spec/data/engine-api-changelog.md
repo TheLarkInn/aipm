@@ -2,6 +2,18 @@
 
 <!-- Entries are prepended (newest first). -->
 
+## 2026-10-20 — claude v2.1.304
+
+| Field | Change |
+|-------|--------|
+| `hook_events` | **Added** — `PermissionDenied`, `PostToolBatch`, `UserPromptExpansion` |
+| `tool_calls` | **Added** — `enter_plan_mode`, `task_create`, `task_get`, `task_update`, `task_list`, `cron_create`, `cron_delete`, `cron_list`, `schedule_wakeup`, `remote_trigger`, `monitor`, `push_notification`, `workflow` (from `sdk-tools.d.ts` input types) |
+| `tool_compatibility` | **Changed** — recomputed; new Claude tools are engine-exclusive |
+
+## 2026-10-20 — copilot v1.0.100
+
+No API changes detected (version bumped from 1.0.40; hook event names re-verified in the binary).
+
 ## 2026-05-05 — claude v2.1.128
 
 | Field | Change |
