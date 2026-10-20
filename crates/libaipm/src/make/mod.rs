@@ -444,6 +444,73 @@ mod tests {
         }
     }
 
+    /// Delegates to `MockFs` but fails the Nth mutating call (`create_dir_all` or `write_file`).
+    struct FailNthFs {
+        inner: MockFs,
+        remaining: std::sync::atomic::AtomicUsize,
+    }
+
+    impl FailNthFs {
+        fn tick(&self) -> std::io::Result<()> {
+            use std::sync::atomic::Ordering;
+            let prev = self
+                .remaining
+                .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| Some(n.saturating_sub(1)))
+                .unwrap_or(0);
+            if prev == 1 {
+                Err(std::io::Error::other("injected failure"))
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    impl crate::fs::Fs for FailNthFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            self.tick()?;
+            self.inner.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.tick()?;
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_fs_failure_at_every_step() {
+        let marketplace_dir = Path::new("/project/.ai");
+        for nth in 1..=20 {
+            let fs = FailNthFs {
+                inner: MockFs::new(),
+                remaining: std::sync::atomic::AtomicUsize::new(nth),
+            };
+            seed_marketplace(&fs.inner, marketplace_dir);
+            let opts = PluginOpts {
+                marketplace_dir,
+                name: "failing",
+                engine: "claude",
+                features: &[Feature::Skill, Feature::Agent, Feature::Mcp, Feature::Hook],
+            };
+            let result = plugin(&opts, &fs);
+            if nth <= 8 {
+                assert!(result.is_err(), "expected failure at mutating call {nth}");
+            }
+        }
+    }
+
     /// Seed a minimal marketplace.json into the MockFs so that
     /// `marketplace::register` can read-modify-write it.
     fn seed_marketplace(fs: &MockFs, marketplace_dir: &Path) {
