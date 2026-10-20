@@ -355,6 +355,26 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_copies_relative_plugin_dir() {
+        let src_root = tempfile::tempdir_in(".").unwrap_or_else(|_| std::process::abort());
+        let rel_name = src_root
+            .path()
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map_or_else(String::new, str::to_string);
+        std::fs::create_dir_all(src_root.path().join(".claude-plugin")).unwrap_or_else(|_| {});
+        std::fs::write(src_root.path().join(".claude-plugin/plugin.json"), "{}")
+            .unwrap_or_else(|_| {});
+
+        let dest = make_temp();
+        let path = ValidatedPath::new(&rel_name).unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(result.is_ok(), "expected Ok, got {result:?}");
+        let plugin_path = result.unwrap_or_else(|_| PathBuf::new());
+        assert!(plugin_path.join(".claude-plugin/plugin.json").exists());
+    }
+
+    #[test]
     fn acquire_local_not_found() {
         let temp = make_temp();
         let path = ValidatedPath::new("nonexistent").unwrap_or_else(|_| std::process::abort());
