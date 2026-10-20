@@ -1351,6 +1351,18 @@ mod tests {
     /// nightly `llvm-cov` instrumented binary where scheduling was different.
     static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+    /// `StubRegistry` rejects both metadata lookups and downloads with an I/O error.
+    #[test]
+    fn stub_registry_returns_errors() {
+        use libaipm::registry::Registry;
+        let reg = StubRegistry;
+        let meta = reg.get_metadata("pkg");
+        assert!(meta.is_err_and(|e| e.to_string().contains("cannot look up 'pkg'")));
+        let version = libaipm::version::Version::parse("1.0.0").unwrap();
+        let dl = reg.download("pkg", &version);
+        assert!(dl.is_err_and(|e| e.to_string().contains("cannot download 'pkg@1.0.0'")));
+    }
+
     /// `load_lint_config` returns a default config when the aipm.toml exists
     /// but contains no `[workspace]` table.
     #[test]
