@@ -729,6 +729,27 @@ mod tests {
     }
 
     #[test]
+    fn get_with_corrupt_index_returns_index_parse_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        std::fs::write(cache.index_path(), "not json").unwrap_or_else(|_| {});
+
+        let result = cache.get("spec");
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
+    fn get_with_unreadable_index_returns_io_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        // A directory at the index path exists but cannot be read as a file.
+        std::fs::create_dir_all(cache.index_path()).unwrap_or_else(|_| {});
+
+        let result = cache.get("spec");
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn gc_preserves_recent_unreferenced_directories() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
