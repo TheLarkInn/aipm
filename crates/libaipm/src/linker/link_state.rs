@@ -242,4 +242,14 @@ mod tests {
         let result = write(FS, Path::new("/"), &State::default());
         assert!(result.is_err());
     }
+
+    #[test]
+    fn add_remove_list_propagate_read_errors() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir_as_file = tmp.path().to_path_buf();
+
+        assert!(add(FS, &dir_as_file, make_entry("pkg-a", "/work/a")).is_err());
+        assert!(remove(FS, &dir_as_file, "pkg-a").is_err());
+        assert!(list(FS, &dir_as_file).is_err());
+    }
 }
