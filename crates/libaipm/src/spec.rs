@@ -1212,6 +1212,12 @@ mod tests {
     }
 
     #[test]
+    fn marketplace_location_without_slash_rejected() {
+        let result = "market:hello@noslash".parse::<Spec>();
+        assert!(matches!(result, Err(Error::Marketplace { .. })));
+    }
+
+    #[test]
     fn is_local_path_parent_dir() {
         // Exercise the ../ branch (line 430)
         let spec = parse("market:my-plugin@../my-marketplace");
