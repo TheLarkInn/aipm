@@ -355,6 +355,28 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_relative_valid_plugin_succeeds() {
+        let src_root = tempfile::Builder::new().prefix("aipm-cov-").tempdir_in(".");
+        let dest = make_temp();
+        let Ok(src_root) = src_root else { return };
+        let Some(root_name) = src_root.path().file_name().and_then(|n| n.to_str()) else {
+            return;
+        };
+        let plugin_dir = src_root.path().join("my-plugin");
+        let _ = std::fs::create_dir_all(plugin_dir.join(".claude-plugin"));
+        let _ = std::fs::write(plugin_dir.join(".claude-plugin/plugin.json"), "{}");
+        let _ = std::fs::write(plugin_dir.join("README.md"), "hello");
+
+        let Ok(path) = ValidatedPath::new(format!("{root_name}/my-plugin")) else {
+            return;
+        };
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(result.is_ok());
+        let out = result.unwrap_or_else(|_| PathBuf::new());
+        assert!(out.join("README.md").exists());
+    }
+
+    #[test]
     fn acquire_local_not_found() {
         let temp = make_temp();
         let path = ValidatedPath::new("nonexistent").unwrap_or_else(|_| std::process::abort());
