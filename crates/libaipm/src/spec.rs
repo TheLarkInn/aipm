@@ -1621,4 +1621,51 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+    /// `fmt::Write` sink that fails once more than `cap` bytes are written.
+    struct LimitedWriter {
+        cap: usize,
+        len: usize,
+    }
+
+    impl std::fmt::Write for LimitedWriter {
+        fn write_str(&mut self, s: &str) -> std::fmt::Result {
+            self.len += s.len();
+            if self.len > self.cap {
+                Err(std::fmt::Error)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    fn display_fails_at(value: &dyn std::fmt::Display, cap: usize) -> bool {
+        let mut w = LimitedWriter { cap, len: 0 };
+        std::fmt::write(&mut w, format_args!("{value}")).is_err()
+    }
+
+    #[test]
+    fn git_source_display_propagates_write_errors() {
+        let source = GitSource {
+            url: "u".to_string(),
+            path: ValidatedPath::new("p").ok(),
+            git_ref: Some("r".to_string()),
+        };
+        // "git:" / "u" / ":p" are each separate writes; fail in each stage.
+        assert!(display_fails_at(&source, 0));
+        assert!(display_fails_at(&source, 4));
+        assert!(display_fails_at(&source, 5));
+        assert!(!display_fails_at(&source, 100));
+    }
+
+    #[test]
+    fn marketplace_source_display_propagates_write_errors() {
+        let source = MarketplaceSource {
+            plugin_name: "n".to_string(),
+            market_location: MarketLocation::GitUrl { url: "u".to_string() },
+            git_ref: Some("r".to_string()),
+        };
+        assert!(display_fails_at(&source, 0));
+        assert!(display_fails_at(&source, 9));
+        assert!(!display_fails_at(&source, 100));
+    }
 }
