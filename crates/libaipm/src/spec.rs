@@ -1621,4 +1621,51 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    /// A `fmt::Write` sink that fails once more than `cap` bytes are written.
+    struct CappedWriter {
+        cap: usize,
+        used: usize,
+    }
+
+    impl std::fmt::Write for CappedWriter {
+        fn write_str(&mut self, s: &str) -> std::fmt::Result {
+            self.used += s.len();
+            if self.used > self.cap {
+                Err(std::fmt::Error)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    #[test]
+    fn git_source_display_propagates_write_errors() {
+        use std::fmt::Write;
+        let src = GitSource {
+            url: "u".to_string(),
+            path: ValidatedPath::new("p").ok(),
+            git_ref: Some("r".to_string()),
+        };
+        // Full output is "git:u:p@r"; fail at the url, path and ref writes.
+        for cap in [0, 5, 7] {
+            let mut w = CappedWriter { cap, used: 0 };
+            assert!(write!(w, "{src}").is_err(), "cap {cap}");
+        }
+    }
+
+    #[test]
+    fn marketplace_source_display_propagates_write_errors() {
+        use std::fmt::Write;
+        let src = MarketplaceSource {
+            plugin_name: "n".to_string(),
+            market_location: MarketLocation::GitUrl { url: "u".to_string() },
+            git_ref: Some("r".to_string()),
+        };
+        // Full output is "market:n@u#r"; fail at the base and ref writes.
+        for cap in [0, 9] {
+            let mut w = CappedWriter { cap, used: 0 };
+            assert!(write!(w, "{src}").is_err(), "cap {cap}");
+        }
+    }
 }
