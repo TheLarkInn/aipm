@@ -631,4 +631,20 @@ mod tests {
         let result = store.store_package(nonexistent);
         assert!(result.is_err(), "expected store_package to fail on missing directory");
     }
+
+    /// When storing a collected file fails, `store_package` should propagate the error.
+    #[test]
+    fn store_package_errors_when_store_file_fails() {
+        let tmp = tempfile::tempdir().unwrap();
+        let pkg = tmp.path().join("pkg");
+        std::fs::create_dir_all(&pkg).unwrap();
+        std::fs::write(pkg.join("a.txt"), b"content").unwrap();
+
+        let file_path = tmp.path().join("fake-store");
+        std::fs::write(&file_path, b"regular file").unwrap();
+
+        let store = Store::new(file_path);
+        let result = store.store_package(&pkg);
+        assert!(result.is_err(), "expected store_package to fail when store_file fails");
+    }
 }
