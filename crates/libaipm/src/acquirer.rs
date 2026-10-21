@@ -355,6 +355,26 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_real_success_path() {
+        // `ValidatedPath` must be relative, so stage the plugin under the CWD.
+        let staging = tempfile::tempdir_in(".").unwrap_or_else(|_| std::process::abort());
+        let _src = make_local_plugin(&staging, "real-plugin");
+        let rel = staging
+            .path()
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(|n| format!("{n}/real-plugin"))
+            .unwrap_or_default();
+        let path = ValidatedPath::new(&rel).unwrap_or_else(|_| std::process::abort());
+        let dest = make_temp();
+
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(result.is_ok());
+        let plugin_path = result.unwrap_or_else(|_| PathBuf::new());
+        assert!(plugin_path.join("README.md").exists());
+    }
+
+    #[test]
     fn acquire_local_not_found() {
         let temp = make_temp();
         let path = ValidatedPath::new("nonexistent").unwrap_or_else(|_| std::process::abort());
