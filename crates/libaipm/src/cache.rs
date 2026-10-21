@@ -1137,4 +1137,16 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn mark_installed_with_corrupt_index_returns_index_parse_error() {
+        // Covers the JSON-parse error path in with_index().
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+
+        let result = cache.mark_installed("any-spec", true);
+
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
 }
