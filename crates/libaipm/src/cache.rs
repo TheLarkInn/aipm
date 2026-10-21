@@ -688,6 +688,19 @@ mod tests {
     }
 
     #[test]
+    fn get_missing_entry_dir_behaviour_depends_on_policy() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let dir = cache.put("gone-spec", &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(std::fs::remove_dir_all(&dir).is_ok());
+
+        assert!(matches!(cache.get("gone-spec"), Ok(None)));
+
+        let cache_only = cache.with_policy(Policy::CacheOnly);
+        assert!(matches!(cache_only.get("gone-spec"), Err(Error::CacheCorrupted { .. })));
+    }
+
+    #[test]
     fn put_replaces_old_entry_dir() {
         let (temp, cache) = test_cache(Policy::Auto);
         let spec = "replace-spec";
