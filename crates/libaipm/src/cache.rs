@@ -1052,6 +1052,16 @@ mod tests {
     }
 
     #[test]
+    fn with_index_reports_corrupt_index_json() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(cache.entries_dir()).unwrap();
+        std::fs::write(cache.index_path(), "{ not valid json").unwrap();
+
+        let result = cache.mark_installed("any-key", true);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn cache_policy_parse_aliases() {
         // Each variant has additional aliases beyond the canonical `to_string()` form.
         // These branches are otherwise untouched by `cache_policy_roundtrip`.
