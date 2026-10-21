@@ -186,4 +186,20 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_target_is_file_returns_io_error() {
+        // `target_dir` exists but is a regular file, so `remove_dir_all` fails
+        // and the error is mapped to `Error::Io` for the target path.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let target = tmp.path().join("not-a-dir");
+        std::fs::write(&target, "file").expect("write file");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if *path == target),
+            "expected Io error for target path, got: {result:?}"
+        );
+    }
 }
