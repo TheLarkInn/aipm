@@ -764,6 +764,14 @@ mod tests {
     }
 
     #[test]
+    fn parse_marketplace_invalid_github_shorthand_rejected() {
+        // Slash present but not a valid `owner/repo` pair.
+        for input in ["market:plugin@owner/", "market:plugin@a/b/c"] {
+            assert!(input.parse::<Spec>().is_err(), "expected error for {input}");
+        }
+    }
+
+    #[test]
     fn parse_marketplace_empty_ref_after_hash() {
         let result = "market:hello@owner/repo#".parse::<Spec>();
         assert!(result.is_err());
