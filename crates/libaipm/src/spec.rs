@@ -1621,4 +1621,16 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    #[test]
+    fn marketplace_location_with_extra_slash_is_invalid() {
+        let result = "market:plugin@owner/repo/extra".parse::<Spec>();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn marketplace_location_with_empty_repo_is_invalid() {
+        let result = "market:plugin@owner/".parse::<Spec>();
+        assert!(result.is_err());
+    }
 }
