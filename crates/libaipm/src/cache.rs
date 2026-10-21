@@ -871,6 +871,18 @@ mod tests {
     }
 
     #[test]
+    fn mark_installed_and_set_ttl_ignore_unknown_spec() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+
+        assert!(cache.mark_installed("unknown", true).is_ok());
+        assert!(cache.set_entry_ttl("unknown", Some(5)).is_ok());
+        assert!(cache.touch_entry("unknown").is_ok());
+
+        let index = cache.read_index();
+        assert!(index.is_ok_and(|i| i.entries.is_empty()));
+    }
+
+    #[test]
     fn skip_cache_put_returns_error() {
         let (_temp, cache) = test_cache(Policy::SkipCache);
         let src = _temp.path().join("src");
