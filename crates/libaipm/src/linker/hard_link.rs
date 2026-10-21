@@ -103,6 +103,39 @@ mod tests {
     }
 
     #[test]
+    fn assemble_errors_when_target_is_a_file() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, "not a dir").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error: {result:?}");
+    }
+
+    #[test]
+    fn assemble_errors_when_target_parent_is_a_file() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, "not a dir").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &blocker.join("pkg"));
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error: {result:?}");
+    }
+
+    #[test]
+    fn assemble_errors_when_entry_parent_is_a_file() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash = store.store_file(b"content").expect("store file");
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("a"), hash.clone());
+        file_hashes.insert(PathBuf::from("a/b"), hash);
+
+        let result = assemble(&store, &file_hashes, &tmp.path().join("pkg"));
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error: {result:?}");
+    }
+
+    #[test]
     fn assemble_cleans_existing_directory() {
         let (tmp, store, file_hashes) = make_store_and_package();
         let target = tmp.path().join("links").join("my-pkg");
