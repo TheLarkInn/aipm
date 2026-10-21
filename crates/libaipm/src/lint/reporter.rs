@@ -2054,4 +2054,37 @@ mod tests {
         let group_line = output.lines().find(|l| l.starts_with("##[group]")).unwrap_or_default();
         assert!(group_line.contains("%0A##vso[task.setvariable"));
     }
+
+    struct FailAfter(usize);
+
+    impl Write for FailAfter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if self.0 == 0 {
+                return Err(std::io::Error::other("write failed"));
+            }
+            self.0 -= 1;
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn text_reporter_propagates_write_errors_at_every_stage() {
+        let outcome = sample_outcome();
+        let mut succeeded = false;
+        for n in 0..64 {
+            if Text.report(&outcome, &mut FailAfter(n)).is_ok() {
+                succeeded = true;
+                break;
+            }
+        }
+        assert!(succeeded);
+
+        let clean =
+            Outcome { diagnostics: vec![], error_count: 0, warning_count: 0, ..sample_outcome() };
+        assert!(Text.report(&clean, &mut FailAfter(0)).is_err());
+    }
 }
