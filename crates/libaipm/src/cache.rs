@@ -688,6 +688,24 @@ mod tests {
     }
 
     #[test]
+    fn put_when_old_entry_dir_already_missing() {
+        // Covers the false branch of `old_dir.exists()` in put().
+        let (temp, cache) = test_cache(Policy::Auto);
+        let spec = "missing-old-dir-spec";
+
+        let src = temp.path().join("src");
+        std::fs::create_dir_all(&src).unwrap_or_else(|_| {});
+        std::fs::write(src.join("version.txt"), "v1").unwrap_or_else(|_| {});
+        let dir1 = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(dir1.exists());
+        let _ = std::fs::remove_dir_all(&dir1);
+
+        let dir2 = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(dir2.exists());
+        assert_ne!(dir1, dir2);
+    }
+
+    #[test]
     fn put_replaces_old_entry_dir() {
         let (temp, cache) = test_cache(Policy::Auto);
         let spec = "replace-spec";
