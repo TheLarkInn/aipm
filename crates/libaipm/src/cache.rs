@@ -522,6 +522,14 @@ mod tests {
         }
     }
 
+    #[test]
+    fn policy_deserialize_rejects_unknown_value() {
+        let result: Result<Policy, _> = serde_json::from_str("\"bogus\"");
+        assert!(result.is_err());
+        let ok: Result<Policy, _> = serde_json::from_str("\"cache-only\"");
+        assert_eq!(ok.ok(), Some(Policy::CacheOnly));
+    }
+
     fn test_cache(policy: Policy) -> (tempfile::TempDir, Cache) {
         let temp = make_temp();
         let cache = Cache::with_root(temp.path().join("cache"), policy);
