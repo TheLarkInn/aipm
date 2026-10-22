@@ -2100,6 +2100,25 @@ mod tests {
     }
 
     #[test]
+    fn emit_package_plugin_unsafe_plugin_name_skipped() {
+        let fs = MockFs::new();
+        let result =
+            emit_package_plugin("../evil", &[make_skill_artifact()], Path::new("/ai"), true, &fs);
+        assert!(result.is_ok_and(|a| matches!(a.as_slice(), [Action::Skipped { .. }])));
+        assert!(fs.get_written(Path::new("/ai/../evil/aipm.toml")).is_none());
+    }
+
+    #[test]
+    fn emit_package_plugin_unsafe_artifact_name_skipped() {
+        let fs = MockFs::new();
+        let mut artifact = make_skill_artifact();
+        artifact.name = "../bad".to_string();
+        let result = emit_package_plugin("auth", &[artifact], Path::new("/ai"), true, &fs);
+        assert!(result.is_ok_and(|a| matches!(a.as_slice(), [Action::Skipped { .. }])));
+        assert!(fs.get_written(Path::new("/ai/auth/aipm.toml")).is_none());
+    }
+
+    #[test]
     fn emit_package_plugin_multiple_artifacts_composite() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
