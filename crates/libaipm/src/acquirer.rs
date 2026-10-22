@@ -580,6 +580,22 @@ mod tests {
         assert!(result.is_err(), "expected CopyFailed error, got: {result:?}");
     }
 
+    /// Covers error propagation from the nested `copy_dir_recursive` call
+    /// when copying a file inside a subdirectory fails.
+    #[test]
+    fn copy_dir_recursive_nested_copy_failure_propagates() {
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        std::fs::create_dir_all(src.join("sub")).unwrap_or_else(|_| {});
+        std::fs::write(src.join("sub/content.txt"), "data").unwrap_or_else(|_| {});
+
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(dst.join("sub/content.txt")).unwrap_or_else(|_| {});
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::CopyFailed { .. })), "got: {result:?}");
+    }
+
     #[test]
     fn source_redirect_with_invalid_toml() {
         let temp = make_temp();
