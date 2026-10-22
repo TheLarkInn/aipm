@@ -4297,6 +4297,21 @@ mod tests {
     }
 
     #[test]
+    fn emit_package_plugin_rejects_unsafe_plugin_name() {
+        // Covers the True branch of `if !is_safe_path_segment(plugin_name)` in
+        // `emit_package_plugin`: an unsafe plugin name yields a single Skipped
+        // action and nothing is written.
+        let fs = MockFs::new();
+        let artifact = make_skill_artifact();
+        let result = emit_package_plugin("../evil", &[artifact], Path::new("/ai"), true, &fs)
+            .ok()
+            .unwrap_or_default();
+        assert_eq!(result.len(), 1);
+        assert!(result.iter().all(|a| matches!(a, Action::Skipped { .. })));
+        assert!(fs.get_written(Path::new("/ai/../evil/aipm.toml")).is_none());
+    }
+
+    #[test]
     fn emit_plugin_with_name_rejects_unsafe_artifact_name() {
         // Covers the True branch of `if !is_safe_path_segment(&artifact.name)` in
         // `emit_plugin_with_name`: when the artifact name contains path separators,
