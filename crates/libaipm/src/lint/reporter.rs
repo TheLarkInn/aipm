@@ -1122,6 +1122,20 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_no_task_complete_when_no_errors_and_no_warnings_counted() {
+        // Diagnostics are present but both counters are zero, so the
+        // `warning_count > 0` guard is false even though `error_count == 0`.
+        let outcome = ci_azure_single_diagnostic_outcome(None, None);
+        let outcome = Outcome { error_count: 0, warning_count: 0, ..outcome };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        assert!(output.contains("##vso[task.logissue"));
+        assert!(!output.contains("##vso[task.complete"));
+    }
+
+    #[test]
     fn ci_azure_task_complete_on_warnings_only() {
         let outcome = Outcome {
             diagnostics: vec![
