@@ -938,6 +938,25 @@ mod tests {
     }
 
     #[test]
+    fn backtrack_candidate_still_conflicting_is_skipped() {
+        // common-util =2.0.0 is activated first; skill-b then needs ^2.1, whose
+        // alternative candidate (2.1.0) still conflicts with the activated 2.0.0,
+        // so backtracking skips it and ends in a reported conflict.
+        let mut reg = MockRegistry::new();
+        reg.add_package("skill-a", vec![("1.0.0", vec![dep("common-util", "=2.0.0")])]);
+        reg.add_package("skill-b", vec![("1.0.0", vec![dep("common-util", "^2.1")])]);
+        reg.add_package(
+            "common-util",
+            vec![("2.0.0", vec![]), ("2.1.0", vec![]), ("2.2.0", vec![])],
+        );
+
+        let deps = vec![root_dep("skill-a", "^1.0"), root_dep("skill-b", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg);
+
+        assert!(matches!(result, Err(Error::Conflict(_))), "expected conflict, got: {result:?}");
+    }
+
+    #[test]
     fn prefer_highest_compatible_version() {
         // BDD: "Prefer the highest compatible version"
         let mut reg = MockRegistry::new();
