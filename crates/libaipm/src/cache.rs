@@ -1078,6 +1078,14 @@ mod tests {
     }
 
     #[test]
+    fn policy_deserialize_non_string_returns_err() {
+        // Covers the error branch of `String::deserialize(deserializer)?` in
+        // `Deserialize for Policy`: a non-string JSON value fails before parsing.
+        let result = serde_json::from_str::<Policy>("42");
+        assert!(result.is_err(), "non-string JSON must fail Policy deserialization");
+    }
+
+    #[test]
     fn touch_entry_missing_key_is_noop() {
         // Covers the False branch of `if let Some(entry) = index.entries.get_mut(spec_key)`
         // in touch_entry: when the spec_key is absent from the index (e.g. removed between
