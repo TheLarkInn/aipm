@@ -669,6 +669,23 @@ mod tests {
         );
     }
 
+    /// Covers the `create_dir_all` error branch in `acquire_git`: the
+    /// destination directory is a regular file, so the temp clone dir cannot
+    /// be created.
+    #[test]
+    fn acquire_git_dest_is_file_returns_io_error() {
+        let temp = make_temp();
+        let dest_file = temp.path().join("not-a-dir");
+        std::fs::write(&dest_file, "x").unwrap_or_else(|_| {});
+        let source = crate::spec::GitSource {
+            url: "not-a-valid-url://nowhere".to_string(),
+            path: None,
+            git_ref: None,
+        };
+        let result = acquire_git(&source, &dest_file, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}");
+    }
+
     /// Covers the `git_ref` branch in `run_git_clone`: passing a `git_ref`
     /// causes `--branch <ref>` to be appended to the git command, which still
     /// fails for an invalid URL.
