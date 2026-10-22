@@ -974,6 +974,11 @@ mod tests {
     }
 
     #[test]
+    fn marketplace_location_with_empty_repo_is_invalid() {
+        assert!("market:hello@owner/".parse::<Spec>().is_err());
+    }
+
+    #[test]
     fn git_source_name() {
         let spec = parse("git:https://github.com/org/repo:path@main");
         assert_eq!(spec.source_name(), "git");
