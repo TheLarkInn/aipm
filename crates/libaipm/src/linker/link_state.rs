@@ -138,6 +138,17 @@ mod tests {
     }
 
     #[test]
+    fn add_remove_list_propagate_read_errors() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("links.toml");
+        std::fs::write(&path, "not = [valid").expect("write invalid toml");
+
+        assert!(add(FS, &path, make_entry("a", "/a")).is_err());
+        assert!(remove(FS, &path, "a").is_err());
+        assert!(list(FS, &path).is_err());
+    }
+
+    #[test]
     fn add_creates_entry() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let path = tmp.path().join(".aipm/links.toml");
