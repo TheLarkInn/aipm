@@ -951,6 +951,20 @@ mod tests {
     }
 
     #[test]
+    fn is_plugin_registered_false_for_missing_file() {
+        let fs = MockFs::new();
+        assert!(!is_plugin_registered(&fs, Path::new("/nonexistent/marketplace.json"), "x"));
+    }
+
+    #[test]
+    fn is_plugin_registered_false_for_invalid_json() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/marketplace.json");
+        fs.seed(path, b"not valid json {{{");
+        assert!(!is_plugin_registered(&fs, path, "x"));
+    }
+
+    #[test]
     fn read_marketplace_name_fallback_invalid_json() {
         let fs = MockFs::new();
         let path = Path::new("/project/marketplace.json");
