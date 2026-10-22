@@ -386,6 +386,27 @@ mod tests {
         let _ = path;
     }
 
+    /// `acquire_local` with a relative path to an existing file (cargo runs
+    /// tests with the crate root as cwd) hits the `!source.is_dir()` branch.
+    #[test]
+    fn acquire_local_public_fn_rejects_file_source() {
+        let temp = make_temp();
+        let path = ValidatedPath::new("Cargo.toml").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotDirectory { .. })));
+    }
+
+    /// `acquire_local` with a real directory copies it and then fails
+    /// plugin validation (the `src` dir has no plugin markers).
+    #[test]
+    fn acquire_local_public_fn_copies_then_validation_fails() {
+        let temp = make_temp();
+        let path = ValidatedPath::new("src/make").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(result.is_err());
+        assert!(temp.path().join("make").exists());
+    }
+
     #[test]
     fn acquire_local_validates_structure() {
         let temp = make_temp();
