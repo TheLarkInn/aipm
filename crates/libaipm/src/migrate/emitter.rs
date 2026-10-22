@@ -1544,6 +1544,19 @@ mod tests {
     }
 
     #[test]
+    fn emit_command_as_skill_write_failure_is_propagated() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/commands/review.md"), "Review".to_string());
+        fs.set_fail_write(PathBuf::from("/ai/review/skills/review/SKILL.md"));
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let artifact = make_command_artifact();
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_err(), "write failure for command SKILL.md must propagate");
+    }
+
+    #[test]
     fn emit_command_wraps_with_frontmatter() {
         let mut fs = MockFs::new();
         fs.files
