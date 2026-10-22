@@ -1138,4 +1138,20 @@ mod tests {
             "expected PathNotFound error when subpath is a file, got: {result:?}"
         );
     }
+
+    #[test]
+    fn acquire_local_missing_path_returns_not_found() {
+        let dest = make_temp();
+        let path = ValidatedPath::new("aipm-nonexistent-local-plugin-dir").unwrap();
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotFound { .. })), "got: {result:?}");
+    }
+
+    #[test]
+    fn acquire_local_file_path_returns_not_directory() {
+        let dest = make_temp();
+        let path = ValidatedPath::new("Cargo.toml").unwrap();
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotDirectory { .. })), "got: {result:?}");
+    }
 }
