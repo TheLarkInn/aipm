@@ -1160,6 +1160,22 @@ mod tests {
     }
 
     #[test]
+    fn update_engine_settings_skips_when_marketplace_dir_has_no_parent() {
+        let fs = MockFs::new();
+        let opts = PluginOpts {
+            marketplace_dir: Path::new(""),
+            name: "orphan",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        let mut actions = Vec::new();
+        let result =
+            update_engine_settings(&opts, &fs, Path::new("marketplace.json"), &mut actions);
+        assert!(result.is_ok());
+        assert!(actions.is_empty(), "no settings actions expected without a parent dir");
+    }
+
+    #[test]
     fn make_plugin_command_feature() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
