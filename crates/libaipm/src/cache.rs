@@ -688,6 +688,29 @@ mod tests {
     }
 
     #[test]
+    fn gc_removes_stale_entry_whose_directory_is_already_missing() {
+        let temp = make_temp();
+        let mut cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
+        cache.gc_days = 0;
+
+        let src = create_source_plugin(&temp);
+        let dir = cache.put("missing-dir-spec", &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(dir.exists());
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let _ = cache.with_index(|index| {
+            if let Some(entry) = index.entries.get_mut("missing-dir-spec") {
+                entry.last_accessed = 0;
+            }
+        });
+
+        assert!(cache.gc().is_ok());
+
+        let index = cache.read_index().unwrap_or_default();
+        assert!(!index.entries.contains_key("missing-dir-spec"));
+    }
+
+    #[test]
     fn put_replaces_old_entry_dir() {
         let (temp, cache) = test_cache(Policy::Auto);
         let spec = "replace-spec";
