@@ -1052,11 +1052,14 @@ fn convert_hooks_yaml_to_json(hooks_yaml: &str) -> String {
                         current_value = Some(val.to_string());
                     }
                 }
-            } else if current_value.is_none() {
-                current_value = Some(trimmed.to_string());
-            } else if let Some(ref mut v) = current_value {
-                v.push(' ');
-                v.push_str(trimmed);
+            } else {
+                match current_value.as_mut() {
+                    None => current_value = Some(trimmed.to_string()),
+                    Some(v) => {
+                        v.push(' ');
+                        v.push_str(trimmed);
+                    },
+                }
             }
         }
     }
