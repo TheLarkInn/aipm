@@ -667,6 +667,15 @@ mod tests {
     }
 
     #[test]
+    fn json_reporter_separates_multiple_sources_scanned() {
+        let outcome = sample_outcome();
+        let mut buf = Vec::new();
+        Json.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("\"sources_scanned\": [\".claude\", \".ai\"]"));
+    }
+
+    #[test]
     fn json_reporter_null_optional_fields() {
         let outcome = sample_outcome();
         let mut buf = Vec::new();
