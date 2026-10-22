@@ -2047,6 +2047,26 @@ mod tests {
     /// leave them bytewise unchanged and emit only Found* actions for
     /// both.
     #[test]
+    fn init_with_nothing_requested_produces_no_actions() {
+        let (tmp, _guard) = make_temp_dir("nothing-requested");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_idempotent_skips_existing_engine_marketplace() {
         let (tmp, _guard) = make_temp_dir("idempotent-skips-existing");
         let claude_dir = tmp.join(".ai/.claude-plugin");
