@@ -808,6 +808,31 @@ mod tests {
     }
 
     #[test]
+    fn init_existing_workspace_without_adaptors_creates_nothing() {
+        let (tmp, _guard) = make_temp_dir("ws-nothing-to-do");
+        std::fs::write(tmp.join("aipm.toml"), generate_workspace_manifest(None)).ok();
+
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &[], &crate::fs::Real);
+        assert!(result.is_ok(), "idempotent init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert_eq!(actions.len(), 1, "unexpected actions: {actions:?}");
+        assert!(matches!(actions.first(), Some(InitAction::WorkspaceFoundExisting)));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_marketplace_is_idempotent_when_ai_exists() {
         let (tmp, _guard) = make_temp_dir("mp-idempotent");
         std::fs::create_dir_all(tmp.join(".ai")).ok();
