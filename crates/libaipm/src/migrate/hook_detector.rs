@@ -357,6 +357,25 @@ mod tests {
     }
 
     #[test]
+    fn detect_dot_slash_command_extracted() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.claude/settings.json"));
+        fs.files.insert(
+            PathBuf::from("/project/.claude/settings.json"),
+            r#"{"hooks":{"PostToolUse":[{"type":"command","command":"./run arg1"}]}}"#.to_string(),
+        );
+
+        let detector = HookDetector;
+        let result = detector.detect(Path::new("/project/.claude"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(
+            artifacts.first().and_then(|a| a.referenced_scripts.first()),
+            Some(&PathBuf::from("./run"))
+        );
+    }
+
+    #[test]
     fn detect_non_command_type_ignored() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.claude/settings.json"));
