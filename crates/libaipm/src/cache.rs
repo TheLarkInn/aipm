@@ -711,6 +711,16 @@ mod tests {
     }
 
     #[test]
+    fn put_with_missing_source_dir_returns_io_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let missing = temp.path().join("does-not-exist");
+        let result = cache.put("missing-src-spec", &missing, None);
+        assert!(matches!(result, Err(Error::Io { .. })));
+        let index = cache.read_index().unwrap_or_default();
+        assert!(!index.entries.contains_key("missing-src-spec"));
+    }
+
+    #[test]
     fn gc_removes_unreferenced_directories() {
         let temp = make_temp();
         let mut cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
