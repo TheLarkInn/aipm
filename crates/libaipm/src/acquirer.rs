@@ -413,6 +413,23 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_too_many_files_returns_error() {
+        let Ok(src_root) = tempfile::tempdir_in(".") else { return };
+        let Some(root_name) = src_root.path().file_name().and_then(|n| n.to_str()) else {
+            return;
+        };
+        let plugin = src_root.path().join("big-plugin");
+        std::fs::create_dir_all(&plugin).unwrap_or_else(|_| {});
+        for i in 0..=MAX_PLUGIN_FILES {
+            std::fs::write(plugin.join(format!("file{i}.txt")), "x").unwrap_or_else(|_| {});
+        }
+        let Ok(path) = ValidatedPath::new(format!("./{root_name}/big-plugin")) else { return };
+        let dest = make_temp();
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::TooManyFiles { .. })));
+    }
+
+    #[test]
     fn file_count_exceeds_limit() {
         let temp = make_temp();
         let dir = temp.path().join("huge-plugin");
