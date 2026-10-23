@@ -1621,4 +1621,36 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    /// Writer that fails after `ok_writes` successful `write_str` calls.
+    struct FailAfter {
+        ok_writes: usize,
+    }
+
+    impl std::fmt::Write for FailAfter {
+        fn write_str(&mut self, _s: &str) -> std::fmt::Result {
+            if self.ok_writes == 0 {
+                return Err(std::fmt::Error);
+            }
+            self.ok_writes -= 1;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn display_propagates_writer_errors() {
+        use std::fmt::Write;
+        let git = parse("git:https://example.com/r.git:sub/dir@v1");
+        let market = parse("market:plugin@owner/repo#main");
+        let mut any_err = 0;
+        for spec in [&git, &market] {
+            for n in 0..12 {
+                let mut w = FailAfter { ok_writes: n };
+                if write!(w, "{spec}").is_err() {
+                    any_err += 1;
+                }
+            }
+        }
+        assert!(any_err > 0);
+    }
 }
