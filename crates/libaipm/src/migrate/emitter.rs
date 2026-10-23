@@ -1900,6 +1900,31 @@ mod tests {
     }
 
     #[test]
+    fn emit_package_plugin_rejects_unsafe_plugin_name() {
+        let fs = MockFs::new();
+        let artifact = make_skill_artifact();
+        let result = emit_package_plugin("../evil", &[artifact], Path::new("/ai"), false, &fs);
+        assert!(result.is_ok());
+        let actions = result.unwrap_or_default();
+        assert!(actions.iter().any(
+            |a| matches!(a, Action::Skipped { reason, .. } if reason.contains("plugin name"))
+        ));
+    }
+
+    #[test]
+    fn emit_package_plugin_rejects_unsafe_artifact_name() {
+        let fs = MockFs::new();
+        let mut artifact = make_skill_artifact();
+        artifact.name = "a/b".to_string();
+        let result = emit_package_plugin("bundle", &[artifact], Path::new("/ai"), false, &fs);
+        assert!(result.is_ok());
+        let actions = result.unwrap_or_default();
+        assert!(actions.iter().any(
+            |a| matches!(a, Action::Skipped { reason, .. } if reason.contains("artifact name"))
+        ));
+    }
+
+    #[test]
     fn inject_disable_deduplicates_existing_key() {
         let content = "---\nname: test\ndisable-model-invocation: false\n---\nbody";
         let result = inject_disable_model_invocation(content);
