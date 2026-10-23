@@ -1621,4 +1621,15 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    #[test]
+    fn parse_market_location_rejects_malformed_github_shorthand() {
+        for loc in ["owner/", "a/b/c", "noslash", "owner//"] {
+            let result = parse_market_location(loc);
+            assert!(
+                matches!(result, Err(Error::Marketplace { .. })),
+                "expected Marketplace error for {loc:?}"
+            );
+        }
+    }
 }
