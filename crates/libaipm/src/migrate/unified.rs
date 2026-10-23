@@ -1190,4 +1190,19 @@ mod tests {
             outcome.actions.iter().filter(|a| matches!(a, Action::PluginCreated { .. })).count();
         assert_eq!(created, 0, "no plugin should be created for an empty-artifact plan");
     }
+
+    #[test]
+    fn enumerate_sources_missing_source_dir_returns_empty() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let opts = Options {
+            dir: tmp.path(),
+            source: Some(".does-not-exist"),
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let sources = enumerate_sources(&opts).expect("missing source is not an error");
+        assert!(sources.is_empty(), "nonexistent --source must yield no sources");
+    }
 }
