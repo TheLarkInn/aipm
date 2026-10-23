@@ -622,6 +622,23 @@ mod tests {
         assert!(result.is_err(), "expected store_file() to fail when prefix dir creation fails");
     }
 
+    /// A dangling symlink at the target path makes `target.exists()` false but
+    /// the subsequent `std::fs::write` fail, exercising the write error branch.
+    #[cfg(unix)]
+    #[test]
+    fn store_file_errors_when_write_fails() {
+        let (_tmp, store) = make_store();
+        let content = b"write failure content";
+        let hex = hash::sha512_hex(content);
+        let target = layout::hash_to_path(store.path(), &hex).unwrap();
+        let prefix_dir = layout::hash_prefix_dir(store.path(), &hex).unwrap();
+        std::fs::create_dir_all(&prefix_dir).unwrap();
+        std::os::unix::fs::symlink("/nonexistent/aipm-dangling/target", &target).unwrap();
+
+        let result = store.store_file(content);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got {result:?}");
+    }
+
     /// When `collect_files` cannot read a directory because it does not exist,
     /// `store_package` should propagate the I/O error.
     #[test]
