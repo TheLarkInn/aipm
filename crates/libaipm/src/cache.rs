@@ -804,6 +804,14 @@ mod tests {
     }
 
     #[test]
+    fn put_with_skip_cache_policy_errors() {
+        let (temp, cache) = test_cache(Policy::SkipCache);
+        let src = create_source_plugin(&temp);
+        let result = cache.put("spec", &src, None);
+        assert!(matches!(result, Err(Error::SkipCacheWrite)));
+    }
+
+    #[test]
     fn with_policy_shares_root() {
         let (temp, cache) = test_cache(Policy::Auto);
         let src = create_source_plugin(&temp);
