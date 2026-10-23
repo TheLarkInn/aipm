@@ -1137,4 +1137,21 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    /// Covers the `old_dir.exists()` false branch in `put`: the previous
+    /// entry directory is already gone when the entry is replaced.
+    #[test]
+    fn put_replacing_entry_with_missing_old_dir_succeeds() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        assert!(cache.put("spec", &src, None).is_ok());
+
+        let index = cache.read_index().unwrap_or_default();
+        let old_dir = index.entries.get("spec").map(|e| cache.entries_dir().join(&e.dir_name));
+        assert!(old_dir.as_ref().is_some_and(|d| std::fs::remove_dir_all(d).is_ok()));
+
+        let new_dir = cache.put("spec", &src, None);
+        assert!(new_dir.is_ok_and(|d| d.exists()));
+        assert!(old_dir.is_some_and(|d| !d.exists()));
+    }
 }
