@@ -221,6 +221,15 @@ mod tests {
     }
 
     #[test]
+    fn parse_empty_value_followed_by_another_key() {
+        let content = "---\nname:\ndescription: Deploy app\n---\nbody";
+        let fm = parse(content).ok().flatten();
+        let fields = fm.map(|f| f.fields).unwrap_or_default();
+        assert_eq!(fields.get("name").map(String::as_str), Some(""));
+        assert_eq!(fields.get("description").map(String::as_str), Some("Deploy app"));
+    }
+
+    #[test]
     fn parse_no_frontmatter() {
         let content = "just plain text";
         let result = parse(content);
