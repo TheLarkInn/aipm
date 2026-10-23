@@ -967,6 +967,23 @@ mod tests {
         assert!(plugin_path.join(".claude-plugin/plugin.json").exists());
     }
 
+    /// Covers the `?` error-propagation path on the initial `acquire_git` call
+    /// in `acquire_with_redirect`: a failed clone is returned to the caller.
+    #[test]
+    fn acquire_with_redirect_initial_clone_failure_propagates() {
+        let temp = make_temp();
+        let source = crate::spec::GitSource {
+            url: "not-a-valid-url://nowhere".to_string(),
+            path: None,
+            git_ref: None,
+        };
+        let result = acquire_with_redirect(&source, temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::GitClone { .. })),
+            "expected GitClone error, got: {result:?}",
+        );
+    }
+
     /// Covers the `if let Some(redirect)` True branch and the inner
     /// `check_source_redirect(&redirected_path).is_some()` False branch of
     /// `acquire_with_redirect` (lines 241 and 248): when the stub plugin has an
