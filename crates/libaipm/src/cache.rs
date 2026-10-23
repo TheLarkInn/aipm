@@ -1137,4 +1137,13 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn policy_deserialize_covers_ok_parse_error_and_non_string() {
+        // Covers `Policy::deserialize`: valid string, unknown string (parse error),
+        // and a non-string value (the `String::deserialize(..)?` error path).
+        assert_eq!(serde_json::from_str::<Policy>("\"cache-only\"").ok(), Some(Policy::CacheOnly));
+        assert!(serde_json::from_str::<Policy>("\"bogus\"").is_err());
+        assert!(serde_json::from_str::<Policy>("42").is_err());
+    }
 }
