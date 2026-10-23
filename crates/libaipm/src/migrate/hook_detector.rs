@@ -442,6 +442,14 @@ mod tests {
     }
 
     #[test]
+    fn is_relative_script_windows_drive_path_is_rejected() {
+        // On Linux `Path::is_absolute` and `has_root` are false for `C:\...`, so only
+        // the `has_windows_drive_prefix` arm can reject it.
+        assert!(!is_relative_script("C:\\tools\\check.sh", Path::new(".")));
+        assert!(!is_relative_script("D:/scripts/run.sh", Path::new(".")));
+    }
+
+    #[test]
     fn is_relative_script_unrecognized_extension_returns_false() {
         // A bare filename with an extension that is not .sh/.py/.js should return false —
         // exercises the Some(ext) branch of extension().is_some_and(…) where the closure
