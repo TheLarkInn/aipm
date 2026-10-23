@@ -143,6 +143,18 @@ mod tests {
     }
 
     #[test]
+    fn mock_fs_unused_operations_are_inert() {
+        use crate::fs::Fs;
+
+        let fs = MockFs::new();
+        assert!(fs.create_dir_all(Path::new("/a")).is_ok());
+        assert!(fs.write_file(Path::new("/a/b"), b"x").is_ok());
+        assert!(fs.read_to_string(Path::new("/a/b")).is_err());
+        assert!(fs.read_dir(Path::new("/a")).is_ok_and(|entries| entries.is_empty()));
+        assert!(!fs.exists(Path::new("/a/b")));
+    }
+
+    #[test]
     fn find_marketplace_root_returns_error() {
         let fs = MockFs::new();
 
