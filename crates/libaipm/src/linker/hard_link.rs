@@ -186,4 +186,46 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_target_is_file_returns_io_error() {
+        // remove_dir_all on a regular file fails, covering its error mapping.
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, "x").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(&result, Err(Error::Io { path, .. }) if *path == target), "{result:?}");
+    }
+
+    #[test]
+    fn assemble_target_parent_is_file_returns_io_error() {
+        // create_dir_all(target) fails when its parent is a regular file.
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, "x").expect("write file");
+        let target = blocker.join("pkg");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(&result, Err(Error::Io { path, .. }) if *path == target), "{result:?}");
+    }
+
+    #[test]
+    fn assemble_nested_parent_is_file_returns_io_error() {
+        // "a" is linked as a file first, so creating parent dir "a" for "a/b" fails.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash = store.store_file(b"content").expect("store file");
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("a"), hash.clone());
+        file_hashes.insert(PathBuf::from("a/b"), hash);
+
+        let target = tmp.path().join("links").join("pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if *path == target.join("a")),
+            "{result:?}"
+        );
+    }
 }
