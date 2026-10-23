@@ -653,6 +653,19 @@ engines = []
         assert_eq!(engines.copied(), Some(libaipm_engine_spec::EngineSet::empty()));
     }
 
+    #[test]
+    fn manifest_engines_non_list_value_fails_to_parse() {
+        // A non-array `engines` value makes the inner `Vec<String>`
+        // deserialization fail, exercising the `?` error path.
+        let toml = r#"
+[package]
+name = "my-plugin"
+version = "1.0.0"
+engines = "claude"
+"#;
+        assert!(parse(toml).is_err(), "expected parse error for non-list engines");
+    }
+
     // ---------- [workspace].engines parity tests (Spec G7) ----------
 
     #[test]
