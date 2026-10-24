@@ -631,4 +631,22 @@ mod tests {
         let result = store.store_package(nonexistent);
         assert!(result.is_err(), "expected store_package to fail on missing directory");
     }
+
+    /// `lock()` fails when the store path is a regular file.
+    #[test]
+    fn lock_errors_when_store_path_is_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file_path = tmp.path().join("not-a-dir");
+        std::fs::write(&file_path, b"x").unwrap();
+        let store = Store::new(file_path);
+        assert!(store.lock().is_err(), "expected lock() to fail when store path is a file");
+    }
+
+    /// `lock()` fails when `.lock` cannot be created because a directory occupies that path.
+    #[test]
+    fn lock_errors_when_lock_file_is_directory() {
+        let (tmp, store) = make_store();
+        std::fs::create_dir_all(tmp.path().join(".lock")).unwrap();
+        assert!(store.lock().is_err(), "expected lock() to fail when .lock is a directory");
+    }
 }
