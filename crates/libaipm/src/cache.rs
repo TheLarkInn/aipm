@@ -1137,4 +1137,14 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn corrupt_index_yields_index_parse_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        std::fs::write(cache.index_path(), "not json").unwrap_or_else(|_| {});
+
+        assert!(matches!(cache.get("k"), Err(Error::IndexParse { .. })));
+        assert!(matches!(cache.mark_installed("k", true), Err(Error::IndexParse { .. })));
+    }
 }
