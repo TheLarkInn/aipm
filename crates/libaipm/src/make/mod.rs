@@ -1253,4 +1253,24 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// A root marketplace directory has no parent, so no engine settings are written.
+    #[test]
+    fn update_engine_settings_skips_when_marketplace_dir_has_no_parent() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/");
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "rooted",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        let marketplace_json = marketplace_dir.join(".claude-plugin").join("marketplace.json");
+        let mut actions = Vec::new();
+
+        let result = update_engine_settings(&opts, &fs, &marketplace_json, &mut actions);
+
+        assert!(result.is_ok());
+        assert!(actions.is_empty(), "no settings actions expected without a parent dir");
+    }
 }
