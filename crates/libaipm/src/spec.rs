@@ -779,6 +779,12 @@ mod tests {
     }
 
     #[test]
+    fn parse_marketplace_location_without_slash_is_error() {
+        let result = "market:hello@justarepo".parse::<Spec>();
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn parse_marketplace_location_too_many_slashes_is_error() {
         // location = "owner/sub/repo": split_once('/') yields repo="sub/repo",
         // which contains '/', so the GitHub-format guard fails → Err.
