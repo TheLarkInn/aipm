@@ -150,6 +150,11 @@ mod tests {
     }
 
     #[test]
+    fn detector_name_is_agent() {
+        assert_eq!(AgentDetector.name(), "agent");
+    }
+
+    #[test]
     fn detect_agent_no_agents_dir() {
         let fs = MockFs::new();
         let detector = AgentDetector;
