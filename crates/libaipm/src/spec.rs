@@ -764,6 +764,15 @@ mod tests {
     }
 
     #[test]
+    fn parse_marketplace_invalid_location_shapes() {
+        for spec in ["market:p@owner/", "market:p@/repo", "market:p@a/b/c", "market:p@noslash"] {
+            let result = spec.parse::<Spec>();
+            // "/repo" is a local path; the others are invalid GitHub shorthand
+            assert_eq!(result.is_err(), spec != "market:p@/repo", "unexpected result for {spec}");
+        }
+    }
+
+    #[test]
     fn parse_marketplace_empty_ref_after_hash() {
         let result = "market:hello@owner/repo#".parse::<Spec>();
         assert!(result.is_err());
