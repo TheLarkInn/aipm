@@ -2348,6 +2348,45 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `(Some(w), None)` arm of `compare_and_warn`: the wizard selected
+    /// engines but the existing workspace manifest declares none.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_existing_aipm_toml_without_engines_warns_when_wizard_selects_engines() {
+        let (tmp, _guard) = make_temp_dir("existing-toml-no-engines");
+        let manifest = crate::manifest::builder::build_workspace_manifest(
+            &crate::manifest::builder::WorkspaceManifestOpts {
+                members: &[".ai/*".to_string()],
+                plugins_dir: Some(".ai"),
+                engines: None,
+                header_comments: None,
+                trailing_comments: None,
+            },
+        );
+        std::fs::write(tmp.join("aipm.toml"), &manifest).ok();
+        let original = std::fs::read(tmp.join("aipm.toml")).unwrap_or_default();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: Some(libaipm_engine_spec::EngineSet::CLAUDE),
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        let after = std::fs::read(tmp.join("aipm.toml")).unwrap_or_default();
+        assert_eq!(original, after, "aipm.toml must be bytewise unchanged");
+        assert!(logs_contain("does not declare them"), "expected missing-engines warn event");
+
+        cleanup(&tmp);
+    }
+
     /// Covers the `ai_existed = true` branch of the `||` in
     /// `scaffold_marketplace` (line 403, col 27):
     ///
