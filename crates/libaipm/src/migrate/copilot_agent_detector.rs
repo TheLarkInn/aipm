@@ -411,6 +411,19 @@ mod tests {
     }
 
     #[test]
+    fn bare_agent_md_suffix_entry_is_skipped() {
+        // ".agent.md" passes the extension check and has the agent suffix, but
+        // stripping the suffix leaves an empty stem, so the entry is skipped.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(PathBuf::from("/src/agents"), vec![de(".agent.md", false)]);
+
+        let detector = CopilotAgentDetector;
+        let artifacts = detector.detect(Path::new("/src"), &fs).ok().unwrap_or_default();
+        assert!(artifacts.is_empty());
+    }
+
+    #[test]
     fn empty_name_entry_is_skipped() {
         // An entry whose name is "" produces an empty stem (Path::new("").file_stem()
         // returns None → map_or_else gives ""), so `if stem.is_empty() { continue; }` fires.
