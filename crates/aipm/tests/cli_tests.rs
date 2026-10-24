@@ -421,3 +421,26 @@ fn list_global_with_installed_plugins() {
         .stdout(predicate::str::contains("local:./plugin-b"))
         .stdout(predicate::str::contains("claude"));
 }
+
+// =========================================================================
+// `update` — empty manifest reports zero packages changed
+// =========================================================================
+
+#[test]
+fn update_with_empty_manifest_reports_summary() {
+    let tmp_home = tempfile::tempdir().unwrap();
+    let tmp_dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        tmp_dir.path().join("aipm.toml"),
+        "[package]\nname = \"x\"\nversion = \"0.1.0\"\n",
+    )
+    .unwrap();
+
+    aipm()
+        .args(["update", "--dir"])
+        .arg(tmp_dir.path())
+        .env("HOME", tmp_home.path())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Updated 0 package(s), 0 up-to-date, 0 removed"));
+}
