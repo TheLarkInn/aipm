@@ -1137,4 +1137,13 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn mark_installed_and_set_entry_ttl_ignore_unknown_key() {
+        // Covers the `None` branch of `if let Some(entry)` in both methods.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.mark_installed("missing:key", true).is_ok());
+        assert!(cache.set_entry_ttl("missing:key", Some(10)).is_ok());
+        assert!(cache.touch_entry("missing:key").is_ok());
+    }
 }
