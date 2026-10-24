@@ -1716,6 +1716,29 @@ features = ["extra"]
     }
 
     #[test]
+    fn install_skips_linking_for_registry_package_with_link_override() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let config = setup_project(tmp.path());
+        let registry = make_registry();
+
+        let link_entry = crate::linker::link_state::LinkEntry {
+            name: "pkg-a".to_string(),
+            path: std::path::PathBuf::from("/dev/pkg-a"),
+            linked_at: "2026-01-01T00:00:00Z".to_string(),
+        };
+        let added =
+            crate::linker::link_state::add(&crate::fs::Real, &config.link_state_path, link_entry);
+        assert!(added.is_ok(), "link state add failed: {added:?}");
+
+        let result = install(&crate::fs::Real, &config, &registry);
+        assert!(result.is_ok(), "install with link override failed: {result:?}");
+        assert!(
+            !config.plugins_dir.join("pkg-a").exists(),
+            "overridden package must not be linked into the plugins dir"
+        );
+    }
+
+    #[test]
     fn install_with_manifest_having_overrides() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let manifest_path = tmp.path().join("aipm.toml");
