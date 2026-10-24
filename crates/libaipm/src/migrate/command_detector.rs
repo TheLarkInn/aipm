@@ -265,4 +265,23 @@ mod tests {
             Some("Review code")
         );
     }
+
+    #[test]
+    fn detect_command_read_dir_error_propagates() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/commands"));
+
+        let result = CommandDetector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn detect_command_read_file_error_propagates() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/commands"));
+        fs.dirs.insert(PathBuf::from("/src/commands"), vec![de("review.md", false)]);
+
+        let result = CommandDetector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
 }
