@@ -143,6 +143,16 @@ mod tests {
     }
 
     #[test]
+    fn mock_fs_unused_methods_behave_as_stubs() {
+        let fs = MockFs::new();
+        let p = Path::new("/x");
+        assert!(crate::fs::Fs::create_dir_all(&fs, p).is_ok());
+        assert!(crate::fs::Fs::write_file(&fs, p, b"a").is_ok());
+        assert!(crate::fs::Fs::read_to_string(&fs, p).is_err());
+        assert!(crate::fs::Fs::read_dir(&fs, p).is_ok_and(|v| v.is_empty()));
+    }
+
+    #[test]
     fn find_marketplace_root_returns_error() {
         let fs = MockFs::new();
 
