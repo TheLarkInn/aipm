@@ -192,6 +192,21 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn open_directory_path_reports_io_error_with_path() {
+        // Parent creation succeeds, but opening a directory for read/write fails,
+        // exercising the `OpenOptions::open` error mapping.
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let dir = temp.path().join("subdir");
+        std::fs::create_dir_all(&dir).unwrap_or_else(|_| {});
+
+        let result = LockedFile::open(&dir);
+        assert!(matches!(&result, Err(Error::Io { path, .. }) if path == &dir));
+        if let Err(e) = result {
+            assert!(e.to_string().contains("Locked file I/O error"));
+        }
+    }
+
     /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
     fn unreachable_tempdir() -> tempfile::TempDir {
         tempfile::tempdir_in(".").unwrap_or_else(|_| {
