@@ -263,6 +263,25 @@ mod tests {
     }
 
     #[test]
+    fn read_dir_failure_returns_error() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+
+        let result = CopilotAgentDetector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn read_file_failure_returns_error() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(PathBuf::from("/src/agents"), vec![de("ghost.agent.md", false)]);
+
+        let result = CopilotAgentDetector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn malformed_frontmatter_returns_error() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/src/agents"));
