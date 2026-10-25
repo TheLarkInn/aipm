@@ -1253,4 +1253,21 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    #[test]
+    fn make_plugin_fails_when_marketplace_json_missing() {
+        // No marketplace.json seeded: `marketplace::register` cannot read it, so
+        // the `?` on the register call in `register_in_marketplace` propagates the error.
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "no-marketplace",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        assert!(plugin(&opts, &fs).is_err());
+    }
 }
