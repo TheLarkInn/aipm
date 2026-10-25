@@ -491,6 +491,21 @@ mod tests {
     }
 
     #[test]
+    fn enumerate_sources_missing_source_dir_returns_empty() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let opts = Options {
+            dir: tmp.path(),
+            source: Some(".does-not-exist"),
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let sources = enumerate_sources(&opts).expect("enumerate succeeds");
+        assert!(sources.is_empty());
+    }
+
+    #[test]
     fn unified_migrate_dry_run_writes_report() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path();
