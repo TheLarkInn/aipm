@@ -1116,6 +1116,17 @@ mod tests {
     }
 
     #[test]
+    fn corrupt_index_returns_index_parse_error() {
+        // Covers the JSON-parse error paths in read_index() and with_index().
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+
+        assert!(matches!(cache.get("spec"), Err(Error::IndexParse { .. })));
+        assert!(matches!(cache.mark_installed("spec", true), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn gc_silently_ignores_unreadable_entries_dir() {
         // Covers the Err branch of `if let Ok(read_dir) = std::fs::read_dir(entries_dir)` in
