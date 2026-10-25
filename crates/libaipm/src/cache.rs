@@ -711,6 +711,21 @@ mod tests {
     }
 
     #[test]
+    fn put_with_empty_index_file_starts_from_default_index() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "").is_ok());
+
+        let src = temp.path().join("src");
+        assert!(std::fs::create_dir_all(&src).is_ok());
+        assert!(std::fs::write(src.join("a.txt"), "a").is_ok());
+
+        assert!(cache.put("empty-index-spec", &src, None).is_ok());
+        let index = cache.read_index().unwrap_or_default();
+        assert!(index.entries.contains_key("empty-index-spec"));
+    }
+
+    #[test]
     fn gc_removes_unreferenced_directories() {
         let temp = make_temp();
         let mut cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
