@@ -1134,6 +1134,32 @@ mod tests {
         assert_eq!(source.to_string(), "git:https://example.com/repo:sub/dir@main");
     }
 
+    struct FailAfter(usize);
+
+    impl std::fmt::Write for FailAfter {
+        fn write_str(&mut self, _: &str) -> std::fmt::Result {
+            if self.0 == 0 {
+                return Err(std::fmt::Error);
+            }
+            self.0 -= 1;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn git_display_propagates_write_errors() {
+        let source = GitSource {
+            url: "https://example.com/repo".to_string(),
+            path: ValidatedPath::new("sub/dir").ok(),
+            git_ref: Some("main".to_string()),
+        };
+        // Fail on each successive write so every `?` error branch is taken.
+        for n in 0..6 {
+            let mut w = FailAfter(n);
+            assert!(std::fmt::write(&mut w, format_args!("{source}")).is_err(), "n={n}");
+        }
+    }
+
     #[test]
     fn canonical_key_git_with_path() {
         // Exercise the Some(path) branch at line 198
