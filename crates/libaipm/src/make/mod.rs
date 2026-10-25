@@ -903,6 +903,49 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_already_registered_in_marketplace_claude() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+
+        // Seed marketplace.json with the plugin already registered
+        let marketplace_json = marketplace_dir.join(".claude-plugin").join("marketplace.json");
+        let content = serde_json::json!({
+            "name": "test-marketplace",
+            "version": "0.1.0",
+            "plugins": [
+                { "name": "pre-registered", "description": "Already here" }
+            ]
+        });
+        fs.seed(&marketplace_json, content.to_string().as_bytes());
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "pre-registered",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        // Should see PluginAlreadyRegistered instead of PluginRegistered
+        assert!(
+            result.actions.iter().any(|a| matches!(
+                a,
+                Action::PluginAlreadyRegistered { name } if name == "pre-registered"
+            )),
+            "expected PluginAlreadyRegistered for pre-registered"
+        );
+        assert!(
+            !result.actions.iter().any(
+                |a| matches!(a, Action::PluginRegistered { name, .. } if name == "pre-registered")
+            ),
+            "should NOT see PluginRegistered for pre-registered"
+        );
+    }
+
+    #[test]
     fn make_plugin_already_enabled_in_settings() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
