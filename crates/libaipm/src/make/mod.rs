@@ -658,6 +658,23 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_errors_when_marketplace_json_missing() {
+        // No marketplace.json seeded: `marketplace::register` fails and the
+        // error must propagate out of `register_in_marketplace`.
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "orphan",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        assert!(plugin(&opts, &fs).is_err());
+    }
+
+    #[test]
     fn make_plugin_both_engines() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
