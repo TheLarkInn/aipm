@@ -1909,6 +1909,15 @@ mod tests {
     }
 
     #[test]
+    fn inject_disable_preserves_indent_of_existing_key() {
+        let content = "---\nname: test\n  disable-model-invocation: false\nother: 1\n---\nbody";
+        let result = inject_disable_model_invocation(content);
+        assert!(result.contains("\n  disable-model-invocation: true\n"));
+        assert!(result.contains("other: 1\n"));
+        assert_eq!(result.matches("disable-model-invocation").count(), 1);
+    }
+
+    #[test]
     fn is_safe_path_segment_rejects_empty() {
         assert!(!is_safe_path_segment(""));
     }
