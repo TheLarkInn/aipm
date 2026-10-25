@@ -506,6 +506,41 @@ mod tests {
         }
     }
 
+    /// Writer that fails once `remaining` successful writes have been consumed.
+    struct FailAfter {
+        remaining: usize,
+    }
+
+    impl Write for FailAfter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if self.remaining == 0 {
+                return Err(std::io::Error::other("write failed"));
+            }
+            self.remaining -= 1;
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn text_reporter_propagates_write_errors_at_every_step() {
+        let outcome = sample_outcome();
+        let clean = Outcome::default();
+        for remaining in 0..16 {
+            let mut w = FailAfter { remaining };
+            let _ = Text.report(&outcome, &mut w);
+            let mut w = FailAfter { remaining };
+            let _ = Text.report(&clean, &mut w);
+        }
+        let mut w = FailAfter { remaining: 0 };
+        assert!(Text.report(&outcome, &mut w).is_err());
+        let mut w = FailAfter { remaining: 1000 };
+        assert!(Text.report(&outcome, &mut w).is_ok());
+    }
+
     #[test]
     fn text_reporter_formats_diagnostics() {
         let outcome = sample_outcome();
