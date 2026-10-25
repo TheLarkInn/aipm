@@ -919,6 +919,15 @@ mod tests {
     }
 
     #[test]
+    fn with_index_treats_empty_index_file_as_default() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        assert!(std::fs::write(cache.index_path(), "").is_ok());
+        assert!(cache.set_entry_ttl("missing", Some(1)).is_ok());
+        assert!(cache.read_index().is_ok_and(|i| i.entries.is_empty()));
+    }
+
+    #[test]
     fn set_entry_ttl_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
