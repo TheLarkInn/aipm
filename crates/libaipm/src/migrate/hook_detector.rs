@@ -377,6 +377,8 @@ mod tests {
         use std::path::Path;
         // Has directory separators
         assert!(is_relative_script("scripts/check.sh", Path::new(".")));
+        // Backslash separator only (no forward slash, no script extension)
+        assert!(is_relative_script("scripts\\tool", Path::new(".")));
         // Starts with ./
         assert!(is_relative_script("./run.sh", Path::new(".")));
         // Known script extensions
