@@ -402,6 +402,19 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_dest_creation_fails_returns_io_error() {
+        let temp = make_temp();
+        // dest_dir is a regular file, so creating `<file>/plugin` must fail.
+        let blocker = temp.path().join("blocker");
+        std::fs::write(&blocker, "x").unwrap_or_else(|_| {});
+
+        // "." is a valid relative path that exists and is a directory.
+        let path = ValidatedPath::new(".").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &blocker, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn file_count_check_passes_normal() {
         let temp = make_temp();
         let dir = temp.path().join("small-plugin");
