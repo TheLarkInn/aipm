@@ -718,6 +718,30 @@ mod tests {
     }
 
     #[test]
+    fn init_with_no_phases_requested_does_nothing() {
+        // Neither created nor found actions exist, so the "nothing to do"
+        // tail warning (`!any_created && any_found`) short-circuits on `any_found`.
+        let (tmp, _guard) = make_temp_dir("no-phases");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+        assert!(!tmp.join("aipm.toml").exists());
+        assert!(!tmp.join(".ai").exists());
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_workspace_creates_manifest() {
         let (tmp, _guard) = make_temp_dir("ws-create");
         let adaptors = default_adaptors();
