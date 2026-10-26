@@ -1351,6 +1351,18 @@ mod tests {
     /// nightly `llvm-cov` instrumented binary where scheduling was different.
     static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+    /// `load_lint_config` falls back to defaults when reading `aipm.toml` fails
+    /// with an error other than `NotFound` (here: the path is a directory).
+    #[test]
+    fn load_lint_config_unreadable_manifest_returns_default() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tmp.path().join("aipm.toml")).unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert!(config.rule_overrides.is_empty());
+        assert!(config.ignore_paths.is_empty());
+    }
+
     /// `load_lint_config` returns a default config when the aipm.toml exists
     /// but contains no `[workspace]` table.
     #[test]
