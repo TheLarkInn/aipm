@@ -464,6 +464,27 @@ mod tests {
     }
 
     #[test]
+    fn copy_dir_recursive_errors_when_dest_dir_blocked_by_file() {
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        std::fs::create_dir_all(src.join("sub")).unwrap_or_else(|_| {});
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(&dst).unwrap_or_else(|_| {});
+        // A regular file occupying the destination subdirectory name makes create_dir_all fail.
+        std::fs::write(dst.join("sub"), "blocker").unwrap_or_else(|_| {});
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
+    fn copy_dir_recursive_errors_when_source_missing() {
+        let temp = make_temp();
+        let result = copy_dir_recursive(&temp.path().join("missing"), temp.path());
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn source_redirect_parses_from_aipm_toml() {
         let temp = make_temp();
         let dir = temp.path().join("stub-plugin");
