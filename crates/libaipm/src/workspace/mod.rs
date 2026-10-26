@@ -365,4 +365,17 @@ mod tests {
             "expected 'failed to read' error, got: {err}"
         );
     }
+
+    #[test]
+    fn discover_members_skips_non_directory_glob_matches() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+
+        // A plain file matched by the glob must be skipped, not treated as a member.
+        std::fs::create_dir_all(root.join(".ai")).unwrap();
+        std::fs::write(root.join(".ai/README.md"), "not a plugin").unwrap();
+
+        let members = discover_members(&crate::fs::Real, root, &[".ai/*".to_string()]).unwrap();
+        assert!(members.is_empty());
+    }
 }
