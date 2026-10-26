@@ -186,4 +186,35 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_target_is_file_returns_io_error() {
+        // remove_dir_all on a regular file fails, covering the cleanup error mapping.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, b"x").expect("write file");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if *path == target),
+            "expected Io error for target, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn assemble_target_under_file_returns_io_error() {
+        // create_dir_all beneath a regular file fails, covering the target-creation error mapping.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"x").expect("write file");
+        let target = blocker.join("pkg");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if *path == target),
+            "expected Io error for target, got: {result:?}"
+        );
+    }
 }
