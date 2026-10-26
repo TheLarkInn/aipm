@@ -107,6 +107,25 @@ mod tests {
     }
 
     #[test]
+    fn find_marketplace_detects_copilot_only_marketplace() {
+        let fs = MockFs::new();
+        fs.add_file("/project/.ai/.github/plugin/marketplace.json");
+
+        let result = find_marketplace(Path::new("/project/src"), &fs);
+        assert_eq!(result.unwrap_or_default(), PathBuf::from("/project/.ai"));
+    }
+
+    #[test]
+    fn mock_fs_stub_methods_are_inert() {
+        let fs = MockFs::new();
+        let p = Path::new("/x");
+        assert!(crate::fs::Fs::create_dir_all(&fs, p).is_ok());
+        assert!(crate::fs::Fs::write_file(&fs, p, b"").is_ok());
+        assert!(crate::fs::Fs::read_to_string(&fs, p).is_err());
+        assert!(crate::fs::Fs::read_dir(&fs, p).is_ok_and(|v| v.is_empty()));
+    }
+
+    #[test]
     fn find_marketplace_walks_up() {
         let fs = MockFs::new();
         // Marketplace is two levels up
