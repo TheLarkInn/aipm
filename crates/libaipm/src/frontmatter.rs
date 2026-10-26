@@ -221,6 +221,12 @@ mod tests {
     }
 
     #[test]
+    fn parse_trailing_key_with_empty_value() {
+        let fm = parse("---\nname: test\nhooks:\n---\nbody").ok().flatten();
+        assert_eq!(fm.as_ref().and_then(|f| f.fields.get("hooks")).map(String::as_str), Some(""));
+    }
+
+    #[test]
     fn parse_no_frontmatter() {
         let content = "just plain text";
         let result = parse(content);
