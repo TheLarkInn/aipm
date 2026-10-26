@@ -750,6 +750,16 @@ mod tests {
     }
 
     #[test]
+    fn resolve_invalid_transitive_requirement_returns_version_error() {
+        let mut reg = MockRegistry::new();
+        reg.add_package("parent", vec![("1.0.0", vec![dep("child", "not-valid-semver!!!")])]);
+        let deps = vec![root_dep("parent", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg);
+        let err_msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+        assert!(err_msg.contains("version error"), "expected version error, got: {err_msg}");
+    }
+
+    #[test]
     fn resolve_empty_deps() {
         let reg = MockRegistry::new();
         let result = resolve(&[], &BTreeMap::new(), &reg).unwrap();
