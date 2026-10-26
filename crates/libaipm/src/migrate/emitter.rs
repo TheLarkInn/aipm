@@ -1799,6 +1799,23 @@ mod tests {
     }
 
     #[test]
+    fn emit_skill_files_skips_non_regular_file() {
+        // `nonfile.bin` is listed in the artifact but absent from `fs.files`, so
+        // `is_file()` is false and `emit_skill_files` must skip it with a warning.
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
+        fs.exists.insert(PathBuf::from("/src/skills/deploy/nonfile.bin"));
+
+        let mut artifact = make_skill_artifact();
+        artifact.files = vec![PathBuf::from("SKILL.md"), PathBuf::from("nonfile.bin")];
+
+        let result = emit_skill_files(&artifact, Path::new("/ai/deploy"), &fs);
+        assert!(result.is_ok());
+        assert!(fs.get_written(Path::new("/ai/deploy/skills/deploy/SKILL.md")).is_some());
+        assert!(fs.get_written(Path::new("/ai/deploy/skills/deploy/nonfile.bin")).is_none());
+    }
+
+    #[test]
     fn emit_skill_with_missing_script() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
