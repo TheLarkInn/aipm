@@ -1253,4 +1253,31 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    #[test]
+    fn plugin_claude_already_enabled_emits_already_enabled_action() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        let marketplace_json = marketplace_dir.join(".claude-plugin").join("marketplace.json");
+        fs.seed(&marketplace_json, br#"{"name":"mk","plugins":[]}"#);
+        let settings_path = Path::new("/project/.claude/settings.json");
+        fs.seed(settings_path, br#"{"enabledPlugins":{"enabled-plug@mk":true}}"#);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "enabled-plug",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs).unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+        assert!(
+            result.actions.iter().any(
+                |a| matches!(a, Action::PluginAlreadyEnabled { plugin_key } if plugin_key == "enabled-plug@mk")
+            ),
+            "expected PluginAlreadyEnabled, got: {:?}",
+            result.actions
+        );
+        assert!(fs.get_content(settings_path).is_some());
+    }
 }
