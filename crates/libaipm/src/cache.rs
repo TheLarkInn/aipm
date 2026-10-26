@@ -546,10 +546,7 @@ mod tests {
             Policy::ForceRefresh,
             Policy::CacheNoRefresh,
         ] {
-            let s = policy.to_string();
-            let Ok(parsed) = s.parse::<Policy>() else { continue };
-            let parsed: Policy = parsed;
-            assert_eq!(policy, parsed);
+            assert_eq!(policy.to_string().parse::<Policy>(), Ok(policy));
         }
     }
 
