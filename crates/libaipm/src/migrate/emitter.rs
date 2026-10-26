@@ -2051,6 +2051,24 @@ mod tests {
     }
 
     #[test]
+    fn emit_plugin_with_name_command_with_frontmatter() {
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/src/commands/review.md"),
+            "---\ndescription: Review\n---\nReview code".to_string(),
+        );
+
+        let artifact = make_command_artifact();
+        let result = emit_plugin_with_name(&artifact, "review-plugin", Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+
+        let skill = fs.get_written(Path::new("/ai/review-plugin/skills/review/SKILL.md"));
+        assert!(skill.as_ref().is_some_and(|c| c.contains("description: Review")
+            && c.contains("disable-model-invocation: true")
+            && !c.contains("name: review")));
+    }
+
+    #[test]
     fn emit_plugin_with_name_with_scripts() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
