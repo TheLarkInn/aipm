@@ -1137,4 +1137,16 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn malformed_index_returns_index_parse_error() {
+        // Covers the error paths for unparseable index JSON in both
+        // `read_index()` (via `get`) and `with_index()` (via `mark_installed`).
+        let (temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(temp.path().join("cache")).unwrap();
+        std::fs::write(cache.index_path(), "{not json").unwrap();
+
+        assert!(matches!(cache.get("spec"), Err(Error::IndexParse { .. })));
+        assert!(matches!(cache.mark_installed("spec", true), Err(Error::IndexParse { .. })));
+    }
 }
