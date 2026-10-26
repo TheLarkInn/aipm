@@ -1137,4 +1137,22 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn put_overwrite_tolerates_missing_old_entry_dir() {
+        // Covers the false branch of `old_dir.exists()` in put(): the previous entry's
+        // directory was removed externally before the entry is replaced.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let first = cache.put("spec", &src, None);
+        assert!(first.is_ok());
+        if let Ok(first_dir) = first {
+            let _ = std::fs::remove_dir_all(&first_dir);
+            assert!(!first_dir.exists());
+        }
+
+        let second = cache.put("spec", &src, None);
+        assert!(second.is_ok());
+        assert!(second.is_ok_and(|dir| dir.exists()));
+    }
 }
