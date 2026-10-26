@@ -120,6 +120,16 @@ mod tests {
     }
 
     #[test]
+    fn assemble_errors_when_target_is_a_file() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("not-a-dir");
+        std::fs::write(&target, "file").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(&result, Err(Error::Io { path, .. }) if path == &target));
+    }
+
+    #[test]
     fn assemble_empty_package() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let store = store::Store::new(tmp.path().join("store"));
