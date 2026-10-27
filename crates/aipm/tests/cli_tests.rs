@@ -340,6 +340,19 @@ fn uninstall_global_removes_plugin() {
         .stdout(predicate::str::contains("Uninstalled 'local:./my-plugin' globally"));
 }
 
+#[test]
+fn uninstall_global_unknown_plugin_fails() {
+    let tmp_home = tempfile::tempdir().unwrap();
+
+    // Nothing installed: the spec cannot be resolved against the registry.
+    aipm()
+        .args(["uninstall", "--global", "local:./missing-plugin"])
+        .env("HOME", tmp_home.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("not found"));
+}
+
 // =========================================================================
 // `uninstall --global --engine` — removes one engine entry from the registry
 // =========================================================================
