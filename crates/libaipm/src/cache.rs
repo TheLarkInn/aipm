@@ -688,6 +688,17 @@ mod tests {
     }
 
     #[test]
+    fn put_with_corrupt_index_returns_index_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "{ not valid json").is_ok());
+
+        let result = cache.put("spec", &src, None);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn put_replaces_old_entry_dir() {
         let (temp, cache) = test_cache(Policy::Auto);
         let spec = "replace-spec";
