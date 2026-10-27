@@ -882,6 +882,17 @@ mod tests {
     }
 
     #[test]
+    fn put_with_corrupt_index_returns_index_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        assert!(cache.ensure_dirs().is_ok());
+        std::fs::write(cache.index_path(), "not json").unwrap_or_else(|_| {});
+
+        let result = cache.put("spec", &src, None);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn copy_to_session_missing_spec_errors() {
         let (temp, cache) = test_cache(Policy::Auto);
         let session = temp.path().join("session");
