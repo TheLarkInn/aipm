@@ -3632,6 +3632,24 @@ mod tests {
     }
 
     #[test]
+    fn emit_skill_files_keeps_unreferenced_scripts_file() {
+        // A file under scripts/ that is NOT in referenced_scripts must still be copied
+        // into the skill directory (the skip applies only to referenced scripts).
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/scripts/helper.sh"), "echo hi".into());
+
+        let mut artifact = make_skill_artifact();
+        artifact.files = vec![PathBuf::from("scripts/helper.sh")];
+
+        let result = emit_skill_files(&artifact, Path::new("/ai/deploy"), &fs);
+        assert!(result.is_ok());
+        assert_eq!(
+            fs.get_written(Path::new("/ai/deploy/skills/deploy/scripts/helper.sh")).as_deref(),
+            Some("echo hi")
+        );
+    }
+
+    #[test]
     fn emit_skill_files_skips_non_regular_file_entry() {
         // A skill artifact with two files: one regular (in fs.files), one non-regular
         // (not in fs.files — is_file() returns false). The non-regular file must be
