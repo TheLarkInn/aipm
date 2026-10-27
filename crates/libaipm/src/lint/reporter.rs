@@ -2054,4 +2054,34 @@ mod tests {
         let group_line = output.lines().find(|l| l.starts_with("##[group]")).unwrap_or_default();
         assert!(group_line.contains("%0A##vso[task.setvariable"));
     }
+
+    /// Writer that fails once `remaining` write calls have been consumed.
+    struct FailAfter {
+        remaining: usize,
+    }
+
+    impl Write for FailAfter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if self.remaining == 0 {
+                return Err(std::io::Error::other("write failed"));
+            }
+            self.remaining -= 1;
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn text_reporter_propagates_write_errors_at_every_stage() {
+        let outcome = sample_outcome();
+        for n in 0..12 {
+            let mut w = FailAfter { remaining: n };
+            assert!(Text.report(&outcome, &mut w).is_err(), "write budget {n} should fail");
+        }
+        let mut w = FailAfter { remaining: 1000 };
+        assert!(Text.report(&outcome, &mut w).is_ok());
+    }
 }
