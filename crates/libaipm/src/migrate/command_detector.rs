@@ -214,6 +214,27 @@ mod tests {
     }
 
     #[test]
+    fn detect_command_read_dir_error_propagates() {
+        let mut fs = MockFs::new();
+        // Directory "exists" but read_dir has no entry for it → I/O error.
+        fs.exists.insert(PathBuf::from("/src/commands"));
+
+        let result = CommandDetector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn detect_command_read_file_error_propagates() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/commands"));
+        // Entry is listed but its content is missing → read_to_string fails.
+        fs.dirs.insert(PathBuf::from("/src/commands"), vec![de("deploy.md", false)]);
+
+        let result = CommandDetector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn detect_no_commands_dir() {
         let fs = MockFs::new();
         let detector = CommandDetector;
