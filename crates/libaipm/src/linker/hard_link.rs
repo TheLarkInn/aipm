@@ -167,6 +167,42 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_is_file_returns_error() {
+        // A regular file at target_dir exists, but remove_dir_all rejects non-directories,
+        // covering the error mapping on the cleanup step.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let target = tmp.path().join("not-a-dir");
+        std::fs::write(&target, "file").expect("write file");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "assemble should fail with Io error for target, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn assemble_parent_dir_blocked_by_file_returns_error() {
+        // "blocker" is created as a file by the first entry, so creating the
+        // parent directory "blocker/" for the second entry fails.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash = store.store_file(b"content").expect("store file");
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("blocker"), hash.clone());
+        file_hashes.insert(PathBuf::from("blocker/child.txt"), hash);
+
+        let target = tmp.path().join("links").join("blocked-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("blocker")),
+            "assemble should fail creating parent dir, got: {result:?}"
+        );
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
