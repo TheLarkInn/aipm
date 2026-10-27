@@ -631,4 +631,28 @@ mod tests {
         let result = store.store_package(nonexistent);
         assert!(result.is_err(), "expected store_package to fail on missing directory");
     }
+
+    /// `lock` must return an I/O error when the store directory cannot be created.
+    #[test]
+    fn lock_errors_when_store_dir_cannot_be_created() {
+        let tmp = tempfile::tempdir().unwrap();
+        let file_path = tmp.path().join("not-a-dir");
+        std::fs::write(&file_path, b"x").unwrap();
+
+        let store = Store::new(file_path.join("store"));
+        assert!(matches!(store.lock(), Err(Error::Io { .. })));
+    }
+
+    /// `link_to` must return an I/O error when the target's parent cannot be created.
+    #[test]
+    fn link_to_errors_when_target_parent_cannot_be_created() {
+        let (tmp, store) = make_store();
+        let hash = store.store_file(b"content").unwrap();
+
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"x").unwrap();
+
+        let result = store.link_to(&hash, &blocker.join("sub").join("target"));
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
 }
