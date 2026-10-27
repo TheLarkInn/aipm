@@ -919,6 +919,23 @@ mod tests {
     }
 
     #[test]
+    fn put_preserves_installed_flag_on_replace() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let spec = "github:owner/repo:plugin@main";
+        assert!(cache.put(spec, &src, None).is_ok());
+        assert!(cache.mark_installed(spec, true).is_ok());
+        assert!(cache.put(spec, &src, None).is_ok());
+
+        let installed = cache
+            .read_index()
+            .ok()
+            .and_then(|i| i.entries.get(spec).map(|e| e.installed))
+            .unwrap_or(false);
+        assert!(installed, "replacing an entry must keep its installed flag");
+    }
+
+    #[test]
     fn set_entry_ttl_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
