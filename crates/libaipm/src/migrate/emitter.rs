@@ -3758,6 +3758,28 @@ mod tests {
     }
 
     #[test]
+    fn emit_plugin_with_name_returns_error_when_manifest_write_fails() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
+        fs.set_fail_write(PathBuf::from("/ai/my-plugin/aipm.toml"));
+
+        let artifact = make_skill_artifact();
+        let result = emit_plugin_with_name(&artifact, "my-plugin", Path::new("/ai"), true, &fs);
+        assert!(result.is_err(), "should fail when aipm.toml write fails");
+    }
+
+    #[test]
+    fn emit_plugin_with_name_returns_error_when_plugin_json_write_fails() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
+        fs.set_fail_write(PathBuf::from("/ai/my-plugin/.claude-plugin/plugin.json"));
+
+        let artifact = make_skill_artifact();
+        let result = emit_plugin_with_name(&artifact, "my-plugin", Path::new("/ai"), true, &fs);
+        assert!(result.is_err(), "should fail when plugin.json write fails");
+    }
+
+    #[test]
     fn emit_agent_files_returns_error_on_read_failure() {
         // Agent artifact where source_path is not in fs.files → read_to_string fails.
         let fs = MockFs::new();
