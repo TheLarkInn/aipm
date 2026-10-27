@@ -1253,4 +1253,33 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    #[test]
+    fn make_plugin_reports_already_enabled_when_settings_have_plugin() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs, marketplace_dir);
+        fs.seed(
+            Path::new("/project/.claude/settings.json"),
+            br#"{"enabledPlugins":{"enabled-skill@test-marketplace":true}}"#,
+        );
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "enabled-skill",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs).unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        assert!(
+            result.actions.iter().any(|a| matches!(a, Action::PluginAlreadyEnabled { .. })),
+            "expected PluginAlreadyEnabled when settings already enable the plugin"
+        );
+        assert!(
+            !result.actions.iter().any(|a| matches!(a, Action::PluginEnabled { .. })),
+            "must not emit PluginEnabled when already enabled"
+        );
+    }
 }
