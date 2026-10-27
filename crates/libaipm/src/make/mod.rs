@@ -1253,4 +1253,69 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+    /// Fs wrapper that fails `create_dir_all` / `write_file` for paths containing a marker.
+    struct FailFs {
+        inner: MockFs,
+        fail_dir: &'static str,
+        fail_write: &'static str,
+    }
+
+    impl crate::fs::Fs for FailFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            if !self.fail_dir.is_empty() && path.to_string_lossy().contains(self.fail_dir) {
+                return Err(std::io::Error::other("dir failure"));
+            }
+            self.inner.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            if !self.fail_write.is_empty() && path.to_string_lossy().contains(self.fail_write) {
+                return Err(std::io::Error::other("write failure"));
+            }
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_fs_errors_per_feature() {
+        let marketplace_dir = Path::new("/project/.ai");
+        let cases: [(Feature, &'static str, &'static str); 11] = [
+            (Feature::Skill, "", "plugin.json"),
+            (Feature::Skill, ".claude-plugin", ""),
+            (Feature::Skill, "skills", ""),
+            (Feature::Skill, "", "SKILL.md"),
+            (Feature::Agent, "agents", ""),
+            (Feature::Agent, "", "fail-me.md"),
+            (Feature::Mcp, "", ".mcp.json"),
+            (Feature::Hook, "hooks", ""),
+            (Feature::Hook, "", "hooks.json"),
+            (Feature::OutputStyle, "output-styles", ""),
+            (Feature::Lsp, "", ".lsp.json"),
+        ];
+        for (feature, fail_dir, fail_write) in cases {
+            let inner = MockFs::new();
+            seed_marketplace(&inner, marketplace_dir);
+            let fs = FailFs { inner, fail_dir, fail_write };
+            let features = [feature];
+            let opts = PluginOpts {
+                marketplace_dir,
+                name: "fail-me",
+                engine: "claude",
+                features: &features,
+            };
+            assert!(plugin(&opts, &fs).is_err(), "expected error for {fail_dir}{fail_write}");
+        }
+    }
 }
