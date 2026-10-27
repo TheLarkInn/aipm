@@ -1253,4 +1253,31 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Covers the `else` branch of `update_engine_settings` where the plugin is
+    /// already enabled in `.claude/settings.json`.
+    #[test]
+    fn make_plugin_already_enabled_emits_already_enabled_action() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs, marketplace_dir);
+        fs.seed(
+            Path::new("/project/.claude/settings.json"),
+            br#"{"enabledPlugins":{"pre-enabled@test-marketplace":true}}"#,
+        );
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "pre-enabled",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs).unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+        assert!(result.actions.iter().any(|a| matches!(
+            a,
+            Action::PluginAlreadyEnabled { plugin_key } if plugin_key == "pre-enabled@test-marketplace"
+        )));
+        assert!(!result.actions.iter().any(|a| matches!(a, Action::PluginEnabled { .. })));
+    }
 }
