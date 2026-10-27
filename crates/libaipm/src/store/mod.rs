@@ -622,6 +622,21 @@ mod tests {
         assert!(result.is_err(), "expected store_file() to fail when prefix dir creation fails");
     }
 
+    /// `link_to` must surface an error when the target's parent directory
+    /// cannot be created because a regular file occupies that path.
+    #[test]
+    fn link_to_errors_when_target_parent_creation_fails() {
+        let (tmp, store) = make_store();
+        let hash = store.store_file(b"content").unwrap();
+
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"not a dir").unwrap();
+        let target = blocker.join("child").join("linked.txt");
+
+        let result = store.link_to(&hash, &target);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
     /// When `collect_files` cannot read a directory because it does not exist,
     /// `store_package` should propagate the I/O error.
     #[test]
