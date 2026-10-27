@@ -149,4 +149,14 @@ mod tests {
         let result = find_marketplace(Path::new("/"), &fs);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn mock_fs_unused_methods_are_inert() {
+        let fs = MockFs::new();
+        let p = Path::new("/x");
+        assert!(crate::fs::Fs::create_dir_all(&fs, p).is_ok());
+        assert!(crate::fs::Fs::write_file(&fs, p, b"").is_ok());
+        assert!(crate::fs::Fs::read_to_string(&fs, p).is_err());
+        assert!(crate::fs::Fs::read_dir(&fs, p).is_ok_and(|v| v.is_empty()));
+    }
 }
