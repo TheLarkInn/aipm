@@ -1543,6 +1543,21 @@ mod tests {
         assert!(config.ignore_paths.is_empty());
     }
 
+    /// `load_lint_config` ignores a per-rule string value that is neither `allow`
+    /// nor a recognised severity.
+    #[test]
+    fn load_lint_config_unrecognised_severity_string_is_skipped() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("aipm.toml"),
+            "[workspace.lints]\n\"some/rule\" = \"bogus-level\"\n",
+        )
+        .unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert!(config.rule_overrides.is_empty());
+    }
+
     /// `load_lint_config` silently skips non-string entries in the `paths` array;
     /// only string values are added to `ignore_paths`.
     #[test]
