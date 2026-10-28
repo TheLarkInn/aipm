@@ -998,6 +998,17 @@ mod tests {
     }
 
     #[test]
+    fn mark_installed_with_empty_index_file_is_noop() {
+        // Covers the `content.is_empty()` True branch in `with_index()`:
+        // an empty index file is treated as a fresh, default index.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "").is_ok());
+
+        assert!(cache.mark_installed("some-spec", true).is_ok());
+    }
+
+    #[test]
     #[cfg(unix)]
     fn put_source_with_symlink_is_silently_skipped() {
         // Covers the `else if file_type.is_file()` False branch in
