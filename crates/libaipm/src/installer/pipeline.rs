@@ -2986,6 +2986,43 @@ plugin-b = { workspace = "*" }
         assert!(members.is_empty(), "no workspace section → no members");
     }
 
+    #[test]
+    fn discover_workspace_members_workspace_root_without_manifest() {
+        let tmp = tempfile::tempdir().unwrap();
+        let ws_root = tmp.path().join("ws-root");
+        std::fs::create_dir_all(&ws_root).unwrap();
+
+        let member_project = tmp.path().join("member");
+        std::fs::create_dir_all(&member_project).unwrap();
+        std::fs::write(
+            member_project.join("aipm.toml"),
+            "[package]\nname = \"member\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+
+        let manifest_content = std::fs::read_to_string(member_project.join("aipm.toml")).unwrap();
+        let parsed =
+            manifest::parse_and_validate(&manifest_content, Some(member_project.as_path()))
+                .unwrap();
+
+        let config = InstallConfig {
+            manifest_path: member_project.join("aipm.toml"),
+            lockfile_path: member_project.join("aipm.lock"),
+            store_path: member_project.join(".aipm/store"),
+            links_dir: member_project.join(".aipm/links"),
+            plugins_dir: member_project.join(".ai"),
+            gitignore_path: member_project.join(".ai/.gitignore"),
+            link_state_path: member_project.join(".aipm/links.toml"),
+            workspace_root: Some(ws_root),
+            locked: false,
+            add_package: None,
+            generated_by: "test".to_string(),
+        };
+
+        let members = discover_workspace_members(&crate::fs::Real, &config, &parsed).unwrap();
+        assert!(members.is_empty(), "workspace root without aipm.toml → no members");
+    }
+
     // =========================================================================
     // discover_workspace_members: no workspace context at all
     // =========================================================================
