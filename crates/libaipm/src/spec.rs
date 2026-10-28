@@ -527,6 +527,41 @@ mod tests {
         }
     }
 
+    /// Writer that fails once more than `limit` writes have been attempted.
+    struct LimitedWriter {
+        writes: usize,
+        limit: usize,
+    }
+
+    impl std::fmt::Write for LimitedWriter {
+        fn write_str(&mut self, _s: &str) -> std::fmt::Result {
+            self.writes += 1;
+            if self.writes > self.limit {
+                Err(std::fmt::Error)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    #[test]
+    fn display_propagates_write_errors() {
+        let sources = [
+            parse("github:org/repo:plugins/foo@main"),
+            parse("market:plugin@github:org/repo#main"),
+        ];
+        for spec in &sources {
+            let mut saw_error = false;
+            for limit in 0..12 {
+                let mut w = LimitedWriter { writes: 0, limit };
+                if std::fmt::write(&mut w, format_args!("{spec}")).is_err() {
+                    saw_error = true;
+                }
+            }
+            assert!(saw_error);
+        }
+    }
+
     // ---- Registry specs ----
 
     #[test]
