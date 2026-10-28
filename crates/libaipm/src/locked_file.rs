@@ -192,6 +192,16 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn error_variants_display_their_messages() {
+        let mk = || std::io::Error::other("boom");
+        let io = Error::Io { path: std::path::PathBuf::from("x.json"), source: mk() };
+        assert!(io.to_string().contains("x.json"));
+        assert!(Error::Seek { source: mk() }.to_string().contains("seek"));
+        assert!(Error::Read { source: mk() }.to_string().contains("read"));
+        assert!(Error::Write { source: mk() }.to_string().contains("boom"));
+    }
+
     /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
     fn unreachable_tempdir() -> tempfile::TempDir {
         tempfile::tempdir_in(".").unwrap_or_else(|_| {
