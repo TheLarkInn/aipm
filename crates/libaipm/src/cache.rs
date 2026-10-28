@@ -984,6 +984,18 @@ mod tests {
     }
 
     #[test]
+    fn get_with_malformed_index_file_returns_index_parse_error() {
+        // Covers the `read_index()?` error branch in get().
+        let (temp, cache) = test_cache(Policy::Auto);
+        let cache_root = temp.path().join("cache");
+        std::fs::create_dir_all(&cache_root).unwrap();
+        std::fs::write(cache.index_path(), "not json").unwrap();
+
+        let result = cache.get("some-spec");
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn get_with_empty_index_file_returns_none() {
         // Covers the `content.is_empty()` True branch in read_index():
         // when the index file exists but is empty, treat it as a fresh cache.
