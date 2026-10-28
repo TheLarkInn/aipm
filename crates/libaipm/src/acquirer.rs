@@ -926,6 +926,23 @@ mod tests {
         );
     }
 
+    /// Covers the error branch of the first `acquire_git(..)?` in
+    /// `acquire_with_redirect`: a failing clone propagates the error.
+    #[test]
+    fn acquire_with_redirect_propagates_clone_error() {
+        let temp = make_temp();
+        let source = crate::spec::GitSource {
+            url: "not-a-valid-url://nowhere".to_string(),
+            path: None,
+            git_ref: None,
+        };
+        let result = acquire_with_redirect(&source, temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::GitClone { .. })),
+            "expected GitClone error, got: {result:?}",
+        );
+    }
+
     /// Covers the `if let Some(redirect)` False branch of `acquire_with_redirect`
     /// (line 241): when the acquired plugin has no `aipm.toml` redirect, the
     /// function returns the cloned plugin path directly.
