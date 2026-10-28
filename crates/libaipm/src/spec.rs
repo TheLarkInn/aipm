@@ -1621,4 +1621,35 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    /// A `fmt::Write` sink that fails after `limit` successful writes.
+    struct FailAfter {
+        limit: usize,
+        count: usize,
+    }
+
+    impl std::fmt::Write for FailAfter {
+        fn write_str(&mut self, _s: &str) -> std::fmt::Result {
+            if self.count >= self.limit {
+                return Err(std::fmt::Error);
+            }
+            self.count += 1;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn git_source_display_propagates_write_errors() {
+        let src = GitSource {
+            url: "https://example.com/r.git".to_string(),
+            path: None,
+            git_ref: Some("main".to_string()),
+        };
+        // Fail on the very first write, covering the `?` after the header.
+        let mut w = FailAfter { limit: 0, count: 0 };
+        assert!(std::fmt::write(&mut w, format_args!("{src}")).is_err());
+        // Succeed on the header, fail on the ref write.
+        let mut w = FailAfter { limit: 2, count: 0 };
+        assert!(std::fmt::write(&mut w, format_args!("{src}")).is_err());
+    }
 }
