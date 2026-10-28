@@ -627,6 +627,18 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the `acquire_local` path where the destination cannot be created
+    /// because `dest_dir` is a regular file, yielding an `Error::Io`.
+    #[test]
+    fn acquire_local_dest_dir_is_file_returns_io_error() {
+        let temp = make_temp();
+        let blocker = temp.path().join("blocker");
+        std::fs::write(&blocker, "x").unwrap_or_else(|_| {});
+        let path = ValidatedPath::new("src").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &blocker, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
