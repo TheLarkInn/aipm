@@ -143,6 +143,29 @@ mod tests {
     }
 
     #[test]
+    fn mock_fs_stub_methods_behave_as_documented() {
+        let fs = MockFs::new();
+        let p = Path::new("/x");
+        assert!(fs.create_dir_all(p).is_ok());
+        assert!(fs.write_file(p, b"data").is_ok());
+        assert!(fs.read_to_string(p).is_err());
+        assert!(fs.read_dir(p).is_ok_and(|entries| entries.is_empty()));
+    }
+
+    #[test]
+    fn mock_fs_recovers_from_poisoned_lock() {
+        let fs = std::sync::Arc::new(MockFs::new());
+        let poisoner = std::sync::Arc::clone(&fs);
+        let _ = std::thread::spawn(move || {
+            let _guard = poisoner.files.lock();
+            std::panic::resume_unwind(Box::new("poison"));
+        })
+        .join();
+        fs.add_file("/p/.ai/.claude-plugin/marketplace.json");
+        assert!(fs.exists(Path::new("/p/.ai/.claude-plugin/marketplace.json")));
+    }
+
+    #[test]
     fn find_marketplace_root_returns_error() {
         let fs = MockFs::new();
 
