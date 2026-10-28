@@ -911,6 +911,23 @@ mod tests {
     }
 
     #[test]
+    fn put_overwrite_removes_old_entry_dir() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let first = cache.put("spec", &src, None);
+        assert!(first.is_ok());
+        let first_dir = first.unwrap_or_default();
+        assert!(first_dir.exists());
+
+        let second = cache.put("spec", &src, None);
+        assert!(second.is_ok());
+        let second_dir = second.unwrap_or_default();
+        assert!(second_dir.exists());
+        assert_ne!(first_dir, second_dir);
+        assert!(!first_dir.exists());
+    }
+
+    #[test]
     fn mark_installed_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
