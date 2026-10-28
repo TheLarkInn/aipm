@@ -833,6 +833,18 @@ mod tests {
         assert_eq!(index.entries.get("spec").and_then(|e| e.ttl_secs), None);
     }
 
+    #[test]
+    fn put_with_corrupt_index_returns_index_parse_error() {
+        // Covers the `with_index` error path when the locked index file holds invalid JSON.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "{ not valid json").is_ok());
+
+        let result = cache.put("spec", &src, None);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
     // ---- Additional coverage tests ----
 
     #[test]
