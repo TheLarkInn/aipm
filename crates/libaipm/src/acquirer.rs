@@ -425,6 +425,22 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_rejects_too_many_files() {
+        // `acquire_local` resolves paths relative to the CWD, so build the source there.
+        let Ok(src_root) = tempfile::tempdir_in(".") else { return };
+        let Some(name) = src_root.path().file_name().and_then(|n| n.to_str()) else { return };
+        for i in 0..=MAX_PLUGIN_FILES {
+            std::fs::write(src_root.path().join(format!("file{i}.txt")), "x")
+                .unwrap_or_else(|_| {});
+        }
+        let dest = make_temp();
+        let path = ValidatedPath::new(name).unwrap_or_else(|_| std::process::abort());
+
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::TooManyFiles { .. })), "got: {result:?}");
+    }
+
+    #[test]
     fn copy_dir_recursive_skips_git_dir() {
         let temp = make_temp();
         let src = temp.path().join("src");
