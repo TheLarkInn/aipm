@@ -143,6 +143,16 @@ mod tests {
     }
 
     #[test]
+    fn mock_fs_noop_methods_behave_as_stubs() {
+        let fs = MockFs::new();
+        let p = Path::new("/x");
+        assert!(fs.create_dir_all(p).is_ok());
+        assert!(fs.write_file(p, b"data").is_ok());
+        assert!(fs.read_to_string(p).is_err());
+        assert!(fs.read_dir(p).is_ok_and(|v| v.is_empty()));
+    }
+
+    #[test]
     fn find_marketplace_root_returns_error() {
         let fs = MockFs::new();
 
