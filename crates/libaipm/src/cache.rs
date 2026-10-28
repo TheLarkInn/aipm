@@ -666,6 +666,17 @@ mod tests {
     }
 
     #[test]
+    fn with_index_on_fresh_cache_starts_from_default_index() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let result = cache.with_index(|index| {
+            index.entries.clear();
+        });
+        assert!(result.is_ok());
+        let index = cache.read_index().unwrap_or_default();
+        assert!(index.entries.is_empty());
+    }
+
+    #[test]
     fn gc_removes_old_entries() {
         let temp = make_temp();
         let mut cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
