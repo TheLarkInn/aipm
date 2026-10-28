@@ -984,6 +984,21 @@ mod tests {
     }
 
     #[test]
+    fn put_overwrite_when_old_dir_already_removed() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let first = cache.put("spec", &src, None);
+        assert!(first.is_ok());
+        if let Ok(dir) = first {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+
+        let second = cache.put("spec", &src, None);
+        assert!(second.is_ok());
+        assert!(cache.get("spec").is_ok());
+    }
+
+    #[test]
     fn get_with_empty_index_file_returns_none() {
         // Covers the `content.is_empty()` True branch in read_index():
         // when the index file exists but is empty, treat it as a fresh cache.
