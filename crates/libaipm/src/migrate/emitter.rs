@@ -4086,6 +4086,19 @@ mod tests {
     }
 
     #[test]
+    fn emit_package_plugin_merges_hooks_from_skill_artifacts() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
+        let mut artifact = make_skill_artifact();
+        artifact.metadata.hooks = Some("PreToolUse: echo hi".to_string());
+
+        let result = emit_package_plugin("bundle", &[artifact], Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+        let hooks = fs.get_written(Path::new("/ai/bundle/hooks/hooks.json"));
+        assert!(hooks.as_deref().is_some_and(|c| c.contains("PreToolUse")));
+    }
+
+    #[test]
     fn emit_package_plugin_shared_source_path_deduplicates_plugin_created() {
         // Two artifacts sharing the same source_path exercise the False branch of
         // `seen_sources.insert(artifact.source_path.clone())` (line ~434), ensuring
