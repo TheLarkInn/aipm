@@ -2221,6 +2221,51 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// A filesystem where `marketplace.json` exists but cannot be read.
+    struct UnreadableMarketplaceFs;
+
+    impl crate::fs::Fs for UnreadableMarketplaceFs {
+        fn exists(&self, path: &Path) -> bool {
+            path.ends_with("marketplace.json")
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::other("mock: permission denied"))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    /// Covers the `read_to_string(existing marketplace.json)?` error branch:
+    /// an unreadable pre-existing manifest propagates as an I/O error.
+    #[test]
+    fn init_existing_marketplace_unreadable_returns_io_error() {
+        let tmp = std::path::PathBuf::from("/tmp/fake-mp-unreadable");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &UnreadableMarketplaceFs);
+        assert!(matches!(result, Err(Error::Io(_))), "expected Io error, got: {result:?}");
+    }
+
     /// Pre-existing `.ai/.claude-plugin/marketplace.json` is malformed.
     /// Init must surface a typed `ExistingMarketplaceInvalid` error.
     #[test]
