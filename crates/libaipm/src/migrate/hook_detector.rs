@@ -309,6 +309,26 @@ mod tests {
     }
 
     #[test]
+    fn detect_dot_slash_command_extracted_as_script() {
+        // "./hooks/check" has no script extension but starts with "./", so the
+        // `script_path.starts_with("./")` short-circuit True branch is taken.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.claude/settings.json"));
+        fs.files.insert(
+            PathBuf::from("/project/.claude/settings.json"),
+            r#"{"hooks":{"PreToolUse":[{"type":"command","command":"./hooks/check --flag"}]}}"#
+                .to_string(),
+        );
+
+        let detector = HookDetector;
+        let result = detector.detect(Path::new("/project/.claude"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        let scripts = artifacts.first().map(|a| a.referenced_scripts.clone()).unwrap_or_default();
+        assert_eq!(scripts, vec![PathBuf::from("./hooks/check")]);
+    }
+
+    #[test]
     fn detect_hooks_value_not_object() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.claude/settings.json"));
