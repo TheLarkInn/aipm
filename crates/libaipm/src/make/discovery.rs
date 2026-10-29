@@ -97,6 +97,18 @@ mod tests {
     }
 
     #[test]
+    fn mock_fs_helpers_behave_as_stubs() {
+        use crate::fs::Fs;
+
+        let fs = MockFs::new();
+        let p = Path::new("/x");
+        assert!(fs.create_dir_all(p).is_ok());
+        assert!(fs.write_file(p, b"data").is_ok());
+        assert!(fs.read_to_string(p).is_err());
+        assert!(fs.read_dir(p).is_ok_and(|v| v.is_empty()));
+    }
+
+    #[test]
     fn find_marketplace_in_current_dir() {
         let fs = MockFs::new();
         fs.add_file("/project/.ai/.claude-plugin/marketplace.json");
