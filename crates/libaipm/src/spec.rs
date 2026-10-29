@@ -1416,6 +1416,12 @@ mod tests {
     }
 
     #[test]
+    fn market_location_without_slash_returns_error() {
+        let result = "market:hello@norepo".parse::<Spec>();
+        assert!(matches!(result, Err(Error::Marketplace { .. })));
+    }
+
+    #[test]
     fn from_str_empty_identifier_returns_error() {
         // Parsing a source-prefixed spec with no identifier after ':' should
         // hit the `rest.is_empty()` branch and return EmptyIdentifier.
