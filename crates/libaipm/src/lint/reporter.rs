@@ -621,6 +621,33 @@ mod tests {
         assert!(output.contains("test/oob"));
     }
 
+    fn human_summary(error_count: usize, warning_count: usize) -> String {
+        let mock_fs = MockFs::new();
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome =
+            Outcome { error_count, warning_count, sources_scanned: vec![], ..Outcome::default() };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        String::from_utf8(buf).unwrap_or_default()
+    }
+
+    #[test]
+    fn human_reporter_summary_variants() {
+        assert!(human_summary(0, 0).contains("no issues found"));
+
+        let errors_only = human_summary(2, 0);
+        assert!(errors_only.contains("2 error(s) emitted"));
+        assert!(!errors_only.contains("warning(s) emitted"));
+
+        let warnings_only = human_summary(0, 3);
+        assert!(warnings_only.contains("3 warning(s) emitted"));
+        assert!(!warnings_only.contains("error(s) emitted"));
+
+        let both = human_summary(1, 1);
+        assert!(both.contains("1 warning(s) emitted"));
+        assert!(both.contains("1 error(s) emitted"));
+    }
+
     #[test]
     fn json_reporter_valid_json() {
         let outcome = sample_outcome();
