@@ -363,6 +363,29 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_real_fn_rejects_file_source() {
+        let temp = make_temp();
+        // Cargo.toml exists in the crate dir (test cwd) and is a file, not a directory.
+        let path = ValidatedPath::new("Cargo.toml").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotDirectory { .. })));
+    }
+
+    #[test]
+    fn acquire_local_real_fn_copies_directory_before_validating() {
+        let temp = make_temp();
+        // `src` exists in the crate dir; it is not a valid plugin, so validation fails
+        // only after the copy step has run.
+        let path = ValidatedPath::new("src/discovery").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(!matches!(
+            result,
+            Err(Error::LocalNotFound { .. } | Error::LocalNotDirectory { .. })
+        ));
+        assert!(temp.path().join("discovery").is_dir());
+    }
+
+    #[test]
     fn acquire_local_from_source_not_found() {
         let temp = make_temp();
         let nonexistent = temp.path().join("does-not-exist");
