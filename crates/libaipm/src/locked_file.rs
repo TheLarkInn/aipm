@@ -158,6 +158,19 @@ mod tests {
     }
 
     #[test]
+    fn read_invalid_utf8_returns_read_error() {
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let path = temp.path().join("invalid.bin");
+        std::fs::write(&path, [0xff_u8, 0xfe, 0xfd]).unwrap_or_else(|_| {});
+
+        let mut locked = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
+        let result = locked.read_content();
+        assert!(matches!(result, Err(Error::Read { .. })));
+        let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+        assert!(msg.starts_with("Failed to read locked file"));
+    }
+
+    #[test]
     fn open_file_in_current_directory() {
         // path.parent() returns Some("") for a bare filename, not None
         // but let's exercise the path with no nested dirs
