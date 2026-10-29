@@ -424,6 +424,21 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the `check_file_count` error propagation in `acquire_local`:
+    /// a local source with more than `MAX_PLUGIN_FILES` files is rejected.
+    #[test]
+    fn acquire_local_too_many_files_returns_error() {
+        let src = tempfile::tempdir_in(".").unwrap_or_else(|_| std::process::abort());
+        for i in 0..=MAX_PLUGIN_FILES {
+            std::fs::write(src.path().join(format!("file{i}.txt")), "x").unwrap_or_else(|_| {});
+        }
+        let name = src.path().file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
+        let path = ValidatedPath::new(&name).unwrap_or_else(|_| std::process::abort());
+        let dest = make_temp();
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::TooManyFiles { .. })));
+    }
+
     #[test]
     fn copy_dir_recursive_skips_git_dir() {
         let temp = make_temp();
