@@ -1137,4 +1137,18 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn put_overwrite_when_old_entry_dir_already_removed() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let first = cache.put("spec", &src, None).unwrap_or_else(|_| PathBuf::new());
+        let _ = std::fs::remove_dir_all(&first);
+
+        let second = cache.put("spec", &src, None);
+        assert!(second.is_ok());
+        let second = second.unwrap_or_else(|_| PathBuf::new());
+        assert_ne!(first, second);
+        assert!(second.exists());
+    }
 }
