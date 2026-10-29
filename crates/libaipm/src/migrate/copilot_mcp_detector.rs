@@ -248,4 +248,15 @@ mod tests {
             Some(PathBuf::from("/a/b/.copilot/mcp-config.json"))
         );
     }
+
+    #[test]
+    fn io_error_on_read_propagates() {
+        // Config exists per `exists` but has no content, so reading fails.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.copilot/mcp-config.json"));
+
+        let detector = CopilotMcpDetector;
+        let result = detector.detect(Path::new("/project/.github"), &fs);
+        assert!(result.err().is_some_and(|e| matches!(e, Error::Io(_))));
+    }
 }
