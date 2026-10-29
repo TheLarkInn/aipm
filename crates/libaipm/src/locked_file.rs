@@ -192,6 +192,29 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn read_content_invalid_utf8_returns_read_error() {
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let path = temp.path().join("binary.bin");
+        std::fs::write(&path, [0xff_u8, 0xfe, 0xfd]).unwrap_or_else(|_| {});
+
+        let mut locked = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
+        let result = locked.read_content();
+        assert!(matches!(result, Err(Error::Read { .. })));
+    }
+
+    #[test]
+    fn write_content_on_read_only_handle_returns_write_error() {
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let path = temp.path().join("ro.json");
+        std::fs::write(&path, b"x").unwrap_or_else(|_| {});
+
+        let file = File::open(&path).unwrap_or_else(|_| std::process::abort());
+        let mut locked = LockedFile { file };
+        let result = locked.write_content("data");
+        assert!(matches!(result, Err(Error::Write { .. })));
+    }
+
     /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
     fn unreachable_tempdir() -> tempfile::TempDir {
         tempfile::tempdir_in(".").unwrap_or_else(|_| {
