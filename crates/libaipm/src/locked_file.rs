@@ -192,6 +192,35 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn read_content_fails_on_write_only_handle() {
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let path = temp.path().join("wo.json");
+        let file = OpenOptions::new().write(true).create(true).truncate(false).open(&path);
+        let Ok(file) = file else { return };
+        let mut locked = LockedFile { file };
+        let err = locked.read_content();
+        assert!(matches!(err, Err(Error::Read { .. })));
+        if let Err(e) = err {
+            assert!(e.to_string().starts_with("Failed to read locked file"));
+        }
+    }
+
+    #[test]
+    fn write_content_fails_on_read_only_handle() {
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let path = temp.path().join("ro.json");
+        std::fs::write(&path, b"x").unwrap_or_else(|_| {});
+        let file = OpenOptions::new().read(true).open(&path);
+        let Ok(file) = file else { return };
+        let mut locked = LockedFile { file };
+        let err = locked.write_content("y");
+        assert!(matches!(err, Err(Error::Write { .. })));
+        if let Err(e) = err {
+            assert!(e.to_string().starts_with("Failed to write locked file"));
+        }
+    }
+
     /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
     fn unreachable_tempdir() -> tempfile::TempDir {
         tempfile::tempdir_in(".").unwrap_or_else(|_| {
