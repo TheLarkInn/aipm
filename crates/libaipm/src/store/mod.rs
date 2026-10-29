@@ -258,6 +258,15 @@ mod tests {
     }
 
     #[test]
+    fn lock_fails_when_lock_path_is_a_directory() {
+        let (tmp, store) = make_store();
+        std::fs::create_dir_all(tmp.path().join(".lock")).unwrap();
+
+        let result = store.lock();
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn store_and_retrieve_file() {
         let (_tmp, store) = make_store();
         let content = b"hello world";
