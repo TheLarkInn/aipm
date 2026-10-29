@@ -882,6 +882,18 @@ mod tests {
     }
 
     #[test]
+    fn put_errors_when_cache_root_is_a_file() {
+        let temp = make_temp();
+        let root = temp.path().join("cache");
+        std::fs::write(&root, "not a dir").unwrap_or_else(|_| {});
+        let cache = Cache::with_root(root, Policy::Auto);
+        let src = create_source_plugin(&temp);
+
+        let result = cache.put("spec", &src, None);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn copy_to_session_missing_spec_errors() {
         let (temp, cache) = test_cache(Policy::Auto);
         let session = temp.path().join("session");
