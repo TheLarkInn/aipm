@@ -927,6 +927,27 @@ mod tests {
     }
 
     #[test]
+    fn with_index_treats_empty_index_file_as_default() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        let _ = std::fs::write(cache.index_path(), "");
+        assert!(cache.set_entry_ttl("nonexistent", Some(100)).is_ok());
+        let _ = std::fs::write(cache.index_path(), "");
+        assert!(cache.mark_installed("nonexistent", true).is_ok());
+        let _ = std::fs::write(cache.index_path(), "");
+        assert!(cache.touch_entry("nonexistent").is_ok());
+    }
+
+    #[test]
+    fn with_index_invalid_json_returns_index_parse_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        let _ = std::fs::write(cache.index_path(), "{not json");
+        let result = cache.set_entry_ttl("nonexistent", Some(100));
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn gc_with_no_entries_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
