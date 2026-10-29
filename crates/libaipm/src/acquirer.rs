@@ -387,6 +387,25 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_relative_file_is_not_directory() {
+        let temp = make_temp();
+        // Tests run with the crate directory as cwd, so `Cargo.toml` is a relative file.
+        let path = ValidatedPath::new("Cargo.toml").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotDirectory { .. })));
+    }
+
+    #[test]
+    fn acquire_local_relative_dir_without_plugin_markers_fails_validation() {
+        let temp = make_temp();
+        // `src` is a relative directory that is not a valid plugin.
+        let path = ValidatedPath::new("src").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(result.is_err());
+        assert!(temp.path().join("src").exists());
+    }
+
+    #[test]
     fn acquire_local_validates_structure() {
         let temp = make_temp();
         // Create a directory without any marker files or aipm.toml
