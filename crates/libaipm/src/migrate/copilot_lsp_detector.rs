@@ -160,6 +160,34 @@ mod tests {
     }
 
     #[test]
+    fn detect_lsp_json_directly_in_source_dir_takes_precedence() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.copilot/lsp.json"));
+        fs.exists.insert(PathBuf::from("/project/.github/lsp.json"));
+        fs.files.insert(
+            PathBuf::from("/project/.copilot/lsp.json"),
+            r#"{"a":{"command":"a"},"b":{"command":"b"}}"#.to_string(),
+        );
+        fs.files.insert(
+            PathBuf::from("/project/.github/lsp.json"),
+            r#"{"c":{"command":"c"}}"#.to_string(),
+        );
+
+        let detector = CopilotLspDetector;
+        let artifacts =
+            detector.detect(Path::new("/project/.copilot"), &fs).ok().unwrap_or_default();
+        assert_eq!(artifacts.len(), 1);
+        assert_eq!(
+            artifacts.first().map(|a| a.source_path.clone()),
+            Some(PathBuf::from("/project/.copilot/lsp.json"))
+        );
+        assert!(artifacts
+            .first()
+            .and_then(|a| a.metadata.description.as_deref())
+            .is_some_and(|d| d.contains("2 LSP server(s)")));
+    }
+
+    #[test]
     fn detect_github_lsp_json_fallback() {
         let mut fs = MockFs::new();
         // Not at source_dir directly, but at project_root/.github/lsp.json
