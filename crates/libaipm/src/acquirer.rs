@@ -1095,6 +1095,55 @@ mod tests {
         );
     }
 
+    /// Covers the `?` error path on the redirected `acquire_git` call in
+    /// `acquire_with_redirect` (line 245): the stub plugin redirects to a URL
+    /// that cannot be cloned, so the `GitClone` error is propagated.
+    #[test]
+    fn acquire_with_redirect_unreachable_redirect_target_returns_error() {
+        let repo_temp = make_temp();
+        let repo_src = repo_temp.path();
+        let missing = repo_temp.path().join("does-not-exist");
+
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(repo_src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+
+        let Ok(init) = git(&["init", "-b", "main"]) else { return };
+        if !init.status.success() {
+            return;
+        }
+        std::fs::create_dir_all(repo_src.join(".claude-plugin")).unwrap();
+        std::fs::write(repo_src.join(".claude-plugin/plugin.json"), "{}").unwrap();
+        let redirect_toml = format!(
+            "[package]\nname = \"stub\"\nversion = \"0.0.0\"\n\
+             [package.source]\ntype = \"git\"\nurl = \"{}\"\n",
+            missing.display()
+        );
+        std::fs::write(repo_src.join("aipm.toml"), &redirect_toml).unwrap();
+        git(&["add", "."]).unwrap();
+        git(&["commit", "-m", "stub"]).unwrap();
+
+        let dest_temp = make_temp();
+        let git_source = crate::spec::GitSource {
+            url: repo_src.to_string_lossy().to_string(),
+            path: None,
+            git_ref: None,
+        };
+
+        let result = acquire_with_redirect(&git_source, dest_temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::GitClone { .. })),
+            "expected GitClone error, got: {result:?}"
+        );
+    }
+
     /// Covers the `!sub.is_dir()` True branch (block 1, branch 2) at line 129:
     /// when the specified path exists in the clone but is a file rather than a
     /// directory, `acquire_git` returns `Error::PathNotFound`.
