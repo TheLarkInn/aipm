@@ -465,6 +465,11 @@ mod tests {
     }
 
     #[test]
+    fn is_relative_script_rejects_empty_path() {
+        assert!(!is_relative_script("", Path::new(".")));
+    }
+
+    #[test]
     fn detector_name_is_hook() {
         // Exercises the `fn name(&self) -> &'static str` branch on HookDetector,
         // which returns the detector's identifier used during migration dispatch.
