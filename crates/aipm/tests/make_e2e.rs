@@ -150,6 +150,41 @@ fn make_plugin_copilot() {
 }
 
 // =========================================================================
+// Scenario: Make a plugin targeting both engines updates Claude settings
+// =========================================================================
+#[test]
+fn make_plugin_both_engines_updates_claude_settings() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("both");
+
+    aipm()
+        .args(["init", "-y", "--engine", "claude", &dir.display().to_string()])
+        .assert()
+        .success();
+
+    aipm()
+        .args([
+            "make",
+            "plugin",
+            "--name",
+            "dual",
+            "--engine",
+            "both",
+            "--feature",
+            "skill",
+            "-y",
+            "--dir",
+            &dir.display().to_string(),
+        ])
+        .assert()
+        .success();
+
+    assert!(dir.join(".ai/dual").exists(), ".ai/dual/ should exist");
+    let settings = std::fs::read_to_string(dir.join(".claude/settings.json")).unwrap();
+    assert!(settings.contains("dual"), "settings.json should enable the 'dual' plugin");
+}
+
+// =========================================================================
 // Scenario: Running make plugin twice with the same name is idempotent
 // =========================================================================
 #[test]
