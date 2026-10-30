@@ -192,6 +192,41 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn read_content_on_directory_returns_read_error() {
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        // Opening a directory read-only succeeds on Unix, but reading fails.
+        if let Ok(file) = File::open(temp.path()) {
+            let mut locked = LockedFile { file };
+            let result = locked.read_content();
+            assert!(matches!(result, Err(Error::Read { .. })));
+            if let Err(e) = result {
+                assert!(e.to_string().starts_with("Failed to read locked file"));
+            }
+        }
+    }
+
+    #[test]
+    fn write_content_on_read_only_handle_returns_write_error() {
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let path = temp.path().join("ro.json");
+        std::fs::write(&path, b"data").unwrap_or_else(|_| {});
+        if let Ok(file) = File::open(&path) {
+            let mut locked = LockedFile { file };
+            let result = locked.write_content("x");
+            assert!(matches!(result, Err(Error::Write { .. })));
+            if let Err(e) = result {
+                assert!(e.to_string().starts_with("Failed to write locked file"));
+            }
+        }
+    }
+
+    #[test]
+    fn seek_error_display() {
+        let err = Error::Seek { source: std::io::Error::other("boom") };
+        assert_eq!(err.to_string(), "Failed to seek locked file: boom");
+    }
+
     /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
     fn unreachable_tempdir() -> tempfile::TempDir {
         tempfile::tempdir_in(".").unwrap_or_else(|_| {
