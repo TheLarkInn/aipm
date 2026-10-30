@@ -237,6 +237,26 @@ mod tests {
     }
 
     #[test]
+    fn add_propagates_read_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("links.toml");
+        std::fs::write(&path, "[[link]\nNOT VALID TOML :::").expect("write");
+
+        let result = add(FS, &path, make_entry("pkg", "/tmp/pkg"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn remove_propagates_read_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("links.toml");
+        std::fs::write(&path, "[[link]\nNOT VALID TOML :::").expect("write");
+
+        let result = remove(FS, &path, "pkg");
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn write_to_root_returns_error() {
         // write_file_with_parents on "/" fails with EISDIR or permission error.
         let result = write(FS, Path::new("/"), &State::default());
