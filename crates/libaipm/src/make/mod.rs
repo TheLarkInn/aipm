@@ -571,6 +571,28 @@ mod tests {
     }
 
     #[test]
+    fn register_in_marketplace_reports_already_registered() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        let marketplace_json = marketplace_dir.join(".claude-plugin").join("marketplace.json");
+        let entry = crate::generate::marketplace::Entry { name: "dup-plugin", description: "d" };
+        let content = crate::generate::marketplace::create("test-marketplace", &[entry]);
+        fs.seed(&marketplace_json, content.as_bytes());
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "dup-plugin",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        let mut actions = Vec::new();
+        let result = register_in_marketplace(&opts, &fs, &marketplace_json, &mut actions);
+
+        assert!(result.is_ok());
+        assert!(matches!(actions.first(), Some(Action::PluginAlreadyRegistered { .. })));
+    }
+
+    #[test]
     fn make_plugin_registers_in_marketplace() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
