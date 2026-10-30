@@ -1253,4 +1253,58 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Fs wrapper that fails `write_file` for paths ending with `fail_suffix`
+    /// and `create_dir_all` when `fail_mkdir` is set.
+    struct FailFs {
+        inner: MockFs,
+        fail_suffix: &'static str,
+        fail_mkdir: bool,
+    }
+
+    impl crate::fs::Fs for FailFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            if self.fail_mkdir {
+                return Err(std::io::Error::other("mkdir failed"));
+            }
+            self.inner.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            if !self.fail_suffix.is_empty() && path.ends_with(self.fail_suffix) {
+                return Err(std::io::Error::other("write failed"));
+            }
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_fs_errors() {
+        let marketplace_dir = Path::new("/project/.ai");
+        let cases: [(&'static str, bool); 4] =
+            [("", true), ("SKILL.md", false), ("plugin.json", false), ("marketplace.json", false)];
+        for (suffix, fail_mkdir) in cases {
+            let fs = FailFs { inner: MockFs::new(), fail_suffix: suffix, fail_mkdir };
+            seed_marketplace(&fs.inner, marketplace_dir);
+            let opts = PluginOpts {
+                marketplace_dir,
+                name: "err-plugin",
+                engine: "claude",
+                features: &[Feature::Skill],
+            };
+            assert!(plugin(&opts, &fs).is_err(), "expected error for suffix {suffix:?}");
+        }
+    }
 }
