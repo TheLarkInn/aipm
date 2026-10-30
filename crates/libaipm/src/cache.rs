@@ -1078,6 +1078,24 @@ mod tests {
     }
 
     #[test]
+    fn put_overwrite_with_old_dir_already_removed() {
+        // Covers the False branch of `old_dir.exists()` in put(): the previous
+        // entry directory vanished before the entry was overwritten.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        assert!(cache.put("spec", &src, None).is_ok());
+
+        let index = cache.read_index().unwrap_or_default();
+        if let Some(entry) = index.entries.get("spec") {
+            let _ = std::fs::remove_dir_all(cache.entries_dir().join(&entry.dir_name));
+        }
+
+        let result = cache.put("spec", &src, None);
+        assert!(result.is_ok(), "overwrite must succeed when old dir is already gone");
+        assert!(matches!(cache.get("spec"), Ok(Some(_))));
+    }
+
+    #[test]
     fn touch_entry_missing_key_is_noop() {
         // Covers the False branch of `if let Some(entry) = index.entries.get_mut(spec_key)`
         // in touch_entry: when the spec_key is absent from the index (e.g. removed between
