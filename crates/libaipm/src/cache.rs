@@ -563,6 +563,29 @@ mod tests {
     }
 
     #[test]
+    fn empty_index_file_is_treated_as_miss() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(
+            std::fs::create_dir_all(cache.index_path().parent().unwrap_or(Path::new("."))).is_ok()
+        );
+        assert!(std::fs::write(cache.index_path(), "").is_ok());
+        assert!(matches!(cache.get("github:owner/repo:plugin@main"), Ok(None)));
+    }
+
+    #[test]
+    fn corrupt_index_file_returns_parse_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(
+            std::fs::create_dir_all(cache.index_path().parent().unwrap_or(Path::new("."))).is_ok()
+        );
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+        assert!(matches!(
+            cache.get("github:owner/repo:plugin@main"),
+            Err(Error::IndexParse { .. })
+        ));
+    }
+
+    #[test]
     fn cache_put_and_get() {
         let (temp, cache) = test_cache(Policy::Auto);
         let spec = "github:owner/repo:plugin@main";
