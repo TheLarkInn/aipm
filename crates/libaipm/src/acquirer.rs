@@ -627,6 +627,17 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the `acquire_local` not-found branch: a relative path that does
+    /// not exist returns `LocalNotFound`.
+    #[test]
+    fn acquire_local_nonexistent_path_returns_local_not_found() {
+        let temp = make_temp();
+        let path = ValidatedPath::new("definitely-missing-plugin-dir-xyz")
+            .unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotFound { .. })));
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
