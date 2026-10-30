@@ -718,6 +718,29 @@ mod tests {
     }
 
     #[test]
+    fn init_with_nothing_requested_returns_no_actions() {
+        // Neither phase requested: no Created* and no Found* actions, so the
+        // "found nothing to do" tail warning must not fire (`any_found` false).
+        let (tmp, _guard) = make_temp_dir("nothing-requested");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+        assert!(!tmp.join("aipm.toml").exists());
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_workspace_creates_manifest() {
         let (tmp, _guard) = make_temp_dir("ws-create");
         let adaptors = default_adaptors();
