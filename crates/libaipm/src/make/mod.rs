@@ -658,6 +658,31 @@ mod tests {
     }
 
     #[test]
+    fn read_marketplace_name_falls_back_to_default() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/.ai/.claude-plugin/marketplace.json");
+        assert_eq!(read_marketplace_name(&fs, path), "local-repo-plugins");
+
+        fs.seed(path, b"not json");
+        assert_eq!(read_marketplace_name(&fs, path), "local-repo-plugins");
+
+        fs.seed(path, b"{}");
+        assert_eq!(read_marketplace_name(&fs, path), "local-repo-plugins");
+
+        fs.seed(path, br#"{"name":"custom"}"#);
+        assert_eq!(read_marketplace_name(&fs, path), "custom");
+    }
+
+    #[test]
+    fn is_plugin_registered_false_for_unreadable_or_invalid() {
+        let fs = MockFs::new();
+        let path = Path::new("/m/marketplace.json");
+        assert!(!is_plugin_registered(&fs, path, "x"));
+        fs.seed(path, b"not json");
+        assert!(!is_plugin_registered(&fs, path, "x"));
+    }
+
+    #[test]
     fn make_plugin_both_engines() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
