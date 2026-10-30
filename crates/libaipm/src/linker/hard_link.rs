@@ -186,4 +186,37 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_target_under_file_returns_io_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"x").expect("write blocker");
+
+        let result = assemble(&store, &BTreeMap::new(), &blocker.join("pkg"));
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("pkg")),
+            "expected Io error for target dir, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn assemble_file_blocking_parent_dir_returns_io_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash = store.store_file(b"content").expect("store file");
+
+        // "a" is linked as a file, so creating the parent dir for "a/b.txt" must fail.
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("a"), hash.clone());
+        file_hashes.insert(PathBuf::from("a/b.txt"), hash);
+
+        let target = tmp.path().join("links").join("pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("a")),
+            "expected Io error for parent dir, got: {result:?}"
+        );
+    }
 }
