@@ -973,6 +973,18 @@ mod tests {
         assert!(!logissue_line.contains("(see "));
     }
 
+    #[test]
+    fn ci_azure_no_complete_marker_when_errors_present() {
+        let mut outcome = ci_azure_single_diagnostic_outcome(None, None);
+        outcome.error_count = 1;
+        outcome.warning_count = 1;
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("##vso[task.logissue"));
+        assert!(!output.contains("task.complete"));
+    }
+
     fn ci_azure_diag_on(file_path: &str, rule_id: &str, line: usize) -> Diagnostic {
         Diagnostic {
             rule_id: rule_id.into(),
