@@ -1397,6 +1397,29 @@ mod tests {
         assert!(config.ignore_paths.is_empty());
     }
 
+    /// `load_lint_config` falls back to defaults when `aipm.toml` cannot be read
+    /// for a reason other than not-found (here: it is a directory).
+    #[test]
+    fn load_lint_config_unreadable_manifest_returns_default() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tmp.path().join("aipm.toml")).unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert!(config.rule_overrides.is_empty());
+        assert!(config.ignore_paths.is_empty());
+    }
+
+    /// `load_lint_config` falls back to defaults when `aipm.toml` is invalid TOML.
+    #[test]
+    fn load_lint_config_invalid_toml_returns_default() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("aipm.toml"), "[workspace\nnot toml = = =").unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert!(config.rule_overrides.is_empty());
+        assert!(config.ignore_paths.is_empty());
+    }
+
     /// `cmd_lint` returns an error immediately when given an unrecognised reporter string.
     #[test]
     fn cmd_lint_unknown_reporter_returns_err() {
