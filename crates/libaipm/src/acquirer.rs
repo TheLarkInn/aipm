@@ -1138,4 +1138,56 @@ mod tests {
             "expected PathNotFound error when subpath is a file, got: {result:?}"
         );
     }
+
+    /// Covers the error-propagation branch of the initial `acquire_git` call
+    /// in `acquire_with_redirect`.
+    #[test]
+    fn acquire_with_redirect_initial_acquire_fails() {
+        let temp = make_temp();
+        let source = crate::spec::GitSource {
+            url: "not-a-valid-url://nowhere".to_string(),
+            path: None,
+            git_ref: None,
+        };
+        let result = acquire_with_redirect(&source, temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::GitClone { .. })), "got: {result:?}");
+    }
+
+    /// Covers the error-propagation branch of the redirected `acquire_git`
+    /// call: the stub's redirect points at an unclonable URL.
+    #[test]
+    fn acquire_with_redirect_redirect_target_fails() {
+        let stub_temp = make_temp();
+        let stub_src = stub_temp.path();
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(stub_src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+        let Ok(init) = git(&["init", "-b", "main"]) else { return };
+        if !init.status.success() {
+            return;
+        }
+        let _ = std::fs::create_dir_all(stub_src.join(".claude-plugin"));
+        let _ = std::fs::write(stub_src.join(".claude-plugin/plugin.json"), "{}");
+        let toml = "[package]\nname = \"stub\"\nversion = \"0.0.0\"\n\
+                    [package.source]\ntype = \"git\"\nurl = \"not-a-valid-url://nowhere\"\n";
+        let _ = std::fs::write(stub_src.join("aipm.toml"), toml);
+        let _ = git(&["add", "."]);
+        let _ = git(&["commit", "-m", "stub"]);
+
+        let dest_temp = make_temp();
+        let source = crate::spec::GitSource {
+            url: stub_src.to_string_lossy().to_string(),
+            path: None,
+            git_ref: None,
+        };
+        let result = acquire_with_redirect(&source, dest_temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::GitClone { .. })), "got: {result:?}");
+    }
 }
