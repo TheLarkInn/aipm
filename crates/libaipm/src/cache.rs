@@ -871,6 +871,20 @@ mod tests {
     }
 
     #[test]
+    fn touch_entry_missing_spec_leaves_index_unchanged() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let _ = cache.put("spec", &src, None);
+
+        let result = cache.touch_entry("nonexistent");
+        assert!(result.is_ok());
+
+        let index = cache.read_index().unwrap_or_default();
+        assert!(index.entries.contains_key("spec"));
+        assert!(!index.entries.contains_key("nonexistent"));
+    }
+
+    #[test]
     fn skip_cache_put_returns_error() {
         let (_temp, cache) = test_cache(Policy::SkipCache);
         let src = _temp.path().join("src");
