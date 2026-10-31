@@ -158,6 +158,31 @@ mod tests {
     }
 
     #[test]
+    fn read_content_invalid_utf8_returns_read_error() {
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let path = temp.path().join("binary.dat");
+        std::fs::write(&path, [0xff_u8, 0xfe, 0xfd]).unwrap_or_else(|_| {});
+
+        let mut locked = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
+        let result = locked.read_content();
+        assert!(matches!(result, Err(Error::Read { .. })));
+    }
+
+    #[test]
+    fn write_content_on_read_only_handle_returns_write_error() {
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let path = temp.path().join("ro.dat");
+        std::fs::write(&path, b"x").unwrap_or_else(|_| {});
+
+        let Ok(file) = File::open(&path) else {
+            return;
+        };
+        let mut locked = LockedFile { file };
+        let result = locked.write_content("y");
+        assert!(matches!(result, Err(Error::Write { .. })));
+    }
+
+    #[test]
     fn open_file_in_current_directory() {
         // path.parent() returns Some("") for a bare filename, not None
         // but let's exercise the path with no nested dirs
