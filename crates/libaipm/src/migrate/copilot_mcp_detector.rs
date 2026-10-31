@@ -189,6 +189,16 @@ mod tests {
     }
 
     #[test]
+    fn unreadable_mcp_config_returns_error() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.copilot/mcp-config.json"));
+
+        let detector = CopilotMcpDetector;
+        let result = detector.detect(Path::new("/project/.github"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn malformed_json_returns_error() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.copilot/mcp-config.json"));
