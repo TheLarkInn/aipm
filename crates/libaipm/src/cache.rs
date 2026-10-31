@@ -1137,4 +1137,11 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn policy_deserialize_rejects_non_string_and_unknown() {
+        assert!(serde_json::from_str::<Policy>("42").is_err());
+        assert!(serde_json::from_str::<Policy>("\"bogus\"").is_err());
+        assert_eq!(serde_json::from_str::<Policy>("\"skip\"").ok(), Some(Policy::SkipCache));
+    }
 }
