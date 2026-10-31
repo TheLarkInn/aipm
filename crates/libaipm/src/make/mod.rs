@@ -1253,4 +1253,66 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Delegates to `MockFs` but fails any write or dir creation whose path ends with `target`.
+    struct FailFs {
+        inner: MockFs,
+        target: &'static str,
+    }
+
+    impl crate::fs::Fs for FailFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            if path.ends_with(self.target) {
+                return Err(std::io::Error::other("injected dir failure"));
+            }
+            self.inner.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            if path.ends_with(self.target) {
+                return Err(std::io::Error::other("injected write failure"));
+            }
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_scaffold_io_errors() {
+        let cases: [(&'static str, Feature); 8] = [
+            ("skills/my-plugin", Feature::Skill),
+            ("SKILL.md", Feature::Skill),
+            ("agents", Feature::Agent),
+            (".mcp.json", Feature::Mcp),
+            ("hooks", Feature::Hook),
+            ("hooks.json", Feature::Hook),
+            ("output-styles", Feature::OutputStyle),
+            (".lsp.json", Feature::Lsp),
+        ];
+        for (target, feature) in cases {
+            let marketplace_dir = Path::new("/project/.ai");
+            let inner = MockFs::new();
+            seed_marketplace(&inner, marketplace_dir);
+            let fs = FailFs { inner, target };
+            let features = [feature];
+            let opts = PluginOpts {
+                marketplace_dir,
+                name: "my-plugin",
+                engine: "claude",
+                features: &features,
+            };
+            assert!(plugin(&opts, &fs).is_err(), "expected error when {target} fails");
+        }
+    }
 }
