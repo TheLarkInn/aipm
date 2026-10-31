@@ -580,6 +580,31 @@ mod tests {
         assert!(result.is_err(), "expected CopyFailed error, got: {result:?}");
     }
 
+    /// A missing source directory makes `read_dir` fail and map to `Error::Io`.
+    #[test]
+    fn copy_dir_recursive_missing_src_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("missing-src");
+        let dst = temp.path().join("dst");
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}");
+    }
+
+    /// A file occupying the destination subdirectory path makes
+    /// `create_dir_all` fail and map to `Error::Io`.
+    #[test]
+    fn copy_dir_recursive_subdir_create_fails_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        std::fs::create_dir_all(src.join("sub")).unwrap_or_else(|_| {});
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(&dst).unwrap_or_else(|_| {});
+        std::fs::write(dst.join("sub"), "blocker").unwrap_or_else(|_| {});
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}");
+    }
+
     #[test]
     fn source_redirect_with_invalid_toml() {
         let temp = make_temp();
