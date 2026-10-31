@@ -302,4 +302,23 @@ mod tests {
         sorted.sort();
         assert_eq!(result.files, sorted);
     }
+
+    #[cfg(unix)]
+    #[test]
+    fn unreadable_dir_yields_walk_failed() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        let locked = root.join("locked");
+        fs::create_dir_all(&locked).expect("create locked dir");
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).expect("chmod");
+        // Root can read anything; only assert when the directory is truly unreadable.
+        let unreadable = fs::read_dir(&locked).is_err();
+        let result = walk(root, &DiscoverOptions::default());
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).expect("restore");
+        if unreadable {
+            assert!(matches!(result, Err(Error::WalkFailed(_))));
+        }
+    }
 }
