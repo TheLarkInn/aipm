@@ -1857,6 +1857,27 @@ mod tests {
     }
 
     #[test]
+    fn init_with_all_phases_disabled_produces_no_actions() {
+        // Neither workspace nor marketplace requested: nothing is created and
+        // nothing is found, so the "found nothing to do" tail warning is skipped.
+        let (tmp, _guard) = make_temp_dir("all-phases-disabled");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = Vec::new();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real).expect("init should succeed");
+        assert!(result.actions.is_empty());
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_workspace_with_narrow_support_writes_engines_field() {
         // engines_support = Some(CLAUDE) with workspace=true → workspace
         // aipm.toml gets `engines = ["claude"]`.
