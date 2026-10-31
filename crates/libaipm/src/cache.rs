@@ -853,6 +853,17 @@ mod tests {
     }
 
     #[test]
+    fn put_fails_with_index_parse_error_on_corrupt_index() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let _ = cache.ensure_dirs();
+        let _ = std::fs::write(cache.index_path(), "not valid json");
+
+        let result = cache.put("spec", &src, None);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn auto_returns_none_when_dir_missing() {
         let (temp, cache) = test_cache(Policy::Auto);
         let src = create_source_plugin(&temp);
