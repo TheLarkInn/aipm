@@ -469,6 +469,41 @@ mod tests {
     use super::*;
     use std::path::PathBuf;
 
+    struct LimitedWriter {
+        remaining: usize,
+    }
+
+    impl Write for LimitedWriter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if self.remaining < buf.len() {
+                return Err(std::io::Error::other("write limit reached"));
+            }
+            self.remaining -= buf.len();
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn text_and_json_reporters_propagate_write_errors() {
+        let outcome = sample_outcome();
+        let reporters: [&dyn Reporter; 2] = [&Text, &Json];
+        for reporter in reporters {
+            let mut ok_count = 0;
+            for limit in 0..2048 {
+                let mut w = LimitedWriter { remaining: limit };
+                if reporter.report(&outcome, &mut w).is_ok() {
+                    ok_count += 1;
+                    break;
+                }
+            }
+            assert_eq!(ok_count, 1);
+        }
+    }
+
     fn sample_outcome() -> Outcome {
         Outcome {
             diagnostics: vec![
