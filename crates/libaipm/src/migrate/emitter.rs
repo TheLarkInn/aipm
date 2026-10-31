@@ -2038,6 +2038,32 @@ mod tests {
     }
 
     #[test]
+    fn emit_plugin_with_name_skips_unsafe_plugin_name() {
+        let fs = MockFs::new();
+        let artifact = make_skill_artifact();
+        let result = emit_plugin_with_name(&artifact, "../evil", Path::new("/ai"), true, &fs);
+        let actions = result.unwrap_or_default();
+        assert!(matches!(
+            actions.as_slice(),
+            [Action::Skipped { reason, .. }] if reason.contains("unsafe plugin name")
+        ));
+        assert!(fs.get_written(Path::new("/ai/../evil/aipm.toml")).is_none());
+    }
+
+    #[test]
+    fn emit_plugin_with_name_skips_unsafe_artifact_name() {
+        let fs = MockFs::new();
+        let mut artifact = make_skill_artifact();
+        artifact.name = "a/b".to_string();
+        let result = emit_plugin_with_name(&artifact, "my-plugin", Path::new("/ai"), true, &fs);
+        let actions = result.unwrap_or_default();
+        assert!(matches!(
+            actions.as_slice(),
+            [Action::Skipped { reason, .. }] if reason.contains("unsafe artifact name")
+        ));
+    }
+
+    #[test]
     fn emit_plugin_with_name_command_artifact() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/commands/review.md"), "Review code".to_string());
