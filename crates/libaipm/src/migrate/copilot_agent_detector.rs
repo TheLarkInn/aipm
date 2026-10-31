@@ -332,6 +332,29 @@ mod tests {
     }
 
     #[test]
+    fn read_dir_failure_propagates_error() {
+        let mut fs = MockFs::new();
+        // Directory "exists" but has no listing, so `read_dir` fails.
+        fs.exists.insert(PathBuf::from("/src/agents"));
+
+        let detector = CopilotAgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn read_to_string_failure_propagates_error() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        // Listed in the directory but its contents are missing.
+        fs.dirs.insert(PathBuf::from("/src/agents"), vec![de("ghost.md", false)]);
+
+        let detector = CopilotAgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn has_agent_md_suffix_edge_cases() {
         assert!(has_agent_md_suffix("foo.agent.md"));
         assert!(!has_agent_md_suffix(".agent.md")); // name would be empty, too short
