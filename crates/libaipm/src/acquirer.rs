@@ -775,6 +775,43 @@ mod tests {
         assert!(dest.join(".claude-plugin/plugin.json").exists());
     }
 
+    /// Covers the `validate_plugin(...)?` error branch in `acquire_git`: a
+    /// cloned repository without any plugin marker files fails validation.
+    #[test]
+    fn acquire_git_invalid_plugin_structure_returns_error() {
+        let source_temp = make_temp();
+        let src = source_temp.path();
+
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+
+        let Ok(init) = git(&["init", "-b", "main"]) else { return };
+        if !init.status.success() {
+            return;
+        }
+        std::fs::write(src.join("some-file.txt"), "data").unwrap_or_else(|_| {});
+        let _ = git(&["add", "."]);
+        let _ = git(&["commit", "-m", "init"]);
+
+        let dest_temp = make_temp();
+        let git_source = crate::spec::GitSource {
+            url: src.to_string_lossy().to_string(),
+            path: None,
+            git_ref: None,
+        };
+
+        let result = acquire_git(&git_source, dest_temp.path(), Engine::Claude);
+        assert!(result.is_err(), "expected validation error, got: {result:?}");
+    }
+
     /// Covers the `PathNotFound` error branch inside the `Some(ref sub_path)` arm:
     /// when the specified subdirectory does not exist in the cloned repository,
     /// `acquire_git` returns `Error::PathNotFound`.
