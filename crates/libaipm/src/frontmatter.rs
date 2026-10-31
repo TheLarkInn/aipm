@@ -203,6 +203,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn parse_trailing_key_with_empty_value_and_no_continuation() {
+        let content = "---\nname: deploy\nhooks:\n---\nbody";
+        let fields = parse(content).ok().and_then(|o| o).map(|fm| fm.fields).unwrap_or_default();
+        assert_eq!(fields.get("name").map(String::as_str), Some("deploy"));
+        assert_eq!(fields.get("hooks").map(String::as_str), Some(""));
+    }
+
+    #[test]
     fn parse_valid_frontmatter() {
         let content = "---\nname: deploy\ndescription: Deploy app\n---\nbody text";
         let result = parse(content);
