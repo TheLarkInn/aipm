@@ -819,6 +819,16 @@ mod tests {
     }
 
     #[test]
+    fn cache_skip_cache_get_always_misses() {
+        let (temp, cache) = test_cache(Policy::SkipCache);
+        let src = create_source_plugin(&temp);
+        let _ = cache.put("spec", &src, None);
+
+        let result = cache.get("spec");
+        assert!(matches!(result, Ok(None)));
+    }
+
+    #[test]
     fn set_entry_ttl_updates_stored_ttl() {
         let (temp, cache) = test_cache(Policy::Auto);
         let src = create_source_plugin(&temp);
