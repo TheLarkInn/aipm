@@ -978,6 +978,26 @@ mod tests {
     }
 
     #[test]
+    fn register_in_marketplace_propagates_register_error() {
+        let fs = MockFs::new();
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/project/.ai"),
+            name: "my-plugin",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        let mut actions = Vec::new();
+        let result = register_in_marketplace(
+            &opts,
+            &fs,
+            Path::new("/project/.ai/.claude-plugin/marketplace.json"),
+            &mut actions,
+        );
+        assert!(result.is_err());
+        assert!(actions.is_empty());
+    }
+
+    #[test]
     fn is_plugin_registered_returns_false_for_missing_file() {
         let fs = MockFs::new();
         let path = Path::new("/nonexistent/marketplace.json");
