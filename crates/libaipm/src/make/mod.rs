@@ -1253,4 +1253,19 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    #[test]
+    fn marketplace_helpers_handle_missing_and_invalid_json() {
+        let fs = MockFs::new();
+        let path = Path::new("/proj/.ai/.claude-plugin/marketplace.json");
+
+        // Missing file: read error branch.
+        assert!(!is_plugin_registered(&fs, path, "x"));
+        assert_eq!(read_marketplace_name(&fs, path), "local-repo-plugins");
+
+        // Present but malformed JSON: parse error branch.
+        fs.seed(path, b"{ not json");
+        assert!(!is_plugin_registered(&fs, path, "x"));
+        assert_eq!(read_marketplace_name(&fs, path), "local-repo-plugins");
+    }
 }
