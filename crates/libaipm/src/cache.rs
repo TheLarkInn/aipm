@@ -563,6 +563,20 @@ mod tests {
     }
 
     #[test]
+    fn cache_put_overwrite_tolerates_missing_old_dir() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+
+        let first = cache.put("spec", &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(first.exists());
+        let _ = std::fs::remove_dir_all(&first);
+
+        let second = cache.put("spec", &src, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(second.exists());
+        assert_ne!(first, second);
+    }
+
+    #[test]
     fn cache_put_and_get() {
         let (temp, cache) = test_cache(Policy::Auto);
         let spec = "github:owner/repo:plugin@main";
