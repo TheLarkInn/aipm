@@ -748,4 +748,15 @@ mod tests {
             Some((14, 33))
         );
     }
+
+    #[test]
+    fn parse_tab_indented_continuation() {
+        let content = "---\nhooks:\n\tline one\n\tline two\nname: x\n---\n";
+        let fm = parse(content).ok().and_then(|o| o);
+        assert_eq!(
+            fm.as_ref().and_then(|f| f.fields.get("hooks")).map(String::as_str),
+            Some("line one\nline two")
+        );
+        assert_eq!(fm.and_then(|f| f.fields.get("name").cloned()).as_deref(), Some("x"));
+    }
 }
