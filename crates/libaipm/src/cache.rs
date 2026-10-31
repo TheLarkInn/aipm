@@ -538,6 +538,22 @@ mod tests {
     }
 
     #[test]
+    fn put_overwrite_when_old_entry_dir_already_removed() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let first = cache.put("pkg@1", &src, None);
+        assert!(first.is_ok());
+        let first_dir = first.unwrap_or_default();
+        assert!(std::fs::remove_dir_all(&first_dir).is_ok());
+
+        let second = cache.put("pkg@1", &src, None);
+        assert!(second.is_ok());
+        let second_dir = second.unwrap_or_default();
+        assert_ne!(first_dir, second_dir);
+        assert!(second_dir.exists());
+    }
+
+    #[test]
     fn cache_policy_roundtrip() {
         for policy in [
             Policy::Auto,
