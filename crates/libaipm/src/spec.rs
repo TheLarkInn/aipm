@@ -1621,4 +1621,35 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    /// Writer that accepts a fixed number of `write_str` calls, then fails.
+    struct LimitedWriter(usize);
+
+    impl std::fmt::Write for LimitedWriter {
+        fn write_str(&mut self, _: &str) -> std::fmt::Result {
+            if self.0 == 0 {
+                return Err(std::fmt::Error);
+            }
+            self.0 -= 1;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn git_source_display_propagates_write_errors() {
+        use std::fmt::Write;
+        let source = GitSource {
+            url: "https://github.com/org/repo.git".to_string(),
+            path: ValidatedPath::new("plugins/foo").ok(),
+            git_ref: Some("main".to_string()),
+        };
+        let mut failures = 0;
+        for budget in 0..20 {
+            if write!(LimitedWriter(budget), "{source}").is_err() {
+                failures += 1;
+            }
+        }
+        assert!(failures >= 3);
+        assert!(write!(LimitedWriter(1000), "{source}").is_ok());
+    }
 }
