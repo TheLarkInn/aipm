@@ -387,6 +387,25 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_public_rejects_file_source() {
+        // Cargo.toml exists relative to the crate dir (test cwd) but is not a directory.
+        let temp = make_temp();
+        let path = ValidatedPath::new("Cargo.toml").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotDirectory { .. })));
+    }
+
+    #[test]
+    fn acquire_local_public_copies_then_fails_validation() {
+        // A real directory without plugin markers is copied, then rejected by validation.
+        let temp = make_temp();
+        let path = ValidatedPath::new("src/migrate").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(result.is_err());
+        assert!(temp.path().join("migrate").exists());
+    }
+
+    #[test]
     fn acquire_local_validates_structure() {
         let temp = make_temp();
         // Create a directory without any marker files or aipm.toml
