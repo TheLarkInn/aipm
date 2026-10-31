@@ -764,6 +764,12 @@ mod tests {
     }
 
     #[test]
+    fn parse_marketplace_github_extra_path_segment_rejected() {
+        let result = "market:plugin@owner/repo/extra".parse::<Spec>();
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn parse_marketplace_empty_ref_after_hash() {
         let result = "market:hello@owner/repo#".parse::<Spec>();
         assert!(result.is_err());
