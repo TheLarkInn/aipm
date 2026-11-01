@@ -1253,4 +1253,53 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Fs whose `create_dir_all` fails after `ok_calls` successful calls.
+    struct FailingDirFs {
+        inner: MockFs,
+        ok_calls: Mutex<usize>,
+    }
+
+    impl crate::fs::Fs for FailingDirFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            let mut n = self.ok_calls.lock().unwrap_or_else(|p| p.into_inner());
+            if *n == 0 {
+                return Err(std::io::Error::other("mkdir failed"));
+            }
+            *n -= 1;
+            Ok(())
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_create_dir_errors() {
+        let marketplace_dir = Path::new("/project/.ai");
+        for ok_calls in 0..2 {
+            let fs = FailingDirFs { inner: MockFs::new(), ok_calls: Mutex::new(ok_calls) };
+            seed_marketplace(&fs.inner, marketplace_dir);
+            let opts = PluginOpts {
+                marketplace_dir,
+                name: "fail-plugin",
+                engine: "claude",
+                features: &[Feature::Skill],
+            };
+            assert!(plugin(&opts, &fs).is_err(), "expected error with ok_calls={ok_calls}");
+        }
+    }
 }
