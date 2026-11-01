@@ -1416,6 +1416,15 @@ mod tests {
     }
 
     #[test]
+    fn marketplace_location_without_slash_is_invalid() {
+        let result = "market:plugin@nolocationslash".parse::<Spec>();
+        assert!(
+            matches!(&result, Err(Error::Marketplace { reason }) if reason.contains("invalid marketplace location")),
+            "unexpected result: {result:?}"
+        );
+    }
+
+    #[test]
     fn from_str_empty_identifier_returns_error() {
         // Parsing a source-prefixed spec with no identifier after ':' should
         // hit the `rest.is_empty()` branch and return EmptyIdentifier.
