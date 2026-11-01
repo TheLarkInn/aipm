@@ -1253,4 +1253,67 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    struct FailingFs {
+        fail_dirs: bool,
+        fail_writes: bool,
+    }
+
+    impl crate::fs::Fs for FailingFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            if self.fail_dirs {
+                Err(std::io::Error::other("dir failure"))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            if self.fail_writes {
+                Err(std::io::Error::other("write failure"))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::new(std::io::ErrorKind::NotFound, path.display().to_string()))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_io_errors_for_every_feature() {
+        let marketplace_dir = Path::new("/project/.ai");
+        let features = [
+            Feature::Skill,
+            Feature::Agent,
+            Feature::Mcp,
+            Feature::Hook,
+            Feature::OutputStyle,
+            Feature::Lsp,
+            Feature::Extension,
+            Feature::Command,
+        ];
+        for feature in features {
+            let selected = [feature];
+            let opts = PluginOpts {
+                marketplace_dir,
+                name: "failing",
+                engine: "claude",
+                features: &selected,
+            };
+            for (fail_dirs, fail_writes) in [(true, false), (false, true)] {
+                let fs = FailingFs { fail_dirs, fail_writes };
+                assert!(plugin(&opts, &fs).is_err());
+            }
+        }
+    }
 }
