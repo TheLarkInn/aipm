@@ -115,6 +115,17 @@ mod tests {
     }
 
     #[test]
+    fn add_remove_list_propagate_read_errors_on_invalid_toml() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("links.toml");
+        std::fs::write(&path, "not = [valid toml").expect("write");
+
+        assert!(matches!(add(FS, &path, make_entry("a", "/a")), Err(Error::Io { .. })));
+        assert!(matches!(remove(FS, &path, "a"), Err(Error::Io { .. })));
+        assert!(matches!(list(FS, &path), Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn read_nonexistent_returns_default() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let path = tmp.path().join(".aipm/links.toml");
