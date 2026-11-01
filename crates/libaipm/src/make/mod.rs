@@ -1253,4 +1253,57 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Fs whose chosen operation always fails with a permission error.
+    struct FailFs {
+        fail_dirs: bool,
+    }
+
+    impl crate::fs::Fs for FailFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            if self.fail_dirs {
+                Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::from(std::io::ErrorKind::NotFound))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_create_dir_error() {
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/project/.ai"),
+            name: "x",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        assert!(plugin(&opts, &FailFs { fail_dirs: true }).is_err());
+    }
+
+    #[test]
+    fn make_plugin_propagates_write_file_error() {
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/project/.ai"),
+            name: "x",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        assert!(plugin(&opts, &FailFs { fail_dirs: false }).is_err());
+    }
 }
