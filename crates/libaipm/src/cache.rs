@@ -657,6 +657,21 @@ mod tests {
     }
 
     #[test]
+    fn read_index_reports_parse_error_for_invalid_json() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+        assert!(matches!(cache.read_index(), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
+    fn read_index_reports_io_error_when_index_is_a_directory() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(std::fs::create_dir_all(cache.index_path()).is_ok());
+        assert!(matches!(cache.read_index(), Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn new_entry_dir_name_is_unique() {
         let a = new_entry_dir_name();
         // Small delay to ensure different timestamp contribution
