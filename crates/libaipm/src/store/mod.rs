@@ -631,4 +631,18 @@ mod tests {
         let result = store.store_package(nonexistent);
         assert!(result.is_err(), "expected store_package to fail on missing directory");
     }
+
+    /// When the target's parent directory cannot be created (a path component
+    /// is a regular file), `link_to` should return an I/O error.
+    #[test]
+    fn link_to_errors_when_parent_dir_creation_fails() {
+        let (_tmp, store) = make_store();
+        let hash = store.store_file(b"content").unwrap();
+        let target_dir = tempfile::tempdir().unwrap();
+        let blocker = target_dir.path().join("blocker");
+        std::fs::write(&blocker, b"file").unwrap();
+
+        let result = store.link_to(&hash, &blocker.join("sub").join("target"));
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
 }
