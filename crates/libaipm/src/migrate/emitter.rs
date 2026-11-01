@@ -2702,6 +2702,24 @@ mod tests {
     }
 
     #[test]
+    fn emit_package_plugin_copies_referenced_scripts() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
+        fs.files.insert(
+            PathBuf::from("/src/skills/deploy/scripts/deploy.sh"),
+            "#!/bin/bash\necho deploy".to_string(),
+        );
+        fs.exists.insert(PathBuf::from("/src/skills/deploy/scripts/deploy.sh"));
+
+        let mut artifact = make_skill_artifact();
+        artifact.referenced_scripts = vec![PathBuf::from("scripts/deploy.sh")];
+        let result = emit_package_plugin("auth", &[artifact], Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+
+        assert!(fs.get_written(Path::new("/ai/auth/scripts/deploy.sh")).is_some());
+    }
+
+    #[test]
     fn emit_package_plugin_mcp_only() {
         let fs = MockFs::new();
 
