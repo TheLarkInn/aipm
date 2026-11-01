@@ -355,6 +355,27 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_copies_and_validates_relative_path() {
+        // acquire_local resolves the path relative to the cwd, so stage the
+        // source plugin in a temp dir created under the cwd.
+        let Ok(cwd) = std::env::current_dir() else { return };
+        let Ok(staging) = tempfile::tempdir_in(&cwd) else { return };
+        let Some(name) = staging.path().file_name().and_then(|n| n.to_str()).map(str::to_string)
+        else {
+            return;
+        };
+        let plugin = staging.path().join("rel-plugin");
+        std::fs::create_dir_all(plugin.join(".claude-plugin")).unwrap_or_else(|_| {});
+        std::fs::write(plugin.join(".claude-plugin/plugin.json"), "{}").unwrap_or_else(|_| {});
+
+        let Ok(path) = ValidatedPath::new(format!("{name}/rel-plugin")) else { return };
+        let dest_temp = make_temp();
+        let result = acquire_local(&path, dest_temp.path(), Engine::Claude);
+        assert!(result.is_ok(), "expected Ok, got: {result:?}");
+        assert!(dest_temp.path().join("rel-plugin/.claude-plugin/plugin.json").exists());
+    }
+
+    #[test]
     fn acquire_local_not_found() {
         let temp = make_temp();
         let path = ValidatedPath::new("nonexistent").unwrap_or_else(|_| std::process::abort());
