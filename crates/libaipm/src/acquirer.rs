@@ -1044,6 +1044,25 @@ mod tests {
         assert!(plugin_path.join("REAL.md").exists(), "expected REAL.md in redirected plugin");
     }
 
+    /// Covers the error path of the first `acquire_git(..)?` in
+    /// `acquire_with_redirect`: a failed clone propagates as `Error::GitClone`.
+    #[test]
+    fn acquire_with_redirect_propagates_clone_error() {
+        let dest_temp = make_temp();
+        let missing = dest_temp.path().join("no-such-repo");
+        let git_source = crate::spec::GitSource {
+            url: missing.to_string_lossy().to_string(),
+            path: None,
+            git_ref: None,
+        };
+
+        let result = acquire_with_redirect(&git_source, dest_temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::GitClone { .. })),
+            "expected GitClone error, got: {result:?}"
+        );
+    }
+
     /// Covers the `check_source_redirect(&redirected_path).is_some()` True branch
     /// of `acquire_with_redirect` (line 248): when the redirected plugin also has
     /// a `[package.source]` redirect, the function returns `Error::RedirectLoop`.
