@@ -386,6 +386,24 @@ mod tests {
         let _ = path;
     }
 
+    /// `cargo test` runs with the crate directory as cwd, so relative paths
+    /// resolve against `crates/libaipm`.
+    #[test]
+    fn acquire_local_relative_path_to_file_is_not_directory() {
+        let temp = make_temp();
+        let path = ValidatedPath::new("Cargo.toml").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotDirectory { .. })));
+    }
+
+    #[test]
+    fn acquire_local_relative_dir_copies_then_validates() {
+        let temp = make_temp();
+        let path = ValidatedPath::new("src/lint").unwrap_or_else(|_| std::process::abort());
+        let _ = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(temp.path().join("lint").join("mod.rs").exists());
+    }
+
     #[test]
     fn acquire_local_validates_structure() {
         let temp = make_temp();
