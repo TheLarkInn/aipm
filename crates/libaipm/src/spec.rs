@@ -527,6 +527,12 @@ mod tests {
         }
     }
 
+    #[test]
+    fn parse_unknown_prefix_falls_back_to_registry() {
+        let spec = parse("npm:left-pad");
+        assert_eq!(spec, Spec::Registry { name: "npm:left-pad".to_string(), version_req: None });
+    }
+
     // ---- Registry specs ----
 
     #[test]
