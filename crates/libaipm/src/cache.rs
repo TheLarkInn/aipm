@@ -554,6 +554,14 @@ mod tests {
     }
 
     #[test]
+    fn mark_installed_and_set_ttl_on_missing_key_are_noops() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.mark_installed("missing:key", true).is_ok());
+        assert!(cache.set_entry_ttl("missing:key", Some(5)).is_ok());
+        assert!(matches!(cache.get("missing:key"), Ok(None)));
+    }
+
+    #[test]
     fn cache_miss_returns_none() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let result = cache.get("github:owner/repo:plugin@main");
