@@ -998,6 +998,18 @@ mod tests {
     }
 
     #[test]
+    fn get_with_corrupt_index_file_returns_index_parse_error() {
+        // Covers the `read_index()?` Err branch in get(): invalid JSON in the
+        // index file surfaces as `Error::IndexParse`.
+        let (temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(temp.path().join("cache")).unwrap();
+        std::fs::write(cache.index_path(), "{not valid json").unwrap();
+
+        let result = cache.get("some-spec");
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn put_source_with_symlink_is_silently_skipped() {
         // Covers the `else if file_type.is_file()` False branch in
