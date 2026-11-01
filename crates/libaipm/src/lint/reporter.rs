@@ -506,6 +506,32 @@ mod tests {
         }
     }
 
+    struct FailWriter;
+
+    impl Write for FailWriter {
+        fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::other("write failed"))
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn text_reporter_summary_write_failure_propagates() {
+        let outcome = Outcome { warning_count: 1, ..Outcome::default() };
+        assert!(Text.report(&outcome, &mut FailWriter).is_err());
+    }
+
+    #[test]
+    fn reporters_propagate_write_failures_for_diagnostics() {
+        let outcome = sample_outcome();
+        assert!(Json.report(&outcome, &mut FailWriter).is_err());
+        assert!(CiGitHub.report(&outcome, &mut FailWriter).is_err());
+        assert!(CiAzure.report(&outcome, &mut FailWriter).is_err());
+    }
+
     #[test]
     fn text_reporter_formats_diagnostics() {
         let outcome = sample_outcome();
