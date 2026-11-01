@@ -614,6 +614,25 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the success path of `acquire_local`: a valid plugin directory
+    /// (relative to the CWD) is copied, validated, and its destination returned.
+    #[test]
+    fn acquire_local_valid_plugin_succeeds() {
+        let src_root = tempfile::tempdir_in(".").unwrap_or_else(|_| std::process::abort());
+        let plugin = make_local_plugin(&src_root, "ok-plugin");
+        let rel = plugin
+            .strip_prefix(std::env::current_dir().unwrap_or_default())
+            .map(Path::to_path_buf)
+            .unwrap_or(plugin);
+        let path = ValidatedPath::new(rel.to_string_lossy().as_ref())
+            .unwrap_or_else(|_| std::process::abort());
+        let dest = make_temp();
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(result.is_ok(), "expected Ok, got: {result:?}");
+        let out = result.unwrap_or_default();
+        assert!(out.join("README.md").exists());
+    }
+
     /// Covers the `acquire_local` path where the source path exists on disk but
     /// is a regular file rather than a directory (False at "not found" check,
     /// True at "not a dir" check).
