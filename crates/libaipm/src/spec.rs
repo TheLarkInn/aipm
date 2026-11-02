@@ -1212,6 +1212,13 @@ mod tests {
     }
 
     #[test]
+    fn marketplace_location_without_slash_is_invalid() {
+        // Exercise: split_once('/') returning None in parse_market_location
+        let result = "market:hello@noslash".parse::<Spec>();
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn is_local_path_parent_dir() {
         // Exercise the ../ branch (line 430)
         let spec = parse("market:my-plugin@../my-marketplace");
