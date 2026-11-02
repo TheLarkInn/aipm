@@ -549,6 +549,29 @@ mod tests {
     }
 
     #[test]
+    fn copy_dir_recursive_missing_src_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("does-not-exist");
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(&dst).unwrap_or_else(|_| {});
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
+
+    #[test]
+    fn copy_dir_recursive_subdir_blocked_by_file_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(src.join("sub")).unwrap_or_else(|_| {});
+        std::fs::create_dir_all(&dst).unwrap_or_else(|_| {});
+        // A file occupying the subdirectory's destination path makes create_dir_all fail
+        std::fs::write(dst.join("sub"), "x").unwrap_or_else(|_| {});
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
+
+    #[test]
     fn copy_dir_recursive_empty_src() {
         let temp = make_temp();
         let src = temp.path().join("empty-src");
