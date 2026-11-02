@@ -1253,4 +1253,35 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    #[test]
+    fn make_plugin_without_project_root_skips_engine_settings() {
+        // An empty marketplace_dir has no parent, so the settings update is skipped.
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "rootless",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs).unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+        assert!(
+            result
+                .actions
+                .iter()
+                .any(|a| matches!(a, Action::PluginCreated { name, .. } if name == "rootless")),
+            "expected PluginCreated for rootless"
+        );
+        assert!(
+            !result.actions.iter().any(|a| matches!(
+                a,
+                Action::PluginEnabled { .. } | Action::PluginAlreadyEnabled { .. }
+            )),
+            "engine settings must not be touched without a project root"
+        );
+    }
 }
