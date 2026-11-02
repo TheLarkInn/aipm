@@ -804,6 +804,17 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_errors_present_omits_succeeded_with_issues() {
+        let mut outcome = ci_azure_single_diagnostic_outcome(None, None);
+        outcome.error_count = 1;
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("##vso[task.logissue"));
+        assert!(!output.contains("task.complete"));
+    }
+
+    #[test]
     fn ci_azure_defaults_line_col() {
         let outcome = Outcome {
             diagnostics: vec![Diagnostic {
