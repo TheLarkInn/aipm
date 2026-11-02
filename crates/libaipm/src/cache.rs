@@ -1116,6 +1116,24 @@ mod tests {
     }
 
     #[test]
+    fn put_overwrite_tolerates_missing_old_dir() {
+        // Covers the False branch of `old_dir.exists()` in put(): the previous entry's
+        // directory was already removed, so re-putting must still succeed.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let first = cache.put("spec", &src, None);
+        assert!(first.is_ok());
+        if let Ok(dir) = first {
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        let second = cache.put("spec", &src, None);
+        assert!(second.is_ok());
+        let index = cache.read_index().unwrap_or_default();
+        assert_eq!(index.entries.len(), 1);
+    }
+
+    #[test]
     #[cfg(unix)]
     fn gc_silently_ignores_unreadable_entries_dir() {
         // Covers the Err branch of `if let Ok(read_dir) = std::fs::read_dir(entries_dir)` in
