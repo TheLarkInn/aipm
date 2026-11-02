@@ -264,6 +264,30 @@ mod tests {
     }
 
     #[test]
+    fn unreadable_parent_directory_is_not_pruned() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/p/.claude/commands/review.md"));
+        // Parent dir is not registered, so read_dir fails and pruning is skipped.
+
+        let outcome = make_outcome(vec![plugin_created(
+            "review",
+            "/p/.claude/commands/review.md",
+            "skill",
+            false,
+        )]);
+
+        let result = remove_migrated_sources(&outcome, &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert_eq!(
+            actions,
+            vec![Action::SourceFileRemoved {
+                path: PathBuf::from("/p/.claude/commands/review.md")
+            }]
+        );
+    }
+
+    #[test]
     fn settings_json_is_skipped() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/p/.claude/settings.json"));
