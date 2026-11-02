@@ -186,4 +186,35 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_target_dir_creation_failure_returns_error() {
+        // A regular file as the target's parent makes `create_dir_all` fail.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"not a dir").expect("write blocker");
+
+        let target = blocker.join("pkg");
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "expected Io error for target dir, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn assemble_existing_target_file_returns_remove_error() {
+        // `remove_dir_all` on a regular file fails, covering the cleanup error arm.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, b"file").expect("write target");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "expected Io error for existing file target, got: {result:?}"
+        );
+    }
 }
