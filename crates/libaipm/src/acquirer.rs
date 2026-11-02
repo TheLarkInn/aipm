@@ -614,6 +614,19 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the `create_dir_all` error mapping in `acquire_local`: the
+    /// destination parent is a regular file, so creating the target fails.
+    #[test]
+    fn acquire_local_dest_parent_is_file_returns_io_error() {
+        let temp = make_temp();
+        let blocker = temp.path().join("blocker");
+        std::fs::write(&blocker, "file").unwrap_or_else(|_| {});
+
+        let path = ValidatedPath::new("tests").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &blocker, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
     /// Covers the `acquire_local` path where the source path exists on disk but
     /// is a regular file rather than a directory (False at "not found" check,
     /// True at "not a dir" check).
