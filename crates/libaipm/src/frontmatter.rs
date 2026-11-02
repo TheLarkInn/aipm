@@ -741,6 +741,15 @@ mod tests {
     }
 
     #[test]
+    fn parse_multiline_value_flushed_by_following_key_and_mixed_leading_ws() {
+        let content = "\t\n  ---\nhooks:\n  a: 1\n  b: 2\nname: x\n---\nbody";
+        let fm = parse(content).unwrap_or_default().unwrap_or_default();
+        assert_eq!(fm.fields.get("hooks").map(String::as_str), Some("a: 1\nb: 2"));
+        assert_eq!(fm.fields.get("name").map(String::as_str), Some("x"));
+        assert_eq!(fm.start_line, 2);
+    }
+
+    #[test]
     fn field_value_range_description_field() {
         // Longer key prefix
         assert_eq!(
