@@ -547,10 +547,17 @@ mod tests {
             Policy::CacheNoRefresh,
         ] {
             let s = policy.to_string();
-            let Ok(parsed) = s.parse::<Policy>() else { continue };
-            let parsed: Policy = parsed;
-            assert_eq!(policy, parsed);
+            assert_eq!(s.parse::<Policy>(), Ok(policy));
         }
+    }
+
+    #[test]
+    fn cache_policy_parse_aliases_and_error() {
+        assert_eq!("CacheOnly".parse::<Policy>(), Ok(Policy::CacheOnly));
+        assert_eq!("force".parse::<Policy>(), Ok(Policy::ForceRefresh));
+        assert_eq!("norefresh".parse::<Policy>(), Ok(Policy::CacheNoRefresh));
+        let err = "bogus".parse::<Policy>().err().unwrap_or_default();
+        assert!(err.contains("Unknown cache policy: 'bogus'"));
     }
 
     #[test]
