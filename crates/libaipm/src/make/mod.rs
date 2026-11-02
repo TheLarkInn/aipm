@@ -1253,4 +1253,35 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    #[test]
+    fn is_plugin_registered_invalid_json_returns_false() {
+        let fs = MockFs::new();
+        let path = PathBuf::from("/m/marketplace.json");
+        fs.seed(&path, b"not json");
+        assert!(!is_plugin_registered(&fs, &path, "p"));
+    }
+
+    #[test]
+    fn read_marketplace_name_missing_file_returns_default() {
+        let fs = MockFs::new();
+        let path = PathBuf::from("/m/marketplace.json");
+        assert_eq!(read_marketplace_name(&fs, &path), "local-repo-plugins");
+    }
+
+    #[test]
+    fn read_marketplace_name_invalid_json_returns_default() {
+        let fs = MockFs::new();
+        let path = PathBuf::from("/m/marketplace.json");
+        fs.seed(&path, b"not json");
+        assert_eq!(read_marketplace_name(&fs, &path), "local-repo-plugins");
+    }
+
+    #[test]
+    fn read_marketplace_name_reads_name_field() {
+        let fs = MockFs::new();
+        let path = PathBuf::from("/m/marketplace.json");
+        fs.seed(&path, br#"{"name":"custom"}"#);
+        assert_eq!(read_marketplace_name(&fs, &path), "custom");
+    }
 }
