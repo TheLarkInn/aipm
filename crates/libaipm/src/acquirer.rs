@@ -627,6 +627,32 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the success path of `acquire_local` (copy, file-count check,
+    /// validation and `Ok(dest)`) using a valid plugin under the crate-root CWD.
+    #[test]
+    fn acquire_local_valid_plugin_succeeds() {
+        let Ok(src_root) = tempfile::Builder::new().prefix("cov-acquire-local-").tempdir_in(".")
+        else {
+            return;
+        };
+        let plugin_dir = src_root.path().join("my-plugin");
+        assert!(std::fs::create_dir_all(plugin_dir.join(".claude-plugin")).is_ok());
+        assert!(std::fs::write(plugin_dir.join(".claude-plugin/plugin.json"), "{}").is_ok());
+        assert!(std::fs::write(plugin_dir.join("README.md"), "hello").is_ok());
+
+        let Some(root_name) = src_root.path().file_name().and_then(|n| n.to_str()) else {
+            return;
+        };
+        let Ok(path) = ValidatedPath::new(format!("{root_name}/my-plugin")) else {
+            return;
+        };
+        let dest = make_temp();
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(result.is_ok(), "expected Ok, got: {result:?}");
+        let out = result.unwrap_or_default();
+        assert!(out.join("README.md").exists());
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
