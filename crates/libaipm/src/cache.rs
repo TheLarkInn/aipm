@@ -1092,6 +1092,16 @@ mod tests {
     }
 
     #[test]
+    fn set_entry_ttl_missing_key_is_noop() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+
+        let result = cache.set_entry_ttl("nonexistent-spec", Some(60));
+        assert!(result.is_ok(), "set_entry_ttl with missing key must not return Err");
+        let index = cache.read_index().unwrap_or_default();
+        assert!(index.entries.is_empty());
+    }
+
+    #[test]
     #[cfg(unix)]
     fn gc_silently_skips_non_utf8_entry_names() {
         // Covers the None branch of `entry.file_name().to_str()` in gc():
