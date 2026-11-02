@@ -224,3 +224,23 @@ fn list_after_install_shows_workspace_packages() {
         .stdout(predicate::str::contains("print-clock"))
         .stdout(predicate::str::contains("get-current-time"));
 }
+
+// =========================================================================
+// workspace-no-deps: update with no dependencies is a no-op
+// =========================================================================
+
+/// `aipm update` on a workspace with no dependencies runs `cmd_update`
+/// end-to-end and reports that nothing was installed or removed.
+#[test]
+fn update_workspace_no_deps_reports_zero_packages() {
+    let (tmp, dir) = setup_fixture("workspace-no-deps");
+    let home = tmp.path().join("home");
+    std::fs::create_dir_all(&home).unwrap();
+
+    aipm()
+        .env("HOME", &home)
+        .args(["update", "--dir", dir.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Updated 0 package(s), 0 up-to-date, 0 removed"));
+}
