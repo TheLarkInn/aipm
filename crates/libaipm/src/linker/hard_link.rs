@@ -186,4 +186,27 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_unknown_hash_returns_io_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("a.md"), "0".repeat(64));
+
+        let target = tmp.path().join("links").join("missing-hash-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(result.is_err(), "got: {result:?}");
+    }
+
+    #[test]
+    fn assemble_target_under_file_fails_to_create_dir() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, "x").expect("write blocker");
+
+        let result = assemble(&store, &file_hashes, &blocker.join("pkg"));
+        assert!(result.is_err(), "got: {result:?}");
+    }
 }
