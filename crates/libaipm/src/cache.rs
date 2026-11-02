@@ -538,6 +538,14 @@ mod tests {
     }
 
     #[test]
+    fn get_with_corrupt_index_returns_index_parse_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = std::fs::create_dir_all(&cache.root);
+        let _ = std::fs::write(cache.index_path(), "not json");
+        assert!(matches!(cache.get("any"), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn cache_policy_roundtrip() {
         for policy in [
             Policy::Auto,
