@@ -192,6 +192,17 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn error_variants_display_messages() {
+        let io = || std::io::Error::other("boom");
+        let io_err = Error::Io { path: std::path::PathBuf::from("x/y"), source: io() };
+        assert!(io_err.to_string().contains("x/y"));
+        assert!(io_err.to_string().contains("boom"));
+        assert!(Error::Seek { source: io() }.to_string().contains("seek"));
+        assert!(Error::Read { source: io() }.to_string().contains("read"));
+        assert!(Error::Write { source: io() }.to_string().contains("write"));
+    }
+
     /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
     fn unreachable_tempdir() -> tempfile::TempDir {
         tempfile::tempdir_in(".").unwrap_or_else(|_| {
