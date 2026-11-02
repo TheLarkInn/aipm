@@ -932,9 +932,11 @@ mod tests {
         let result = resolve(&deps, &BTreeMap::new(), &reg);
 
         assert!(result.is_err());
-        if let Err(Error::Conflict(detail)) = &result {
-            assert_eq!(detail.name, "common-util");
-        }
+        let name = match &result {
+            Err(Error::Conflict(detail)) => detail.name.as_str(),
+            _ => "",
+        };
+        assert_eq!(name, "common-util", "unexpected result: {result:?}");
     }
 
     #[test]
