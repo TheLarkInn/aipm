@@ -435,6 +435,19 @@ mod tests {
     }
 
     #[test]
+    fn collect_command_scripts_with_blank_or_non_string_command() {
+        // A whitespace-only command yields no first token (falls back to the
+        // trimmed string); a non-string command skips the `Some(cmd)` arm.
+        let value = serde_json::json!([
+            {"type": "command", "command": "   "},
+            {"type": "command", "command": 42}
+        ]);
+        let mut scripts = Vec::new();
+        collect_command_scripts(&value, Path::new("/project"), &mut scripts);
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
     fn is_relative_script_windows_backslash_path_is_relative() {
         // A Windows-style relative path using backslashes and no drive prefix should
         // be detected as a relative script — exercises the path.contains('\\') branch.
