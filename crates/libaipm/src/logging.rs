@@ -175,6 +175,17 @@ mod tests {
         }
     }
 
+    /// The global subscriber can only be set once per process, so the second
+    /// call must fail with `SetGlobal`. Both format arms are built before the
+    /// subscriber is installed, so each call exercises its own arm.
+    #[test]
+    fn init_twice_reports_set_global_error() {
+        let _guard = ENV_LOCK.lock();
+        let _first = init(LevelFilter::OFF, LogFormat::Text);
+        let second = init(LevelFilter::OFF, LogFormat::Json);
+        assert!(matches!(second, Err(Error::SetGlobal { .. })));
+    }
+
     #[test]
     fn error_display() {
         let e = Error::FileAppender { reason: "test".to_string() };
