@@ -978,6 +978,21 @@ mod tests {
     }
 
     #[test]
+    fn read_marketplace_name_defaults_for_missing_file() {
+        let fs = MockFs::new();
+        let path = Path::new("/nonexistent/marketplace.json");
+        assert_eq!(read_marketplace_name(&fs, path), "local-repo-plugins");
+    }
+
+    #[test]
+    fn read_marketplace_name_defaults_for_invalid_json() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/marketplace.json");
+        fs.seed(path, b"not json");
+        assert_eq!(read_marketplace_name(&fs, path), "local-repo-plugins");
+    }
+
+    #[test]
     fn is_plugin_registered_returns_false_for_missing_file() {
         let fs = MockFs::new();
         let path = Path::new("/nonexistent/marketplace.json");
