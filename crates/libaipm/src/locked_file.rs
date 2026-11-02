@@ -192,6 +192,27 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn roundtrip_with_error_propagation() -> Result<(), Error> {
+        let temp = tempfile::tempdir().map_err(|source| Error::Seek { source })?;
+        let path = temp.path().join("propagate.json");
+
+        let mut locked = LockedFile::open(&path)?;
+        locked.write_content("payload")?;
+        assert_eq!(locked.read_content()?, "payload");
+        Ok(())
+    }
+
+    #[test]
+    fn error_display_includes_context() {
+        let io = || std::io::Error::other("boom");
+        let io_err = Error::Io { path: std::path::PathBuf::from("x.json"), source: io() };
+        assert!(io_err.to_string().contains("x.json"));
+        assert!(Error::Seek { source: io() }.to_string().contains("seek"));
+        assert!(Error::Read { source: io() }.to_string().contains("read"));
+        assert!(Error::Write { source: io() }.to_string().contains("write"));
+    }
+
     /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
     fn unreachable_tempdir() -> tempfile::TempDir {
         tempfile::tempdir_in(".").unwrap_or_else(|_| {
