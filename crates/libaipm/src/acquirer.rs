@@ -581,6 +581,25 @@ mod tests {
     }
 
     #[test]
+    fn copy_dir_recursive_nonexistent_src_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("missing-src");
+        let dst = temp.path().join("dst");
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}");
+    }
+
+    #[test]
+    fn acquire_git_dest_dir_is_file_returns_io_error() {
+        let temp = make_temp();
+        let blocker = temp.path().join("blocker");
+        std::fs::write(&blocker, "x").unwrap_or_else(|_| {});
+        let source = GitSource { url: "unused".to_string(), path: None, git_ref: None };
+        let result = acquire_git(&source, &blocker, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}");
+    }
+
+    #[test]
     fn source_redirect_with_invalid_toml() {
         let temp = make_temp();
         let dir = temp.path().join("bad-toml");
