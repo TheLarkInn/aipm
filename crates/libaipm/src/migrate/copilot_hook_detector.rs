@@ -303,6 +303,16 @@ mod tests {
     }
 
     #[test]
+    fn unreadable_hooks_file_returns_error() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.github/hooks.json"));
+
+        let detector = CopilotHookDetector;
+        let result = detector.detect(Path::new("/project/.github"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn malformed_json_returns_error() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.github/hooks.json"));
