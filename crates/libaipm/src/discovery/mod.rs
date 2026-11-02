@@ -133,6 +133,17 @@ mod tests {
     }
 
     #[test]
+    fn discover_ignores_unclassifiable_files() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        touch(&root.join("README.md"));
+        touch(&root.join("src/random.txt"));
+        let set =
+            discover(root, &DiscoverOptions::default(), &Real).expect("discover should succeed");
+        assert!(set.features.is_empty(), "unexpected features: {:?}", set.features);
+    }
+
+    #[test]
     fn discover_canonical_claude_and_github_skills() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path();
