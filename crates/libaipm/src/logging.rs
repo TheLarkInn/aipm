@@ -176,6 +176,15 @@ mod tests {
     }
 
     #[test]
+    fn init_twice_fails_with_set_global() {
+        // The first call may succeed or fail depending on other tests; once a
+        // global subscriber exists, the second call must hit the SetGlobal path.
+        let _first = init(LevelFilter::OFF, LogFormat::Text);
+        let second = init(LevelFilter::OFF, LogFormat::Json);
+        assert!(matches!(second, Err(Error::SetGlobal { .. })));
+    }
+
+    #[test]
     fn error_display() {
         let e = Error::FileAppender { reason: "test".to_string() };
         assert!(e.to_string().contains("file appender"));
