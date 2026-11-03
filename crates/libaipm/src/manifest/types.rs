@@ -388,4 +388,29 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    fn deserialize_names(names: &[&str]) -> Result<Option<EngineSet>, serde_json::Error> {
+        use serde::de::IntoDeserializer;
+        let value = serde_json::json!(names);
+        engine_set_serde::deserialize(value.into_deserializer())
+    }
+
+    #[test]
+    fn engine_set_serde_empty_list_is_empty_set() {
+        let result = deserialize_names(&[]);
+        assert!(matches!(result, Ok(Some(ref s)) if s.is_empty()), "got {result:?}");
+    }
+
+    #[test]
+    fn engine_set_serde_known_name_is_kept() {
+        let known = libaipm_engine_spec::Engine::ALL.first().map(|e| e.name()).unwrap_or("claude");
+        let result = deserialize_names(&[known, "no-such-engine"]);
+        assert!(matches!(result, Ok(Some(ref s)) if !s.is_empty()), "got {result:?}");
+    }
+
+    #[test]
+    fn engine_set_serde_all_unknown_is_rejected() {
+        let result = deserialize_names(&["no-such-engine"]);
+        assert!(result.is_err(), "all-unknown engines must be rejected");
+    }
 }
