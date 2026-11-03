@@ -227,6 +227,29 @@ mod tests {
     }
 
     #[test]
+    fn plain_md_after_agent_md_does_not_override() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(
+            PathBuf::from("/src/agents"),
+            vec![de("foo.agent.md", false), de("foo.md", false)],
+        );
+        fs.files.insert(
+            PathBuf::from("/src/agents/foo.md"),
+            "---\nname: plain-foo\n---\nPlain.".to_string(),
+        );
+        fs.files.insert(
+            PathBuf::from("/src/agents/foo.agent.md"),
+            "---\nname: agent-foo\n---\nAgent.".to_string(),
+        );
+
+        let result = CopilotAgentDetector.detect(Path::new("/src"), &fs);
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.len(), 1);
+        assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("agent-foo"));
+    }
+
+    #[test]
     fn no_agents_dir_returns_empty() {
         let fs = MockFs::new();
         let detector = CopilotAgentDetector;
