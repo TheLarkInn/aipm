@@ -387,6 +387,34 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_dest_dir_creation_failure() {
+        let temp = make_temp();
+        // dest_dir is a regular file, so creating a child directory fails.
+        let dest_file = temp.path().join("dest-file");
+        std::fs::write(&dest_file, "x").unwrap_or_else(|_| {});
+
+        // Tests run with cwd = crate root, so "src" resolves to an existing dir.
+        let path = ValidatedPath::new("src").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &dest_file, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
+    fn acquire_git_temp_dir_creation_failure() {
+        let temp = make_temp();
+        let dest_file = temp.path().join("dest-file");
+        std::fs::write(&dest_file, "x").unwrap_or_else(|_| {});
+
+        let source = crate::spec::GitSource {
+            url: "https://example.invalid/repo.git".to_string(),
+            path: None,
+            git_ref: None,
+        };
+        let result = acquire_git(&source, &dest_file, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn acquire_local_validates_structure() {
         let temp = make_temp();
         // Create a directory without any marker files or aipm.toml
