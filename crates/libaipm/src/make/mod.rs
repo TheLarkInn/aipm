@@ -1297,8 +1297,16 @@ mod tests {
     fn make_plugin_propagates_io_failures() {
         let marketplace_dir = Path::new("/project/.ai");
         let features = [Feature::Skill];
-        let cases =
-            [(Some(1), None), (Some(2), None), (Some(3), None), (None, Some(1)), (None, Some(2))];
+        let cases = [
+            (Some(1), None),
+            (Some(2), None),
+            (Some(3), None),
+            (Some(4), None),
+            (None, Some(1)),
+            (None, Some(2)),
+            (None, Some(3)),
+            (None, Some(4)),
+        ];
         for (fail_dir_at, fail_write_at) in cases {
             let fail_fs = FailFs {
                 inner: MockFs::new(),
