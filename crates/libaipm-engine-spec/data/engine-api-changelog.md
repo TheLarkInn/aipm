@@ -2,6 +2,17 @@
 
 <!-- Entries are prepended (newest first). -->
 
+## 2026-11-03 — claude v2.1.317
+
+| Field | Change |
+|-------|--------|
+| `tool_calls` | **Added** — EnterPlanMode, TaskCreate, TaskGet, TaskUpdate, TaskList, CronCreate, CronDelete, CronList, ScheduleWakeup, Monitor, Workflow, RemoteTrigger, ReportFindings, SendFeedback, ReadMcpResourceDir, RefreshMcpTools, PushNotification, ProposeSkills, ProposeGoal, Artifact (from `sdk-tools.d.ts`; the CLI is now a native binary so only the type declarations were analysed). |
+| `tool_compatibility.engine_exclusive_tools` | **Added** — the tools above (claude-only). |
+
+## 2026-11-03 — copilot v1.0.105
+
+Version bumped from 1.0.40. The npm package is now a thin loader around a native binary, so no bundled JS was available to diff; no API changes recorded.
+
 ## 2026-05-05 — claude v2.1.128
 
 | Field | Change |
