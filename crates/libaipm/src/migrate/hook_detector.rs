@@ -465,6 +465,14 @@ mod tests {
     }
 
     #[test]
+    fn is_relative_script_rejects_windows_drive_paths() {
+        // On Linux `C:\...` is neither `is_absolute()` nor `has_root()`, so only the
+        // `has_windows_drive_prefix` arm of the rejection condition catches it.
+        assert!(!is_relative_script("C:\\tools\\check.sh", Path::new(".")));
+        assert!(!is_relative_script("D:/scripts/run.sh", Path::new(".")));
+    }
+
+    #[test]
     fn detector_name_is_hook() {
         // Exercises the `fn name(&self) -> &'static str` branch on HookDetector,
         // which returns the detector's identifier used during migration dispatch.
