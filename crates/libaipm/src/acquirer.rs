@@ -355,6 +355,18 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_dest_creation_failure_returns_io_error() {
+        let temp = make_temp();
+        let blocker = temp.path().join("blocker");
+        std::fs::write(&blocker, "file").unwrap_or_else(|_| {});
+
+        // "src" exists relative to the crate dir used as cwd by cargo test.
+        let path = ValidatedPath::new("src").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &blocker, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn acquire_local_not_found() {
         let temp = make_temp();
         let path = ValidatedPath::new("nonexistent").unwrap_or_else(|_| std::process::abort());
