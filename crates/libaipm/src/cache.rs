@@ -1092,6 +1092,18 @@ mod tests {
     }
 
     #[test]
+    fn with_index_corrupt_index_returns_index_parse_error() {
+        // Covers the `serde_json::from_str` error path in `with_index` when the
+        // index file holds non-empty, invalid JSON.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        std::fs::write(cache.index_path(), "not json").unwrap_or_else(|_| {});
+
+        let result = cache.set_entry_ttl("spec", Some(1));
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn gc_silently_skips_non_utf8_entry_names() {
         // Covers the None branch of `entry.file_name().to_str()` in gc():
