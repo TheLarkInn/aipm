@@ -584,6 +584,12 @@ mod tests {
     }
 
     #[test]
+    fn policy_deserialize_rejects_non_string() {
+        let result: Result<Policy, _> = serde_json::from_str("42");
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn cache_skip_policy_always_misses() {
         let (_temp, cache) = test_cache(Policy::SkipCache);
         let result = cache.get("some-spec");
