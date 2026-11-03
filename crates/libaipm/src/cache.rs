@@ -528,6 +528,11 @@ mod tests {
         (temp, cache)
     }
 
+    #[test]
+    fn policy_deserialize_rejects_non_string() {
+        assert!(serde_json::from_str::<Policy>("42").is_err());
+    }
+
     fn create_source_plugin(temp: &tempfile::TempDir) -> PathBuf {
         let src = temp.path().join("source_plugin");
         std::fs::create_dir_all(src.join("sub")).unwrap_or_else(|_| {});
