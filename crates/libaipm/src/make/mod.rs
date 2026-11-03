@@ -1253,4 +1253,72 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Wraps `MockFs`, failing the Nth `create_dir_all` or `write_file` call.
+    struct FailFs {
+        inner: MockFs,
+        fail_dir_at: Option<usize>,
+        fail_write_at: Option<usize>,
+        dirs: std::sync::atomic::AtomicUsize,
+        writes: std::sync::atomic::AtomicUsize,
+    }
+
+    impl crate::fs::Fs for FailFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            let n = self.dirs.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+            if self.fail_dir_at == Some(n) {
+                return Err(std::io::Error::other("dir failure"));
+            }
+            self.inner.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            let n = self.writes.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+            if self.fail_write_at == Some(n) {
+                return Err(std::io::Error::other("write failure"));
+            }
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_io_failures() {
+        let marketplace_dir = Path::new("/project/.ai");
+        let features = [Feature::Skill];
+        let cases =
+            [(Some(1), None), (Some(2), None), (Some(3), None), (None, Some(1)), (None, Some(2))];
+        for (fail_dir_at, fail_write_at) in cases {
+            let fail_fs = FailFs {
+                inner: MockFs::new(),
+                fail_dir_at,
+                fail_write_at,
+                dirs: std::sync::atomic::AtomicUsize::new(0),
+                writes: std::sync::atomic::AtomicUsize::new(0),
+            };
+            seed_marketplace(&fail_fs.inner, marketplace_dir);
+            let opts = PluginOpts {
+                marketplace_dir,
+                name: "failing",
+                engine: "claude",
+                features: &features,
+            };
+            let result = plugin(&opts, &fail_fs);
+            assert!(
+                matches!(result, Err(Error::Io(_))),
+                "expected Io error for {fail_dir_at:?}/{fail_write_at:?}"
+            );
+        }
+    }
 }
