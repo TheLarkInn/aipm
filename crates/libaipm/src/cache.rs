@@ -1137,4 +1137,13 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn copy_dir_contents_missing_source_returns_io_error() {
+        // Covers the `read_dir` error mapping in `copy_dir_contents`.
+        let temp = tempfile::tempdir().unwrap();
+        let missing = temp.path().join("does-not-exist");
+        let result = copy_dir_contents(&missing, temp.path());
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
 }
