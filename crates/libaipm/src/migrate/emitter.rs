@@ -2208,6 +2208,24 @@ mod tests {
     }
 
     #[test]
+    fn emit_package_plugin_composite_copies_referenced_scripts() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
+        fs.files
+            .insert(PathBuf::from("/src/skills/deploy/scripts/run.sh"), "#!/bin/bash".to_string());
+        fs.exists.insert(PathBuf::from("/src/skills/deploy/scripts/run.sh"));
+        fs.files.insert(PathBuf::from("/src/commands/review.md"), "Review code".to_string());
+
+        let mut artifact = make_skill_artifact();
+        artifact.referenced_scripts = vec![PathBuf::from("scripts/run.sh")];
+        let cmd = make_command_artifact();
+
+        let result = emit_package_plugin("auth", &[artifact, cmd], Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+        assert!(fs.get_written(Path::new("/ai/auth/scripts/run.sh")).is_some());
+    }
+
+    #[test]
     fn emit_package_plugin_missing_script() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
