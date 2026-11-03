@@ -77,6 +77,16 @@ mod tests {
     }
 
     #[test]
+    fn assemble_fails_when_target_is_existing_file() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("occupied");
+        std::fs::write(&target, b"not a dir").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error: {result:?}");
+    }
+
+    #[test]
     fn assemble_creates_directory_tree() {
         let (tmp, store, file_hashes) = make_store_and_package();
         let target = tmp.path().join("links").join("my-pkg");
