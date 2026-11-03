@@ -387,6 +387,38 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_public_api_not_directory_and_success() {
+        // `ValidatedPath` is CWD-relative, so stage fixtures in a temp dir under CWD.
+        let staging = tempfile::tempdir_in(".").unwrap_or_else(|_| std::process::abort());
+        let staging_name = staging.path().file_name().and_then(|n| n.to_str()).unwrap_or("staging");
+        let file_rel = format!("{staging_name}/a-file");
+        let _ = std::fs::write(&file_rel, "data");
+        let plugin_rel = format!("{staging_name}/my-plugin");
+        let _ = std::fs::create_dir_all(format!("{plugin_rel}/.claude-plugin"));
+        let _ = std::fs::write(format!("{plugin_rel}/.claude-plugin/plugin.json"), "{}");
+
+        let dest = make_temp();
+
+        let file_path = ValidatedPath::new(&file_rel).unwrap_or_else(|_| std::process::abort());
+        let err = acquire_local(&file_path, dest.path(), Engine::Claude);
+        assert!(matches!(err, Err(Error::LocalNotDirectory { .. })));
+
+        let plugin_path = ValidatedPath::new(&plugin_rel).unwrap_or_else(|_| std::process::abort());
+        let ok = acquire_local(&plugin_path, dest.path(), Engine::Claude);
+        assert!(ok.is_ok());
+        assert!(dest.path().join("my-plugin/.claude-plugin/plugin.json").exists());
+
+        let big_rel = format!("{staging_name}/big-plugin");
+        let _ = std::fs::create_dir_all(&big_rel);
+        for i in 0..501 {
+            let _ = std::fs::write(format!("{big_rel}/f{i}.txt"), "x");
+        }
+        let big_path = ValidatedPath::new(&big_rel).unwrap_or_else(|_| std::process::abort());
+        let too_many = acquire_local(&big_path, dest.path(), Engine::Claude);
+        assert!(too_many.is_err());
+    }
+
+    #[test]
     fn acquire_local_validates_structure() {
         let temp = make_temp();
         // Create a directory without any marker files or aipm.toml
