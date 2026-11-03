@@ -186,4 +186,38 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_target_is_file_returns_error() {
+        // remove_dir_all fails on a regular file, covering its error mapping.
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("links-file");
+        std::fs::write(&target, "not a dir").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "expected Io error for target, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn assemble_parent_is_file_returns_error() {
+        // "blocker" is linked as a file first, so creating parent "blocker" for
+        // "blocker/inner.txt" fails.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash = store.store_file(b"x").expect("store file");
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("blocker"), hash.clone());
+        file_hashes.insert(PathBuf::from("blocker/inner.txt"), hash);
+
+        let target = tmp.path().join("links").join("blocked-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("blocker")),
+            "expected Io error for parent dir, got: {result:?}"
+        );
+    }
 }
