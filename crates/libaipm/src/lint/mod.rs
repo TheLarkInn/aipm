@@ -997,6 +997,24 @@ mod tests {
         );
     }
 
+    /// A root-level `CLAUDE.md` has a `source_root` equal to the project dir, whose
+    /// name is not a recognised engine root, so it must not appear in `sources_scanned`.
+    #[test]
+    fn lint_root_instruction_file_not_in_sources_scanned() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::write(root.join("CLAUDE.md"), "# Project Rules\n\nSome rule.\n").unwrap();
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let outcome = lint(&opts, &crate::fs::Real).unwrap();
+        assert!(outcome.sources_scanned.is_empty());
+    }
+
     /// Covers the `is_ignored(&path_str, rule_ignores)` True branch.
     ///
     /// When global `ignore_paths` is empty the first check returns False, so the
