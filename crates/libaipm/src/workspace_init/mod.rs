@@ -1825,6 +1825,26 @@ mod tests {
     }
 
     #[test]
+    fn init_second_run_only_reports_found_existing() {
+        let (tmp, _guard) = make_temp_dir("only-found-existing");
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: None,
+        };
+        let first = init(&opts, &[], &crate::fs::Real);
+        assert!(first.is_ok_and(|r| r.actions.contains(&InitAction::WorkspaceCreated)));
+        let second = init(&opts, &[], &crate::fs::Real);
+        assert!(second.is_ok_and(|r| { r.actions == vec![InitAction::WorkspaceFoundExisting] }));
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_with_empty_scaffold_runs_no_adaptors() {
         // engines_scaffold = empty. No adaptors run; no engine roots
         // appear on disk.
