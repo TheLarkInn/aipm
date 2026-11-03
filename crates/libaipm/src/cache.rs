@@ -1078,6 +1078,18 @@ mod tests {
     }
 
     #[test]
+    fn with_index_returns_index_parse_error_for_invalid_json() {
+        // Covers the `serde_json::from_str` error branch in with_index():
+        // a non-empty, malformed index file must surface Error::IndexParse.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        let _ = std::fs::write(cache.index_path(), "{ not valid json");
+
+        let result = cache.with_index(|_| {});
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn touch_entry_missing_key_is_noop() {
         // Covers the False branch of `if let Some(entry) = index.entries.get_mut(spec_key)`
         // in touch_entry: when the spec_key is absent from the index (e.g. removed between
