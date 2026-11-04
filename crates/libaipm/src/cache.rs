@@ -871,6 +871,21 @@ mod tests {
     }
 
     #[test]
+    fn corrupt_index_propagates_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        assert!(cache.put("spec", &src, None).is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+
+        assert!(matches!(cache.get("spec"), Err(Error::IndexParse { .. })));
+        assert!(matches!(
+            cache.copy_to_session("spec", &temp.path().join("session"), "plugin"),
+            Err(Error::IndexParse { .. })
+        ));
+        assert!(matches!(cache.put("spec", &src, None), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn skip_cache_put_returns_error() {
         let (_temp, cache) = test_cache(Policy::SkipCache);
         let src = _temp.path().join("src");
