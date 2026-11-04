@@ -464,6 +464,26 @@ mod tests {
     }
 
     #[test]
+    fn copy_dir_recursive_missing_source_returns_io_error() {
+        let temp = make_temp();
+        let result = copy_dir_recursive(&temp.path().join("missing"), &temp.path().join("dst"));
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
+    fn copy_dir_recursive_subdir_creation_failure_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        std::fs::create_dir_all(src.join("sub")).unwrap_or_else(|_| {});
+        // Destination is a regular file, so creating `dst/sub` must fail.
+        let dst = temp.path().join("dst");
+        std::fs::write(&dst, "not a dir").unwrap_or_else(|_| {});
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn source_redirect_parses_from_aipm_toml() {
         let temp = make_temp();
         let dir = temp.path().join("stub-plugin");
