@@ -703,6 +703,20 @@ mod tests {
     // ---- Marketplace specs ----
 
     #[test]
+    fn parse_marketplace_rejects_malformed_owner_repo() {
+        for loc in ["owner/", "a/b/c"] {
+            let result = format!("market:pkg@{loc}").parse::<Spec>();
+            assert!(result.is_err(), "expected error for {loc}");
+        }
+    }
+
+    #[test]
+    fn parse_unknown_prefix_and_empty_identifier() {
+        assert!("market:".parse::<Spec>().is_err());
+        assert!("unknown:thing".parse::<Spec>().is_ok());
+    }
+
+    #[test]
     fn parse_marketplace_github() {
         let spec = parse("market:hello-skills@owner/repo");
         assert_eq!(spec.source_name(), "marketplace");
