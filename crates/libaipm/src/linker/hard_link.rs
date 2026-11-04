@@ -77,6 +77,16 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_is_file_returns_io_error() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("not-a-dir");
+        std::fs::write(&target, b"x").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(result, Err(Error::Io { .. })), "got {result:?}");
+    }
+
+    #[test]
     fn assemble_creates_directory_tree() {
         let (tmp, store, file_hashes) = make_store_and_package();
         let target = tmp.path().join("links").join("my-pkg");
