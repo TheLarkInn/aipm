@@ -1621,4 +1621,35 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    /// A `fmt::Write` sink that errors once `remaining` writes are consumed.
+    struct FailAfter(usize);
+
+    impl std::fmt::Write for FailAfter {
+        fn write_str(&mut self, _s: &str) -> std::fmt::Result {
+            if self.0 == 0 {
+                return Err(std::fmt::Error);
+            }
+            self.0 -= 1;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn git_source_display_propagates_write_errors() {
+        let src = GitSource {
+            url: "https://example.com/r.git".to_string(),
+            path: ValidatedPath::new("sub".to_string()).ok(),
+            git_ref: Some("main".to_string()),
+        };
+        assert!(src.path.is_some());
+        let mut failures = 0;
+        for n in 0..12 {
+            let mut w = FailAfter(n);
+            if std::fmt::write(&mut w, format_args!("{src}")).is_err() {
+                failures += 1;
+            }
+        }
+        assert!(failures >= 3);
+    }
 }
