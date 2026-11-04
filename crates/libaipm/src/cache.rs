@@ -984,6 +984,22 @@ mod tests {
     }
 
     #[test]
+    fn mark_installed_with_corrupt_index_errors() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        std::fs::write(cache.index_path(), "{not json").unwrap_or_else(|_| {});
+        assert!(matches!(cache.mark_installed("spec", true), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
+    fn mark_installed_with_empty_index_is_ok() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        std::fs::write(cache.index_path(), "").unwrap_or_else(|_| {});
+        assert!(cache.mark_installed("spec", true).is_ok());
+    }
+
+    #[test]
     fn get_with_empty_index_file_returns_none() {
         // Covers the `content.is_empty()` True branch in read_index():
         // when the index file exists but is empty, treat it as a fresh cache.
