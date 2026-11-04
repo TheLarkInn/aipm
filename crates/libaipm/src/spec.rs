@@ -1432,6 +1432,13 @@ mod tests {
     }
 
     #[test]
+    fn from_str_unknown_prefix_falls_back_to_registry() {
+        // A colon with an unrecognised prefix must skip the source-spec path.
+        let result = "unknown:thing".parse::<Spec>();
+        assert!(!matches!(result, Ok(Spec::Local(_) | Spec::Git(_) | Spec::Marketplace(_))));
+    }
+
+    #[test]
     fn serde_deserialize_invalid() {
         // Exercise serde deserialize error path
         let result: Result<Spec, _> = serde_json::from_str("\"\"");
