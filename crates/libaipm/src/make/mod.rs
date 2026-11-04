@@ -1253,4 +1253,50 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Fs that delegates to `MockFs` but fails every write.
+    struct WriteFailFs(MockFs);
+
+    impl crate::fs::Fs for WriteFailFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.0.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            self.0.create_dir_all(path)
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "write denied"))
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.0.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.0.read_dir(path)
+        }
+    }
+
+    /// `register_in_marketplace` propagates a marketplace write failure and
+    /// records no action.
+    #[test]
+    fn register_in_marketplace_propagates_write_error() {
+        let fs = WriteFailFs(MockFs::new());
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs.0, marketplace_dir);
+        let marketplace_json = marketplace_dir.join(".claude-plugin").join("marketplace.json");
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "write-fail",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        let mut actions = Vec::new();
+
+        let result = register_in_marketplace(&opts, &fs, &marketplace_json, &mut actions);
+        assert!(result.is_err());
+        assert!(actions.is_empty());
+    }
 }
