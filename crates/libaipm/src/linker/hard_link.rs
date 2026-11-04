@@ -167,6 +167,37 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_dir_is_file_returns_error() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+
+        // A regular file at the target path makes the cleanup step fail.
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, b"not a dir").expect("write file");
+        assert!(target.exists());
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "expected Io error for target path, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn assemble_target_under_file_returns_error() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"file").expect("write file");
+        let target = blocker.join("pkg");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "expected Io error for target path, got: {result:?}"
+        );
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
