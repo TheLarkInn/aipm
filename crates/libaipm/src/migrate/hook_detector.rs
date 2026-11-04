@@ -435,6 +435,13 @@ mod tests {
     }
 
     #[test]
+    fn is_relative_script_rejects_windows_drive_path() {
+        // On Linux these are neither absolute nor rooted, so only the drive-prefix check rejects them.
+        assert!(!is_relative_script("C:\\scripts\\run.sh", Path::new("/project")));
+        assert!(!is_relative_script("D:/scripts/run.sh", Path::new("/project")));
+    }
+
+    #[test]
     fn is_relative_script_windows_backslash_path_is_relative() {
         // A Windows-style relative path using backslashes and no drive prefix should
         // be detected as a relative script — exercises the path.contains('\\') branch.
