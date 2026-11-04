@@ -1253,4 +1253,20 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    #[test]
+    fn update_engine_settings_without_parent_dir_is_noop() {
+        let fs = MockFs::new();
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/"),
+            name: "rootless",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        let mut actions = Vec::new();
+        let result =
+            update_engine_settings(&opts, &fs, Path::new("/marketplace.json"), &mut actions);
+        assert!(result.is_ok());
+        assert!(actions.is_empty(), "no settings actions expected without a parent dir");
+    }
 }
