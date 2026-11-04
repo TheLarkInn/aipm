@@ -606,6 +606,20 @@ mod tests {
         assert!(result.is_err(), "expected lock() to fail when store path is a file");
     }
 
+    /// `link_to()` must surface an error when the target's parent directory
+    /// cannot be created because a path component is a regular file.
+    #[cfg(unix)]
+    #[test]
+    fn link_to_errors_when_target_parent_is_a_file() {
+        let (tmp, store) = make_store();
+        let hash = store.store_file(b"content").unwrap();
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"file").unwrap();
+
+        let result = store.link_to(&hash, &blocker.join("sub").join("target"));
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
     /// Verify that `store_file()` returns an error when directory creation
     /// for the prefix shard fails (e.g., parent path is a file, not a dir).
     #[cfg(unix)]
