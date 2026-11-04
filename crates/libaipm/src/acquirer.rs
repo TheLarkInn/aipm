@@ -355,6 +355,33 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_copies_relative_plugin_dir() {
+        let Ok(cwd) = std::env::current_dir() else { return };
+        let Ok(src) = tempfile::tempdir_in(&cwd) else { return };
+        std::fs::create_dir_all(src.path().join(".claude-plugin")).unwrap_or_else(|_| {});
+        std::fs::write(src.path().join(".claude-plugin/plugin.json"), "{}").unwrap_or_else(|_| {});
+        let Some(name) = src.path().file_name().and_then(|n| n.to_str()) else { return };
+        let Ok(path) = ValidatedPath::new(name) else { return };
+
+        let dest = make_temp();
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(result.is_ok());
+        assert!(dest.path().join(name).join(".claude-plugin/plugin.json").exists());
+    }
+
+    #[test]
+    fn acquire_local_relative_dir_without_markers_fails_validation() {
+        let Ok(cwd) = std::env::current_dir() else { return };
+        let Ok(src) = tempfile::tempdir_in(&cwd) else { return };
+        let Some(name) = src.path().file_name().and_then(|n| n.to_str()) else { return };
+        let Ok(path) = ValidatedPath::new(name) else { return };
+
+        let dest = make_temp();
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn acquire_local_not_found() {
         let temp = make_temp();
         let path = ValidatedPath::new("nonexistent").unwrap_or_else(|_| std::process::abort());
