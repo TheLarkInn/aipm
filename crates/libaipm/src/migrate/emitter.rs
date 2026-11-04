@@ -2193,6 +2193,20 @@ mod tests {
     }
 
     #[test]
+    fn emit_plugin_with_name_file_based_artifact_resolves_scripts_against_parent() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/commands/review.md"), "Review code".to_string());
+        fs.exists.insert(PathBuf::from("/src/commands/scripts/lint.sh"));
+        fs.files.insert(PathBuf::from("/src/commands/scripts/lint.sh"), "echo lint".to_string());
+
+        let mut artifact = make_command_artifact();
+        artifact.referenced_scripts = vec![PathBuf::from("scripts/lint.sh")];
+        let result = emit_plugin_with_name(&artifact, "review", Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+        assert!(fs.get_written(Path::new("/ai/review/scripts/lint.sh")).is_some());
+    }
+
+    #[test]
     fn emit_package_plugin_command_only() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/commands/review.md"), "Review code".to_string());
