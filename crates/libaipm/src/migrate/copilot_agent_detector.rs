@@ -236,6 +236,17 @@ mod tests {
     }
 
     #[test]
+    fn read_dir_failure_propagates_error() {
+        let mut fs = MockFs::new();
+        // Directory "exists" but read_dir has no entry for it → I/O error.
+        fs.exists.insert(PathBuf::from("/src/agents"));
+
+        let detector = CopilotAgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn empty_agents_dir_returns_empty() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/src/agents"));
