@@ -833,6 +833,16 @@ mod tests {
         assert_eq!(index.entries.get("spec").and_then(|e| e.ttl_secs), None);
     }
 
+    #[test]
+    fn with_index_returns_parse_error_for_corrupt_index() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        std::fs::write(cache.index_path(), "{not valid json").unwrap_or_else(|_| {});
+
+        let result = cache.mark_installed("spec", true);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
     // ---- Additional coverage tests ----
 
     #[test]
