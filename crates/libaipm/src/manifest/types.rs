@@ -388,4 +388,20 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    #[test]
+    fn engine_set_serde_json_list_variants() {
+        use serde::de::IntoDeserializer;
+        let empty = serde_json::json!([]);
+        let r = engine_set_serde::deserialize(empty.into_deserializer());
+        assert!(matches!(r, Ok(Some(ref s)) if s.is_empty()), "empty list: {r:?}");
+
+        let unknown = serde_json::json!(["no-such-engine"]);
+        let r = engine_set_serde::deserialize(unknown.into_deserializer());
+        assert!(r.is_err(), "all-unknown list must error");
+
+        let mixed = serde_json::json!(["no-such-engine", "claude"]);
+        let r = engine_set_serde::deserialize(mixed.into_deserializer());
+        assert!(matches!(r, Ok(Some(ref s)) if !s.is_empty()), "mixed list: {r:?}");
+    }
 }
