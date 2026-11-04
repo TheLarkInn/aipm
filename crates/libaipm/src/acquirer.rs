@@ -373,6 +373,15 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_existing_file_returns_not_directory() {
+        let temp = make_temp();
+        // Cargo.toml exists relative to the crate dir, which is the test CWD.
+        let path = ValidatedPath::new("Cargo.toml").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotDirectory { .. })));
+    }
+
+    #[test]
     fn acquire_local_not_directory() {
         let temp = make_temp();
         let file_path = temp.path().join("not-a-dir");
