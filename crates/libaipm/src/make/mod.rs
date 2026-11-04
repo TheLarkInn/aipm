@@ -860,6 +860,28 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_engine_both_updates_claude_settings() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "both-plugin",
+            engine: "both",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let settings = fs.get_content(Path::new("/project/.claude/settings.json"));
+        assert!(
+            settings.is_some_and(|c| c.contains("both-plugin@test-marketplace")),
+            "engine=both should enable the plugin in .claude/settings.json"
+        );
+    }
+
+    #[test]
     fn make_plugin_already_registered_in_marketplace() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
