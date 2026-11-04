@@ -91,10 +91,7 @@ mod tests {
 
     #[test]
     fn open_creates_parent_directories() {
-        let temp = tempfile::tempdir().unwrap_or_else(|_| {
-            // fallback: should never happen in tests
-            tempfile::tempdir_in(".").unwrap_or_else(|_| unreachable_tempdir())
-        });
+        let temp = tempfile::tempdir().unwrap();
         let nested = temp.path().join("a").join("b").join("c").join("data.json");
         let result = LockedFile::open(&nested);
         assert!(result.is_ok());
@@ -103,43 +100,43 @@ mod tests {
 
     #[test]
     fn read_write_roundtrip() {
-        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("test.json");
 
-        let mut locked = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
-        locked.write_content("{\"hello\": \"world\"}").unwrap_or_else(|_| {});
+        let mut locked = LockedFile::open(&path).unwrap();
+        locked.write_content("{\"hello\": \"world\"}").unwrap();
         drop(locked);
 
-        let mut locked2 = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
-        let content = locked2.read_content().unwrap_or_else(|_| String::new());
+        let mut locked2 = LockedFile::open(&path).unwrap();
+        let content = locked2.read_content().unwrap();
         assert_eq!(content, "{\"hello\": \"world\"}");
     }
 
     #[test]
     fn write_truncates_previous_content() {
-        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("test.json");
 
         // Write long content
-        let mut locked = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
-        locked.write_content("a]very long string with lots of content").unwrap_or_else(|_| {});
+        let mut locked = LockedFile::open(&path).unwrap();
+        locked.write_content("a]very long string with lots of content").unwrap();
 
         // Overwrite with short content
-        locked.write_content("short").unwrap_or_else(|_| {});
+        locked.write_content("short").unwrap();
         drop(locked);
 
         // Verify only short content remains
-        let mut locked2 = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
-        let content = locked2.read_content().unwrap_or_else(|_| String::new());
+        let mut locked2 = LockedFile::open(&path).unwrap();
+        let content = locked2.read_content().unwrap();
         assert_eq!(content, "short");
     }
 
     #[test]
     fn lock_released_on_drop() {
-        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("test.json");
 
-        let locked = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
+        let locked = LockedFile::open(&path).unwrap();
         drop(locked);
 
         // Second open should succeed (lock was released)
@@ -149,19 +146,19 @@ mod tests {
 
     #[test]
     fn read_empty_file_returns_empty_string() {
-        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("empty.json");
 
-        let mut locked = LockedFile::open(&path).unwrap_or_else(|_| unreachable_locked());
-        let content = locked.read_content().unwrap_or_else(|_| String::new());
-        assert!(content.is_empty());
+        let mut locked = LockedFile::open(&path).unwrap();
+        let content = locked.read_content().unwrap();
+        assert_eq!(content, "");
     }
 
     #[test]
     fn open_file_in_current_directory() {
         // path.parent() returns Some("") for a bare filename, not None
         // but let's exercise the path with no nested dirs
-        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let temp = tempfile::tempdir().unwrap();
         let path = temp.path().join("bare-file.json");
         let result = LockedFile::open(&path);
         assert!(result.is_ok());
@@ -174,9 +171,9 @@ mod tests {
         // it. `create_dir_all` cannot create a directory where a file already
         // exists, so it returns an I/O error — exercising the mkdir error
         // branch in `LockedFile::open`.
-        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let temp = tempfile::tempdir().unwrap();
         let blocker = temp.path().join("blocker");
-        std::fs::write(&blocker, b"not a dir").unwrap_or_else(|_| {});
+        std::fs::write(&blocker, b"not a dir").unwrap();
 
         let nested = blocker.join("child").join("data.json");
         let result = LockedFile::open(&nested);
@@ -190,18 +187,5 @@ mod tests {
         // is a directory, confirming the None branch is reachable and handled.
         let result = LockedFile::open(Path::new("/"));
         assert!(result.is_err());
-    }
-
-    /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
-    fn unreachable_tempdir() -> tempfile::TempDir {
-        tempfile::tempdir_in(".").unwrap_or_else(|_| {
-            // This path is truly unreachable in tests — tempfile should always work
-            std::process::abort();
-        })
-    }
-
-    /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
-    fn unreachable_locked() -> LockedFile {
-        std::process::abort();
     }
 }
