@@ -651,6 +651,21 @@ mod tests {
         Ok(dest)
     }
 
+    /// Covers the `create_dir_all` failure in `acquire_local`: the destination
+    /// parent is a regular file, so the destination directory cannot be created.
+    #[test]
+    fn acquire_local_dest_dir_is_file_returns_io_error() {
+        let temp = make_temp();
+        let blocker = temp.path().join("blocker");
+        std::fs::write(&blocker, "x").unwrap_or_else(|_| {});
+
+        let Ok(path) = ValidatedPath::new("src") else {
+            return;
+        };
+        let result = acquire_local(&path, &blocker, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
     /// Covers the clone-failure path in `acquire_git`: when `run_git_clone`
     /// fails (invalid URL → non-zero exit), the error propagates and the temp
     /// directory is cleaned up.
