@@ -610,6 +610,23 @@ mod tests {
     }
 
     #[test]
+    fn put_overwrite_when_old_entry_dir_already_removed() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        assert!(cache.put("spec", &src, None).is_ok());
+
+        let index = cache.read_index().unwrap_or_default();
+        let old_dir = index.entries.get("spec").map(|e| cache.entries_dir().join(&e.dir_name));
+        let removed = old_dir.map(|dir| std::fs::remove_dir_all(dir).is_ok());
+        assert_eq!(removed, Some(true));
+
+        // Re-putting must succeed even though the previous entry dir is gone.
+        let second = cache.put("spec", &src, None);
+        assert!(second.is_ok());
+        assert!(second.unwrap_or_default().exists());
+    }
+
+    #[test]
     fn cache_stale_entry_returns_none() {
         let temp = make_temp();
         let mut cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
