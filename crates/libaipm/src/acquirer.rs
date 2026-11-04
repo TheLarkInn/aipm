@@ -1138,4 +1138,25 @@ mod tests {
             "expected PathNotFound error when subpath is a file, got: {result:?}"
         );
     }
+
+    /// Covers the success and not-a-directory branches of `acquire_local`
+    /// using a path relative to the current directory.
+    #[test]
+    fn acquire_local_relative_path_success_and_not_dir() {
+        let base = tempfile::tempdir_in(".").unwrap();
+        let base_name = base.path().file_name().unwrap().to_string_lossy().to_string();
+        let plugin = base.path().join("my-plugin");
+        std::fs::create_dir_all(plugin.join(".claude-plugin")).unwrap();
+        std::fs::write(plugin.join(".claude-plugin/plugin.json"), "{}").unwrap();
+        std::fs::write(base.path().join("a-file"), "x").unwrap();
+
+        let dest = make_temp();
+        let ok = ValidatedPath::new(format!("{base_name}/my-plugin")).unwrap();
+        let result = acquire_local(&ok, dest.path(), Engine::Claude).unwrap();
+        assert!(result.join(".claude-plugin/plugin.json").exists());
+
+        let file = ValidatedPath::new(format!("{base_name}/a-file")).unwrap();
+        let result = acquire_local(&file, dest.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotDirectory { .. })));
+    }
 }
