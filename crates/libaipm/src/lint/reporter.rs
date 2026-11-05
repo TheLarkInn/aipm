@@ -518,6 +518,25 @@ mod tests {
         assert!(output.contains("1 error(s) emitted"));
     }
 
+    struct FailingWriter;
+
+    impl Write for FailingWriter {
+        fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::other("write failed"))
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn text_reporter_propagates_write_error() {
+        let outcome = sample_outcome();
+        let result = Text.report(&outcome, &mut FailingWriter);
+        assert!(result.is_err());
+    }
+
     #[test]
     fn text_reporter_no_issues() {
         let outcome = Outcome {
