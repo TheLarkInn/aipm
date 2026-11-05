@@ -580,6 +580,20 @@ mod tests {
         assert!(result.is_err(), "expected CopyFailed error, got: {result:?}");
     }
 
+    /// Covers the `read_dir` error mapping in `copy_dir_recursive`: a missing
+    /// source directory yields `Error::Io`.
+    #[test]
+    fn copy_dir_recursive_missing_src_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("does-not-exist");
+        let dst = temp.path().join("dst");
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &src),
+            "expected Io error, got: {result:?}",
+        );
+    }
+
     #[test]
     fn source_redirect_with_invalid_toml() {
         let temp = make_temp();
