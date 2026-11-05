@@ -1621,4 +1621,45 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    /// Writer that fails once more than `remaining` bytes have been written.
+    struct LimitedWriter {
+        remaining: usize,
+    }
+
+    impl std::fmt::Write for LimitedWriter {
+        fn write_str(&mut self, s: &str) -> std::fmt::Result {
+            if s.len() > self.remaining {
+                return Err(std::fmt::Error);
+            }
+            self.remaining -= s.len();
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn git_display_propagates_write_errors() {
+        use std::fmt::Write as _;
+        let spec = parse("git:https://github.com/org/repo:plugins/foo@main");
+        let full = spec.to_string();
+        for limit in 0..full.len() {
+            let mut w = LimitedWriter { remaining: limit };
+            assert!(write!(w, "{spec}").is_err(), "limit {limit}");
+        }
+    }
+
+    #[test]
+    fn marketplace_display_propagates_write_errors() {
+        use std::fmt::Write as _;
+        let source = MarketplaceSource {
+            plugin_name: "p".to_string(),
+            market_location: MarketLocation::GitUrl { url: "u".to_string() },
+            git_ref: Some("v1".to_string()),
+        };
+        let full = source.to_string();
+        for limit in 0..full.len() {
+            let mut w = LimitedWriter { remaining: limit };
+            assert!(write!(w, "{source}").is_err(), "limit {limit}");
+        }
+    }
 }
