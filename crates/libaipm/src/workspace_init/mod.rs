@@ -2397,4 +2397,48 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    struct ExistsReadFailFs;
+
+    impl crate::fs::Fs for ExistsReadFailFs {
+        fn exists(&self, _: &Path) -> bool {
+            true
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "mock: read denied"))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    /// Covers the `read_to_string(&manifest_path)?` error branch in `init_workspace`
+    /// when an existing `aipm.toml` cannot be read.
+    #[test]
+    fn init_workspace_fails_when_existing_manifest_unreadable() {
+        let tmp = std::path::PathBuf::from("/tmp/fake-ws-read");
+        let adaptors: Vec<Box<dyn ToolAdaptor>> = vec![];
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: true,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &ExistsReadFailFs);
+        assert!(result.err().is_some_and(|e| e.to_string().contains("mock: read denied")));
+    }
 }
