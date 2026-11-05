@@ -388,4 +388,28 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// Unknown engine names mixed with a known one are dropped silently.
+    #[test]
+    fn engine_set_serde_drops_unknown_names() {
+        use serde::de::IntoDeserializer;
+        let de = serde_json::json!(["claude", "future-engine"]);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert_eq!(result.ok().flatten(), Some(libaipm_engine_spec::Engine::Claude.as_set()));
+    }
+
+    /// A list containing only unknown names is rejected.
+    #[test]
+    fn engine_set_serde_all_unknown_errors() {
+        use serde::de::IntoDeserializer;
+        let de = serde_json::json!(["future-engine"]);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn plugin_type_from_str_invalid() {
+        assert!("bogus".parse::<PluginType>().is_err());
+        assert_eq!("lsp".parse::<PluginType>().ok(), Some(PluginType::Lsp));
+    }
 }
