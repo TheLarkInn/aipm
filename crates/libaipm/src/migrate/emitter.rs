@@ -3673,6 +3673,38 @@ mod tests {
     }
 
     #[test]
+    fn emit_skill_files_copies_unreferenced_scripts_file() {
+        // A file under scripts/ that is NOT in referenced_scripts must still be copied
+        // by emit_skill_files (the `referenced.contains` check is False).
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/src/skills/deploy/SKILL.md"),
+            "---\nname: deploy\ndescription: Deploy\n---\nContent".to_string(),
+        );
+        fs.files.insert(PathBuf::from("/src/skills/deploy/scripts/other.sh"), "echo".to_string());
+
+        let artifact = Artifact {
+            kind: ArtifactKind::Skill,
+            name: "deploy".to_string(),
+            source_path: PathBuf::from("/src/skills/deploy"),
+            files: vec![PathBuf::from("SKILL.md"), PathBuf::from("scripts/other.sh")],
+            referenced_scripts: vec![PathBuf::from("scripts/setup.sh")],
+            metadata: ArtifactMetadata {
+                name: Some("deploy".to_string()),
+                description: Some("Deploy".to_string()),
+                ..ArtifactMetadata::default()
+            },
+        };
+
+        let result = emit_skill_files(&artifact, Path::new("/ai/deploy"), &fs);
+        assert!(result.is_ok(), "emit_skill_files should succeed: {result:?}");
+        assert!(
+            fs.get_written(Path::new("/ai/deploy/skills/deploy/scripts/other.sh")).is_some(),
+            "unreferenced scripts file should be copied"
+        );
+    }
+
+    #[test]
     fn copy_referenced_scripts_skips_non_regular_file() {
         // A script that exists (in fs.exists) but is not a regular file (not in fs.files).
         // The script must be skipped with a warn and NOT copied to the plugin directory.
