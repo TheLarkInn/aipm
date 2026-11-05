@@ -882,6 +882,15 @@ mod tests {
     }
 
     #[test]
+    fn put_missing_source_dir_returns_io_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let missing = temp.path().join("does-not-exist");
+
+        let result = cache.put("spec", &missing, None);
+        assert!(matches!(result, Err(Error::Io { ref path, .. }) if *path == missing));
+    }
+
+    #[test]
     fn copy_to_session_missing_spec_errors() {
         let (temp, cache) = test_cache(Policy::Auto);
         let session = temp.path().join("session");
