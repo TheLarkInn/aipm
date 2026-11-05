@@ -1528,6 +1528,15 @@ mod tests {
         assert_eq!(result, tmp.path().join(".ai"));
     }
 
+    /// `resolve_plugins_dir` falls back to `.ai` when the manifest cannot be loaded.
+    #[test]
+    fn resolve_plugins_dir_unloadable_manifest_falls_back_to_dot_ai() {
+        let tmp = tempfile::tempdir().unwrap();
+
+        let result = resolve_plugins_dir(tmp.path());
+        assert_eq!(result, tmp.path().join(".ai"));
+    }
+
     /// `load_lint_config` handles a `[workspace.lints.ignore]` section that lacks
     /// a `paths` array — the inner branch is skipped, `ignore_paths` stays empty.
     #[test]
