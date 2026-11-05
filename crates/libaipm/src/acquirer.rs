@@ -442,6 +442,21 @@ mod tests {
     }
 
     #[test]
+    fn copy_dir_recursive_create_dir_fails_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        std::fs::create_dir_all(src.join("sub")).unwrap_or_else(|_| {});
+
+        // A regular file occupies the destination path of the subdirectory.
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(&dst).unwrap_or_else(|_| {});
+        std::fs::write(dst.join("sub"), "blocker").unwrap_or_else(|_| {});
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn copy_dir_recursive_skips_symlinks() {
         // Covers the `else if ft.is_file()` false branch (line 306): when a
