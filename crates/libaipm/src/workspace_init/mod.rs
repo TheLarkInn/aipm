@@ -2306,6 +2306,30 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `!any_created && any_found` short-circuit in `init` where both
+    /// operands are false: with every phase disabled no actions are produced, so
+    /// the "nothing to do" warning must not fire.
+    #[test]
+    fn init_all_phases_disabled_produces_no_actions() {
+        let (tmp, _guard) = make_temp_dir("all-disabled");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed with all phases disabled: {result:?}");
+        assert!(result.map(|r| r.actions.is_empty()).unwrap_or(false));
+
+        cleanup(&tmp);
+    }
+
     /// Covers the `if parsed.workspace.is_none()` True branch in `compare_and_warn`:
     /// when a package-only `aipm.toml` (no `[workspace]` section) already exists but
     /// `init` is called with `workspace: true`, `compare_and_warn` warns about the
