@@ -388,4 +388,15 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// A non-list value (e.g. a bare string) fails the initial `Option<Vec<String>>`
+    /// deserialization, exercising the `?` error propagation arm.
+    #[test]
+    fn engine_set_serde_non_list_value_is_error() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value = serde_json::Value::String("claude".to_string());
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        let result: Result<Option<EngineSet>, serde_json::Error> = result;
+        assert!(result.is_err(), "non-list engines should be a deserialization error");
+    }
 }
