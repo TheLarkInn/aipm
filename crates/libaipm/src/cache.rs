@@ -1137,4 +1137,17 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn copy_to_session_io_error_when_dest_is_file() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let _ = cache.put("spec", &src, None);
+
+        let blocker = temp.path().join("not_a_dir");
+        let _ = std::fs::write(&blocker, "x");
+
+        let result = cache.copy_to_session("spec", &blocker, "plugin");
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
 }
