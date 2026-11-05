@@ -398,6 +398,15 @@ mod tests {
         assert_eq!(result.ok().flatten(), Some(libaipm_engine_spec::Engine::Claude.as_set()));
     }
 
+    /// An explicit empty list yields an empty set.
+    #[test]
+    fn engine_set_serde_empty_list_is_empty_set() {
+        use serde::de::IntoDeserializer;
+        let de = serde_json::json!([]);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert_eq!(result.ok().flatten(), Some(libaipm_engine_spec::EngineSet::empty()));
+    }
+
     /// A list containing only unknown names is rejected.
     #[test]
     fn engine_set_serde_all_unknown_errors() {
