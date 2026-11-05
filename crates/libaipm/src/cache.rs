@@ -833,6 +833,20 @@ mod tests {
         assert_eq!(index.entries.get("spec").and_then(|e| e.ttl_secs), None);
     }
 
+    #[test]
+    fn mark_installed_and_set_ttl_ignore_unknown_spec() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let _ = cache.put("spec", &src, None);
+
+        assert!(cache.mark_installed("missing", true).is_ok());
+        assert!(cache.set_entry_ttl("missing", Some(1)).is_ok());
+
+        let index = cache.read_index().unwrap_or_default();
+        assert!(!index.entries.contains_key("missing"));
+        assert_eq!(index.entries.get("spec").map(|e| e.installed), Some(false));
+    }
+
     // ---- Additional coverage tests ----
 
     #[test]
