@@ -657,6 +657,22 @@ mod tests {
     }
 
     #[test]
+    fn copy_to_session_missing_entry_dir_is_corrupted() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let spec = "corrupt-spec";
+        let src = create_source_plugin(&temp);
+        let _ = cache.put(spec, &src, None);
+
+        if let Ok(Some(entry_dir)) = cache.get(spec) {
+            let _ = std::fs::remove_dir_all(entry_dir);
+        }
+
+        let session_dir = temp.path().join("session");
+        let result = cache.copy_to_session(spec, &session_dir, "my-plugin");
+        assert!(matches!(result, Err(Error::CacheCorrupted { .. })));
+    }
+
+    #[test]
     fn new_entry_dir_name_is_unique() {
         let a = new_entry_dir_name();
         // Small delay to ensure different timestamp contribution
