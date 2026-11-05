@@ -167,6 +167,57 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_is_file_returns_io_error() {
+        // A regular file at target_dir exists, so remove_dir_all fails.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, "x").expect("write file");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "expected Io error for target, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn assemble_target_parent_is_file_returns_io_error() {
+        // target_dir does not exist but its parent is a file, so create_dir_all fails.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, "x").expect("write file");
+        let target = blocker.join("pkg");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "expected Io error for target, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn assemble_nested_parent_blocked_by_file_returns_io_error() {
+        // "sub" is a file in the store hash map's path chain: first entry creates
+        // file "sub", second needs directory "sub/".
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash = store.store_file(b"content").expect("store file");
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("sub"), hash.clone());
+        file_hashes.insert(PathBuf::from("sub/inner.txt"), hash);
+
+        let target = tmp.path().join("links").join("blocked-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("sub")),
+            "expected Io error for sub, got: {result:?}"
+        );
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
