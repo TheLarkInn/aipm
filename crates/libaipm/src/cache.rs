@@ -919,6 +919,15 @@ mod tests {
     }
 
     #[test]
+    fn with_index_non_utf8_index_returns_lock_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        let _ = std::fs::write(cache.index_path(), [0xff_u8, 0xfe, 0xfd]);
+        let result = cache.mark_installed("spec", true);
+        assert!(matches!(result, Err(Error::Lock { .. })));
+    }
+
+    #[test]
     fn set_entry_ttl_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
