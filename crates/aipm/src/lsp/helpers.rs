@@ -260,6 +260,13 @@ mod tests {
         assert_eq!(find_workspace_dir(&file), dir.path());
     }
 
+    #[test]
+    fn workspace_dir_walks_to_filesystem_root_without_marker() {
+        // The parent of `/orphan.md` is `/`, which has no parent: the walk-up loop
+        // hits the `_ => break` arm and falls back to the starting directory.
+        assert_eq!(find_workspace_dir(Path::new("/orphan.md")), Path::new("/"));
+    }
+
     // ── to_lsp_diagnostic ────────────────────────────────────────────────────
 
     #[test]
