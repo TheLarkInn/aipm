@@ -236,6 +236,19 @@ mod tests {
     }
 
     #[test]
+    fn claude_settings_propagates_non_notfound_read_error() {
+        let tmp = make_temp_dir("settings-is-dir");
+        // A directory at settings.json makes the read fail with a non-NotFound error.
+        std::fs::create_dir_all(tmp.join(".claude/settings.json")).ok();
+
+        let adaptor = Adaptor;
+        let result = adaptor.apply(&tmp, false, "local-repo-plugins", &Real);
+        assert!(result.is_err_and(|e| matches!(e, Error::Io(_))));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn claude_settings_rejects_non_object_root() {
         let tmp = make_temp_dir("array-root");
         std::fs::create_dir_all(tmp.join(".claude")).ok();
