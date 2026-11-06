@@ -911,6 +911,23 @@ mod tests {
     }
 
     #[test]
+    fn put_overwrite_preserves_installed_and_removes_old_dir() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let spec = "overwrite-spec";
+        let first_dir = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+        let _ = cache.mark_installed(spec, true);
+
+        let second_dir = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+
+        assert_ne!(first_dir, second_dir);
+        assert!(!first_dir.exists());
+        assert!(second_dir.exists());
+        let index = cache.read_index().unwrap_or_default();
+        assert!(index.entries.get(spec).is_some_and(|e| e.installed));
+    }
+
+    #[test]
     fn mark_installed_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
