@@ -566,4 +566,20 @@ mod tests {
         let err = result.err().unwrap_or_else(|| std::io::Error::other("unexpected"));
         assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
     }
+
+    #[test]
+    fn unreadable_parent_directory_is_skipped_during_prune() {
+        let fs = MockFs::new();
+        // Parent is not registered, so read_dir returns NotFound and pruning is skipped.
+        let outcome =
+            make_outcome(vec![plugin_created("deploy", "/p/.claude/skills/deploy", "skill", true)]);
+
+        let result = remove_migrated_sources(&outcome, &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert_eq!(
+            actions,
+            vec![Action::SourceDirRemoved { path: PathBuf::from("/p/.claude/skills/deploy") }]
+        );
+    }
 }
