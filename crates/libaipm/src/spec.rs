@@ -1321,6 +1321,57 @@ mod tests {
         assert_eq!(source.to_string(), "market:test@owner/repo");
     }
 
+    /// Writer that fails once more than `limit` `write_str` calls have been made.
+    struct LimitedWriter {
+        calls: usize,
+        limit: usize,
+    }
+
+    impl std::fmt::Write for LimitedWriter {
+        fn write_str(&mut self, _s: &str) -> std::fmt::Result {
+            self.calls += 1;
+            if self.calls > self.limit {
+                Err(std::fmt::Error)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    fn fmt_with_limit(value: &dyn std::fmt::Display, limit: usize) -> std::fmt::Result {
+        let mut w = LimitedWriter { calls: 0, limit };
+        std::fmt::write(&mut w, format_args!("{value}"))
+    }
+
+    #[test]
+    fn source_display_propagates_write_errors() {
+        let git = GitSource {
+            url: "https://example.com/r.git".to_string(),
+            path: ValidatedPath::new("sub/dir").ok(),
+            git_ref: Some("main".to_string()),
+        };
+        let market = MarketplaceSource {
+            plugin_name: "test".to_string(),
+            market_location: MarketLocation::GitHub {
+                owner: "owner".to_string(),
+                repo: "repo".to_string(),
+            },
+            git_ref: Some("v1.0".to_string()),
+        };
+        for limit in 0..16 {
+            let git_result = fmt_with_limit(&git, limit);
+            let market_result = fmt_with_limit(&market, limit);
+            if limit == 0 {
+                assert!(git_result.is_err());
+                assert!(market_result.is_err());
+            }
+            if limit == 15 {
+                assert!(git_result.is_ok());
+                assert!(market_result.is_ok());
+            }
+        }
+    }
+
     #[test]
     fn market_location_display_variants() {
         // Exercise all three Display arms of MarketLocation
