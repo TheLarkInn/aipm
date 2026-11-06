@@ -388,4 +388,16 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// An explicit empty list deserializes to `Some(EngineSet::empty())`.
+    #[test]
+    fn engine_set_serde_empty_list_returns_empty_set() {
+        use serde::de::IntoDeserializer;
+        let de: serde_json::Value = serde_json::Value::Array(Vec::new());
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(
+            matches!(&result, Ok(Some(set)) if set.is_empty()),
+            "empty list should produce Some(empty set): {result:?}"
+        );
+    }
 }
