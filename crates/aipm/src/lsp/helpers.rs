@@ -589,6 +589,13 @@ mod tests {
     }
 
     #[test]
+    fn find_workspace_dir_path_without_parent_returns_itself() {
+        // A root path has no parent, so the `map_or_else` fallback keeps the path itself.
+        let root = Path::new("/");
+        assert_eq!(find_workspace_dir(root), root);
+    }
+
+    #[test]
     fn lint_file_diagnostics_returns_empty_on_walk_failure() {
         // Create a temp dir, then drop it so the directory no longer exists on disk.
         // find_workspace_dir() won't find any aipm.toml or .ai marker walking up,
