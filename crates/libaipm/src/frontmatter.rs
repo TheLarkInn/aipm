@@ -748,4 +748,15 @@ mod tests {
             Some((14, 33))
         );
     }
+
+    #[test]
+    fn parse_empty_value_followed_by_sibling_key() {
+        let content = "---\nname:\ndescription: Deploy app\n---\nbody";
+        let fm = parse(content).ok().flatten();
+        assert_eq!(fm.as_ref().and_then(|f| f.fields.get("name")).map(String::as_str), Some(""));
+        assert_eq!(
+            fm.as_ref().and_then(|f| f.fields.get("description")).map(String::as_str),
+            Some("Deploy app")
+        );
+    }
 }
