@@ -330,6 +330,19 @@ some-dep = {}
     }
 
     #[test]
+    fn invalid_workspace_dependency_version_is_rejected() {
+        let toml = r#"
+[workspace]
+members = ["plugins/*"]
+
+[workspace.dependencies]
+bad-dep = "???invalid"
+"#;
+        let result = crate::manifest::parse_and_validate(toml, None);
+        assert!(result.is_err(), "invalid workspace dependency version should be rejected");
+    }
+
+    #[test]
     fn segment_starting_with_digit_is_valid() {
         // Covers the `b.is_ascii_digit()` branch in `is_valid_segment` —
         // when the first byte is a digit, `is_ascii_lowercase()` is false and
