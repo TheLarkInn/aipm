@@ -1006,6 +1006,14 @@ mod tests {
     }
 
     #[test]
+    fn is_plugin_registered_returns_false_when_plugins_key_missing() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/marketplace.json");
+        fs.seed(path, b"{\"name\": \"m\"}");
+        assert!(!is_plugin_registered(&fs, path, "my-plugin"));
+    }
+
+    #[test]
     fn is_plugin_registered_returns_true_when_present() {
         let fs = MockFs::new();
         let path = Path::new("/project/marketplace.json");
