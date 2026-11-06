@@ -203,6 +203,22 @@ mod tests {
     }
 
     #[test]
+    fn detect_command_skips_extensionless_and_accepts_uppercase_md() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/commands"));
+        fs.dirs.insert(
+            PathBuf::from("/src/commands"),
+            vec![de("README", false), de("DEPLOY.MD", false)],
+        );
+        fs.files.insert(PathBuf::from("/src/commands/DEPLOY.MD"), "Deploy it".to_string());
+
+        let detector = CommandDetector;
+        let result = detector.detect(Path::new("/src"), &fs).ok().unwrap_or_default();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result.first().map(|a| a.name.as_str()), Some("DEPLOY"));
+    }
+
+    #[test]
     fn detect_command_ignores_directories() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/src/commands"));
