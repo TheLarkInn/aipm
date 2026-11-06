@@ -1253,4 +1253,64 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Filesystem whose directory creation or file writes fail on demand.
+    struct FailFs {
+        fail_dirs: bool,
+        fail_writes: bool,
+    }
+
+    impl crate::fs::Fs for FailFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            if self.fail_dirs {
+                Err(std::io::Error::other("dir failure"))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            if self.fail_writes {
+                Err(std::io::Error::other("write failure"))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::other("read failure"))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_create_dir_error() {
+        let fs = FailFs { fail_dirs: true, fail_writes: false };
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/project/.ai"),
+            name: "p",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        assert!(plugin(&opts, &fs).is_err());
+    }
+
+    #[test]
+    fn make_plugin_propagates_write_error() {
+        let fs = FailFs { fail_dirs: false, fail_writes: true };
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/project/.ai"),
+            name: "p",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        assert!(plugin(&opts, &fs).is_err());
+    }
 }
