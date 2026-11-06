@@ -644,6 +644,21 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn parse_github_owner_too_long_rejected() {
+        let owner = "a".repeat(40);
+        let result = format!("github:{owner}/repo").parse::<Spec>();
+        assert!(matches!(result, Err(Error::GitHub { ref reason }) if reason.contains("39")));
+    }
+
+    #[test]
+    fn parse_github_owner_invalid_chars_rejected() {
+        let result = "github:bad_owner/repo".parse::<Spec>();
+        assert!(
+            matches!(result, Err(Error::GitHub { ref reason }) if reason.contains("alphanumeric"))
+        );
+    }
+
     // ---- Git specs ----
 
     #[test]
