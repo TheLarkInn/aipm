@@ -1253,4 +1253,21 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    #[test]
+    fn make_plugin_errors_when_claude_settings_json_is_invalid() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs, marketplace_dir);
+        fs.seed(Path::new("/project/.claude/settings.json"), b"not valid json");
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "bad-settings",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        assert!(plugin(&opts, &fs).is_err());
+    }
 }
