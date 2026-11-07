@@ -173,4 +173,14 @@ mod tests {
         write_summary(&mut counter, sc(1, 0, 0, 0), 1, &[".github".to_string()]).expect("ok");
         assert!(counter.0 > 0);
     }
+
+    #[test]
+    fn write_summary_plural_dirs_and_empty_sources() {
+        let mut buf: Vec<u8> = Vec::new();
+        assert!(write_summary(&mut buf, ScanCounts::default(), 2, &[]).is_ok());
+        assert_eq!(
+            String::from_utf8_lossy(&buf),
+            "Scanned 2 directories in [(none)]; matched 0 features\n"
+        );
+    }
 }
