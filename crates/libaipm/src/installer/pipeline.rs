@@ -1429,6 +1429,18 @@ features = ["json"]
     }
 
     #[test]
+    fn install_with_corrupt_lockfile_returns_manifest_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let config = setup_project(tmp.path());
+        std::fs::write(&config.lockfile_path, "not [valid toml").expect("write lockfile");
+        let registry = make_registry();
+
+        let result = install(&crate::fs::Real, &config, &registry);
+        let err = format!("{}", result.err().expect("expected error"));
+        assert!(err.contains("lockfile read error"), "unexpected error: {err}");
+    }
+
+    #[test]
     fn install_with_add_package() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let mut config = setup_project(tmp.path());
