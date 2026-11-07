@@ -572,6 +572,16 @@ mod tests {
     }
 
     #[test]
+    fn corrupt_index_returns_parse_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        let _ = std::fs::write(cache.index_path(), "{ not json");
+
+        assert!(matches!(cache.read_index(), Err(Error::IndexParse { .. })));
+        assert!(cache.get("spec").is_err());
+    }
+
+    #[test]
     fn policy_serde_roundtrip_and_invalid() {
         let json = serde_json::to_string(&Policy::ForceRefresh).unwrap_or_default();
         assert_eq!(json, "\"force-refresh\"");
