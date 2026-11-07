@@ -186,4 +186,32 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_target_is_file_returns_io_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let target = tmp.path().join("not-a-dir");
+        std::fs::write(&target, b"x").expect("write file");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if *path == target),
+            "expected Io error for file target, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn assemble_parent_is_file_returns_io_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash = store.store_file(b"content").expect("store file");
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"x").expect("write file");
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("."), hash);
+        let result = assemble(&store, &file_hashes, &blocker.join("child"));
+        assert!(matches!(&result, Err(Error::Io { .. })), "got: {result:?}");
+    }
 }
