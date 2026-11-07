@@ -143,6 +143,15 @@ mod tests {
     }
 
     #[test]
+    fn mock_fs_stub_methods_succeed() {
+        let fs = MockFs::new();
+        assert!(fs.create_dir_all(Path::new("/x")).is_ok());
+        assert!(fs.write_file(Path::new("/x/f"), b"data").is_ok());
+        assert!(fs.read_to_string(Path::new("/x/f")).is_err());
+        assert!(fs.read_dir(Path::new("/x")).is_ok_and(|v| v.is_empty()));
+    }
+
+    #[test]
     fn find_marketplace_root_returns_error() {
         let fs = MockFs::new();
 
