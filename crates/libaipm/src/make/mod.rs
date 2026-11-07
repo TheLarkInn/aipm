@@ -453,6 +453,29 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_copilot_engine_skips_engine_settings() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "copilot-skill",
+            engine: "copilot",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        assert!(
+            !result.actions.iter().any(|a| matches!(a, Action::PluginEnabled { .. })),
+            "copilot engine should not enable the plugin in Claude settings"
+        );
+    }
+
+    #[test]
     fn make_plugin_creates_skill_plugin() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
