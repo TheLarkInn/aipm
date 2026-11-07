@@ -355,6 +355,19 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_too_many_files_returns_error() {
+        let Ok(src) = tempfile::tempdir_in(".") else { return };
+        for i in 0..=MAX_PLUGIN_FILES {
+            std::fs::write(src.path().join(format!("file{i}.txt")), "x").unwrap_or_else(|_| {});
+        }
+        let dest = make_temp();
+        let name = src.path().file_name().and_then(|n| n.to_str()).unwrap_or("plugin");
+        let path = ValidatedPath::new(name).unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::TooManyFiles { .. })));
+    }
+
+    #[test]
     fn acquire_local_not_found() {
         let temp = make_temp();
         let path = ValidatedPath::new("nonexistent").unwrap_or_else(|_| std::process::abort());
