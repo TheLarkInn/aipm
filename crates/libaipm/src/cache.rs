@@ -804,6 +804,17 @@ mod tests {
     }
 
     #[test]
+    fn get_returns_index_parse_error_for_corrupt_index() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = std::fs::create_dir_all(
+            cache.index_path().parent().map_or(PathBuf::new(), Path::to_path_buf),
+        );
+        let _ = std::fs::write(cache.index_path(), "not json");
+
+        assert!(matches!(cache.get("spec"), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn with_policy_shares_root() {
         let (temp, cache) = test_cache(Policy::Auto);
         let src = create_source_plugin(&temp);
