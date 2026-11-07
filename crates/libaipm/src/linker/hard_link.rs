@@ -186,4 +186,18 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_parent_dir_creation_failure_returns_error() {
+        // "a" is linked as a file first, so creating the parent dir for "a/b" fails.
+        let (tmp, store, mut file_hashes) = make_store_and_package();
+        let hash = file_hashes.values().next().cloned().unwrap_or_default();
+        file_hashes.clear();
+        file_hashes.insert(PathBuf::from("a"), hash.clone());
+        file_hashes.insert(PathBuf::from("a/b"), hash);
+
+        let target = tmp.path().join("links").join("parent-fail-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}");
+    }
 }
