@@ -186,4 +186,41 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_target_dir_creation_failure_returns_error() {
+        // A regular file in the target's ancestry makes create_dir_all(target_dir) fail.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"not a dir").expect("write blocker");
+
+        let target = blocker.join("pkg");
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "expected Io error for target dir, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn assemble_parent_dir_creation_failure_returns_error() {
+        // A rel_path whose first component collides with an existing file
+        // is impossible after a clean, so use a hash-map key nested under a
+        // component that is created as a file by an earlier entry.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash = store.store_file(b"content").expect("store file");
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("a"), hash.clone());
+        file_hashes.insert(PathBuf::from("a/b.txt"), hash);
+
+        let target = tmp.path().join("links").join("conflict-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("a")),
+            "expected Io error for parent dir, got: {result:?}"
+        );
+    }
 }
