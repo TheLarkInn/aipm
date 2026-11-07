@@ -355,6 +355,19 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_dest_is_file_returns_io_error() {
+        let temp = make_temp();
+        // A regular file as dest_dir makes `create_dir_all(dest_dir/<name>)` fail.
+        let dest_file = temp.path().join("dest-file");
+        std::fs::write(&dest_file, "x").unwrap_or_else(|_| {});
+
+        // "src" is a relative directory that exists in the crate's test cwd.
+        let path = ValidatedPath::new("src").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &dest_file, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn acquire_local_not_found() {
         let temp = make_temp();
         let path = ValidatedPath::new("nonexistent").unwrap_or_else(|_| std::process::abort());
