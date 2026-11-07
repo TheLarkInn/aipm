@@ -249,4 +249,25 @@ mod tests {
             .and_then(|a| a.metadata.description.as_deref())
             .is_some_and(|d| d.contains("3 LSP server(s)")));
     }
+
+    #[test]
+    fn detect_lsp_json_directly_in_source_dir() {
+        let mut fs = MockFs::new();
+        // Only the direct `<source_dir>/lsp.json` exists; the fallback path does not.
+        fs.exists.insert(PathBuf::from("/project/.copilot/lsp.json"));
+        fs.files.insert(
+            PathBuf::from("/project/.copilot/lsp.json"),
+            r#"{"rust-analyzer":{"command":"rust-analyzer"}}"#.to_string(),
+        );
+
+        let detector = CopilotLspDetector;
+        let result = detector.detect(Path::new("/project/.copilot"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.len(), 1);
+        assert_eq!(
+            artifacts.first().map(|a| a.source_path.clone()),
+            Some(PathBuf::from("/project/.copilot/lsp.json"))
+        );
+    }
 }
