@@ -1078,6 +1078,18 @@ mod tests {
     }
 
     #[test]
+    fn with_index_non_utf8_index_returns_lock_error() {
+        // A non-UTF-8 index file makes `read_content` fail, which must surface
+        // as `Error::Lock` rather than being treated as an empty index.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), [0xff, 0xfe, 0xfd]).is_ok());
+
+        let result = cache.touch_entry("any-spec");
+        assert!(matches!(result, Err(Error::Lock { .. })));
+    }
+
+    #[test]
     fn touch_entry_missing_key_is_noop() {
         // Covers the False branch of `if let Some(entry) = index.entries.get_mut(spec_key)`
         // in touch_entry: when the spec_key is absent from the index (e.g. removed between
