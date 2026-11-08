@@ -167,6 +167,40 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_dir_creation_failure_returns_error() {
+        // The target's parent is a regular file, so create_dir_all fails.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, "x").expect("write blocker");
+
+        let target = blocker.join("pkg");
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "expected Io error for target dir, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn assemble_parent_dir_creation_failure_returns_error() {
+        // A file occupies the path needed as a parent directory of the entry.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash = store.store_file(b"content").expect("store file");
+
+        let target = tmp.path().join("pkg");
+        std::fs::create_dir_all(&target).expect("create target");
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("a"), hash.clone());
+        file_hashes.insert(PathBuf::from("a/b.txt"), hash);
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(result.is_err(), "expected error, got: {result:?}");
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
