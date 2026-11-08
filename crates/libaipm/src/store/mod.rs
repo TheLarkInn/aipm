@@ -631,4 +631,13 @@ mod tests {
         let result = store.store_package(nonexistent);
         assert!(result.is_err(), "expected store_package to fail on missing directory");
     }
+
+    #[test]
+    fn lock_fails_when_store_dir_cannot_be_created() {
+        let tmp = tempfile::tempdir().unwrap();
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"file").unwrap();
+        let store = Store::new(blocker.join("store"));
+        assert!(matches!(store.lock(), Err(Error::Io { .. })));
+    }
 }
