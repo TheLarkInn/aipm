@@ -1072,6 +1072,21 @@ mod tests {
     }
 
     #[test]
+    fn corrupt_index_returns_index_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let root = temp.path().join("cache");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("cache_index.json"), "{not valid json").unwrap();
+
+        assert!(matches!(cache.get("any-spec"), Err(Error::IndexParse { .. })));
+
+        let src = temp.path().join("src-corrupt");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("a.txt"), "a").unwrap();
+        assert!(matches!(cache.put("any-spec", &src, None), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn cache_policy_parse_unknown_returns_err() {
         let result = "definitely-not-a-policy".parse::<Policy>();
         assert!(result.is_err(), "unknown policy string should return Err");
