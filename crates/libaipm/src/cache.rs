@@ -1137,4 +1137,14 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn put_errors_when_source_dir_missing() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let missing = temp.path().join("does_not_exist");
+
+        let result = cache.put("spec", &missing, None);
+
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
 }
