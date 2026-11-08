@@ -425,6 +425,12 @@ mod tests {
     }
 
     #[test]
+    fn is_relative_script_rejects_windows_drive_path() {
+        assert!(!is_relative_script("C:\\tools\\check.sh", Path::new(".")));
+        assert!(!is_relative_script("D:/scripts/run.sh", Path::new(".")));
+    }
+
+    #[test]
     fn collect_command_scripts_with_missing_command_field() {
         // A hook object with type=command but no "command" key should not produce any
         // script reference — exercises the None branch of map.get("command").
