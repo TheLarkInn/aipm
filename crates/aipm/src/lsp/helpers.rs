@@ -253,6 +253,12 @@ mod tests {
     }
 
     #[test]
+    fn workspace_dir_walks_to_filesystem_root_without_marker() {
+        let file = Path::new("/aipm-nonexistent-dir/orphan.md");
+        assert_eq!(find_workspace_dir(file), Path::new("/aipm-nonexistent-dir"));
+    }
+
+    #[test]
     fn workspace_dir_fallback_to_parent() {
         let dir = tempfile::tempdir().expect("tempdir");
         let file = dir.path().join("orphan.md");
