@@ -2185,6 +2185,48 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Existing `aipm.toml` is package-only (no `[workspace]` table) while the
+    /// wizard requested a workspace. Covers the `parsed.workspace.is_none()` branch
+    /// in `compare_and_warn`; the file must remain unchanged.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_existing_package_only_manifest_warns_workspace_mismatch() {
+        let (tmp, _guard) = make_temp_dir("existing-toml-package-only");
+        let manifest = crate::manifest::builder::build_plugin_manifest(
+            &crate::manifest::builder::PluginManifestOpts {
+                name: "pkg-only",
+                version: "0.1.0",
+                ..Default::default()
+            },
+            None,
+        );
+        std::fs::write(tmp.join("aipm.toml"), &manifest).ok();
+        let original = std::fs::read(tmp.join("aipm.toml")).unwrap_or_default();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "idempotent init must succeed: {result:?}");
+
+        let after = std::fs::read(tmp.join("aipm.toml")).unwrap_or_default();
+        assert_eq!(original, after, "aipm.toml must be bytewise unchanged");
+        assert!(
+            logs_contain("wizard requested workspace but on-disk manifest is package-only"),
+            "expected workspace-mismatch warn event"
+        );
+
+        cleanup(&tmp);
+    }
+
     /// Pre-existing `aipm.toml` is malformed TOML. Init must surface a
     /// typed `ExistingManifestInvalid` error.
     #[test]
