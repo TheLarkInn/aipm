@@ -164,6 +164,16 @@ mod tests {
     }
 
     #[test]
+    fn detect_returns_error_when_read_dir_fails() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+
+        let detector = CopilotAgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn detect_agent_md_file() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/src/agents"));
