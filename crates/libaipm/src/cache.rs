@@ -1092,6 +1092,22 @@ mod tests {
     }
 
     #[test]
+    fn put_with_empty_index_file_uses_default_index() {
+        // Covers the `content.is_empty()` True branch in with_index(): a
+        // zero-byte index file must be treated as an empty default index.
+        let (temp, cache) = test_cache(Policy::Auto);
+        cache.ensure_dirs().unwrap();
+        std::fs::write(cache.index_path(), "").unwrap();
+
+        let src = create_source_plugin(&temp);
+        let dir = cache.put("empty-index-spec", &src, None).unwrap();
+
+        assert!(dir.exists());
+        let index = cache.read_index().unwrap();
+        assert!(index.entries.contains_key("empty-index-spec"));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn gc_silently_skips_non_utf8_entry_names() {
         // Covers the None branch of `entry.file_name().to_str()` in gc():
