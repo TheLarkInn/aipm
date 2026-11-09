@@ -911,6 +911,19 @@ mod tests {
     }
 
     #[test]
+    fn copy_to_session_unwritable_dest_errors() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let _ = cache.put("spec", &src, None);
+
+        // A regular file as dest_dir makes creating the plugin dir fail.
+        let blocker = temp.path().join("blocker");
+        let _ = std::fs::write(&blocker, "x");
+        let result = cache.copy_to_session("spec", &blocker, "plugin");
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn mark_installed_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
