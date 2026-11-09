@@ -4214,6 +4214,23 @@ mod tests {
         assert!(result.is_err(), "should fail when lsp.json write is denied");
     }
 
+    /// Covers the `Err` path of the `plugin.json` write at the end of `emit_plugin`.
+    #[test]
+    fn emit_plugin_returns_error_on_plugin_json_write_failure() {
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/src/skills/deploy/SKILL.md"),
+            "---\nname: deploy\n---\nContent".to_string(),
+        );
+        fs.set_fail_write(PathBuf::from("/ai/deploy/.claude-plugin/plugin.json"));
+
+        let artifact = make_skill_artifact();
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_err(), "should fail when plugin.json write is denied");
+    }
+
     /// Covers the `None` arm of `file.relative_path.file_name().map_or_else(...)` at
     /// line 794 in `emit_other_files`. When `relative_path` is `".."`, `file_name()`
     /// returns `None`, so the fallback uses `to_string_lossy()` of the full path as
