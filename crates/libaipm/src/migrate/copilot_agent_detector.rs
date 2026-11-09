@@ -164,6 +164,17 @@ mod tests {
     }
 
     #[test]
+    fn detect_skips_agent_md_with_empty_stem() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(PathBuf::from("/src/agents"), vec![de(".agent.md", false)]);
+
+        let detector = CopilotAgentDetector;
+        let artifacts = detector.detect(Path::new("/src"), &fs).ok().unwrap_or_default();
+        assert!(artifacts.is_empty());
+    }
+
+    #[test]
     fn detect_agent_md_file() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/src/agents"));
