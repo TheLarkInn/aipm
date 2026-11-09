@@ -1253,4 +1253,58 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    struct NoDirFs(MockFs);
+
+    impl crate::fs::Fs for NoDirFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.0.exists(path)
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Err(std::io::Error::other("denied"))
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.0.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.0.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.0.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn update_engine_settings_propagates_create_dir_error() {
+        let fs = NoDirFs(MockFs::new());
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/project/.ai"),
+            name: "p",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        let mut actions = Vec::new();
+        let result =
+            update_engine_settings(&opts, &fs, Path::new("/project/.ai/m.json"), &mut actions);
+        assert!(result.is_err());
+        assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn mock_fs_missing_and_invalid_utf8_paths() {
+        use crate::fs::Fs;
+        let fs = MockFs::new();
+        let missing = Path::new("/nope");
+        assert!(fs.get_content(missing).is_none());
+        assert!(fs.read_to_string(missing).is_err());
+        let bad = Path::new("/bad");
+        fs.seed(bad, &[0xff, 0xfe]);
+        assert!(fs.get_content(bad).is_none());
+        assert!(fs.read_to_string(bad).is_err());
+        assert!(fs.read_dir(Path::new("/")).is_ok_and(|v| v.is_empty()));
+    }
 }
