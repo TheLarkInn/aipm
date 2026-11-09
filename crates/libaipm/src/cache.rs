@@ -1137,4 +1137,9 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn policy_deserialize_rejects_non_string() {
+        assert!(serde_json::from_str::<Policy>("123").is_err());
+    }
 }
