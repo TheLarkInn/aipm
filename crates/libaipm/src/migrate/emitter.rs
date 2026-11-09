@@ -2208,6 +2208,22 @@ mod tests {
     }
 
     #[test]
+    fn emit_package_plugin_duplicate_source_records_one_action() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/commands/review.md"), "Review code".to_string());
+
+        let first = make_command_artifact();
+        let mut second = make_command_artifact();
+        second.name = "review-copy".to_string();
+
+        let result = emit_package_plugin("auth", &[first, second], Path::new("/ai"), true, &fs);
+        let created = result.map(|actions| {
+            actions.iter().filter(|a| matches!(a, Action::PluginCreated { .. })).count()
+        });
+        assert!(matches!(created, Ok(1)));
+    }
+
+    #[test]
     fn emit_package_plugin_missing_script() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
