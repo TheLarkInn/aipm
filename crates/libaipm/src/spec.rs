@@ -1621,4 +1621,34 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    /// Writer that fails once `remaining` write calls have been consumed.
+    struct FailAfter {
+        remaining: usize,
+    }
+
+    impl std::fmt::Write for FailAfter {
+        fn write_str(&mut self, _: &str) -> std::fmt::Result {
+            if self.remaining == 0 {
+                return Err(std::fmt::Error);
+            }
+            self.remaining -= 1;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn display_propagates_writer_errors() {
+        let git = parse("git:https://github.com/org/repo:plugins/foo@main");
+        let market = parse("market:plug@owner/repo#v1");
+        for spec in [git, market] {
+            let mut failures = 0;
+            while std::fmt::write(&mut FailAfter { remaining: failures }, format_args!("{spec}"))
+                .is_err()
+            {
+                failures += 1;
+            }
+            assert!(failures >= 3);
+        }
+    }
 }
