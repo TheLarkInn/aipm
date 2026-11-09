@@ -1253,4 +1253,19 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    #[test]
+    fn make_plugin_missing_marketplace_json_returns_error() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "no-marketplace",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        assert!(plugin(&opts, &fs).is_err(), "register should fail without marketplace.json");
+    }
 }
