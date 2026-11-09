@@ -345,6 +345,17 @@ mod tests {
     }
 
     #[test]
+    fn discover_members_error_invalid_glob_pattern() {
+        let tmp = tempfile::tempdir().unwrap();
+
+        let err = discover_members(&crate::fs::Real, tmp.path(), &["[".to_string()]).unwrap_err();
+        assert!(
+            format!("{err}").contains("invalid glob pattern"),
+            "expected 'invalid glob pattern' error, got: {err}"
+        );
+    }
+
+    #[test]
     fn discover_members_error_manifest_is_directory() {
         // If a path named "aipm.toml" exists as a directory rather than a file,
         // std::fs::read_to_string fails — this covers the error-conversion branch
