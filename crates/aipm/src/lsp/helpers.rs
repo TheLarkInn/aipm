@@ -260,6 +260,12 @@ mod tests {
         assert_eq!(find_workspace_dir(&file), dir.path());
     }
 
+    #[test]
+    fn workspace_dir_at_filesystem_root_returns_root() {
+        let root = Path::new("/");
+        assert_eq!(find_workspace_dir(root), root);
+    }
+
     // ── to_lsp_diagnostic ────────────────────────────────────────────────────
 
     #[test]
