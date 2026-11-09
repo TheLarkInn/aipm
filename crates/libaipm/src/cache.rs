@@ -836,6 +836,23 @@ mod tests {
     // ---- Additional coverage tests ----
 
     #[test]
+    fn put_replaces_entry_whose_old_dir_is_already_missing() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let _ = cache.put("spec", &src, None);
+
+        let index = cache.read_index().unwrap_or_default();
+        let old_dir = index.entries.get("spec").map(|e| cache.entries_dir().join(&e.dir_name));
+        if let Some(dir) = &old_dir {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+
+        let result = cache.put("spec", &src, None);
+        assert!(result.is_ok_and(|p| p.exists()));
+        assert!(old_dir.is_some_and(|d| !d.exists()));
+    }
+
+    #[test]
     fn cache_only_corrupted_when_dir_missing() {
         let (temp, cache) = test_cache(Policy::CacheOnly);
         let src = create_source_plugin(&temp);
