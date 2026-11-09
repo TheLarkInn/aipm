@@ -748,4 +748,11 @@ mod tests {
             Some((14, 33))
         );
     }
+
+    #[test]
+    fn parse_trailing_key_with_empty_value_and_no_continuation() {
+        let fm = parse("---\nname: x\ndescription:\n---\nbody").ok().and_then(|o| o);
+        let value = fm.as_ref().and_then(|f| f.fields.get("description")).map(String::as_str);
+        assert_eq!(value, Some(""));
+    }
 }
