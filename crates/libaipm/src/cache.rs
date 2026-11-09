@@ -833,6 +833,16 @@ mod tests {
         assert_eq!(index.entries.get("spec").and_then(|e| e.ttl_secs), None);
     }
 
+    #[test]
+    fn with_index_returns_index_parse_error_on_corrupt_json() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        let _ = std::fs::write(cache.index_path(), "{ not valid json");
+
+        let result = cache.set_entry_ttl("spec", Some(60));
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
     // ---- Additional coverage tests ----
 
     #[test]
