@@ -511,6 +511,22 @@ mod tests {
     }
 
     #[test]
+    fn lint_root_instruction_file_not_reported_as_source() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::write(root.join("CLAUDE.md"), "# Instructions\n").unwrap();
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let outcome = lint(&opts, &crate::fs::Real).unwrap();
+        assert!(outcome.sources_scanned.is_empty());
+    }
+
+    #[test]
     fn lint_auto_discovers_sources() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
