@@ -465,6 +465,23 @@ mod tests {
     }
 
     #[test]
+    fn extract_hook_script_references_handles_varied_handlers() {
+        // Covers: non-command type, command without a string value, blank command
+        // (empty split_whitespace fallback), non-script command, and a valid script.
+        let hooks = serde_json::json!([
+            { "type": "prompt", "command": "./ignored.sh" },
+            { "type": "command", "command": 42 },
+            { "type": "command" },
+            { "type": "command", "command": "   " },
+            { "type": "command", "command": "echo hi" },
+            { "type": "command", "command": "./scripts/run.sh --flag" },
+            "plain string"
+        ]);
+        let scripts = extract_hook_script_references(&hooks, Path::new("."));
+        assert_eq!(scripts, vec![PathBuf::from("./scripts/run.sh")]);
+    }
+
+    #[test]
     fn detector_name_is_hook() {
         // Exercises the `fn name(&self) -> &'static str` branch on HookDetector,
         // which returns the detector's identifier used during migration dispatch.
