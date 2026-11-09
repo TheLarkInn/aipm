@@ -167,6 +167,34 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_is_file_returns_io_error() {
+        // A regular file at target_dir exists, but remove_dir_all fails on non-directories.
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, "not a dir").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "expected Io error for target, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn assemble_parent_blocked_by_file_returns_io_error() {
+        // "a" is linked as a file, so creating the parent dir for "a/b.txt" fails.
+        let (tmp, store, mut file_hashes) = make_store_and_package();
+        file_hashes.clear();
+        let hash = store.store_file(b"x").expect("store");
+        file_hashes.insert(PathBuf::from("a"), hash.clone());
+        file_hashes.insert(PathBuf::from("a/b.txt"), hash);
+
+        let target = tmp.path().join("links").join("blocked");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(result.is_err(), "expected error, got: {result:?}");
+    }
+
+    #[test]
     fn assemble_absolute_rel_path_skips_parent_dir_creation() {
         // When a rel_path entry is an absolute path (e.g. "/"), joining it to
         // target_dir via Path::join yields "/" itself (absolute path overrides the
