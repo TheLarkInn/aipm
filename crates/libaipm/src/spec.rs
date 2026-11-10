@@ -734,6 +734,16 @@ mod tests {
     }
 
     #[test]
+    fn parse_marketplace_invalid_location_shapes() {
+        assert!(matches!(
+            "market:p@owner/repo/extra".parse::<Spec>(),
+            Err(Error::Marketplace { .. })
+        ));
+        assert!(matches!("market:p@owner/".parse::<Spec>(), Err(Error::Marketplace { .. })));
+        assert!(matches!("market:p@bare".parse::<Spec>(), Err(Error::Marketplace { .. })));
+    }
+
+    #[test]
     fn parse_marketplace_folder_name() {
         let spec = parse("market:hello-skills@owner/repo");
         assert_eq!(spec.folder_name(), "hello-skills");
