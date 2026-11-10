@@ -2714,6 +2714,19 @@ mod tests {
     }
 
     #[test]
+    fn emit_package_plugin_duplicate_source_path_records_one_action() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
+        let first = make_skill_artifact();
+        let mut second = make_skill_artifact();
+        second.name = "deploy-copy".to_string();
+        let result = emit_package_plugin("auth", &[first, second], Path::new("/ai"), true, &fs);
+        let actions = result.ok().unwrap_or_default();
+        let created = actions.iter().filter(|a| matches!(a, Action::PluginCreated { .. })).count();
+        assert_eq!(created, 1);
+    }
+
+    #[test]
     fn emit_package_plugin_unsafe_plugin_name() {
         let fs = MockFs::new();
         let result = emit_package_plugin("../evil", &[], Path::new("/ai"), true, &fs);
