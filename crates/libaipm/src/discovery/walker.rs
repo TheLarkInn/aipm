@@ -302,4 +302,25 @@ mod tests {
         sorted.sort();
         assert_eq!(result.files, sorted);
     }
+
+    #[test]
+    fn take_skipped_returns_entries_when_lock_healthy() {
+        let shared = Arc::new(Mutex::new(vec![SkipReason::SkipDirByName {
+            path: PathBuf::from("x"),
+            name: "x".to_string(),
+        }]));
+        assert_eq!(take_skipped(&shared).len(), 1);
+    }
+
+    #[test]
+    fn take_skipped_returns_empty_when_lock_poisoned() {
+        let shared: Arc<Mutex<Vec<SkipReason>>> = Arc::new(Mutex::new(Vec::new()));
+        let clone = Arc::clone(&shared);
+        let poisoner = std::thread::spawn(move || {
+            let _guard = clone.lock();
+            std::panic::resume_unwind(Box::new("poison"));
+        });
+        assert!(poisoner.join().is_err());
+        assert!(take_skipped(&shared).is_empty());
+    }
 }
