@@ -134,6 +134,14 @@ mod tests {
     }
 
     #[test]
+    fn walk_nonexistent_root_returns_walk_failed() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let missing = tmp.path().join("does-not-exist");
+        let result = walk(&missing, &DiscoverOptions::default());
+        assert!(matches!(result, Err(Error::WalkFailed(_))));
+    }
+
+    #[test]
     fn empty_dir_returns_empty_files() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path();
