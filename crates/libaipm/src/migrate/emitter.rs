@@ -4214,6 +4214,20 @@ mod tests {
         assert!(result.is_err(), "should fail when lsp.json write is denied");
     }
 
+    /// Covers the `Err` propagation of `fs.write_file(&dest, ...)?` for the extension
+    /// `config.json` in `emit_extension_files` when the write is denied.
+    #[test]
+    fn emit_extension_config_returns_error_on_write_failure() {
+        let fs = MockFs::new();
+        fs.set_fail_write(PathBuf::from("/ai/my-ext/extensions/my-ext/config.json"));
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let artifact = make_extension_artifact();
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_err(), "should fail when extension config.json write is denied");
+    }
+
     /// Covers the `None` arm of `file.relative_path.file_name().map_or_else(...)` at
     /// line 794 in `emit_other_files`. When `relative_path` is `".."`, `file_name()`
     /// returns `None`, so the fallback uses `to_string_lossy()` of the full path as
