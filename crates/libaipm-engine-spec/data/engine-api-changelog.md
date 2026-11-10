@@ -2,6 +2,18 @@
 
 <!-- Entries are prepended (newest first). -->
 
+## 2026-11-10 — claude v2.1.322
+
+| Field | Change |
+|-------|--------|
+| `tool_calls` | **Added** (from `sdk-tools.d.ts`) — RefreshMcpTools, ReadMcpResourceDir, ReportFindings, SendFeedback, ClaudeDesign, Projects, EnterPlanMode, TaskCreate, TaskGet, TaskUpdate, TaskList, Workflow, CronCreate, CronDelete, CronList, ScheduleWakeup, RemoteTrigger, ShowOnboardingRolePicker, OfferChromeSetup, ReadNotifications, Monitor, ProposeSkills, ProposeGoal, Artifact, PushNotification |
+
+Version bumped from 2.1.128. Claude now ships a native platform binary; only the published tool-input type definitions were analyzed (binary not decompiled).
+
+## 2026-11-10 — copilot v1.0.109
+
+Version bumped from 1.0.40. Package is now a ~200MB native binary with no JS bundle; no API changes were extracted this run (catalog unchanged).
+
 ## 2026-05-05 — claude v2.1.128
 
 | Field | Change |

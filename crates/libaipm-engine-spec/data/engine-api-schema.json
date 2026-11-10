@@ -1,7 +1,7 @@
 {
   "$schema": "../../../schemas/engine-api.schema.json",
   "meta_schema_version": "2.0.0",
-  "generated_at": "2026-05-05T13:04:12Z",
+  "generated_at": "2026-11-10T17:50:00Z",
   "engines": [
     {
       "name": "claude",
@@ -15,8 +15,8 @@
     }
   ],
   "versions": {
-    "claude": "2.1.128",
-    "copilot": "1.0.40"
+    "claude": "2.1.322",
+    "copilot": "1.0.109"
   },
   "apis": {
     "claude": {
@@ -206,6 +206,206 @@
           ],
           "deprecated": false,
           "notes": "Stop a running task"
+        },
+        {
+          "name": "RefreshMcpTools",
+          "aliases": [
+            "RefreshMcpToolsInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "ReadMcpResourceDir",
+          "aliases": [
+            "ReadMcpResourceDirInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "ReportFindings",
+          "aliases": [
+            "ReportFindingsInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "SendFeedback",
+          "aliases": [
+            "SendFeedbackInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "ClaudeDesign",
+          "aliases": [
+            "ClaudeDesignInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "Projects",
+          "aliases": [
+            "ProjectsInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "EnterPlanMode",
+          "aliases": [
+            "EnterPlanModeInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "TaskCreate",
+          "aliases": [
+            "TaskCreateInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "TaskGet",
+          "aliases": [
+            "TaskGetInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "TaskUpdate",
+          "aliases": [
+            "TaskUpdateInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "TaskList",
+          "aliases": [
+            "TaskListInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "Workflow",
+          "aliases": [
+            "WorkflowInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "CronCreate",
+          "aliases": [
+            "CronCreateInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "CronDelete",
+          "aliases": [
+            "CronDeleteInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "CronList",
+          "aliases": [
+            "CronListInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "ScheduleWakeup",
+          "aliases": [
+            "ScheduleWakeupInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "RemoteTrigger",
+          "aliases": [
+            "RemoteTriggerInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "ShowOnboardingRolePicker",
+          "aliases": [
+            "ShowOnboardingRolePickerInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "OfferChromeSetup",
+          "aliases": [
+            "OfferChromeSetupInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "ReadNotifications",
+          "aliases": [
+            "ReadNotificationsInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "Monitor",
+          "aliases": [
+            "MonitorInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "ProposeSkills",
+          "aliases": [
+            "ProposeSkillsInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "ProposeGoal",
+          "aliases": [
+            "ProposeGoalInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "Artifact",
+          "aliases": [
+            "ArtifactInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
+        },
+        {
+          "name": "PushNotification",
+          "aliases": [
+            "PushNotificationInput"
+          ],
+          "deprecated": false,
+          "notes": "Added in sdk-tools.d.ts as of 2.1.322"
         }
       ],
       "hook_events": [
@@ -2070,6 +2270,206 @@
         "unsupported_by": [
           "claude"
         ]
+      },
+      "RefreshMcpTools": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ReadMcpResourceDir": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ReportFindings": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "SendFeedback": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ClaudeDesign": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Projects": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "EnterPlanMode": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskCreate": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskGet": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskUpdate": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskList": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Workflow": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "CronCreate": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "CronDelete": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "CronList": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ScheduleWakeup": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "RemoteTrigger": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ShowOnboardingRolePicker": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "OfferChromeSetup": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ReadNotifications": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Monitor": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ProposeSkills": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ProposeGoal": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Artifact": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "PushNotification": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
       }
     }
   },
@@ -2123,7 +2523,7 @@
         "Skills can be discovered from project (.github/skills/) and personal (~/.copilot/skills/) paths",
         "GEMINI.md is also recognized as a convention file (multi-engine repo support)",
         "MCP supports three transports: stdio, sse, http",
-        "Plugin strict mode defaults to true \u2014 schema validation is strict by default",
+        "Plugin strict mode defaults to true — schema validation is strict by default",
         "managed-agents-2026-04-01 feature flag gates managed agent functionality",
         "skills-2025-10-02 feature flag gates skills API",
         "copilot_cli_mcp_allowlist and copilot_cli_mcp_enterprise_allowlist flags gate MCP server access"
