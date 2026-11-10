@@ -1078,6 +1078,17 @@ mod tests {
     }
 
     #[test]
+    fn put_missing_source_dir_returns_io_error() {
+        // Covers the `read_dir` error mapping in `copy_dir_contents` when the
+        // source directory does not exist.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let missing = temp.path().join("does-not-exist");
+
+        let result = cache.put("github:owner/repo:plugin@main", &missing, None);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn touch_entry_missing_key_is_noop() {
         // Covers the False branch of `if let Some(entry) = index.entries.get_mut(spec_key)`
         // in touch_entry: when the spec_key is absent from the index (e.g. removed between
