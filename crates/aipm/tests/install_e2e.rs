@@ -125,6 +125,17 @@ fn install_workspace_no_deps() {
     assert!(!lockfile.contains("[[package]]"), "lockfile should have no packages");
 }
 
+#[test]
+fn update_workspace_no_deps() {
+    let (_tmp, dir) = setup_fixture("workspace-no-deps");
+
+    aipm()
+        .args(["update", "--dir", dir.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Updated 0 package(s)"));
+}
+
 // =========================================================================
 // workspace-separate-plugins-dir: install creates junctions in plugins/
 // =========================================================================
