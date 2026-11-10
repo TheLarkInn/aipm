@@ -148,6 +148,34 @@ mod tests {
     }
 
     #[test]
+    fn unlink_removes_assembled_dir_without_link() {
+        let (tmp, store, file_hashes) = setup();
+        let links_dir = tmp.path().join(".aipm/links");
+        let plugins_dir = tmp.path().join("claude-plugins");
+
+        assert!(link_package(&store, &file_hashes, "my-pkg", &links_dir, &plugins_dir).is_ok());
+        assert!(directory_link::remove(&plugins_dir.join("my-pkg")).is_ok());
+
+        let result = unlink_package("my-pkg", &links_dir, &plugins_dir);
+        assert!(result.is_ok(), "unlink_package failed: {result:?}");
+        assert!(!links_dir.join("my-pkg").exists());
+    }
+
+    #[test]
+    fn unlink_removes_link_without_assembled_dir() {
+        let (tmp, store, file_hashes) = setup();
+        let links_dir = tmp.path().join(".aipm/links");
+        let plugins_dir = tmp.path().join("claude-plugins");
+
+        assert!(link_package(&store, &file_hashes, "my-pkg", &links_dir, &plugins_dir).is_ok());
+        assert!(std::fs::remove_dir_all(links_dir.join("my-pkg")).is_ok());
+
+        let result = unlink_package("my-pkg", &links_dir, &plugins_dir);
+        assert!(result.is_ok(), "unlink_package failed: {result:?}");
+        assert!(!directory_link::is_link(&plugins_dir.join("my-pkg")));
+    }
+
+    #[test]
     fn unlink_nonexistent_is_noop() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let links_dir = tmp.path().join(".aipm/links");
