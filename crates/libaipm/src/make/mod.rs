@@ -629,6 +629,32 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_already_registered_and_enabled() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        let marketplace_json = marketplace_dir.join(".claude-plugin").join("marketplace.json");
+        let entry =
+            crate::generate::marketplace::Entry { name: "preset-plugin", description: "preset" };
+        let content = crate::generate::marketplace::create("test-marketplace", &[entry]);
+        fs.seed(&marketplace_json, content.as_bytes());
+        fs.seed(
+            Path::new("/project/.claude/settings.json"),
+            br#"{"enabledPlugins":{"preset-plugin@test-marketplace":true}}"#,
+        );
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "preset-plugin",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs).unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+        assert!(result.actions.iter().any(|a| matches!(a, Action::PluginAlreadyRegistered { .. })));
+        assert!(result.actions.iter().any(|a| matches!(a, Action::PluginAlreadyEnabled { .. })));
+    }
+
+    #[test]
     fn make_plugin_copilot_no_settings() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
