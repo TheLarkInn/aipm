@@ -711,6 +711,16 @@ mod tests {
     }
 
     #[test]
+    fn mark_installed_fails_on_corrupt_index() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        std::fs::write(cache.index_path(), "not json").unwrap_or_else(|_| {});
+
+        let result = cache.mark_installed("any-spec", true);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn gc_removes_unreferenced_directories() {
         let temp = make_temp();
         let mut cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
