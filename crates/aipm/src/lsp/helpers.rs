@@ -260,6 +260,13 @@ mod tests {
         assert_eq!(find_workspace_dir(&file), dir.path());
     }
 
+    #[test]
+    fn workspace_dir_root_path_without_parent_returns_itself() {
+        // "/" has no parent, so the walk stops at the filesystem root.
+        let root = std::path::Path::new("/");
+        assert_eq!(find_workspace_dir(root), root);
+    }
+
     // ── to_lsp_diagnostic ────────────────────────────────────────────────────
 
     #[test]
