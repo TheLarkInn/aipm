@@ -1931,6 +1931,22 @@ mod tests {
     }
 
     #[test]
+    fn compare_and_warn_handles_differing_wizard_and_disk_engines() {
+        use libaipm_engine_spec::EngineSet;
+
+        let content = generate_workspace_manifest(Some(EngineSet::CLAUDE));
+        let parsed = crate::manifest::parse_and_validate(&content, None);
+        assert!(parsed.is_ok(), "manifest should parse: {parsed:?}");
+        if let Ok(parsed) = parsed {
+            let path = Path::new("aipm.toml");
+            // Differing engines hit the `w != d` guard.
+            compare_and_warn(&parsed, Some(EngineSet::COPILOT), path);
+            // Identical engines fall through the guard.
+            compare_and_warn(&parsed, Some(EngineSet::CLAUDE), path);
+        }
+    }
+
+    #[test]
     fn engine_set_to_canonical_names_truth_table() {
         use libaipm_engine_spec::EngineSet;
 
