@@ -453,6 +453,17 @@ mod tests {
     }
 
     #[test]
+    fn mock_fs_read_dir_returns_empty_and_missing_file_errors() {
+        use crate::fs::Fs;
+        let fs = MockFs::new();
+        let entries = fs.read_dir(Path::new("/anything"));
+        assert!(entries.is_ok_and(|e| e.is_empty()));
+
+        let missing = fs.read_to_string(Path::new("/missing.json"));
+        assert!(missing.is_err_and(|e| e.kind() == std::io::ErrorKind::NotFound));
+    }
+
+    #[test]
     fn make_plugin_creates_skill_plugin() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
