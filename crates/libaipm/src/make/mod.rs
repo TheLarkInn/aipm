@@ -903,6 +903,16 @@ mod tests {
     }
 
     #[test]
+    fn marketplace_helpers_handle_invalid_json() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/.ai/.claude-plugin/marketplace.json");
+        fs.seed(path, b"not json");
+
+        assert!(!is_plugin_registered(&fs, path, "any"));
+        assert_eq!(read_marketplace_name(&fs, path), "local-repo-plugins");
+    }
+
+    #[test]
     fn make_plugin_already_enabled_in_settings() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
