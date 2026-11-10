@@ -997,6 +997,24 @@ mod tests {
         );
     }
 
+    /// A root-level instruction file has the project directory as its `source_root`,
+    /// which is not a recognized engine root, so it must not appear in `sources_scanned`.
+    #[test]
+    fn lint_root_instruction_file_not_reported_in_sources_scanned() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        std::fs::write(root.join("CLAUDE.md"), "# Rules\n").unwrap();
+
+        let opts = Options {
+            dir: root.to_path_buf(),
+            source: None,
+            config: config::Config::default(),
+            max_depth: None,
+        };
+        let outcome = lint(&opts, &crate::fs::Real).unwrap();
+        assert!(outcome.sources_scanned.is_empty());
+    }
+
     /// Covers the `is_ignored(&path_str, rule_ignores)` True branch.
     ///
     /// When global `ignore_paths` is empty the first check returns False, so the
