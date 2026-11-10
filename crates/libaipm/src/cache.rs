@@ -592,6 +592,21 @@ mod tests {
     }
 
     #[test]
+    fn get_errors_on_corrupt_index() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(std::fs::create_dir_all(&cache.root).is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+        assert!(matches!(cache.get("spec"), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
+    fn get_errors_when_index_path_is_unreadable() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(std::fs::create_dir_all(cache.index_path()).is_ok());
+        assert!(matches!(cache.get("spec"), Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn cache_only_errors_on_miss() {
         let (_temp, cache) = test_cache(Policy::CacheOnly);
         let result = cache.get("missing-spec");
