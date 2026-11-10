@@ -411,6 +411,28 @@ mod tests {
     }
 
     #[test]
+    fn directory_entry_is_skipped() {
+        // A subdirectory named like an agent file must be ignored by the scan.
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(
+            PathBuf::from("/src/agents"),
+            vec![de("nested.agent.md", true), de("valid.agent.md", false)],
+        );
+        fs.files.insert(
+            PathBuf::from("/src/agents/valid.agent.md"),
+            "---\nname: valid-agent\n---\nValid.".to_string(),
+        );
+
+        let detector = CopilotAgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(artifacts.len(), 1);
+        assert_eq!(artifacts.first().map(|a| a.name.as_str()), Some("valid-agent"));
+    }
+
+    #[test]
     fn empty_name_entry_is_skipped() {
         // An entry whose name is "" produces an empty stem (Path::new("").file_stem()
         // returns None → map_or_else gives ""), so `if stem.is_empty() { continue; }` fires.
