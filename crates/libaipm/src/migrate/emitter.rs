@@ -1466,6 +1466,12 @@ mod tests {
     }
 
     #[test]
+    fn inject_disable_model_invocation_without_frontmatter_returns_input() {
+        let content = "Just a body\nwith no frontmatter";
+        assert_eq!(inject_disable_model_invocation(content), content);
+    }
+
+    #[test]
     fn emit_copies_referenced_scripts() {
         let mut fs = MockFs::new();
         fs.files.insert(
