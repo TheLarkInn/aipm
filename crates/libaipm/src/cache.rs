@@ -1052,6 +1052,24 @@ mod tests {
     }
 
     #[test]
+    fn put_with_empty_index_file_creates_entry() {
+        // Covers the `content.is_empty()` True branch in with_index():
+        // an existing but empty index file is treated as a fresh index.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let cache_root = temp.path().join("cache");
+        std::fs::create_dir_all(&cache_root).unwrap();
+        std::fs::write(cache.index_path(), "").unwrap();
+
+        let src = temp.path().join("src-empty-index");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("a.txt"), "a").unwrap();
+
+        let dir = cache.put("empty-index-spec", &src, None).unwrap();
+        assert!(dir.exists());
+        assert!(cache.get("empty-index-spec").unwrap().is_some());
+    }
+
+    #[test]
     fn cache_policy_parse_aliases() {
         // Each variant has additional aliases beyond the canonical `to_string()` form.
         // These branches are otherwise untouched by `cache_policy_roundtrip`.
