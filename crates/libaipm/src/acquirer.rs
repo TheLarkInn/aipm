@@ -614,6 +614,27 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the full success path of `acquire_local` (copy, file-count check,
+    /// validation) using a CWD-relative source directory.
+    #[test]
+    fn acquire_local_copies_and_validates_relative_plugin() {
+        let src_root = tempfile::Builder::new()
+            .prefix("acq-src-")
+            .tempdir_in(".")
+            .unwrap_or_else(|_| std::process::abort());
+        let name = src_root.path().file_name().and_then(|n| n.to_str()).unwrap_or("acq-src");
+        let _src = make_local_plugin(&src_root, "plug");
+        let rel = format!("{name}/plug");
+        let path = ValidatedPath::new(&rel).unwrap_or_else(|_| std::process::abort());
+
+        let dest = make_temp();
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(result.is_ok());
+        let plugin_path = result.unwrap_or_else(|_| PathBuf::new());
+        assert!(plugin_path.join(".claude-plugin/plugin.json").exists());
+        assert!(plugin_path.join("README.md").exists());
+    }
+
     /// Covers the `acquire_local` path where the source path exists on disk but
     /// is a regular file rather than a directory (False at "not found" check,
     /// True at "not a dir" check).
