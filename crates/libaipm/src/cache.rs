@@ -711,6 +711,17 @@ mod tests {
     }
 
     #[test]
+    fn corrupt_index_returns_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let _ = cache.ensure_dirs();
+        std::fs::write(cache.index_path(), "not json").unwrap_or_else(|_| {});
+
+        assert!(matches!(cache.get("any"), Err(Error::IndexParse { .. })));
+        assert!(matches!(cache.put("any", &src, None), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn gc_removes_unreferenced_directories() {
         let temp = make_temp();
         let mut cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
