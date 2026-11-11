@@ -627,6 +627,32 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn acquire_local_real_fn_rejects_file_source() {
+        let temp = make_temp();
+        let path = ValidatedPath::new("Cargo.toml").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::LocalNotDirectory { .. })),
+            "expected LocalNotDirectory, got: {result:?}",
+        );
+    }
+
+    #[test]
+    fn acquire_local_real_fn_copies_valid_plugin() {
+        let src = tempfile::tempdir_in(".").unwrap_or_else(|_| std::process::abort());
+        let name = src.path().file_name().and_then(|n| n.to_str()).unwrap_or("plugin").to_string();
+        std::fs::create_dir_all(src.path().join(".claude-plugin")).unwrap_or_else(|_| {});
+        std::fs::write(src.path().join(".claude-plugin/plugin.json"), "{}").unwrap_or_else(|_| {});
+        let dest = make_temp();
+
+        let path = ValidatedPath::new(&name).unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(result.is_ok(), "expected success, got: {result:?}");
+        let plugin = result.unwrap_or_else(|_| PathBuf::new());
+        assert!(plugin.join(".claude-plugin/plugin.json").exists());
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
