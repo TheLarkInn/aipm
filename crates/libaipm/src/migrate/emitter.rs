@@ -2723,6 +2723,18 @@ mod tests {
     }
 
     #[test]
+    fn emit_package_plugin_empty_artifacts_defaults_to_composite() {
+        let fs = MockFs::new();
+        let result = emit_package_plugin("auth", &[], Path::new("/ai"), false, &fs);
+        let actions = result.ok().unwrap_or_default();
+        assert!(!actions.iter().any(|a| matches!(a, Action::Skipped { .. })));
+        let written = fs.written.lock().map(|w| w.keys().cloned().collect::<Vec<_>>());
+        let written = written.unwrap_or_default();
+        let plugin_json = written.iter().find(|p| p.ends_with("plugin.json"));
+        assert!(plugin_json.is_some(), "plugin.json should be written");
+    }
+
+    #[test]
     fn emit_package_plugin_unsafe_artifact_name() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
