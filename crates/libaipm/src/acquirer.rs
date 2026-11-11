@@ -490,6 +490,29 @@ mod tests {
     }
 
     #[test]
+    fn source_redirect_drops_invalid_path() {
+        let temp = make_temp();
+        let dir = temp.path().join("stub-bad-path");
+        std::fs::create_dir_all(&dir).unwrap_or_else(|_| {});
+        std::fs::write(
+            dir.join("aipm.toml"),
+            concat!(
+                "[package]\n",
+                "name = \"stub\"\n",
+                "version = \"0.0.0\"\n",
+                "[package.source]\n",
+                "url = \"https://github.com/org/repo.git\"\n",
+                "path = \"../escape\"\n",
+            ),
+        )
+        .unwrap_or_else(|_| {});
+
+        let redirect = check_source_redirect(&dir).unwrap_or_else(|| std::process::abort());
+        assert_eq!(redirect.url, "https://github.com/org/repo.git");
+        assert!(redirect.path.is_none());
+    }
+
+    #[test]
     fn source_redirect_none_when_no_source_section() {
         let temp = make_temp();
         let dir = temp.path().join("normal-plugin");
