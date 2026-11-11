@@ -471,4 +471,9 @@ mod tests {
         let detector = HookDetector;
         assert_eq!(detector.name(), "hook");
     }
+
+    #[test]
+    fn is_relative_script_empty_path_returns_false() {
+        assert!(!is_relative_script("", Path::new(".")));
+    }
 }
