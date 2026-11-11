@@ -1116,6 +1116,16 @@ mod tests {
     }
 
     #[test]
+    fn with_index_returns_error_on_corrupt_index() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        std::fs::write(cache.index_path(), "not valid json").unwrap_or_else(|_| {});
+
+        let result = cache.with_index(|_| {});
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn gc_silently_ignores_unreadable_entries_dir() {
         // Covers the Err branch of `if let Ok(read_dir) = std::fs::read_dir(entries_dir)` in
