@@ -1253,4 +1253,40 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// An `Fs` whose `create_dir_all` always fails.
+    struct FailingDirFs;
+
+    impl crate::fs::Fs for FailingDirFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"))
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "missing"))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn scaffold_extension_propagates_create_dir_error() {
+        let mut components = crate::generate::plugin_json::Components::default();
+        let mut actions = Vec::new();
+        let result =
+            scaffold_extension(&FailingDirFs, Path::new("/p"), &mut components, &mut actions);
+        assert!(result.is_err());
+        assert!(actions.is_empty());
+        assert!(components.extensions.is_none());
+    }
 }
