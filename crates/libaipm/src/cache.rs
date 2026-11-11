@@ -1052,6 +1052,18 @@ mod tests {
     }
 
     #[test]
+    fn with_index_returns_parse_error_for_corrupt_index() {
+        // Covers the JSON parse-error path in with_index() for a non-empty,
+        // malformed index file.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "{not valid json").is_ok());
+
+        let result = cache.mark_installed("any-spec", true);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn cache_policy_parse_aliases() {
         // Each variant has additional aliases beyond the canonical `to_string()` form.
         // These branches are otherwise untouched by `cache_policy_roundtrip`.
