@@ -914,13 +914,22 @@ mod tests {
     fn put_overwrite_with_missing_old_dir_succeeds() {
         let (temp, cache) = test_cache(Policy::Auto);
         let src = create_source_plugin(&temp);
-        let Ok(first) = cache.put("spec", &src, None) else { return };
+        let first = cache.put("spec", &src, None).unwrap_or_default();
         assert!(std::fs::remove_dir_all(&first).is_ok());
 
         let second = cache.put("spec", &src, None);
-        assert!(second.is_ok());
-        assert!(second.map(|p| p.exists()).unwrap_or(false));
+        assert!(second.is_ok_and(|p| p.exists()));
         assert!(!first.exists());
+    }
+
+    #[test]
+    fn with_index_corrupt_index_returns_index_parse_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+
+        let result = cache.mark_installed("spec", true);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
     }
 
     #[test]
