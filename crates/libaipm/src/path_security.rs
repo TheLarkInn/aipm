@@ -173,11 +173,12 @@ mod tests {
     }
 
     #[test]
-    fn plugin_path_new_valid() {
+    fn plugin_path_new_valid() -> Result<(), PathValidationError> {
         let path = ValidatedPath::new("experimental/plugins/hello-world");
         assert!(path.is_ok());
-        let path = path.unwrap_or_else(|e| panic_free_unreachable(&e));
+        let path = path?;
         assert_eq!(path.as_str(), "experimental/plugins/hello-world");
+        Ok(())
     }
 
     #[test]
@@ -187,33 +188,35 @@ mod tests {
     }
 
     #[test]
-    fn plugin_path_display() {
-        let path =
-            ValidatedPath::new("plugins/auth").unwrap_or_else(|e| panic_free_unreachable(&e));
+    fn plugin_path_display() -> Result<(), PathValidationError> {
+        let path = ValidatedPath::new("plugins/auth")?;
         assert_eq!(format!("{path}"), "plugins/auth");
+        Ok(())
     }
 
     #[test]
-    fn plugin_path_folder_name() {
-        let path =
-            ValidatedPath::new("a/b/c/my-plugin").unwrap_or_else(|e| panic_free_unreachable(&e));
+    fn plugin_path_folder_name() -> Result<(), PathValidationError> {
+        let path = ValidatedPath::new("a/b/c/my-plugin")?;
         assert_eq!(path.folder_name(), "my-plugin");
+        Ok(())
     }
 
     #[test]
-    fn plugin_path_folder_name_simple() {
-        let path = ValidatedPath::new("my-plugin").unwrap_or_else(|e| panic_free_unreachable(&e));
+    fn plugin_path_folder_name_simple() -> Result<(), PathValidationError> {
+        let path = ValidatedPath::new("my-plugin")?;
         assert_eq!(path.folder_name(), "my-plugin");
+        Ok(())
     }
 
     #[test]
-    fn folder_name_fallback_when_path_has_no_file_name() {
+    fn folder_name_fallback_when_path_has_no_file_name() -> Result<(), PathValidationError> {
         // "." is a valid validated path (CurDir component only; no traversal,
         // no root, no null bytes), but `Path::new(".").file_name()` returns
         // `None` on Unix. This exercises the `unwrap_or("plugin")` fallback
         // branch in `folder_name()`.
-        let path = ValidatedPath::new(".").unwrap_or_else(|e| panic_free_unreachable(&e));
+        let path = ValidatedPath::new(".")?;
         assert_eq!(path.folder_name(), "plugin");
+        Ok(())
     }
 
     #[test]
@@ -244,12 +247,12 @@ mod tests {
     }
 
     #[test]
-    fn plugin_path_as_ref_str() {
+    fn plugin_path_as_ref_str() -> Result<(), PathValidationError> {
         // Exercises the `AsRef<str>` impl for `ValidatedPath`.
-        let path =
-            ValidatedPath::new("plugins/auth").unwrap_or_else(|e| panic_free_unreachable(&e));
+        let path = ValidatedPath::new("plugins/auth")?;
         let s: &str = path.as_ref();
         assert_eq!(s, "plugins/auth");
+        Ok(())
     }
 
     #[test]
@@ -282,16 +285,5 @@ mod tests {
         // through `ValidatedPath::new`.
         let result = ValidatedPath::new("foo/%2e%2e/bar");
         assert!(matches!(result, Err(PathValidationError::PathTraversal)));
-    }
-
-    /// Test helper that converts a validation error to a string and then
-    /// creates a dummy [`ValidatedPath`] — used in place of `.unwrap()` which
-    /// is denied by the workspace lint configuration.
-    fn panic_free_unreachable(err: &PathValidationError) -> ValidatedPath {
-        // This is only called in tests and will fail the test assertion before
-        // reaching here, but we must return *something* to satisfy the type
-        // checker without using `panic!()` / `unwrap()`.
-        let _ = err;
-        ValidatedPath(String::new())
     }
 }
