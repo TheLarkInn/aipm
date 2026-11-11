@@ -219,6 +219,16 @@ mod tests {
     }
 
     #[test]
+    fn detect_settings_json_unreadable() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.claude/settings.json"));
+
+        let detector = HookDetector;
+        let result = detector.detect(Path::new("/project/.claude"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn detect_no_settings_json() {
         let fs = MockFs::new();
         let detector = HookDetector;
