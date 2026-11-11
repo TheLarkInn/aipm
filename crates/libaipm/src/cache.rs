@@ -1137,4 +1137,18 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn put_fails_when_cache_root_is_a_file() {
+        // Covers the `map_err` error closure in `ensure_dirs`: the cache root
+        // path is occupied by a regular file, so creating `entries/` fails.
+        let temp = make_temp();
+        let root = temp.path().join("cache");
+        std::fs::write(&root, "not a directory").unwrap();
+        let cache = Cache::with_root(root, Policy::Auto);
+        let src = create_source_plugin(&temp);
+
+        let result = cache.put("blocked-root", &src, None);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}");
+    }
 }
