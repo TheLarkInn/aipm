@@ -388,4 +388,27 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    fn parse_engines(json: &str) -> Result<Option<EngineSet>, serde_json::Error> {
+        let mut de = serde_json::Deserializer::from_str(json);
+        engine_set_serde::deserialize(&mut de)
+    }
+
+    #[test]
+    fn engine_set_serde_empty_list_returns_empty_set() {
+        let set = parse_engines("[]").ok().flatten();
+        assert!(set.is_some_and(|s| s.is_empty()));
+    }
+
+    #[test]
+    fn engine_set_serde_known_and_unknown_keeps_known() {
+        let set = parse_engines(r#"["claude", "no-such-engine"]"#).ok().flatten();
+        assert!(set.is_some_and(|s| !s.is_empty()));
+    }
+
+    #[test]
+    fn engine_set_serde_all_unknown_is_error() {
+        let err = parse_engines(r#"["no-such-engine"]"#).err();
+        assert!(err.is_some_and(|e| e.to_string().contains("no known engine names")));
+    }
 }
