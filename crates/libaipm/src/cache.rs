@@ -919,6 +919,15 @@ mod tests {
     }
 
     #[test]
+    fn mark_installed_with_empty_index_file_is_ok() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        std::fs::write(cache.index_path(), "").unwrap_or_else(|_| {});
+        let result = cache.mark_installed("spec", true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
     fn set_entry_ttl_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
