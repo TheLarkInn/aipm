@@ -1052,6 +1052,20 @@ mod tests {
     }
 
     #[test]
+    fn with_index_reports_lock_error_for_non_utf8_index() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = temp.path().join("src-non-utf8-index");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("a.txt"), "a").unwrap();
+
+        cache.ensure_dirs().unwrap();
+        std::fs::write(cache.index_path(), [0xff, 0xfe, 0xfd]).unwrap();
+
+        let result = cache.put("non-utf8-index", &src, None);
+        assert!(matches!(result, Err(Error::Lock { .. })), "got: {result:?}");
+    }
+
+    #[test]
     fn cache_policy_parse_aliases() {
         // Each variant has additional aliases beyond the canonical `to_string()` form.
         // These branches are otherwise untouched by `cache_policy_roundtrip`.
