@@ -581,6 +581,16 @@ mod tests {
     }
 
     #[test]
+    fn copy_dir_recursive_missing_source_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("does-not-exist");
+        let dst = temp.path().join("dst");
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { ref path, .. }) if *path == src));
+    }
+
+    #[test]
     fn source_redirect_with_invalid_toml() {
         let temp = make_temp();
         let dir = temp.path().join("bad-toml");
