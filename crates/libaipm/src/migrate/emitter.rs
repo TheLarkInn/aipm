@@ -4359,4 +4359,19 @@ mod tests {
         assert!(result.contains("run.sh"));
         assert!(result.contains("--verbose"));
     }
+
+    #[test]
+    fn emit_plugin_with_name_writes_hooks_for_non_hook_artifact() {
+        // Covers the `hooks` metadata branch in `emit_plugin_with_name` for a
+        // non-hook artifact: a hooks.json must be written to the plugin.
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/commands/review.md"), "Review".to_string());
+        let mut artifact = make_command_artifact();
+        artifact.metadata.hooks =
+            Some("PreToolUse:\n  - type: command\n    command: echo hi\n".to_string());
+        let result = emit_plugin_with_name(&artifact, "review", Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+        let hooks = fs.get_written(Path::new("/ai/review/hooks/hooks.json"));
+        assert!(hooks.is_some_and(|c| c.contains("PreToolUse")));
+    }
 }
