@@ -28,11 +28,11 @@ pub fn find_marketplace(start_dir: &Path, fs: &dyn Fs) -> Result<PathBuf, Error>
         }
 
         match current.parent() {
-            Some(parent) if parent != current => {
+            Some(parent) => {
                 current = parent.to_path_buf();
             },
-            // Reached the root (parent is self or None)
-            _ => return Err(Error::MarketplaceNotFound),
+            // `parent()` is `None` once the root is reached
+            None => return Err(Error::MarketplaceNotFound),
         }
     }
 }
@@ -139,6 +139,15 @@ mod tests {
         let result = find_marketplace(Path::new("/project/sub"), &fs);
         assert!(result.is_ok());
         // Should find the one at /project, not /project/sub
+        assert_eq!(result.unwrap_or_default(), PathBuf::from("/project/.ai"));
+    }
+
+    #[test]
+    fn find_marketplace_detects_copilot_only_marketplace() {
+        let fs = MockFs::new();
+        fs.add_file("/project/.ai/.github/plugin/marketplace.json");
+
+        let result = find_marketplace(Path::new("/project/src"), &fs);
         assert_eq!(result.unwrap_or_default(), PathBuf::from("/project/.ai"));
     }
 
