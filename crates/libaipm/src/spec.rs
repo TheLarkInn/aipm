@@ -527,6 +527,12 @@ mod tests {
         }
     }
 
+    #[test]
+    fn source_prefix_with_empty_identifier_is_rejected() {
+        let result = "git:".parse::<Spec>();
+        assert!(matches!(result, Err(Error::EmptyIdentifier(ref s)) if s == "git:"));
+    }
+
     // ---- Registry specs ----
 
     #[test]
