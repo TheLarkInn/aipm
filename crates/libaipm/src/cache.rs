@@ -911,6 +911,17 @@ mod tests {
     }
 
     #[test]
+    fn put_errors_when_cache_root_is_a_file() {
+        let temp = make_temp();
+        let blocker = temp.path().join("blocker");
+        std::fs::write(&blocker, "x").unwrap_or_else(|_| {});
+        let cache = Cache::with_root(blocker.join("cache"), Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let result = cache.put("spec", &src, None);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn mark_installed_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
