@@ -214,6 +214,11 @@ mod tests {
     }
 
     #[test]
+    fn detector_name_is_command() {
+        assert_eq!(CommandDetector.name(), "command");
+    }
+
+    #[test]
     fn detect_no_commands_dir() {
         let fs = MockFs::new();
         let detector = CommandDetector;
