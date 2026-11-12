@@ -701,6 +701,15 @@ mod tests {
     }
 
     #[test]
+    fn parse_final_key_with_multiline_continuation() {
+        let content = "---\nname: x\nhooks:\n  a: 1\n  b: 2\n---\nbody";
+        let result = parse(content);
+        assert!(result.is_ok());
+        let fm = result.unwrap_or_default().unwrap_or_default();
+        assert_eq!(fm.fields.get("hooks").map(|s| s.as_str()), Some("a: 1\nb: 2"));
+    }
+
+    #[test]
     fn parse_carriage_return_body() {
         let content = "---\nname: test\n---\r\nbody with cr";
         let result = parse(content);
