@@ -249,4 +249,12 @@ mod tests {
             .and_then(|a| a.metadata.description.as_deref())
             .is_some_and(|d| d.contains("3 LSP server(s)")));
     }
+
+    #[test]
+    fn detect_returns_empty_when_source_dir_has_no_parent() {
+        let fs = MockFs::new();
+        let detector = CopilotLspDetector;
+        let result = detector.detect(Path::new("/"), &fs);
+        assert!(result.is_ok_and(|a| a.is_empty()));
+    }
 }
