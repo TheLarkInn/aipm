@@ -853,6 +853,19 @@ mod tests {
     }
 
     #[test]
+    fn cache_only_hit_skips_staleness_check() {
+        let temp = make_temp();
+        let mut cache = Cache::with_root(temp.path().join("cache"), Policy::CacheOnly);
+        cache.ttl = Duration::from_secs(0); // would be stale under Auto
+        let src = create_source_plugin(&temp);
+        let _ = cache.put("spec", &src, None);
+
+        let result = cache.get("spec");
+        assert!(result.is_ok());
+        assert!(result.unwrap_or(None).is_some());
+    }
+
+    #[test]
     fn auto_returns_none_when_dir_missing() {
         let (temp, cache) = test_cache(Policy::Auto);
         let src = create_source_plugin(&temp);
