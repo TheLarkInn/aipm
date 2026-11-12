@@ -984,6 +984,18 @@ mod tests {
     }
 
     #[test]
+    fn mark_installed_with_corrupt_index_returns_parse_error() {
+        // Covers the `serde_json::from_str` error path in with_index().
+        let (temp, cache) = test_cache(Policy::Auto);
+        let cache_root = temp.path().join("cache");
+        assert!(std::fs::create_dir_all(&cache_root).is_ok());
+        assert!(std::fs::write(cache.index_path(), "not valid json").is_ok());
+
+        let result = cache.mark_installed("some-spec", true);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn get_with_empty_index_file_returns_none() {
         // Covers the `content.is_empty()` True branch in read_index():
         // when the index file exists but is empty, treat it as a fresh cache.
