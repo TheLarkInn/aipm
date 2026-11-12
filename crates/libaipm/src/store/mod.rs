@@ -622,6 +622,16 @@ mod tests {
         assert!(result.is_err(), "expected store_file() to fail when prefix dir creation fails");
     }
 
+    /// When `.lock` already exists as a directory, creating the lock file fails
+    /// and `lock()` should surface an I/O error.
+    #[test]
+    fn lock_errors_when_lock_path_is_a_directory() {
+        let (tmp, store) = make_store();
+        std::fs::create_dir_all(tmp.path().join(".lock")).unwrap();
+        let result = store.lock();
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error creating lock file");
+    }
+
     /// When `collect_files` cannot read a directory because it does not exist,
     /// `store_package` should propagate the I/O error.
     #[test]
