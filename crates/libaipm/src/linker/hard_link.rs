@@ -77,6 +77,17 @@ mod tests {
     }
 
     #[test]
+    fn assemble_root_rel_path_without_parent_errors() {
+        let (tmp, store, _) = make_store_and_package();
+        let hash = store.store_file(b"root content").unwrap_or_default();
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("/"), hash);
+
+        let result = assemble(&store, &file_hashes, &tmp.path().join("links").join("pkg"));
+        assert!(result.is_err(), "linking onto a parentless path should fail");
+    }
+
+    #[test]
     fn assemble_creates_directory_tree() {
         let (tmp, store, file_hashes) = make_store_and_package();
         let target = tmp.path().join("links").join("my-pkg");
