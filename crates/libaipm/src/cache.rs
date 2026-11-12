@@ -853,6 +853,20 @@ mod tests {
     }
 
     #[test]
+    fn get_and_copy_to_session_propagate_corrupt_index_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        let _ = std::fs::write(cache.index_path(), "{ not valid json");
+
+        assert!(matches!(cache.get("spec"), Err(Error::IndexParse { .. })));
+        let dest = temp.path().join("session");
+        assert!(matches!(
+            cache.copy_to_session("spec", &dest, "plugin"),
+            Err(Error::IndexParse { .. })
+        ));
+    }
+
+    #[test]
     fn auto_returns_none_when_dir_missing() {
         let (temp, cache) = test_cache(Policy::Auto);
         let src = create_source_plugin(&temp);
