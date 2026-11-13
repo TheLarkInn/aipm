@@ -592,6 +592,18 @@ mod tests {
     }
 
     #[test]
+    fn put_errors_when_cache_root_is_a_file() {
+        let temp = make_temp();
+        let root = temp.path().join("cache");
+        let wrote = std::fs::write(&root, "not a dir").is_ok();
+        let src = create_source_plugin(&temp);
+        let cache = Cache::with_root(root, Policy::Auto);
+        let result = cache.put("spec", &src, None);
+        assert!(wrote);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn cache_only_errors_on_miss() {
         let (_temp, cache) = test_cache(Policy::CacheOnly);
         let result = cache.get("missing-spec");
