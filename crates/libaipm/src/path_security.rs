@@ -143,6 +143,18 @@ mod tests {
     }
 
     #[test]
+    fn validate_null_byte_path() {
+        let result = validate_plugin_path("foo\0bar");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
+    #[test]
+    fn validate_embedded_double_dot_not_component() {
+        let result = validate_plugin_path("foo..bar");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
+    #[test]
     fn validate_simple_path() {
         assert!(validate_plugin_path("plugins/my-plugin").is_ok());
     }
