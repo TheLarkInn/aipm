@@ -911,6 +911,21 @@ mod tests {
     }
 
     #[test]
+    fn copy_to_session_create_dir_failure_returns_io_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let _ = cache.put("spec", &src, None);
+
+        // A regular file where the plugin folder should be makes create_dir_all fail
+        let session = temp.path().join("session");
+        std::fs::create_dir_all(&session).unwrap_or_else(|_| {});
+        let _ = std::fs::write(session.join("plugin"), b"not a dir");
+
+        let result = cache.copy_to_session("spec", &session, "plugin");
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn mark_installed_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
