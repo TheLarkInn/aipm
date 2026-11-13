@@ -207,6 +207,26 @@ existing-pkg = "^1.0"
     }
 
     #[test]
+    fn add_dependency_invalid_toml_returns_manifest_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let manifest = tmp.path().join("aipm.toml");
+        std::fs::write(&manifest, "[package\nname = ").expect("write");
+
+        let result = add_dependency(FS, &manifest, "new-pkg", "^1.0");
+        assert!(matches!(result, Err(Error::Manifest { .. })), "got: {result:?}");
+    }
+
+    #[test]
+    fn remove_dependency_invalid_toml_returns_manifest_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let manifest = tmp.path().join("aipm.toml");
+        std::fs::write(&manifest, "[package\nname = ").expect("write");
+
+        let result = remove_dependency(FS, &manifest, "some-pkg");
+        assert!(matches!(result, Err(Error::Manifest { .. })), "got: {result:?}");
+    }
+
+    #[test]
     fn remove_dependency_no_deps_table_is_noop() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let manifest = tmp.path().join("aipm.toml");
