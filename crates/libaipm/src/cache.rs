@@ -528,6 +528,14 @@ mod tests {
         (temp, cache)
     }
 
+    #[test]
+    fn get_with_corrupt_index_returns_index_parse_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+        assert!(matches!(cache.get("k"), Err(Error::IndexParse { .. })));
+    }
+
     fn create_source_plugin(temp: &tempfile::TempDir) -> PathBuf {
         let src = temp.path().join("source_plugin");
         std::fs::create_dir_all(src.join("sub")).unwrap_or_else(|_| {});
