@@ -186,4 +186,26 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_target_is_file_returns_io_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, b"not a directory").expect("write file");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
+
+    #[test]
+    fn assemble_target_parent_is_file_returns_io_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"file").expect("write file");
+
+        let result = assemble(&store, &BTreeMap::new(), &blocker.join("pkg"));
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
 }
