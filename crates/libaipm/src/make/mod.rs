@@ -453,6 +453,30 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_twice_reports_already_registered() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "my-skill",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        assert!(plugin(&opts, &fs).is_ok());
+        let second = plugin(&opts, &fs).unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        assert!(
+            second.actions.iter().any(
+                |a| matches!(a, Action::PluginAlreadyRegistered { name } if name == "my-skill")
+            ),
+            "expected PluginAlreadyRegistered on second run"
+        );
+    }
+
+    #[test]
     fn make_plugin_creates_skill_plugin() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
