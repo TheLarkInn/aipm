@@ -1137,4 +1137,12 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn policy_deserialize_rejects_unknown_value() {
+        let result: Result<Policy, _> = serde_json::from_str("\"bogus\"");
+        assert!(result.is_err());
+        let ok: Result<Policy, _> = serde_json::from_str("\"cache-only\"");
+        assert!(matches!(ok, Ok(Policy::CacheOnly)));
+    }
 }
