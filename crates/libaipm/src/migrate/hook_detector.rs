@@ -435,6 +435,13 @@ mod tests {
     }
 
     #[test]
+    fn is_relative_script_empty_path_returns_false() {
+        // An empty string is not a script path — exercises the early
+        // `path.is_empty()` return.
+        assert!(!is_relative_script("", Path::new(".")));
+    }
+
+    #[test]
     fn is_relative_script_windows_backslash_path_is_relative() {
         // A Windows-style relative path using backslashes and no drive prefix should
         // be detected as a relative script — exercises the path.contains('\\') branch.
