@@ -451,6 +451,15 @@ mod tests {
     }
 
     #[test]
+    fn collect_command_scripts_accepts_dot_slash_prefix() {
+        // A "./"-prefixed command short-circuits the starts_with("./") check.
+        let value = serde_json::json!({"type": "command", "command": "./run.sh --flag"});
+        let mut scripts = Vec::new();
+        collect_command_scripts(&value, Path::new("."), &mut scripts);
+        assert_eq!(scripts, vec![PathBuf::from("./run.sh")]);
+    }
+
+    #[test]
     fn detect_read_error_propagated() {
         // settings.json is registered as existing but is absent from the files map,
         // so read_to_string returns NotFound — exercises the `?` error-propagation
