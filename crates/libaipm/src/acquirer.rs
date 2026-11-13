@@ -614,6 +614,18 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the `create_dir_all` failure in `acquire_local`: `dest_dir` is a
+    /// regular file, so the destination directory cannot be created.
+    #[test]
+    fn acquire_local_dest_dir_is_file_returns_io_error() {
+        let temp = make_temp();
+        let dest_file = temp.path().join("dest-file");
+        std::fs::write(&dest_file, "not a dir").unwrap_or_else(|_| {});
+        let path = ValidatedPath::new("tests").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &dest_file, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
     /// Covers the `acquire_local` path where the source path exists on disk but
     /// is a regular file rather than a directory (False at "not found" check,
     /// True at "not a dir" check).
