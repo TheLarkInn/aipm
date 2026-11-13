@@ -120,6 +120,26 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_is_file_returns_io_error() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("not-a-dir");
+        std::fs::write(&target, "file").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error: {result:?}");
+    }
+
+    #[test]
+    fn assemble_target_under_file_returns_io_error() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, "file").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &blocker.join("pkg"));
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error: {result:?}");
+    }
+
+    #[test]
     fn assemble_empty_package() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let store = store::Store::new(tmp.path().join("store"));
