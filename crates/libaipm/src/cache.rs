@@ -1137,4 +1137,13 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn mark_installed_and_set_ttl_on_missing_entry_are_noops() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.mark_installed("missing-spec", true).is_ok());
+        assert!(cache.set_entry_ttl("missing-spec", Some(60)).is_ok());
+        let index = cache.read_index().unwrap_or_default();
+        assert!(index.entries.is_empty());
+    }
 }
