@@ -1253,4 +1253,59 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Delegates to `MockFs` but fails the Nth `create_dir_all` call (1-based).
+    struct FailingDirFs {
+        inner: MockFs,
+        fail_on: usize,
+        calls: std::sync::atomic::AtomicUsize,
+    }
+
+    impl crate::fs::Fs for FailingDirFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            let n = self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+            if n == self.fail_on {
+                return Err(std::io::Error::other("injected create_dir_all failure"));
+            }
+            self.inner.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_create_dir_all_errors() {
+        for fail_on in [1, 2] {
+            let fs = FailingDirFs {
+                inner: MockFs::new(),
+                fail_on,
+                calls: std::sync::atomic::AtomicUsize::new(0),
+            };
+            let marketplace_dir = Path::new("/project/.ai");
+            seed_marketplace(&fs.inner, marketplace_dir);
+
+            let opts = PluginOpts {
+                marketplace_dir,
+                name: "dir-fail",
+                engine: "claude",
+                features: &[Feature::Skill],
+            };
+
+            assert!(plugin(&opts, &fs).is_err(), "expected error when call {fail_on} fails");
+        }
+    }
 }
