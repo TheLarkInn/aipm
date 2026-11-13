@@ -3740,6 +3740,45 @@ mod tests {
         assert!(result.is_err(), "should fail when skill file is unreadable");
     }
 
+    struct DirFailFs(MockFs);
+
+    impl crate::fs::Fs for DirFailFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.0.exists(path)
+        }
+
+        fn is_file(&self, path: &Path) -> bool {
+            self.0.is_file(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                format!("mkdir denied: {}", path.display()),
+            ))
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.0.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.0.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.0.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn emit_skill_files_returns_error_on_create_dir_failure() {
+        let fs = DirFailFs(MockFs::new());
+        let artifact = make_skill_artifact();
+        let result = emit_skill_files(&artifact, Path::new("/ai/deploy"), &fs);
+        assert!(result.is_err(), "should fail when creating the destination dir fails");
+    }
+
     #[test]
     fn emit_skill_files_returns_error_on_write_failure() {
         // Skill file reads fine, but writing the destination fails.
