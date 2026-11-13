@@ -192,6 +192,18 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn open_fails_when_path_is_a_directory() {
+        // The parent exists, so mkdir succeeds, but opening a directory for
+        // writing fails — exercising the file-open error branch.
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let dir = temp.path().join("subdir");
+        std::fs::create_dir_all(&dir).unwrap_or_else(|_| {});
+
+        let result = LockedFile::open(&dir);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
     /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
     fn unreachable_tempdir() -> tempfile::TempDir {
         tempfile::tempdir_in(".").unwrap_or_else(|_| {
