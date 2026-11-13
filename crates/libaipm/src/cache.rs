@@ -554,6 +554,32 @@ mod tests {
     }
 
     #[test]
+    fn policy_parses_aliases_and_rejects_unknown() {
+        let cases = [
+            ("cacheonly", Policy::CacheOnly),
+            ("skip-cache", Policy::SkipCache),
+            ("SkipCache", Policy::SkipCache),
+            ("force", Policy::ForceRefresh),
+            ("forcerefresh", Policy::ForceRefresh),
+            ("norefresh", Policy::CacheNoRefresh),
+            ("cache-no-refresh", Policy::CacheNoRefresh),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(input.parse::<Policy>().ok(), Some(expected), "alias {input}");
+        }
+        let err = "bogus".parse::<Policy>().err().unwrap_or_default();
+        assert!(err.contains("Unknown cache policy: 'bogus'"));
+    }
+
+    #[test]
+    fn policy_serde_roundtrip_and_invalid() {
+        let json = serde_json::to_string(&Policy::ForceRefresh).unwrap_or_default();
+        assert_eq!(json, "\"force-refresh\"");
+        assert_eq!(serde_json::from_str::<Policy>(&json).ok(), Some(Policy::ForceRefresh));
+        assert!(serde_json::from_str::<Policy>("\"nope\"").is_err());
+    }
+
+    #[test]
     fn cache_miss_returns_none() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let result = cache.get("github:owner/repo:plugin@main");
