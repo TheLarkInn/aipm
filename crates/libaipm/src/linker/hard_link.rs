@@ -147,6 +147,33 @@ mod tests {
     }
 
     #[test]
+    fn assemble_existing_file_as_target_returns_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let target = tmp.path().join("target-is-a-file");
+        std::fs::write(&target, "not a dir").expect("write file");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn assemble_parent_path_blocked_by_file_returns_error() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash = store.store_file(b"content").expect("store file");
+
+        // "a" is linked as a file first, so creating the parent for "a/b" fails.
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("a"), hash.clone());
+        file_hashes.insert(PathBuf::from("a/b"), hash);
+
+        let target = tmp.path().join("links").join("blocked-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn assemble_missing_hash_returns_error() {
         // A valid-format hash that was never stored — link_to returns NotFound,
         // covering the error mapping on the store.link_to call.
