@@ -111,6 +111,21 @@ mod tests {
     }
 
     #[test]
+    fn check_file_blank_name_diagnostic() {
+        let mut fs = MockFs::new();
+        let path = PathBuf::from(".ai/p/skills/s/SKILL.md");
+        fs.exists.insert(path.clone());
+        fs.files.insert(path.clone(), "---\nname:   \ndescription: d\n---\nbody".to_string());
+
+        let result = MissingName.check_file(&path, &fs);
+        assert!(result.is_ok());
+        let diags = result.ok().unwrap_or_default();
+        assert_eq!(diags.len(), 1);
+        assert_eq!(diags[0].rule_id, "skill/missing-name");
+        assert_eq!(diags[0].message, "SKILL.md missing required field: name");
+    }
+
+    #[test]
     fn check_file_no_frontmatter_warns() {
         let mut fs = MockFs::new();
         let path = PathBuf::from(".ai/p/skills/s/SKILL.md");
