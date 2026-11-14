@@ -1092,6 +1092,20 @@ mod tests {
     }
 
     #[test]
+    fn with_index_treats_empty_index_file_as_fresh() {
+        // Covers the `content.is_empty()` True branch in with_index(): an
+        // existing but empty index file is treated as a default index.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        std::fs::write(cache.index_path(), "").unwrap_or_else(|_| {});
+
+        let result = cache.mark_installed("nonexistent", true);
+        assert!(result.is_ok());
+        let index = cache.read_index().unwrap_or_default();
+        assert!(index.entries.is_empty());
+    }
+
+    #[test]
     #[cfg(unix)]
     fn gc_silently_skips_non_utf8_entry_names() {
         // Covers the None branch of `entry.file_name().to_str()` in gc():
