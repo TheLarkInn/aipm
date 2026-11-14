@@ -402,6 +402,14 @@ mod tests {
     }
 
     #[test]
+    fn copy_dir_recursive_missing_source_is_io_error() {
+        let temp = make_temp();
+        let missing = temp.path().join("missing");
+        let result = copy_dir_recursive(&missing, temp.path());
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn file_count_check_passes_normal() {
         let temp = make_temp();
         let dir = temp.path().join("small-plugin");
