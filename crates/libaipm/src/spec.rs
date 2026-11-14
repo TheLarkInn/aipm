@@ -1621,4 +1621,38 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    /// Writer that fails once more than `limit` writes have been made.
+    struct FailAfter {
+        limit: usize,
+        count: usize,
+    }
+
+    impl std::fmt::Write for FailAfter {
+        fn write_str(&mut self, _s: &str) -> std::fmt::Result {
+            self.count += 1;
+            if self.count > self.limit {
+                Err(std::fmt::Error)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    #[test]
+    fn git_source_display_propagates_write_errors() {
+        let spec = parse("git:https://example.com/org/repo.git:sub/dir@main");
+        let Spec::Git(src) = spec else {
+            assert!(matches!(spec, Spec::Git(_)), "expected git spec");
+            return;
+        };
+        assert!(src.path.is_some() && src.git_ref.is_some());
+        for limit in 0..6 {
+            let mut w = FailAfter { limit, count: 0 };
+            let res = std::fmt::write(&mut w, format_args!("{src}"));
+            assert!(res.is_err(), "limit {limit} should fail");
+        }
+        let mut w = FailAfter { limit: 100, count: 0 };
+        assert!(std::fmt::write(&mut w, format_args!("{src}")).is_ok());
+    }
 }
