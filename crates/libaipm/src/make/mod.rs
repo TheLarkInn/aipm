@@ -1127,6 +1127,29 @@ mod tests {
     }
 
     #[test]
+    fn register_in_marketplace_reports_already_registered() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        let marketplace_json = marketplace_dir.join(".claude-plugin").join("marketplace.json");
+        let entry = crate::generate::marketplace::Entry { name: "dup-plugin", description: "d" };
+        let content = crate::generate::marketplace::create("test-marketplace", &[entry]);
+        fs.seed(&marketplace_json, content.as_bytes());
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "dup-plugin",
+            engine: "copilot",
+            features: &[Feature::Mcp],
+        };
+        let mut actions = Vec::new();
+        let result = register_in_marketplace(&opts, &fs, &marketplace_json, &mut actions);
+        assert!(result.is_ok());
+        assert!(actions.iter().any(
+            |a| matches!(a, Action::PluginAlreadyRegistered { name } if name == "dup-plugin")
+        ));
+    }
+
+    #[test]
     fn is_plugin_registered_returns_false_when_file_not_found() {
         let fs = MockFs::new();
         // No file seeded — read_to_string returns NotFound, function returns false.
