@@ -1023,6 +1023,23 @@ mod tests {
     }
 
     #[test]
+    fn report_with_external_ref_without_associated_artifact() {
+        let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
+        let existing = HashSet::new();
+        let other = vec![OtherFile {
+            path: PathBuf::from("/project/scripts/orphan.sh"),
+            relative_path: PathBuf::from("../../scripts/orphan.sh"),
+            associated_artifact: None,
+            is_external: true,
+        }];
+        let report = generate_report(&artifacts, &existing, ".claude", true, false, &other);
+        assert!(report.contains("### External References"));
+        assert!(report.contains("/project/scripts/orphan.sh`"));
+        assert!(!report.contains("referenced by"));
+        assert!(!report.contains("### Unassociated"));
+    }
+
+    #[test]
     fn report_other_files_in_summary_table() {
         let artifacts = vec![make_artifact("deploy", ArtifactKind::Skill)];
         let existing = HashSet::new();
