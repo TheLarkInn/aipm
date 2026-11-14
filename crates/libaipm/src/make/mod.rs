@@ -1019,6 +1019,18 @@ mod tests {
     }
 
     #[test]
+    fn is_plugin_registered_returns_false_when_plugins_not_array_or_nameless() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/marketplace.json");
+        fs.seed(path, br#"{"plugins": "oops"}"#);
+        assert!(!is_plugin_registered(&fs, path, "my-plugin"));
+        fs.seed(path, br#"{"plugins": [{"description": "no name"}, {"name": 5}]}"#);
+        assert!(!is_plugin_registered(&fs, path, "my-plugin"));
+        fs.seed(path, br#"{"name": 7}"#);
+        assert_eq!(read_marketplace_name(&fs, path), "local-repo-plugins");
+    }
+
+    #[test]
     fn make_plugin_marketplace_dir_at_root_skips_settings() {
         // When marketplace_dir has no parent (e.g. "/"), update_engine_settings
         // must silently skip the settings update rather than panicking.
