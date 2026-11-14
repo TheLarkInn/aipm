@@ -282,6 +282,13 @@ mod tests {
     }
 
     #[test]
+    fn is_ignored_invalid_glob_is_skipped() {
+        let patterns = vec!["[".to_string(), "vendor/**".to_string()];
+        assert!(is_ignored("vendor/foo.md", &patterns));
+        assert!(!is_ignored("src/main.rs", &patterns));
+    }
+
+    #[test]
     fn is_ignored_empty_patterns() {
         let patterns: Vec<String> = vec![];
         assert!(!is_ignored("any/path.md", &patterns));
