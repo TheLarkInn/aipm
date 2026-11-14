@@ -1019,6 +1019,23 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_invalid_settings_json_returns_error() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs, marketplace_dir);
+        fs.seed(Path::new("/project/.claude/settings.json"), b"{ not json");
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "bad-settings",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        assert!(plugin(&opts, &fs).is_err());
+    }
+
+    #[test]
     fn make_plugin_marketplace_dir_at_root_skips_settings() {
         // When marketplace_dir has no parent (e.g. "/"), update_engine_settings
         // must silently skip the settings update rather than panicking.
