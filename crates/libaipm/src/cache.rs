@@ -554,6 +554,15 @@ mod tests {
     }
 
     #[test]
+    fn get_with_corrupt_index_returns_index_parse_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(std::fs::create_dir_all(&cache.root).is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+        let result = cache.get("github:owner/repo:plugin@main");
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn cache_miss_returns_none() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let result = cache.get("github:owner/repo:plugin@main");
