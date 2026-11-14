@@ -1020,6 +1020,15 @@ mod tests {
     }
 
     #[test]
+    fn mark_installed_with_empty_index_file_is_noop() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(&cache.root).unwrap();
+        std::fs::write(cache.index_path(), "").unwrap();
+
+        assert!(cache.mark_installed("missing-spec", true).is_ok());
+    }
+
+    #[test]
     fn put_handles_already_removed_old_entry_dir() {
         // Covers the `if old_dir.exists()` False branch in put():
         // Store a first entry, then manually remove its directory to simulate
