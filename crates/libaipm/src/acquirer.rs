@@ -627,6 +627,20 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the `create_dir_all` failure mapping in `acquire_local`: the
+    /// destination parent is a regular file, so creating the plugin dir fails.
+    #[test]
+    fn acquire_local_dest_creation_fails_returns_io_error() {
+        let temp = make_temp();
+        let blocker = temp.path().join("blocker");
+        std::fs::write(&blocker, "file").unwrap_or_else(|_| {});
+
+        // "src" is a directory relative to the crate root (the test cwd).
+        let path = ValidatedPath::new("src").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &blocker, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}");
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
