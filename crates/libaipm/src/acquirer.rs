@@ -363,6 +363,24 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_path_is_file_returns_not_directory() {
+        // Cargo runs unit tests with cwd = crate root, where Cargo.toml is a file.
+        let temp = make_temp();
+        let path = ValidatedPath::new("Cargo.toml").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotDirectory { .. })), "got: {result:?}");
+    }
+
+    #[test]
+    fn acquire_local_missing_path_returns_not_found() {
+        let temp = make_temp();
+        let path =
+            ValidatedPath::new("definitely-missing-dir").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotFound { .. })), "got: {result:?}");
+    }
+
+    #[test]
     fn acquire_local_from_source_not_found() {
         let temp = make_temp();
         let nonexistent = temp.path().join("does-not-exist");
