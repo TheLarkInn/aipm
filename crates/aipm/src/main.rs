@@ -1407,6 +1407,14 @@ mod tests {
         assert!(err.contains("unknown reporter"), "unexpected error: {err}");
     }
 
+    /// `cmd_lint` with `no_summary = true` skips writing the scan summary.
+    #[test]
+    fn cmd_lint_no_summary_skips_summary() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = cmd_lint(tmp.path().to_path_buf(), None, "human", "never", None, None, true);
+        assert!(result.is_ok(), "cmd_lint with no_summary should succeed: {result:?}");
+    }
+
     /// `cmd_lint` returns an error when `--source` is provided but is not one of
     /// the supported values, covering the `if let Some(ref src) = source` True
     /// branch (line 719) and the `if !SUPPORTED_SOURCES.contains` True branch
