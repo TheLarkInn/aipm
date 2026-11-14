@@ -1089,6 +1089,38 @@ mod tests {
 
     // ---- Additional branch-coverage tests ----
 
+    /// Writer that accepts at most `budget` bytes and then errors.
+    struct LimitedWriter {
+        budget: usize,
+    }
+
+    impl std::fmt::Write for LimitedWriter {
+        fn write_str(&mut self, s: &str) -> std::fmt::Result {
+            if s.len() > self.budget {
+                return Err(std::fmt::Error);
+            }
+            self.budget -= s.len();
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn git_display_propagates_write_errors() {
+        use std::fmt::Write;
+        let source = GitSource {
+            url: "u".to_string(),
+            path: ValidatedPath::new("sub").ok(),
+            git_ref: Some("main".to_string()),
+        };
+        // Fail at the url, the path, and the ref write respectively.
+        for budget in [0, 5, 7, 8] {
+            let mut w = LimitedWriter { budget };
+            assert!(write!(w, "{source}").is_err(), "budget {budget} should fail");
+        }
+        let mut w = LimitedWriter { budget: 1024 };
+        assert!(write!(w, "{source}").is_ok());
+    }
+
     #[test]
     fn git_display_url_only() {
         // Exercise GitSource Display with no path and no git_ref (both None branches)
