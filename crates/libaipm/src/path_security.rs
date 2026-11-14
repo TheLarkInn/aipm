@@ -119,6 +119,18 @@ mod tests {
     }
 
     #[test]
+    fn validate_null_byte_path() {
+        let result = validate_plugin_path("foo\0bar");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
+    #[test]
+    fn validate_embedded_dotdot_in_component() {
+        let result = validate_plugin_path("foo..bar");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
+    #[test]
     fn validate_path_traversal_start() {
         let result = validate_plugin_path("../etc/passwd");
         assert!(matches!(result, Err(PathValidationError::PathTraversal)));
