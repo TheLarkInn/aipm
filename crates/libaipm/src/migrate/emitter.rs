@@ -1489,6 +1489,20 @@ mod tests {
     }
 
     #[test]
+    fn emit_skill_files_keeps_unreferenced_scripts_in_skill_dir() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy".to_string());
+        fs.files.insert(PathBuf::from("/src/skills/deploy/scripts/other.sh"), "echo".to_string());
+
+        let mut artifact = make_skill_artifact();
+        artifact.files = vec![PathBuf::from("SKILL.md"), PathBuf::from("scripts/other.sh")];
+        let result = emit_skill_files(&artifact, Path::new("/ai/deploy"), &fs);
+
+        assert!(result.is_ok());
+        assert!(fs.get_written(Path::new("/ai/deploy/skills/deploy/scripts/other.sh")).is_some());
+    }
+
+    #[test]
     fn emit_rewrites_claude_skill_dir() {
         let mut fs = MockFs::new();
         fs.files.insert(
