@@ -2185,6 +2185,38 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Existing `aipm.toml` is package-only (no `[workspace]` table), so
+    /// `compare_and_warn` must warn about the workspace mismatch.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_existing_package_only_manifest_warns_on_workspace_mismatch() {
+        let (tmp, _guard) = make_temp_dir("existing-toml-package-only");
+        let manifest = "[package]\nname = \"my-plugin\"\nversion = \"0.1.0\"\n";
+        std::fs::write(tmp.join("aipm.toml"), manifest).ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed on package-only manifest: {result:?}");
+        assert!(
+            logs_contain("wizard requested workspace but on-disk manifest is package-only"),
+            "expected workspace-mismatch warn event"
+        );
+        let after = std::fs::read_to_string(tmp.join("aipm.toml")).unwrap_or_default();
+        assert_eq!(after, manifest, "aipm.toml must be unchanged");
+
+        cleanup(&tmp);
+    }
+
     /// Pre-existing `aipm.toml` is malformed TOML. Init must surface a
     /// typed `ExistingManifestInvalid` error.
     #[test]
