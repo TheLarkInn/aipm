@@ -1621,4 +1621,47 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    /// Writer that fails once more than `limit` bytes have been written.
+    struct LimitedWriter {
+        limit: usize,
+        written: usize,
+    }
+
+    impl std::fmt::Write for LimitedWriter {
+        fn write_str(&mut self, s: &str) -> std::fmt::Result {
+            self.written += s.len();
+            if self.written > self.limit {
+                Err(std::fmt::Error)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    #[test]
+    fn display_propagates_write_errors() {
+        // Covers the `?` error branches in the Display impls for `GitSource`
+        // and `MarketplaceSource` by failing the writer at every byte offset.
+        let git = GitSource {
+            url: "https://example.com/r.git".to_string(),
+            path: ValidatedPath::new("sub/dir").ok(),
+            git_ref: Some("main".to_string()),
+        };
+        let market = MarketplaceSource {
+            plugin_name: "plug".to_string(),
+            market_location: MarketLocation::GitUrl { url: "https://example.com/m".to_string() },
+            git_ref: Some("v1".to_string()),
+        };
+        let git_len = git.to_string().len();
+        let market_len = market.to_string().len();
+        for limit in 0..git_len {
+            let mut w = LimitedWriter { limit, written: 0 };
+            assert!(std::fmt::write(&mut w, format_args!("{git}")).is_err());
+        }
+        for limit in 0..market_len {
+            let mut w = LimitedWriter { limit, written: 0 };
+            assert!(std::fmt::write(&mut w, format_args!("{market}")).is_err());
+        }
+    }
 }
