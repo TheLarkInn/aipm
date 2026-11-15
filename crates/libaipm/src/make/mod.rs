@@ -1253,4 +1253,75 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Fails every mutating call (`create_dir_all` / `write_file`) once `budget` calls succeeded.
+    struct FailAfterFs {
+        inner: MockFs,
+        budget: std::sync::atomic::AtomicUsize,
+    }
+
+    impl FailAfterFs {
+        fn spend(&self) -> std::io::Result<()> {
+            use std::sync::atomic::Ordering;
+            let left = self.budget.load(Ordering::SeqCst);
+            if left == 0 {
+                return Err(std::io::Error::other("injected failure"));
+            }
+            self.budget.store(left - 1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    impl crate::fs::Fs for FailAfterFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            self.spend()?;
+            self.inner.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.spend()?;
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_io_failure_at_every_step() {
+        let marketplace_dir = Path::new("/project/.ai");
+        let features = [
+            Feature::Skill,
+            Feature::Agent,
+            Feature::Mcp,
+            Feature::Hook,
+            Feature::OutputStyle,
+            Feature::Lsp,
+            Feature::Extension,
+            Feature::Command,
+        ];
+        let mut failures = 0_usize;
+        for budget in 0..40 {
+            let fs = FailAfterFs {
+                inner: MockFs::new(),
+                budget: std::sync::atomic::AtomicUsize::new(budget),
+            };
+            seed_marketplace(&fs.inner, marketplace_dir);
+            let opts =
+                PluginOpts { marketplace_dir, name: "p", engine: "claude", features: &features };
+            if plugin(&opts, &fs).is_err() {
+                failures += 1;
+            }
+        }
+        assert!(failures >= 10, "expected many injected failures to propagate, got {failures}");
+    }
 }
