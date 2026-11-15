@@ -2091,6 +2091,37 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// Covers the `adaptor.apply(..)? == false` branch in `init`: running init a
+    /// second time on the same directory leaves every adaptor with nothing to
+    /// configure, so no `ToolConfigured` action is emitted.
+    #[test]
+    fn init_second_run_does_not_reconfigure_tools() {
+        let (tmp, _guard) = make_temp_dir("second-run-no-reconfigure");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: true,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let first = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(first.is_ok(), "first init must succeed: {first:?}");
+        let second = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(second.is_ok(), "second init must succeed: {second:?}");
+
+        let actions = second.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(
+            !actions.iter().any(|a| matches!(a, InitAction::ToolConfigured(_))),
+            "second run must not reconfigure tools, got {actions:?}"
+        );
+
+        cleanup(&tmp);
+    }
+
     /// Existing `aipm.toml` declares `engines = ["claude"]` but the
     /// wizard answer chose Copilot. Init must succeed (idempotent),
     /// leave the file unchanged, and emit a tracing::warn event naming
