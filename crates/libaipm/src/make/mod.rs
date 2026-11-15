@@ -1253,4 +1253,42 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Fs wrapper whose `write_file` always fails.
+    struct WriteFailFs(MockFs);
+
+    impl crate::fs::Fs for WriteFailFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.0.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            self.0.create_dir_all(path)
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "write denied"))
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.0.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.0.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_skill_write_error() {
+        let fs = WriteFailFs(MockFs::new());
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/project/.ai"),
+            name: "write-fails",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        assert!(plugin(&opts, &fs).is_err());
+    }
 }
