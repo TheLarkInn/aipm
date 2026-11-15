@@ -1488,6 +1488,23 @@ mod tests {
         assert_eq!(config.severity_override("instructions/oversized"), None);
     }
 
+    /// Rule values that are neither a string nor a table, or a string that is
+    /// neither `allow` nor a known severity, are ignored.
+    #[test]
+    fn load_lint_config_ignores_unrecognised_rule_values() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("aipm.toml"),
+            "[workspace.lints]\n\"rule-int\" = 5\n\"rule-bogus\" = \"bogus-level\"\n",
+        )
+        .unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert_eq!(config.severity_override("rule-int"), None);
+        assert_eq!(config.severity_override("rule-bogus"), None);
+        assert!(config.rule_overrides.is_empty());
+    }
+
     /// `resolve_plugins_dir` falls back to `.ai` when the manifest has a
     /// `[workspace]` table but no `plugins_dir` key.
     #[test]
