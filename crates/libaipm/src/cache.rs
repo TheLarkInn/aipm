@@ -1020,6 +1020,20 @@ mod tests {
     }
 
     #[test]
+    fn put_fails_with_io_error_when_cache_root_is_a_file() {
+        // Covers the `map_err` closure in `ensure_dirs`: the cache root path
+        // is a regular file, so creating `entries/` beneath it fails.
+        let temp = make_temp();
+        let src = create_source_plugin(&temp);
+        let root = temp.path().join("cache-root-file");
+        std::fs::write(&root, b"not a directory").unwrap_or_else(|_| {});
+
+        let cache = Cache::with_root(root, Policy::Auto);
+        let result = cache.put("io-error-spec", &src, None);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn put_handles_already_removed_old_entry_dir() {
         // Covers the `if old_dir.exists()` False branch in put():
         // Store a first entry, then manually remove its directory to simulate
