@@ -186,4 +186,42 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_target_is_file_fails_to_clean() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, "not a dir").expect("write file");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
+
+    #[test]
+    fn assemble_target_under_file_fails_to_create() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, "x").expect("write file");
+
+        let result = assemble(&store, &BTreeMap::new(), &blocker.join("pkg"));
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
+
+    #[test]
+    fn assemble_parent_dir_blocked_by_file_fails() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let h1 = store.store_file(b"a").expect("store a");
+        let h2 = store.store_file(b"b").expect("store b");
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("a"), h1);
+        file_hashes.insert(PathBuf::from("a/b"), h2);
+
+        let target = tmp.path().join("links").join("pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
 }
