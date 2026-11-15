@@ -2397,4 +2397,36 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    /// Covers the `(Some(w), None)` arm of `compare_and_warn`: the wizard selected
+    /// engines but the on-disk workspace manifest declares none, so init warns and
+    /// preserves the existing file.
+    #[test]
+    fn init_workspace_existing_without_engines_preserved_when_wizard_selects_engines() {
+        let (tmp, _guard) = make_temp_dir("ws-no-engines");
+        let existing = "[workspace]\nmembers = [\".ai/*\"]\n";
+        std::fs::write(tmp.join("aipm.toml"), existing).ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: Some(libaipm_engine_spec::EngineSet::CLAUDE),
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+
+        let after = std::fs::read_to_string(tmp.join("aipm.toml")).unwrap_or_default();
+        assert_eq!(after, existing, "existing aipm.toml must not be overwritten");
+
+        cleanup(&tmp);
+    }
 }
