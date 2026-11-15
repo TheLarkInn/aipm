@@ -354,6 +354,21 @@ mod tests {
         let _ = path; // satisfy unused warning
     }
 
+    /// Drives the real `acquire_local` past the existence/directory checks:
+    /// the crate's own `src` directory (resolved against the test cwd) is
+    /// copied, but it is not a valid plugin so validation rejects it.
+    #[test]
+    fn acquire_local_existing_dir_without_plugin_markers_fails_validation() {
+        let temp = make_temp();
+        let path = ValidatedPath::new("src").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(result.is_err());
+        assert!(!matches!(
+            result,
+            Err(Error::LocalNotFound { .. } | Error::LocalNotDirectory { .. })
+        ));
+    }
+
     #[test]
     fn acquire_local_not_found() {
         let temp = make_temp();
