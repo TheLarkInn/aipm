@@ -1253,4 +1253,72 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Wraps `MockFs`, failing the `fail_at`-th mutating call (create_dir_all / write_file).
+    struct FailingFs {
+        inner: MockFs,
+        calls: Mutex<usize>,
+        fail_at: usize,
+    }
+
+    impl FailingFs {
+        fn tick(&self) -> std::io::Result<()> {
+            let mut n = self.calls.lock().unwrap_or_else(|p| p.into_inner());
+            let current = *n;
+            *n += 1;
+            if current == self.fail_at {
+                return Err(std::io::Error::other("injected failure"));
+            }
+            Ok(())
+        }
+    }
+
+    impl crate::fs::Fs for FailingFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            self.tick()?;
+            self.inner.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.tick()?;
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_io_errors_at_every_step() {
+        let marketplace_dir = Path::new("/project/.ai");
+        let features = [
+            Feature::Skill,
+            Feature::Agent,
+            Feature::Mcp,
+            Feature::Hook,
+            Feature::OutputStyle,
+            Feature::Lsp,
+            Feature::Extension,
+        ];
+        let mut failures = 0;
+        for fail_at in 0..40 {
+            let fs = FailingFs { inner: MockFs::new(), calls: Mutex::new(0), fail_at };
+            seed_marketplace(&fs.inner, marketplace_dir);
+            let opts =
+                PluginOpts { marketplace_dir, name: "p", engine: "claude", features: &features };
+            if plugin(&opts, &fs).is_err() {
+                failures += 1;
+            }
+        }
+        assert!(failures >= 15, "expected many injected failures to propagate, got {failures}");
+    }
 }
