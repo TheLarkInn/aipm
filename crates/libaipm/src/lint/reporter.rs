@@ -1793,6 +1793,13 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_empty_outcome_emits_no_group_end() {
+        let output = render_ci_azure(&Outcome::default());
+        assert!(!output.contains("##[endgroup]"));
+        assert!(!output.contains("SucceededWithIssues"));
+    }
+
+    #[test]
     fn strip_ansi_passthrough_for_plain_text() {
         assert_eq!(strip_ansi("hello world"), "hello world");
         assert_eq!(strip_ansi(""), "");
