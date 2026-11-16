@@ -558,6 +558,23 @@ mod tests {
         assert!(copy_dir_recursive(&src, &dst).is_ok());
     }
 
+    /// Nested directories are copied recursively while `.git` is skipped.
+    #[test]
+    fn copy_dir_recursive_skips_git_and_copies_nested_dirs() {
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(src.join(".git")).unwrap_or_else(|_| {});
+        std::fs::write(src.join(".git/config"), "x").unwrap_or_else(|_| {});
+        std::fs::create_dir_all(src.join("nested")).unwrap_or_else(|_| {});
+        std::fs::write(src.join("nested/file.txt"), "data").unwrap_or_else(|_| {});
+        std::fs::create_dir_all(&dst).unwrap_or_else(|_| {});
+
+        assert!(copy_dir_recursive(&src, &dst).is_ok());
+        assert!(!dst.join(".git").exists());
+        assert!(dst.join("nested/file.txt").is_file());
+    }
+
     /// Covers the `Error::CopyFailed` error mapping in `copy_dir_recursive`
     /// (lines 307–310): when `std::fs::copy` fails because the destination path
     /// is an existing directory (EISDIR on Linux), the error is wrapped as
