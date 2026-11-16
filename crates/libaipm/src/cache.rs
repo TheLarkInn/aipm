@@ -984,6 +984,16 @@ mod tests {
     }
 
     #[test]
+    fn mark_installed_fails_when_index_path_is_a_directory() {
+        // Covers the `LockedFile::open` error branch in with_index().
+        let (_temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(cache.index_path()).unwrap_or_else(|_| {});
+
+        let result = cache.mark_installed("any-spec", true);
+        assert!(matches!(result, Err(Error::Lock { .. })), "got {result:?}");
+    }
+
+    #[test]
     fn get_with_empty_index_file_returns_none() {
         // Covers the `content.is_empty()` True branch in read_index():
         // when the index file exists but is empty, treat it as a fresh cache.
