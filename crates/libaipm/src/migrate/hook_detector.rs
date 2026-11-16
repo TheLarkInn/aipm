@@ -435,6 +435,16 @@ mod tests {
     }
 
     #[test]
+    fn collect_command_scripts_ignores_non_command_type() {
+        // A handler whose "type" is present but not "command" must be skipped even
+        // when it carries a script-like "command" field.
+        let value = serde_json::json!({"type": "http", "command": "./scripts/run.sh"});
+        let mut scripts = Vec::new();
+        collect_command_scripts(&value, Path::new("/project"), &mut scripts);
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
     fn is_relative_script_windows_backslash_path_is_relative() {
         // A Windows-style relative path using backslashes and no drive prefix should
         // be detected as a relative script — exercises the path.contains('\\') branch.
