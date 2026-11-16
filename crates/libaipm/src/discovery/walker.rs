@@ -302,4 +302,12 @@ mod tests {
         sorted.sort();
         assert_eq!(result.files, sorted);
     }
+
+    #[test]
+    fn nonexistent_root_returns_walk_failed() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let missing = tmp.path().join("does-not-exist");
+        let result = walk(&missing, &DiscoverOptions::default());
+        assert!(matches!(result, Err(Error::WalkFailed(_))));
+    }
 }
