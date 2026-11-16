@@ -160,6 +160,25 @@ mod tests {
     }
 
     #[test]
+    fn detect_lsp_json_directly_in_source_dir() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.copilot/lsp.json"));
+        fs.files.insert(
+            PathBuf::from("/project/.copilot/lsp.json"),
+            r#"{"rust-analyzer":{"command":"rust-analyzer"}}"#.to_string(),
+        );
+
+        let detector = CopilotLspDetector;
+        let result = detector.detect(Path::new("/project/.copilot"), &fs);
+        assert!(result.is_ok());
+        let artifacts = result.ok().unwrap_or_default();
+        assert_eq!(
+            artifacts.first().map(|a| a.source_path.clone()),
+            Some(PathBuf::from("/project/.copilot/lsp.json"))
+        );
+    }
+
+    #[test]
     fn detect_github_lsp_json_fallback() {
         let mut fs = MockFs::new();
         // Not at source_dir directly, but at project_root/.github/lsp.json
