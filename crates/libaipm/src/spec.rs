@@ -1621,4 +1621,34 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    /// Writer that fails once `budget` successful `write_str` calls are used up.
+    struct FailAfter {
+        budget: usize,
+    }
+
+    impl std::fmt::Write for FailAfter {
+        fn write_str(&mut self, _s: &str) -> std::fmt::Result {
+            if self.budget == 0 {
+                return Err(std::fmt::Error);
+            }
+            self.budget -= 1;
+            Ok(())
+        }
+    }
+
+    fn fails_at_every_budget(value: &dyn std::fmt::Display, max: usize) -> bool {
+        (0..max).all(|budget| {
+            let mut w = FailAfter { budget };
+            std::fmt::write(&mut w, format_args!("{value}")).is_err()
+        })
+    }
+
+    #[test]
+    fn display_propagates_write_errors() {
+        let git = parse("git:https://github.com/org/repo.git:plugins/foo@v1");
+        let market = parse("market:plugin@org/repo#v1");
+        assert!(fails_at_every_budget(&git, 6));
+        assert!(fails_at_every_budget(&market, 6));
+    }
 }
