@@ -853,6 +853,16 @@ mod tests {
     }
 
     #[test]
+    fn with_index_treats_empty_index_file_as_default() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "").is_ok());
+
+        assert!(cache.set_entry_ttl("missing", Some(5)).is_ok());
+        assert!(cache.read_index().unwrap_or_default().entries.is_empty());
+    }
+
+    #[test]
     fn auto_returns_none_when_dir_missing() {
         let (temp, cache) = test_cache(Policy::Auto);
         let src = create_source_plugin(&temp);
