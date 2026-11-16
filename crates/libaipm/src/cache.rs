@@ -998,6 +998,23 @@ mod tests {
     }
 
     #[test]
+    fn index_mutators_treat_empty_index_file_as_fresh_cache() {
+        // Covers the `content.is_empty()` True branch in `with_index()` for
+        // each mutating caller (mark_installed, set_entry_ttl, gc, put).
+        let (temp, cache) = test_cache(Policy::Auto);
+        let cache_root = temp.path().join("cache");
+        std::fs::create_dir_all(&cache_root).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "").unwrap_or_else(|_| {});
+        assert!(cache.mark_installed("spec", true).is_ok());
+        assert!(cache.set_entry_ttl("spec", Some(5)).is_ok());
+        assert!(cache.gc().is_ok());
+
+        std::fs::write(cache.index_path(), "").unwrap_or_else(|_| {});
+        let src = create_source_plugin(&temp);
+        assert!(cache.put("spec", &src, None).is_ok());
+    }
+
+    #[test]
     #[cfg(unix)]
     fn put_source_with_symlink_is_silently_skipped() {
         // Covers the `else if file_type.is_file()` False branch in
