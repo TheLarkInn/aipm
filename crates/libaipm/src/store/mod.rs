@@ -631,4 +631,16 @@ mod tests {
         let result = store.store_package(nonexistent);
         assert!(result.is_err(), "expected store_package to fail on missing directory");
     }
+
+    /// Entries that are neither files nor directories (e.g., sockets) are skipped.
+    #[cfg(unix)]
+    #[test]
+    fn store_package_skips_special_files() {
+        let (_tmp, store) = make_store();
+        let pkg = tempfile::tempdir().unwrap();
+        std::fs::write(pkg.path().join("a.txt"), b"a").unwrap();
+        let _listener = std::os::unix::net::UnixListener::bind(pkg.path().join("sock")).unwrap();
+        let files = store.store_package(pkg.path()).unwrap();
+        assert_eq!(files.len(), 1);
+    }
 }
