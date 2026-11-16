@@ -882,6 +882,16 @@ mod tests {
     }
 
     #[test]
+    fn get_with_corrupt_index_returns_index_parse_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "{not valid json").is_ok());
+
+        let result = cache.get("spec");
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn copy_to_session_missing_spec_errors() {
         let (temp, cache) = test_cache(Policy::Auto);
         let session = temp.path().join("session");
