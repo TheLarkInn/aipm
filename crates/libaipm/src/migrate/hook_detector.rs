@@ -451,6 +451,14 @@ mod tests {
     }
 
     #[test]
+    fn is_relative_script_bare_py_and_js_extensions_are_relative() {
+        assert!(is_relative_script("check.py", Path::new(".")));
+        assert!(is_relative_script("check.js", Path::new(".")));
+        assert!(is_relative_script("CHECK.PY", Path::new(".")));
+        assert!(is_relative_script("CHECK.JS", Path::new(".")));
+    }
+
+    #[test]
     fn detect_read_error_propagated() {
         // settings.json is registered as existing but is absent from the files map,
         // so read_to_string returns NotFound — exercises the `?` error-propagation
