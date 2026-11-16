@@ -442,6 +442,21 @@ mod tests {
     }
 
     #[test]
+    fn is_relative_script_empty_path_returns_false() {
+        assert!(!is_relative_script("", Path::new(".")));
+    }
+
+    #[test]
+    fn collect_command_scripts_blank_command_is_ignored() {
+        // A whitespace-only command yields an empty first token, which must be
+        // rejected rather than recorded as a script reference.
+        let value = serde_json::json!({"type": "command", "command": "   "});
+        let mut scripts = Vec::new();
+        collect_command_scripts(&value, Path::new("/project"), &mut scripts);
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
     fn is_relative_script_unrecognized_extension_returns_false() {
         // A bare filename with an extension that is not .sh/.py/.js should return false —
         // exercises the Some(ext) branch of extension().is_some_and(…) where the closure
