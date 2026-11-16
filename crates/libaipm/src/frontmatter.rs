@@ -292,6 +292,14 @@ mod tests {
     }
 
     #[test]
+    fn parse_empty_value_key_as_last_line() {
+        let content = "---\ndescription: test\nname:\n---\nbody";
+        let fields = parse(content).ok().flatten().map(|fm| fm.fields).unwrap_or_default();
+        assert_eq!(fields.get("name").map(String::as_str), Some(""));
+        assert_eq!(fields.get("description").map(String::as_str), Some("test"));
+    }
+
+    #[test]
     fn parse_empty_value_key() {
         let content = "---\nname:\ndescription: test\n---\nbody";
         let result = parse(content);
