@@ -120,6 +120,21 @@ mod tests {
     }
 
     #[test]
+    fn assemble_target_is_file_returns_error() {
+        // An existing regular file at target_dir makes remove_dir_all fail,
+        // covering the error mapping on the clean-up step.
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("not-a-dir");
+        std::fs::write(&target, "x").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if *path == target),
+            "expected Io error for target, got: {result:?}"
+        );
+    }
+
+    #[test]
     fn assemble_empty_package() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let store = store::Store::new(tmp.path().join("store"));
