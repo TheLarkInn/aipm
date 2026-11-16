@@ -102,6 +102,15 @@ mod tests {
     }
 
     #[test]
+    fn open_fails_when_parent_is_a_file() {
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let blocker = temp.path().join("blocker");
+        assert!(std::fs::write(&blocker, b"x").is_ok());
+        let result = LockedFile::open(&blocker.join("data.json"));
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn read_write_roundtrip() {
         let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
         let path = temp.path().join("test.json");
