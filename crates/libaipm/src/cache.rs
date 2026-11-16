@@ -599,6 +599,15 @@ mod tests {
     }
 
     #[test]
+    fn corrupt_index_errors_on_get_and_mutation() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+        assert!(matches!(cache.get("spec"), Err(Error::IndexParse { .. })));
+        assert!(matches!(cache.mark_installed("spec", true), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn cache_force_refresh_always_misses() {
         let (temp, cache) = test_cache(Policy::ForceRefresh);
         let src = create_source_plugin(&temp);
