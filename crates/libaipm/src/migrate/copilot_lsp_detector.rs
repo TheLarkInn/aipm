@@ -178,6 +178,30 @@ mod tests {
     }
 
     #[test]
+    fn direct_lsp_json_preferred_over_github_fallback() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/project/.copilot/lsp.json"));
+        fs.exists.insert(PathBuf::from("/project/.github/lsp.json"));
+        fs.files.insert(
+            PathBuf::from("/project/.copilot/lsp.json"),
+            r#"{"direct":{"command":"a"}}"#.to_string(),
+        );
+        fs.files.insert(
+            PathBuf::from("/project/.github/lsp.json"),
+            r#"{"x":{"command":"a"},"y":{"command":"b"}}"#.to_string(),
+        );
+
+        let detector = CopilotLspDetector;
+        let artifacts =
+            detector.detect(Path::new("/project/.copilot"), &fs).ok().unwrap_or_default();
+        assert_eq!(artifacts.len(), 1);
+        assert_eq!(
+            artifacts.first().map(|a| a.source_path.clone()),
+            Some(PathBuf::from("/project/.copilot/lsp.json"))
+        );
+    }
+
+    #[test]
     fn no_lsp_json_returns_empty() {
         let fs = MockFs::new();
         let detector = CopilotLspDetector;
