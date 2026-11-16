@@ -186,4 +186,41 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_target_dir_creation_failure_returns_io_error() {
+        // The target's parent is a regular file, so create_dir_all(target_dir) fails.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"not a dir").expect("write blocker");
+        let target = blocker.join("pkg");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if *path == target),
+            "expected Io error for target dir, got: {result:?}"
+        );
+    }
+
+    #[test]
+    fn assemble_parent_dir_creation_failure_returns_io_error() {
+        // "a/b" is linked as a file first (BTreeMap order), so creating the
+        // parent directory "a/b" for "a/b/c" fails.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash1 = store.store_file(b"first").expect("store file 1");
+        let hash2 = store.store_file(b"second").expect("store file 2");
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("a/b"), hash1);
+        file_hashes.insert(PathBuf::from("a/b/c"), hash2);
+
+        let target = tmp.path().join("links").join("conflict-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("a/b")),
+            "expected Io error for parent dir, got: {result:?}"
+        );
+    }
 }
