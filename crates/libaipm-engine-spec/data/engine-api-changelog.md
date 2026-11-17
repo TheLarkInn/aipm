@@ -2,6 +2,18 @@
 
 <!-- Entries are prepended (newest first). -->
 
+## 2026-11-17 — claude v2.1.326
+
+| Field | Change |
+|-------|--------|
+| `tool_calls` | **Added** (from `sdk-tools.d.ts`): `TaskStop`, `TaskCreate`, `TaskGet`, `TaskUpdate`, `TaskList`, `NotebookEdit`, `AskUserQuestion`, `EnterPlanMode`, `ExitPlanMode`, `EnterWorktree`, `ExitWorktree`, `ListMcpResources`, `ReadMcpResource`, `ReadMcpResourceDir`, `RefreshMcpTools`, `Mcp`, `ReportFindings`, `SendFeedback`, `ClaudeDesign`, `Projects`, `Workflow`, `CronCreate`, `CronDelete`, `CronList`, `ScheduleWakeup`, `RemoteTrigger`, `ReadNotifications`, `Monitor`, `ProposeSkills`, `ProposeGoal`, `Artifact`, `PushNotification`, `ShowOnboardingRolePicker`, `OfferChromeSetup`. |
+| `hook_events` | **Added** `PermissionDenied`. |
+| `tool_compatibility.engine_exclusive_tools` | **Added** all new claude tools above (unsupported by copilot). |
+
+## 2026-11-17 — copilot v1.0.113
+
+Version bumped from 1.0.40. The package is now a native binary (`@github/copilot-linux-x64`) with no readable JS bundle, so string extraction found no hook-event or tool-name literals. Existing copilot catalog left unchanged; manual re-verification needed.
+
 ## 2026-05-05 — claude v2.1.128
 
 | Field | Change |
