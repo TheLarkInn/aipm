@@ -829,6 +829,12 @@ mod tests {
     }
 
     #[test]
+    fn parse_empty_identifier_mixed_case_prefix_reports_original_input() {
+        let result = "GitHub:".parse::<Spec>();
+        assert!(matches!(result, Err(Error::EmptyIdentifier(ref s)) if s == "GitHub:"));
+    }
+
+    #[test]
     fn parse_unknown_source() {
         // "unknown" is not a source prefix, so it falls through to registry parsing
         let spec = "unknown:value".parse::<Spec>();
