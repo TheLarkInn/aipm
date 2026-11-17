@@ -232,6 +232,17 @@ mod tests {
     }
 
     #[test]
+    fn unreadable_lsp_json_returns_error() {
+        let mut fs = MockFs::new();
+        // File "exists" but has no readable content, so read_to_string fails.
+        fs.exists.insert(PathBuf::from("/project/.github/lsp.json"));
+
+        let detector = CopilotLspDetector;
+        let result = detector.detect(Path::new("/project/.github"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn multiple_lsp_servers_counted() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.github/lsp.json"));
