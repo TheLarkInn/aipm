@@ -1137,4 +1137,16 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn with_index_non_utf8_index_returns_lock_error() {
+        // Covers the read_content error mapping in with_index(): an index file
+        // that is not valid UTF-8 cannot be read as a string.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        std::fs::write(cache.index_path(), [0xff_u8, 0xfe, 0xfd]).unwrap();
+
+        let result = cache.mark_installed("spec", true);
+        assert!(matches!(result, Err(Error::Lock { .. })), "got {result:?}");
+    }
 }
