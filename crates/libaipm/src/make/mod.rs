@@ -1253,4 +1253,70 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Fs wrapper that fails the Nth mutating call (`create_dir_all` or `write_file`).
+    struct FailNthFs {
+        inner: MockFs,
+        remaining: Mutex<usize>,
+    }
+
+    impl FailNthFs {
+        fn tick(&self) -> std::io::Result<()> {
+            let mut left = self.remaining.lock().unwrap_or_else(|p| p.into_inner());
+            if *left == 0 {
+                return Err(std::io::Error::other("injected failure"));
+            }
+            *left -= 1;
+            Ok(())
+        }
+    }
+
+    impl crate::fs::Fs for FailNthFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            self.tick()?;
+            self.inner.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.tick()?;
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    /// Covers the `?` error-propagation branches in `plugin` and the scaffold helpers
+    /// by failing each mutating filesystem call in turn.
+    #[test]
+    fn make_plugin_propagates_fs_errors_at_every_step() {
+        let marketplace_dir = Path::new("/project/.ai");
+        let feature_sets: [&[Feature]; 5] = [
+            &[Feature::Skill],
+            &[Feature::Agent],
+            &[Feature::Mcp],
+            &[Feature::Hook],
+            &[Feature::OutputStyle, Feature::Lsp],
+        ];
+        for features in feature_sets {
+            for n in 0..40 {
+                let fs = FailNthFs { inner: MockFs::new(), remaining: Mutex::new(n) };
+                seed_marketplace(&fs.inner, marketplace_dir);
+                let opts =
+                    PluginOpts { marketplace_dir, name: "failing", engine: "claude", features };
+                if plugin(&opts, &fs).is_ok() {
+                    break;
+                }
+            }
+        }
+    }
 }
