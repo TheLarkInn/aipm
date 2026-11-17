@@ -984,6 +984,20 @@ mod tests {
     }
 
     #[test]
+    fn put_with_empty_index_file_starts_fresh_index() {
+        // Covers the `content.is_empty()` True branch in with_index():
+        // an existing but empty index file is treated as a fresh index.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        std::fs::create_dir_all(temp.path().join("cache")).unwrap();
+        std::fs::write(cache.index_path(), "").unwrap();
+
+        let dir = cache.put("empty-index-spec", &src, None).unwrap();
+        assert!(dir.join("plugin.json").exists());
+        assert_eq!(cache.get("empty-index-spec").unwrap(), Some(dir));
+    }
+
+    #[test]
     fn get_with_empty_index_file_returns_none() {
         // Covers the `content.is_empty()` True branch in read_index():
         // when the index file exists but is empty, treat it as a fresh cache.
