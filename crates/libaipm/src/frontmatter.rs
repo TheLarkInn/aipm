@@ -389,6 +389,12 @@ mod tests {
     }
 
     #[test]
+    fn strip_yaml_quotes_lone_quote_unchanged() {
+        assert_eq!(strip_yaml_quotes("\""), "\"");
+        assert_eq!(strip_yaml_quotes("'"), "'");
+    }
+
+    #[test]
     fn strip_yaml_quotes_empty() {
         assert_eq!(strip_yaml_quotes(""), "");
     }
