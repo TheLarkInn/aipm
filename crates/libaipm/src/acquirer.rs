@@ -627,6 +627,50 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the real `acquire_local` success path and the not-a-directory
+    /// branch using cwd-relative paths inside a temp dir created under the cwd.
+    #[test]
+    fn acquire_local_real_function_success_and_not_directory() {
+        let holder = tempfile::tempdir_in(".").unwrap_or_else(|_| std::process::abort());
+        let holder_name =
+            holder.path().file_name().and_then(|n| n.to_str()).unwrap_or("").to_string();
+
+        let plugin_rel = format!("{holder_name}/my-plugin");
+        let plugin_dir = holder.path().join("my-plugin");
+        std::fs::create_dir_all(plugin_dir.join(".claude-plugin")).unwrap_or_else(|_| {});
+        std::fs::write(plugin_dir.join(".claude-plugin/plugin.json"), "{}").unwrap_or_else(|_| {});
+
+        let dest = tempfile::tempdir().unwrap_or_else(|_| std::process::abort());
+        let path = ValidatedPath::new(&plugin_rel).unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(result.is_ok());
+        let out = result.unwrap_or_default();
+        assert!(out.join(".claude-plugin/plugin.json").exists());
+
+        let file_rel = format!("{holder_name}/a-file");
+        std::fs::write(holder.path().join("a-file"), "x").unwrap_or_else(|_| {});
+        let file_path = ValidatedPath::new(&file_rel).unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&file_path, dest.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotDirectory { .. })));
+
+        // Too many files → `check_file_count` error propagates from `acquire_local`.
+        let big_dir = holder.path().join("big-plugin");
+        std::fs::create_dir_all(&big_dir).unwrap_or_else(|_| {});
+        for i in 0..=MAX_PLUGIN_FILES {
+            std::fs::write(big_dir.join(format!("f{i}.txt")), "x").unwrap_or_else(|_| {});
+        }
+        let big = ValidatedPath::new(format!("{holder_name}/big-plugin"))
+            .unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&big, dest.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::TooManyFiles { .. })));
+
+        // Missing source → `LocalNotFound`.
+        let missing = ValidatedPath::new(format!("{holder_name}/missing"))
+            .unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&missing, dest.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotFound { .. })));
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
