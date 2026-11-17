@@ -143,6 +143,19 @@ mod tests {
     }
 
     #[test]
+    fn mock_fs_stub_methods_behave_as_documented() {
+        use crate::fs::Fs;
+
+        let fs = MockFs::new();
+        let p = Path::new("/x");
+        assert!(fs.create_dir_all(p).is_ok());
+        assert!(fs.write_file(p, b"data").is_ok());
+        assert!(fs.read_dir(p).is_ok_and(|entries| entries.is_empty()));
+        let err = fs.read_to_string(p);
+        assert!(err.is_err_and(|e| e.kind() == std::io::ErrorKind::NotFound));
+    }
+
+    #[test]
     fn find_marketplace_root_returns_error() {
         let fs = MockFs::new();
 
