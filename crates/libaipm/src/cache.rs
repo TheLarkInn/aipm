@@ -911,6 +911,22 @@ mod tests {
     }
 
     #[test]
+    fn copy_to_session_skips_symlinks() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let link_ok = std::os::unix::fs::symlink(src.join("plugin.json"), src.join("link.json"));
+        assert!(link_ok.is_ok());
+        assert!(cache.put("spec", &src, None).is_ok());
+
+        let session = temp.path().join("session");
+        assert!(std::fs::create_dir_all(&session).is_ok());
+        assert!(cache.copy_to_session("spec", &session, "plugin").is_ok());
+
+        assert!(session.join("plugin").join("plugin.json").exists());
+        assert!(!session.join("plugin").join("link.json").exists());
+    }
+
+    #[test]
     fn mark_installed_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
