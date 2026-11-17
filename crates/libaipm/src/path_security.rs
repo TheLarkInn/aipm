@@ -284,6 +284,12 @@ mod tests {
         assert!(matches!(result, Err(PathValidationError::PathTraversal)));
     }
 
+    #[test]
+    fn panic_free_unreachable_returns_empty_path() {
+        let path = panic_free_unreachable(&PathValidationError::EmptyPath);
+        assert_eq!(path.as_str(), "");
+    }
+
     /// Test helper that converts a validation error to a string and then
     /// creates a dummy [`ValidatedPath`] — used in place of `.unwrap()` which
     /// is denied by the workspace lint configuration.
