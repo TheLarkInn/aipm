@@ -1929,6 +1929,30 @@ mod tests {
     }
 
     #[test]
+    fn emit_with_name_rejects_unsafe_plugin_name() {
+        let fs = MockFs::new();
+        let artifact = make_skill_artifact();
+        let result = emit_plugin_with_name(&artifact, "../evil", Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+        if let Ok(actions) = result {
+            assert!(actions.iter().any(|a| matches!(a, Action::Skipped { .. })));
+        }
+        assert!(fs.get_written(Path::new("/ai/../evil/aipm.toml")).is_none());
+    }
+
+    #[test]
+    fn emit_with_name_rejects_unsafe_artifact_name() {
+        let fs = MockFs::new();
+        let mut artifact = make_skill_artifact();
+        artifact.name = "a/b".to_string();
+        let result = emit_plugin_with_name(&artifact, "deploy", Path::new("/ai"), true, &fs);
+        assert!(result.is_ok());
+        if let Ok(actions) = result {
+            assert!(actions.iter().any(|a| matches!(a, Action::Skipped { .. })));
+        }
+    }
+
+    #[test]
     fn is_safe_path_segment_accepts_valid() {
         assert!(is_safe_path_segment("deploy"));
         assert!(is_safe_path_segment("my-plugin-123"));
