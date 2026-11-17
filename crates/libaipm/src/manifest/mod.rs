@@ -638,6 +638,17 @@ engines = ["claude", "future-engine"]
     }
 
     #[test]
+    fn manifest_engines_field_with_non_list_type_fails_to_parse() {
+        let toml = r#"
+[package]
+name = "my-plugin"
+version = "1.0.0"
+engines = "claude"
+"#;
+        assert!(parse(toml).is_err(), "expected parse error for non-list engines value");
+    }
+
+    #[test]
     fn manifest_engines_explicit_empty_list_is_all_engines() {
         // `engines = []` resolves to Some(EngineSet::empty()) — semantically
         // equivalent to omitting the field; the lint treats both as
