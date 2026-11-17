@@ -303,6 +303,17 @@ mod tests {
     }
 
     #[test]
+    fn read_error_is_propagated() {
+        let mut fs = MockFs::new();
+        // Registered as existing but absent from `files`, so the read fails.
+        fs.exists.insert(PathBuf::from("/project/.github/hooks.json"));
+
+        let detector = CopilotHookDetector;
+        let result = detector.detect(Path::new("/project/.github"), &fs);
+        assert!(matches!(result, Err(Error::Io(_))), "expected Err(Error::Io), got: {result:?}");
+    }
+
+    #[test]
     fn malformed_json_returns_error() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.github/hooks.json"));
