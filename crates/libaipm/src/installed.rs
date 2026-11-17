@@ -309,6 +309,22 @@ mod tests {
     }
 
     #[test]
+    fn reinstall_updates_cache_policy_and_ttl() {
+        let mut registry = Registry::default();
+        let _ = registry.install("local:./my-plugin".to_string(), &[], None, None);
+        let added = registry.install(
+            "local:./my-plugin".to_string(),
+            &[],
+            Some(cache::Policy::CacheOnly),
+            Some(60),
+        );
+        assert!(matches!(added, Ok(false)));
+        let plugin = registry.plugins.first();
+        assert_eq!(plugin.and_then(|p| p.cache_policy), Some(cache::Policy::CacheOnly));
+        assert_eq!(plugin.and_then(|p| p.cache_ttl_secs), Some(60));
+    }
+
+    #[test]
     fn install_specific_engine_when_all_is_noop() {
         let mut registry = Registry::default();
         let _ = registry.install("local:./my-plugin".to_string(), &[], None, None);
