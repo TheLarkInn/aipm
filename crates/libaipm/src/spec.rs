@@ -1621,4 +1621,21 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    struct FailingWriter;
+
+    impl std::fmt::Write for FailingWriter {
+        fn write_str(&mut self, _: &str) -> std::fmt::Result {
+            Err(std::fmt::Error)
+        }
+    }
+
+    #[test]
+    fn git_source_display_propagates_write_error() {
+        use std::fmt::Write as _;
+        let src =
+            GitSource { url: "https://example.com/r.git".to_string(), path: None, git_ref: None };
+        let mut w = FailingWriter;
+        assert!(write!(w, "{src}").is_err());
+    }
 }
