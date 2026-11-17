@@ -1929,6 +1929,12 @@ mod tests {
     }
 
     #[test]
+    fn is_safe_path_segment_rejects_forward_slash() {
+        assert!(!is_safe_path_segment("a/b"));
+        assert!(!is_safe_path_segment("/abs"));
+    }
+
+    #[test]
     fn is_safe_path_segment_accepts_valid() {
         assert!(is_safe_path_segment("deploy"));
         assert!(is_safe_path_segment("my-plugin-123"));
