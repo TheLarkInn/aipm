@@ -1,7 +1,7 @@
 {
   "$schema": "../../../schemas/engine-api.schema.json",
   "meta_schema_version": "2.0.0",
-  "generated_at": "2026-05-05T13:04:12Z",
+  "generated_at": "2026-11-17T17:50:00Z",
   "engines": [
     {
       "name": "claude",
@@ -15,8 +15,8 @@
     }
   ],
   "versions": {
-    "claude": "2.1.128",
-    "copilot": "1.0.40"
+    "claude": "2.1.326",
+    "copilot": "1.0.113"
   },
   "apis": {
     "claude": {
@@ -206,6 +206,210 @@
           ],
           "deprecated": false,
           "notes": "Stop a running task"
+        },
+        {
+          "name": "TaskStop",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Stop a running background task (sdk-tools TaskStopInput)."
+        },
+        {
+          "name": "ListMcpResources",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: List MCP server resources."
+        },
+        {
+          "name": "RefreshMcpTools",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Refresh MCP tool list."
+        },
+        {
+          "name": "Mcp",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Invoke an MCP tool."
+        },
+        {
+          "name": "NotebookEdit",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Edit Jupyter notebook cells."
+        },
+        {
+          "name": "ReadMcpResource",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Read an MCP resource."
+        },
+        {
+          "name": "ReadMcpResourceDir",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Read an MCP resource directory."
+        },
+        {
+          "name": "ReportFindings",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Report review findings."
+        },
+        {
+          "name": "AskUserQuestion",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Ask the user a structured question."
+        },
+        {
+          "name": "SendFeedback",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Send feedback to Anthropic."
+        },
+        {
+          "name": "ClaudeDesign",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Design tool; availability gated."
+        },
+        {
+          "name": "Projects",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Projects integration; availability gated."
+        },
+        {
+          "name": "EnterPlanMode",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Enter plan mode."
+        },
+        {
+          "name": "ExitPlanMode",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Exit plan mode."
+        },
+        {
+          "name": "TaskCreate",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Create a task in the task list."
+        },
+        {
+          "name": "TaskGet",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Get a task."
+        },
+        {
+          "name": "TaskUpdate",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Update a task."
+        },
+        {
+          "name": "TaskList",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: List tasks."
+        },
+        {
+          "name": "Workflow",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Run a workflow; gated."
+        },
+        {
+          "name": "CronCreate",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Create a scheduled job."
+        },
+        {
+          "name": "CronDelete",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Delete a scheduled job."
+        },
+        {
+          "name": "CronList",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: List scheduled jobs."
+        },
+        {
+          "name": "ScheduleWakeup",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Schedule a wakeup."
+        },
+        {
+          "name": "RemoteTrigger",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Fire a remote trigger."
+        },
+        {
+          "name": "ShowOnboardingRolePicker",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Onboarding UI; internal."
+        },
+        {
+          "name": "OfferChromeSetup",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Offer Chrome integration setup; internal."
+        },
+        {
+          "name": "ReadNotifications",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Read pending notifications."
+        },
+        {
+          "name": "Monitor",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Monitor a background process."
+        },
+        {
+          "name": "ProposeSkills",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Propose skills to the user."
+        },
+        {
+          "name": "ProposeGoal",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Propose a goal."
+        },
+        {
+          "name": "Artifact",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Create/update an artifact."
+        },
+        {
+          "name": "PushNotification",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Send a push notification."
+        },
+        {
+          "name": "EnterWorktree",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Enter a git worktree."
+        },
+        {
+          "name": "ExitWorktree",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "New in 2.1.326 sdk-tools.d.ts: Exit a git worktree."
         }
       ],
       "hook_events": [
@@ -343,6 +547,12 @@
           "name": "FileChanged",
           "aliases": [],
           "deprecated": false
+        },
+        {
+          "name": "PermissionDenied",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Observed in 2.1.326 binary."
         }
       ],
       "features": [
@@ -2069,6 +2279,278 @@
         ],
         "unsupported_by": [
           "claude"
+        ]
+      },
+      "TaskStop": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ListMcpResources": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "RefreshMcpTools": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Mcp": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "NotebookEdit": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ReadMcpResource": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ReadMcpResourceDir": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ReportFindings": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "AskUserQuestion": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "SendFeedback": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ClaudeDesign": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Projects": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "EnterPlanMode": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ExitPlanMode": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskCreate": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskGet": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskUpdate": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskList": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Workflow": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "CronCreate": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "CronDelete": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "CronList": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ScheduleWakeup": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "RemoteTrigger": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ShowOnboardingRolePicker": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "OfferChromeSetup": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ReadNotifications": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Monitor": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ProposeSkills": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ProposeGoal": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Artifact": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "PushNotification": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "EnterWorktree": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ExitWorktree": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
         ]
       }
     }
