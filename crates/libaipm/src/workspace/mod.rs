@@ -365,4 +365,12 @@ mod tests {
             "expected 'failed to read' error, got: {err}"
         );
     }
+
+    #[test]
+    fn discover_members_invalid_glob_pattern_errors() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = discover_members(&crate::fs::Real, tmp.path(), &["[unclosed".to_string()]);
+        let err = result.err().map(|e| e.to_string()).unwrap_or_default();
+        assert!(err.contains("invalid glob pattern"), "unexpected error: {err}");
+    }
 }
