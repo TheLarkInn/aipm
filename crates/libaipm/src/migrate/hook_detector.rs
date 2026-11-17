@@ -442,6 +442,15 @@ mod tests {
     }
 
     #[test]
+    fn has_windows_drive_prefix_rejects_drive_without_separator() {
+        // Letter + colon but no `\` or `/` third byte must not count as a drive prefix.
+        assert!(!has_windows_drive_prefix("C:x"));
+        assert!(has_windows_drive_prefix("C:/x"));
+        assert!(has_windows_drive_prefix("D:\\x"));
+        assert!(!has_windows_drive_prefix("1:/x"));
+    }
+
+    #[test]
     fn is_relative_script_unrecognized_extension_returns_false() {
         // A bare filename with an extension that is not .sh/.py/.js should return false —
         // exercises the Some(ext) branch of extension().is_some_and(…) where the closure
