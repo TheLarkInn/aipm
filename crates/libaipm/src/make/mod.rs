@@ -1093,6 +1093,29 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_engine_both_updates_engine_settings() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "both-plugin",
+            engine: "both",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        assert!(
+            result.actions.iter().any(|a| matches!(a, Action::PluginEnabled { .. })),
+            "expected PluginEnabled action for engine 'both'"
+        );
+    }
+
+    #[test]
     fn make_plugin_emits_already_registered_for_existing_plugin() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
