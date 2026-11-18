@@ -1057,6 +1057,34 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_root_marketplace_dir_skips_engine_settings() {
+        // A marketplace dir with no parent (filesystem root) has no sibling
+        // `.claude/` dir, so `update_engine_settings` must emit no settings action.
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "root-plugin",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        assert!(
+            !result.actions.iter().any(|a| matches!(
+                a,
+                Action::PluginEnabled { .. } | Action::PluginAlreadyEnabled { .. }
+            )),
+            "no settings action expected when marketplace dir has no parent"
+        );
+    }
+
+    #[test]
     fn make_plugin_both_engine_updates_settings() {
         // Covers the `opts.engine == "both"` branch: the first condition
         // (`opts.engine == "claude"`) is false but the second (`opts.engine == "both"`)
