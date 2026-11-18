@@ -581,6 +581,21 @@ mod tests {
     }
 
     #[test]
+    fn copy_dir_recursive_nested_copy_failure_propagates() {
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        std::fs::create_dir_all(src.join("sub")).unwrap_or_else(|_| {});
+        std::fs::write(src.join("sub/content.txt"), "data").unwrap_or_else(|_| {});
+
+        let dst = temp.path().join("dst");
+        // A directory where the file should land makes the nested copy fail.
+        std::fs::create_dir_all(dst.join("sub/content.txt")).unwrap_or_else(|_| {});
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::CopyFailed { .. })), "got: {result:?}");
+    }
+
+    #[test]
     fn source_redirect_with_invalid_toml() {
         let temp = make_temp();
         let dir = temp.path().join("bad-toml");
