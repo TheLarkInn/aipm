@@ -143,6 +143,22 @@ mod tests {
     }
 
     #[test]
+    fn mock_fs_recovers_from_poisoned_lock() {
+        let fs = std::sync::Arc::new(MockFs::new());
+        let poisoner = std::sync::Arc::clone(&fs);
+        let joined = std::thread::spawn(move || {
+            let _guard = poisoner.files.lock();
+            std::panic::resume_unwind(Box::new("poison"));
+        })
+        .join();
+        assert!(joined.is_err());
+
+        fs.add_file("/project/.ai/.claude-plugin/marketplace.json");
+        let result = find_marketplace(Path::new("/project"), fs.as_ref());
+        assert_eq!(result.unwrap_or_default(), PathBuf::from("/project/.ai"));
+    }
+
+    #[test]
     fn find_marketplace_root_returns_error() {
         let fs = MockFs::new();
 
