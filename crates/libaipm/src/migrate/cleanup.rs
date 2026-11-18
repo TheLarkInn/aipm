@@ -346,6 +346,28 @@ mod tests {
     }
 
     #[test]
+    fn unreadable_parent_directory_is_skipped_during_pruning() {
+        let mut fs = MockFs::new();
+        fs.dirs.insert(
+            PathBuf::from("/p/.claude/skills/deploy"),
+            vec![DirEntry { name: "SKILL.md".to_string(), is_dir: false }],
+        );
+        // Parent is not registered, so read_dir returns NotFound and pruning is skipped.
+
+        let outcome =
+            make_outcome(vec![plugin_created("deploy", "/p/.claude/skills/deploy", "skill", true)]);
+
+        let result = remove_migrated_sources(&outcome, &fs);
+        assert!(result.is_ok());
+        let actions = result.ok().unwrap_or_default();
+        assert_eq!(actions.len(), 1);
+        assert_eq!(
+            actions.first(),
+            Some(&Action::SourceDirRemoved { path: PathBuf::from("/p/.claude/skills/deploy") })
+        );
+    }
+
+    #[test]
     fn remove_file_error_propagates() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/p/.claude/commands/review.md"));
