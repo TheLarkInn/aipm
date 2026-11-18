@@ -192,6 +192,18 @@ mod tests {
         assert!(result.is_err());
     }
 
+    #[test]
+    fn open_directory_path_reports_io_error_with_path() {
+        // The parent exists, so mkdir succeeds, but opening a directory for
+        // writing fails — exercising the `OpenOptions::open` error branch.
+        let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
+        let result = LockedFile::open(temp.path());
+        assert!(matches!(&result, Err(Error::Io { path, .. }) if path == temp.path()));
+        if let Err(err) = result {
+            assert!(err.to_string().contains("Locked file I/O error"));
+        }
+    }
+
     /// Fallback that satisfies the type checker without `unwrap()` / `panic!()`.
     fn unreachable_tempdir() -> tempfile::TempDir {
         tempfile::tempdir_in(".").unwrap_or_else(|_| {
