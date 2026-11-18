@@ -471,4 +471,13 @@ mod tests {
         let detector = HookDetector;
         assert_eq!(detector.name(), "hook");
     }
+
+    #[test]
+    fn is_relative_script_rejects_empty_and_absolute() {
+        // Empty, rooted, and Windows drive-letter paths are never relative scripts.
+        assert!(!is_relative_script("", Path::new(".")));
+        assert!(!is_relative_script("/usr/bin/run.sh", Path::new(".")));
+        assert!(!is_relative_script("C:\\scripts\\run.sh", Path::new(".")));
+        assert!(!is_relative_script("D:/scripts/run.sh", Path::new(".")));
+    }
 }
