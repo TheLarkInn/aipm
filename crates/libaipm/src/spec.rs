@@ -1621,4 +1621,53 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    /// Writer that accepts `ok` writes, then fails every subsequent write.
+    struct FailAfter {
+        ok: usize,
+    }
+
+    impl std::fmt::Write for FailAfter {
+        fn write_str(&mut self, _s: &str) -> std::fmt::Result {
+            if self.ok == 0 {
+                return Err(std::fmt::Error);
+            }
+            self.ok -= 1;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn git_source_display_propagates_write_errors() {
+        use std::fmt::Write;
+        let spec = parse("git:https://example.com/r.git:sub@main");
+        // Each `write!` emits several fragments; sweep the failure point so
+        // every `?` in `Display` sees an error.
+        let mut failures = 0;
+        for ok in 0..12 {
+            if write!(FailAfter { ok }, "{spec}").is_err() {
+                failures += 1;
+            }
+        }
+        assert!(failures > 0);
+    }
+
+    #[test]
+    fn marketplace_source_display_propagates_write_errors() {
+        use std::fmt::Write;
+        let src = MarketplaceSource {
+            plugin_name: "p".to_string(),
+            market_location: MarketLocation::GitUrl {
+                url: "https://example.com/m.git".to_string(),
+            },
+            git_ref: Some("v1".to_string()),
+        };
+        let mut failures = 0;
+        for ok in 0..12 {
+            if write!(FailAfter { ok }, "{src}").is_err() {
+                failures += 1;
+            }
+        }
+        assert!(failures > 0);
+    }
 }
