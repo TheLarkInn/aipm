@@ -1190,4 +1190,20 @@ mod tests {
             outcome.actions.iter().filter(|a| matches!(a, Action::PluginCreated { .. })).count();
         assert_eq!(created, 0, "no plugin should be created for an empty-artifact plan");
     }
+
+    /// Covers the `None` arm of `per_artifact.first_mut()` in the fallback loop of
+    /// `build_plugin_plans`: an adapter root with an empty artifact list yields
+    /// no plans and does not error.
+    #[test]
+    fn build_plugin_plans_fallback_with_empty_artifact_list_yields_no_plans() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let mut adapter_artifacts: BTreeMap<PathBuf, Vec<Artifact>> = BTreeMap::new();
+        let orphan_root = tmp.path().join("orphan-root");
+        std::fs::create_dir_all(&orphan_root).expect("create orphan root");
+        adapter_artifacts.insert(orphan_root, Vec::new());
+
+        let plans = build_plugin_plans(&adapter_artifacts, &[], &Real)
+            .expect("empty fallback root must not error");
+        assert!(plans.is_empty(), "no plans expected for an empty artifact list");
+    }
 }
