@@ -444,6 +444,51 @@ mod tests {
         }
     }
 
+    /// Fs that fails `create_dir_all` for the `.claude` settings directory.
+    struct FailSettingsDirFs(MockFs);
+
+    impl crate::fs::Fs for FailSettingsDirFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.0.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            if path.file_name().is_some_and(|n| n == ".claude") {
+                return Err(std::io::Error::other("denied"));
+            }
+            self.0.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.0.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.0.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.0.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn make_plugin_settings_dir_creation_failure_propagates() {
+        let inner = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&inner, marketplace_dir);
+        let fs = FailSettingsDirFs(inner);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "fail-plugin",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        assert!(plugin(&opts, &fs).is_err());
+    }
+
     /// Seed a minimal marketplace.json into the MockFs so that
     /// `marketplace::register` can read-modify-write it.
     fn seed_marketplace(fs: &MockFs, marketplace_dir: &Path) {
