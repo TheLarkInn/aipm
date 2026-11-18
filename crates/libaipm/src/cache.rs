@@ -1137,4 +1137,15 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn put_with_missing_source_dir_returns_io_error() {
+        // Covers the read_dir error branch in copy_dir_contents() via put().
+        let (temp, cache) = test_cache(Policy::Auto);
+        let missing = temp.path().join("does-not-exist");
+
+        let result = cache.put("missing-src", &missing, None);
+
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got {result:?}");
+    }
 }
