@@ -614,6 +614,21 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the `check_file_count` error branch inside `acquire_local`: a
+    /// source directory with more than `MAX_PLUGIN_FILES` files is rejected.
+    #[test]
+    fn acquire_local_too_many_files() {
+        let Ok(src) = tempfile::tempdir_in(".") else { return };
+        for i in 0..=MAX_PLUGIN_FILES {
+            std::fs::write(src.path().join(format!("f{i}.txt")), "x").unwrap_or_else(|_| {});
+        }
+        let name = src.path().file_name().and_then(|n| n.to_str()).unwrap_or("x").to_string();
+        let dest = make_temp();
+        let path = ValidatedPath::new(&name).unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::TooManyFiles { .. })));
+    }
+
     /// Covers the `acquire_local` path where the source path exists on disk but
     /// is a regular file rather than a directory (False at "not found" check,
     /// True at "not a dir" check).
