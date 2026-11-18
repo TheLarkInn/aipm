@@ -221,6 +221,16 @@ mod tests {
     }
 
     #[test]
+    fn parse_ignores_yaml_lines_without_colon() {
+        let content = "---\nname: deploy\nnot a key value line\ndescription: Deploy\n---\nbody";
+        let fm = parse(content).ok().flatten();
+        let fields = fm.map(|f| f.fields).unwrap_or_default();
+        assert_eq!(fields.len(), 2);
+        assert_eq!(fields.get("name").map(String::as_str), Some("deploy"));
+        assert_eq!(fields.get("description").map(String::as_str), Some("Deploy"));
+    }
+
+    #[test]
     fn parse_no_frontmatter() {
         let content = "just plain text";
         let result = parse(content);
