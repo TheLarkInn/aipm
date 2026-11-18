@@ -378,3 +378,40 @@ fn make_plugin_invalid_feature_for_engine() {
         .failure()
         .stderr(predicate::str::is_match("(?i)(not supported|unsupported)").unwrap());
 }
+
+// =========================================================================
+// Scenario: Re-making a plugin whose directory was removed reports that it is
+// already registered in the marketplace and already enabled in settings
+// =========================================================================
+#[test]
+fn make_plugin_rerun_reports_already_registered_and_enabled() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let dir = tmp.path().join("rerun");
+    let dir_arg = dir.display().to_string();
+
+    aipm().args(["init", "-y", "--engine", "claude", &dir_arg]).assert().success();
+
+    let make_args = [
+        "make",
+        "plugin",
+        "--name",
+        "foo",
+        "--engine",
+        "claude",
+        "--feature",
+        "skill",
+        "-y",
+        "--dir",
+        &dir_arg,
+    ];
+    aipm().args(make_args).assert().success();
+
+    std::fs::remove_dir_all(dir.join(".ai/foo")).unwrap();
+
+    aipm()
+        .args(make_args)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Plugin 'foo' already registered"))
+        .stdout(predicate::str::contains("already enabled"));
+}
