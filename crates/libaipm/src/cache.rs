@@ -1052,6 +1052,17 @@ mod tests {
     }
 
     #[test]
+    fn with_index_corrupt_index_returns_index_parse_error() {
+        // Covers the `IndexParse` error path when the on-disk index is invalid JSON.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        cache.ensure_dirs().unwrap();
+        std::fs::write(cache.index_path(), "{ not valid json").unwrap();
+
+        let result = cache.mark_installed("any-spec", true);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn cache_policy_parse_aliases() {
         // Each variant has additional aliases beyond the canonical `to_string()` form.
         // These branches are otherwise untouched by `cache_policy_roundtrip`.
