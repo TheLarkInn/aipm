@@ -602,6 +602,17 @@ engines = ["claude", "copilot"]
     }
 
     #[test]
+    fn manifest_engines_field_with_wrong_type_fails_to_parse() {
+        let toml = r#"
+[package]
+name = "my-plugin"
+version = "1.0.0"
+engines = "claude"
+"#;
+        assert!(parse(toml).is_err());
+    }
+
+    #[test]
     fn manifest_engines_field_with_only_unknown_names_fails_to_parse() {
         // A non-empty engines list whose entries are ALL unknown must
         // error rather than silently widening to "all engines"
