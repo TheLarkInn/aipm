@@ -911,6 +911,19 @@ mod tests {
     }
 
     #[test]
+    fn put_twice_replaces_old_entry_dir() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let spec = "github:owner/repo:plugin@main";
+        assert!(cache.put(spec, &src, None).is_ok());
+        assert!(cache.mark_installed(spec, true).is_ok());
+        assert!(cache.put(spec, &src, None).is_ok());
+
+        let count = std::fs::read_dir(cache.entries_dir()).map(Iterator::count).unwrap_or(0);
+        assert_eq!(count, 1, "old entry directory must be removed on overwrite");
+    }
+
+    #[test]
     fn mark_installed_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
