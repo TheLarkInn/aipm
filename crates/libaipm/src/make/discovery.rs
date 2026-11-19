@@ -41,13 +41,18 @@ pub fn find_marketplace(start_dir: &Path, fs: &dyn Fs) -> Result<PathBuf, Error>
 /// `ai_dir`. Iterates [`libaipm_engine_spec::Engine::ALL`] so the check
 /// stays in sync with the engine spec.
 fn has_any_engine_marketplace(ai_dir: &Path, fs: &dyn Fs) -> bool {
-    libaipm_engine_spec::Engine::ALL.iter().copied().any(|engine| {
-        let rel = crate::engine::marketplace_manifest_path(engine);
-        if rel.is_empty() {
-            return false;
-        }
-        fs.exists(&ai_dir.join(rel))
-    })
+    libaipm_engine_spec::Engine::ALL
+        .iter()
+        .copied()
+        .any(|engine| manifest_exists(ai_dir, crate::engine::marketplace_manifest_path(engine), fs))
+}
+
+/// Returns true if `rel` is non-empty and exists under `ai_dir`.
+fn manifest_exists(ai_dir: &Path, rel: &str, fs: &dyn Fs) -> bool {
+    if rel.is_empty() {
+        return false;
+    }
+    fs.exists(&ai_dir.join(rel))
 }
 
 #[cfg(test)]
@@ -140,6 +145,16 @@ mod tests {
         assert!(result.is_ok());
         // Should find the one at /project, not /project/sub
         assert_eq!(result.unwrap_or_default(), PathBuf::from("/project/.ai"));
+    }
+
+    #[test]
+    fn manifest_exists_empty_rel_is_false() {
+        let fs = MockFs::new();
+        // Even if the `.ai` dir itself is registered, an empty rel must not match.
+        fs.add_file("/project/.ai");
+        assert!(!manifest_exists(Path::new("/project/.ai"), "", &fs));
+        fs.add_file("/project/.ai/m.json");
+        assert!(manifest_exists(Path::new("/project/.ai"), "m.json", &fs));
     }
 
     #[test]
