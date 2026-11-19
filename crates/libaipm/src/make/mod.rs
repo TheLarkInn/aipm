@@ -547,6 +547,78 @@ mod tests {
         );
     }
 
+    /// Wraps `MockFs` and fails the Nth mutating call (`create_dir_all` / `write_file`).
+    struct FailNthFs {
+        inner: MockFs,
+        fail_at: usize,
+        calls: std::sync::atomic::AtomicUsize,
+    }
+
+    impl FailNthFs {
+        fn tick(&self) -> std::io::Result<()> {
+            let n = self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if n == self.fail_at {
+                Err(std::io::Error::other("injected failure"))
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    impl crate::fs::Fs for FailNthFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            self.tick()?;
+            self.inner.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.tick()?;
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_io_errors_at_every_step() {
+        let marketplace_dir = Path::new("/project/.ai");
+        let features = [
+            Feature::Skill,
+            Feature::Agent,
+            Feature::Mcp,
+            Feature::Hook,
+            Feature::OutputStyle,
+            Feature::Lsp,
+            Feature::Extension,
+            Feature::Command,
+        ];
+        for fail_at in 0..20 {
+            let fs = FailNthFs {
+                inner: MockFs::new(),
+                fail_at,
+                calls: std::sync::atomic::AtomicUsize::new(0),
+            };
+            seed_marketplace(&fs.inner, marketplace_dir);
+            let opts = PluginOpts {
+                marketplace_dir,
+                name: "failing",
+                engine: "claude",
+                features: &features,
+            };
+            assert!(plugin(&opts, &fs).is_err(), "expected error when call {fail_at} fails");
+        }
+    }
+
     #[test]
     fn make_plugin_idempotent() {
         let fs = MockFs::new();
