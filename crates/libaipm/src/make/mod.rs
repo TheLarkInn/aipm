@@ -1253,4 +1253,37 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Covers the `opts.marketplace_dir.parent()` None branch of
+    /// `update_engine_settings`: a root marketplace dir has no parent, so no
+    /// settings action is emitted.
+    #[test]
+    fn make_plugin_root_marketplace_dir_skips_engine_settings() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "root-plugin",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        assert!(
+            !result.actions.iter().any(|a| matches!(
+                a,
+                Action::PluginEnabled { .. } | Action::PluginAlreadyEnabled { .. }
+            )),
+            "no settings action expected when marketplace_dir has no parent"
+        );
+        assert!(
+            result.actions.iter().any(|a| matches!(a, Action::PluginCreated { .. })),
+            "plugin should still be created"
+        );
+    }
 }
