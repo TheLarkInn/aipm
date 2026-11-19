@@ -387,6 +387,16 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_real_dir_copies_then_fails_validation() {
+        let temp = make_temp();
+        // `src` is a real directory relative to the crate root (test cwd) with no plugin markers.
+        let path = ValidatedPath::new("src").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(result.is_err());
+        assert!(temp.path().join("src").is_dir());
+    }
+
+    #[test]
     fn acquire_local_validates_structure() {
         let temp = make_temp();
         // Create a directory without any marker files or aipm.toml
