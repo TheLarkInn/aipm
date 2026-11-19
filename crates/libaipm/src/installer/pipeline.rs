@@ -1716,6 +1716,31 @@ features = ["extra"]
     }
 
     #[test]
+    fn install_unlocked_skips_linking_for_link_override() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let config = setup_project(tmp.path());
+        let registry = make_registry();
+
+        let first = install(&crate::fs::Real, &config, &registry);
+        assert!(first.is_ok(), "first install failed: {first:?}");
+
+        let link_entry = crate::linker::link_state::LinkEntry {
+            name: "pkg-a".to_string(),
+            path: std::path::PathBuf::from("/dev/path"),
+            linked_at: "2026-01-01T00:00:00Z".to_string(),
+        };
+        crate::linker::link_state::add(&crate::fs::Real, &config.link_state_path, link_entry)
+            .expect("add link entry");
+
+        let second = install(&crate::fs::Real, &config, &registry);
+        assert!(second.is_ok(), "install with link override failed: {second:?}");
+
+        let entries = crate::linker::link_state::list(&crate::fs::Real, &config.link_state_path)
+            .expect("list link entries");
+        assert_eq!(entries.len(), 1, "unlocked install must keep dev link overrides");
+    }
+
+    #[test]
     fn install_with_manifest_having_overrides() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let manifest_path = tmp.path().join("aipm.toml");
