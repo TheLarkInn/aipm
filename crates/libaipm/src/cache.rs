@@ -1020,6 +1020,20 @@ mod tests {
     }
 
     #[test]
+    fn put_treats_empty_index_file_as_default() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        cache.ensure_dirs().unwrap();
+        std::fs::write(cache.index_path(), "").unwrap();
+
+        let src = create_source_plugin(&temp);
+        let dir = cache.put("empty-index", &src, None).unwrap();
+
+        assert!(dir.exists());
+        let index = cache.read_index().unwrap();
+        assert!(index.entries.contains_key("empty-index"));
+    }
+
+    #[test]
     fn put_handles_already_removed_old_entry_dir() {
         // Covers the `if old_dir.exists()` False branch in put():
         // Store a first entry, then manually remove its directory to simulate
