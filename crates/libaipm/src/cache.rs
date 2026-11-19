@@ -599,6 +599,23 @@ mod tests {
     }
 
     #[test]
+    fn put_replacing_entry_with_missing_old_dir_succeeds() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+
+        let first = cache.put("spec", &src, None);
+        assert!(first.is_ok());
+        let first = first.unwrap_or_default();
+        assert!(std::fs::remove_dir_all(&first).is_ok());
+
+        let second = cache.put("spec", &src, None);
+        assert!(second.is_ok());
+        let second = second.unwrap_or_default();
+        assert_ne!(first, second);
+        assert!(second.join("plugin.json").exists());
+    }
+
+    #[test]
     fn cache_force_refresh_always_misses() {
         let (temp, cache) = test_cache(Policy::ForceRefresh);
         let src = create_source_plugin(&temp);
