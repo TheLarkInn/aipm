@@ -355,6 +355,16 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_existing_dir_without_plugin_manifest_fails_validation() {
+        let temp = make_temp();
+        // `src/make` exists relative to the crate dir (the test cwd) but is not a plugin.
+        let path = ValidatedPath::new("src/make").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(result.is_err());
+        assert!(temp.path().join("make").is_dir());
+    }
+
+    #[test]
     fn acquire_local_not_found() {
         let temp = make_temp();
         let path = ValidatedPath::new("nonexistent").unwrap_or_else(|_| std::process::abort());
