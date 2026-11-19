@@ -425,6 +425,16 @@ mod tests {
     }
 
     #[test]
+    fn copy_dir_recursive_missing_source_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("does-not-exist");
+        let dst = temp.path().join("dst");
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { ref path, .. }) if *path == src));
+    }
+
+    #[test]
     fn copy_dir_recursive_skips_git_dir() {
         let temp = make_temp();
         let src = temp.path().join("src");
