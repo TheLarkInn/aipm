@@ -734,6 +734,12 @@ mod tests {
     }
 
     #[test]
+    fn parse_marketplace_location_with_nested_slash_is_invalid() {
+        assert!("market:plugin@owner/repo/extra".parse::<Spec>().is_err());
+        assert!("market:plugin@owner/".parse::<Spec>().is_err());
+    }
+
+    #[test]
     fn parse_marketplace_folder_name() {
         let spec = parse("market:hello-skills@owner/repo");
         assert_eq!(spec.folder_name(), "hello-skills");
