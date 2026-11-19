@@ -367,6 +367,24 @@ fn uninstall_global_removes_engine_entry() {
 }
 
 // =========================================================================
+// `uninstall --global` — plugin absent from the registry returns an error
+// =========================================================================
+
+#[test]
+fn uninstall_global_unknown_plugin_fails() {
+    let tmp_home = tempfile::tempdir().unwrap();
+
+    // Covers the `if !changed` True branch in `cmd_uninstall_global`:
+    // an explicit spec that is not in the (empty) registry is rejected.
+    aipm()
+        .args(["uninstall", "--global", "--engine", "claude", "local:./never-installed"])
+        .env("HOME", tmp_home.path())
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("local:./never-installed"));
+}
+
+// =========================================================================
 // `uninstall` (no --global) — local unlink branch at main.rs `if global`
 // =========================================================================
 
