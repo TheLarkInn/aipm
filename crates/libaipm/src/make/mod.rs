@@ -453,6 +453,24 @@ mod tests {
     }
 
     #[test]
+    fn is_plugin_registered_false_for_missing_or_invalid_json() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/.ai/.claude-plugin/marketplace.json");
+        assert!(!is_plugin_registered(&fs, path, "x"), "missing file");
+        fs.seed(path, b"not json");
+        assert!(!is_plugin_registered(&fs, path, "x"), "invalid JSON");
+    }
+
+    #[test]
+    fn read_marketplace_name_defaults_for_missing_or_invalid_json() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/.ai/.claude-plugin/marketplace.json");
+        assert_eq!(read_marketplace_name(&fs, path), "local-repo-plugins");
+        fs.seed(path, b"not json");
+        assert_eq!(read_marketplace_name(&fs, path), "local-repo-plugins");
+    }
+
+    #[test]
     fn make_plugin_creates_skill_plugin() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
