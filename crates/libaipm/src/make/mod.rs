@@ -1213,6 +1213,42 @@ mod tests {
     /// When the plugin is already present in marketplace.json before `plugin()` is
     /// called, `is_plugin_registered` returns true and the function emits
     /// `Action::PluginAlreadyRegistered` instead of `Action::PluginRegistered`.
+    struct FailCreateDirFs;
+
+    impl crate::fs::Fs for FailCreateDirFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"))
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Ok(String::new())
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_create_dir_error() {
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/project/.ai"),
+            name: "fail-dir",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        assert!(plugin(&opts, &FailCreateDirFs).is_err());
+    }
+
     #[test]
     fn make_plugin_already_registered_emits_already_registered_action() {
         let fs = MockFs::new();
