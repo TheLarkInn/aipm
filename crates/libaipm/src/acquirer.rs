@@ -425,6 +425,19 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_from_too_many_files_returns_error() {
+        let temp = make_temp();
+        let src = make_local_plugin(&temp, "huge-source");
+        for i in 0..=MAX_PLUGIN_FILES {
+            std::fs::write(src.join(format!("file{i}.txt")), "x").unwrap_or_else(|_| {});
+        }
+        let dest = temp.path().join("dest");
+        std::fs::create_dir_all(&dest).unwrap_or_else(|_| {});
+        let result = acquire_local_from(&src, &dest, Engine::Claude, "huge-source");
+        assert!(matches!(result, Err(Error::TooManyFiles { .. })), "got: {result:?}");
+    }
+
+    #[test]
     fn copy_dir_recursive_skips_git_dir() {
         let temp = make_temp();
         let src = temp.path().join("src");
