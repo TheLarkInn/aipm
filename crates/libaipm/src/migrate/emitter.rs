@@ -1724,6 +1724,23 @@ mod tests {
     }
 
     #[test]
+    fn generate_manifest_hook_artifact_with_frontmatter_hooks() {
+        let artifact = Artifact {
+            kind: ArtifactKind::Hook,
+            name: "guard".to_string(),
+            source_path: PathBuf::from("/src"),
+            files: vec![],
+            referenced_scripts: Vec::new(),
+            metadata: ArtifactMetadata {
+                hooks: Some("PreToolUse: check".to_string()),
+                ..ArtifactMetadata::default()
+            },
+        };
+        let manifest = generate_plugin_manifest(&artifact, "guard");
+        assert_eq!(manifest.matches("hooks/hooks.json").count(), 1);
+    }
+
+    #[test]
     fn generate_manifest_no_description() {
         let artifact = Artifact {
             kind: ArtifactKind::Command,
