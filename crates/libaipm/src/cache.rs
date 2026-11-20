@@ -911,6 +911,17 @@ mod tests {
     }
 
     #[test]
+    fn empty_index_file_is_treated_as_default() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        std::fs::write(cache.index_path(), "").unwrap_or_else(|_| {});
+
+        let index = cache.read_index();
+        assert!(index.is_ok_and(|i| i.entries.is_empty()));
+        assert!(cache.mark_installed("none", true).is_ok());
+    }
+
+    #[test]
     fn mark_installed_nonexistent_is_noop() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let _ = cache.ensure_dirs();
