@@ -984,6 +984,22 @@ mod tests {
     }
 
     #[test]
+    fn with_index_empty_file_is_treated_as_fresh_and_corrupt_file_errors() {
+        // `with_index` (via `mark_installed`): an empty index file is a fresh
+        // cache, while unparseable JSON surfaces `Error::IndexParse`.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let cache_root = temp.path().join("cache");
+        assert!(std::fs::create_dir_all(&cache_root).is_ok());
+
+        assert!(std::fs::write(cache.index_path(), "").is_ok());
+        assert!(cache.mark_installed("missing-spec", true).is_ok());
+
+        assert!(std::fs::write(cache.index_path(), "{ not valid json").is_ok());
+        let result = cache.mark_installed("missing-spec", true);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn get_with_empty_index_file_returns_none() {
         // Covers the `content.is_empty()` True branch in read_index():
         // when the index file exists but is empty, treat it as a fresh cache.
