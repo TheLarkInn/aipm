@@ -581,6 +581,28 @@ mod tests {
     }
 
     #[test]
+    fn copy_dir_recursive_missing_src_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("missing-src");
+        let dst = temp.path().join("dst");
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { ref path, .. }) if *path == src));
+    }
+
+    #[test]
+    fn copy_dir_recursive_subdir_create_fails_returns_io_error() {
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(src.join("sub")).unwrap_or_else(|_| {});
+        std::fs::create_dir_all(&dst).unwrap_or_else(|_| {});
+        // A file where the subdirectory must be created makes create_dir_all fail.
+        std::fs::write(dst.join("sub"), "x").unwrap_or_else(|_| {});
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn source_redirect_with_invalid_toml() {
         let temp = make_temp();
         let dir = temp.path().join("bad-toml");
