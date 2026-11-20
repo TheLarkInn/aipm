@@ -2054,4 +2054,41 @@ mod tests {
         let group_line = output.lines().find(|l| l.starts_with("##[group]")).unwrap_or_default();
         assert!(group_line.contains("%0A##vso[task.setvariable"));
     }
+
+    /// Writer that succeeds for the first `remaining` writes, then fails.
+    struct FailAfter {
+        remaining: usize,
+    }
+
+    impl Write for FailAfter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if self.remaining == 0 {
+                return Err(std::io::Error::other("write failed"));
+            }
+            self.remaining -= 1;
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn reporters_propagate_write_errors_at_every_position() {
+        let outcome = sample_outcome();
+        let reporters: [&dyn Reporter; 4] = [&Text, &Json, &CiGitHub, &CiAzure];
+        for reporter in reporters {
+            let mut saw_error = false;
+            for remaining in 0..200 {
+                let mut writer = FailAfter { remaining };
+                if reporter.report(&outcome, &mut writer).is_err() {
+                    saw_error = true;
+                } else {
+                    break;
+                }
+            }
+            assert!(saw_error);
+        }
+    }
 }
