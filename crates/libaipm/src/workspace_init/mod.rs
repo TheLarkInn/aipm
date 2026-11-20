@@ -808,6 +808,34 @@ mod tests {
     }
 
     #[test]
+    fn init_workspace_keeps_existing_package_only_manifest() {
+        let (tmp, _guard) = make_temp_dir("ws-package-only");
+        let existing = "[package]\nname = \"solo\"\nversion = \"0.1.0\"\n";
+        std::fs::write(tmp.join("aipm.toml"), existing).ok();
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: true,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+
+        let after = std::fs::read_to_string(tmp.join("aipm.toml")).unwrap_or_default();
+        assert_eq!(existing, after, "aipm.toml must be unchanged");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.iter().any(|a| matches!(a, InitAction::WorkspaceFoundExisting)));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_marketplace_is_idempotent_when_ai_exists() {
         let (tmp, _guard) = make_temp_dir("mp-idempotent");
         std::fs::create_dir_all(tmp.join(".ai")).ok();
