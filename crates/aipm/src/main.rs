@@ -1968,4 +1968,22 @@ mod tests {
             ".ai segment should be recognised"
         );
     }
+
+    /// `StubRegistry` rejects both metadata lookups and downloads because no
+    /// registry is configured.
+    #[test]
+    fn stub_registry_reports_no_registry_configured() {
+        use libaipm::registry::Registry;
+
+        let registry = StubRegistry;
+        let meta = registry.get_metadata("pkg");
+        assert!(meta.is_err_and(|e| e.to_string().contains("cannot look up 'pkg'")));
+
+        let version = libaipm::version::Version::parse("1.0.0");
+        assert!(version.is_ok());
+        if let Ok(v) = version {
+            let dl = registry.download("pkg", &v);
+            assert!(dl.is_err_and(|e| e.to_string().contains("cannot download 'pkg@1.0.0'")));
+        }
+    }
 }
