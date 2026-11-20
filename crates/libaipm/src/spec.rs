@@ -1621,4 +1621,51 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    /// Writer that fails on the `fail_at`-th `write_str` call.
+    struct FailingWriter {
+        calls: usize,
+        fail_at: usize,
+    }
+
+    impl std::fmt::Write for FailingWriter {
+        fn write_str(&mut self, _s: &str) -> std::fmt::Result {
+            self.calls += 1;
+            if self.calls >= self.fail_at {
+                Err(std::fmt::Error)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    #[test]
+    fn source_display_propagates_writer_errors() {
+        let git = GitSource {
+            url: "https://example.com/repo".to_string(),
+            path: ValidatedPath::new("sub/dir").ok(),
+            git_ref: Some("main".to_string()),
+        };
+        let market = MarketplaceSource {
+            plugin_name: "p".to_string(),
+            market_location: MarketLocation::Local { path: std::path::PathBuf::from("m") },
+            git_ref: Some("v1".to_string()),
+        };
+        for fail_at in 1..=8 {
+            let mut w = FailingWriter { calls: 0, fail_at: usize::MAX };
+            assert!(std::fmt::write(&mut w, format_args!("{git}")).is_ok());
+            let total = w.calls;
+            let mut w = FailingWriter { calls: 0, fail_at };
+            assert_eq!(std::fmt::write(&mut w, format_args!("{git}")).is_err(), fail_at <= total);
+
+            let mut w = FailingWriter { calls: 0, fail_at: usize::MAX };
+            assert!(std::fmt::write(&mut w, format_args!("{market}")).is_ok());
+            let total = w.calls;
+            let mut w = FailingWriter { calls: 0, fail_at };
+            assert_eq!(
+                std::fmt::write(&mut w, format_args!("{market}")).is_err(),
+                fail_at <= total
+            );
+        }
+    }
 }
