@@ -174,6 +174,17 @@ mod tests {
     }
 
     #[test]
+    fn unreadable_mcp_config_returns_io_error() {
+        let mut fs = MockFs::new();
+        // File "exists" but has no content in the mock, so read_to_string fails.
+        fs.exists.insert(PathBuf::from("/project/.copilot/mcp-config.json"));
+
+        let detector = CopilotMcpDetector;
+        let result = detector.detect(Path::new("/project/.github"), &fs);
+        assert!(matches!(result, Err(Error::Io(_))));
+    }
+
+    #[test]
     fn empty_mcp_servers_returns_empty() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/project/.copilot/mcp-config.json"));
