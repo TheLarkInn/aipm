@@ -1137,4 +1137,17 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn mark_installed_errors_on_corrupt_index() {
+        // Covers the `serde_json::from_str` error branch in `with_index`: a
+        // non-empty, unparseable index file must surface `Error::IndexParse`.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        std::fs::write(cache.index_path(), "not json").unwrap();
+
+        let result = cache.mark_installed("spec", true);
+
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
 }
