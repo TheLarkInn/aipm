@@ -3416,6 +3416,21 @@ mod tests {
     }
 
     #[test]
+    fn emit_package_plugin_merges_hooks_from_skill_metadata() {
+        // A non-Hook artifact carrying `metadata.hooks` makes `hooks_yaml_parts`
+        // non-empty, so `emit_package_plugin` must write hooks/hooks.json.
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "# Deploy".to_string());
+        let mut artifact = make_skill_artifact();
+        artifact.metadata.hooks =
+            Some("PreToolUse:\n  - type: command\n    command: echo hi\n".to_string());
+
+        let result = emit_package_plugin("bundle", &[artifact], Path::new("/ai"), true, &fs);
+        assert!(result.is_ok(), "emit_package_plugin should succeed: {result:?}");
+        assert!(fs.get_written(Path::new("/ai/bundle/hooks/hooks.json")).is_some());
+    }
+
+    #[test]
     fn emit_unassociated_collision_via_dest_exists() {
         // A file already exists at the destination path (in fs.exists) but has NOT
         // been seen before (used_names is empty).  This exercises the
