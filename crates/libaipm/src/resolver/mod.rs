@@ -1375,6 +1375,35 @@ mod tests {
     }
 
     #[test]
+    fn backtrack_exhausts_all_candidates_then_reports_conflict() {
+        let mut reg = MockRegistry::new();
+        reg.add_package(
+            "skill-a",
+            vec![
+                ("1.0.0", vec![dep("common-util", "=2.0.0")]),
+                ("1.1.0", vec![dep("common-util", "=2.0.0")]),
+                ("1.2.0", vec![dep("common-util", "=2.0.0")]),
+            ],
+        );
+        reg.add_package("skill-b", vec![("1.0.0", vec![dep("common-util", "=2.1.0")])]);
+        reg.add_package("common-util", vec![("2.0.0", vec![]), ("2.1.0", vec![])]);
+
+        let deps = vec![root_dep("skill-a", "^1.0"), root_dep("skill-b", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg);
+        assert!(matches!(result, Err(Error::Conflict(_))));
+    }
+
+    #[test]
+    fn root_level_same_major_conflict_reported() {
+        let mut reg = MockRegistry::new();
+        reg.add_package("shared", vec![("1.0.0", vec![]), ("1.1.0", vec![])]);
+
+        let deps = vec![root_dep("shared", "=1.0.0"), root_dep("shared", "=1.1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg);
+        assert!(matches!(result, Err(Error::Conflict(_))));
+    }
+
+    #[test]
     fn transitive_conflict_same_major_reported() {
         // Two packages that both depend on the same package with incompatible same-major reqs
         // This tests the queue_transitive_dep same-major conflict branch
