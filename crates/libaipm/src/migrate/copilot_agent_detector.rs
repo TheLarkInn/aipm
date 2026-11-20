@@ -164,6 +164,25 @@ mod tests {
     }
 
     #[test]
+    fn detect_returns_error_when_read_dir_fails() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+
+        let result = CopilotAgentDetector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn detect_returns_error_when_read_file_fails() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+        fs.dirs.insert(PathBuf::from("/src/agents"), vec![de("ghost.md", false)]);
+
+        let result = CopilotAgentDetector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn detect_agent_md_file() {
         let mut fs = MockFs::new();
         fs.exists.insert(PathBuf::from("/src/agents"));
