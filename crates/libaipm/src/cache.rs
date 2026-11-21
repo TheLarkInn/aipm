@@ -554,6 +554,13 @@ mod tests {
     }
 
     #[test]
+    fn policy_deserialize_rejects_non_string_and_unknown_values() {
+        assert!(serde_json::from_str::<Policy>("42").is_err());
+        assert!(serde_json::from_str::<Policy>("\"bogus\"").is_err());
+        assert_eq!(serde_json::from_str::<Policy>("\"skip\"").ok(), Some(Policy::SkipCache));
+    }
+
+    #[test]
     fn cache_miss_returns_none() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let result = cache.get("github:owner/repo:plugin@main");
