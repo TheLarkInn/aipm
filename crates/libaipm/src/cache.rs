@@ -1020,6 +1020,15 @@ mod tests {
     }
 
     #[test]
+    fn put_missing_source_dir_returns_io_error() {
+        // Covers the `read_dir` error path in `copy_dir_contents`.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let missing = temp.path().join("no-such-source");
+        let result = cache.put("missing-source", &missing, None);
+        assert!(matches!(result, Err(Error::Io { ref path, .. }) if *path == missing));
+    }
+
+    #[test]
     fn put_handles_already_removed_old_entry_dir() {
         // Covers the `if old_dir.exists()` False branch in put():
         // Store a first entry, then manually remove its directory to simulate
