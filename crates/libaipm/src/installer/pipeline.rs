@@ -2624,6 +2624,23 @@ pkg-a = "^1.0"
         assert!(plugin_a.dependencies.contains(&"ws-sibling *".to_string()));
     }
 
+    #[test]
+    fn resolve_transitive_detailed_dep_without_version_defaults_to_star() {
+        let mut members = BTreeMap::new();
+        let a =
+            make_member("plugin-a", "1.0.0", "[dependencies]\nno-ver = { features = [\"x\"] }\n");
+        members.insert("plugin-a".to_string(), a);
+
+        let ws_deps = vec!["plugin-a".to_string()];
+        let overrides = BTreeSet::new();
+
+        let result = resolve_workspace_deps(&ws_deps, &members, &overrides);
+        assert!(result.is_ok(), "should succeed: {:?}", result.err());
+        let resolved = result.unwrap();
+        let plugin_a = resolved.iter().find(|r| r.name == "plugin-a").unwrap();
+        assert!(plugin_a.dependencies.contains(&"no-ver *".to_string()));
+    }
+
     // =========================================================================
     // split_dependencies: Detailed non-workspace registry dep
     // =========================================================================
