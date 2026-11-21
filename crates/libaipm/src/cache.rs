@@ -1137,4 +1137,32 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn read_index_empty_file_returns_default() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = std::fs::create_dir_all(&cache.root);
+        let _ = std::fs::write(cache.index_path(), "");
+
+        let index = cache.read_index();
+        assert!(index.is_ok_and(|i| i.entries.is_empty()));
+    }
+
+    #[test]
+    fn read_index_invalid_json_errors() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = std::fs::create_dir_all(&cache.root);
+        let _ = std::fs::write(cache.index_path(), "not json");
+
+        assert!(matches!(cache.read_index(), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
+    fn with_index_invalid_json_errors() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = std::fs::create_dir_all(&cache.root);
+        let _ = std::fs::write(cache.index_path(), "not json");
+
+        assert!(matches!(cache.with_index(|_| {}), Err(Error::IndexParse { .. })));
+    }
 }
