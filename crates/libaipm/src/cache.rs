@@ -1116,6 +1116,16 @@ mod tests {
     }
 
     #[test]
+    fn with_index_returns_lock_error_when_index_is_not_utf8() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        std::fs::write(cache.index_path(), [0xff_u8, 0xfe, 0xfd]).unwrap();
+
+        let result = cache.mark_installed("any", true);
+        assert!(matches!(result, Err(Error::Lock { .. })), "got {result:?}");
+    }
+
+    #[test]
     #[cfg(unix)]
     fn gc_silently_ignores_unreadable_entries_dir() {
         // Covers the Err branch of `if let Ok(read_dir) = std::fs::read_dir(entries_dir)` in
