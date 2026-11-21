@@ -1052,6 +1052,14 @@ mod tests {
     }
 
     #[test]
+    fn mark_installed_unknown_key_is_noop() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.mark_installed("missing-spec", true).is_ok());
+        let index = cache.read_index().unwrap_or_default();
+        assert!(index.entries.is_empty(), "unknown key must not create an entry");
+    }
+
+    #[test]
     fn cache_policy_parse_aliases() {
         // Each variant has additional aliases beyond the canonical `to_string()` form.
         // These branches are otherwise untouched by `cache_policy_roundtrip`.
