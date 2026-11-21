@@ -442,6 +442,13 @@ mod tests {
     }
 
     #[test]
+    fn is_relative_script_python_and_js_extensions_are_scripts() {
+        assert!(is_relative_script("check.py", Path::new(".")));
+        assert!(is_relative_script("check.js", Path::new(".")));
+        assert!(is_relative_script("CHECK.PY", Path::new(".")));
+    }
+
+    #[test]
     fn is_relative_script_unrecognized_extension_returns_false() {
         // A bare filename with an extension that is not .sh/.py/.js should return false —
         // exercises the Some(ext) branch of extension().is_some_and(…) where the closure
