@@ -829,4 +829,19 @@ mod tests {
             "anonymous-remote branch should succeed before any later error: {err_msg}"
         );
     }
+
+    /// Covers the `failed to fetch` error branch in `fetch_and_reset`.
+    #[test]
+    fn fetch_and_reset_returns_err_when_fetch_fails() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let local_dir = tmp.path().join("local");
+        std::fs::create_dir_all(&local_dir).expect("create local dir");
+        let local_repo = git2::Repository::init(&local_dir).expect("git init local");
+
+        let url = format!("file://{}", tmp.path().join("missing").display());
+        let result = fetch_and_reset(&local_repo, &url);
+        assert!(result.is_err(), "expected Err when the remote does not exist");
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("failed to fetch"), "unexpected error: {err_msg}");
+    }
 }
