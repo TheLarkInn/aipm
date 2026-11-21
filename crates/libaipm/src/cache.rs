@@ -1078,6 +1078,18 @@ mod tests {
     }
 
     #[test]
+    fn touch_entry_corrupt_index_returns_parse_error() {
+        // Covers the JSON-parse error path in `with_index` when the index file
+        // exists but is not valid JSON.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(&cache.root).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "not json").unwrap_or_else(|_| {});
+
+        let result = cache.touch_entry("any-spec");
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn touch_entry_missing_key_is_noop() {
         // Covers the False branch of `if let Some(entry) = index.entries.get_mut(spec_key)`
         // in touch_entry: when the spec_key is absent from the index (e.g. removed between
