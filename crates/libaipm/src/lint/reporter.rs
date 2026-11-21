@@ -680,6 +680,40 @@ mod tests {
         assert!(output.contains("\"severity_code\": 2")); // warning
     }
 
+    /// Writer that fails once more than `budget` bytes have been written.
+    struct LimitedWriter {
+        budget: usize,
+    }
+
+    impl Write for LimitedWriter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if buf.len() > self.budget {
+                return Err(std::io::Error::other("write budget exhausted"));
+            }
+            self.budget -= buf.len();
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn json_reporter_propagates_write_errors_for_every_position() {
+        let outcome = sample_outcome();
+        let mut full = Vec::new();
+        assert!(Json.report(&outcome, &mut full).is_ok());
+
+        for budget in 0..full.len() {
+            let mut writer = LimitedWriter { budget };
+            assert!(
+                Json.report(&outcome, &mut writer).is_err(),
+                "expected write error with budget {budget}"
+            );
+        }
+    }
+
     #[test]
     fn json_reporter_empty() {
         let outcome = Outcome {
