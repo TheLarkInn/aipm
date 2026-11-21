@@ -435,6 +435,15 @@ mod tests {
     }
 
     #[test]
+    fn collect_command_scripts_with_empty_command_is_ignored() {
+        // An empty command yields an empty first token, which is not a script reference.
+        let value = serde_json::json!({"type": "command", "command": "   "});
+        let mut scripts = Vec::new();
+        collect_command_scripts(&value, Path::new("/project"), &mut scripts);
+        assert!(scripts.is_empty());
+    }
+
+    #[test]
     fn is_relative_script_windows_backslash_path_is_relative() {
         // A Windows-style relative path using backslashes and no drive prefix should
         // be detected as a relative script — exercises the path.contains('\\') branch.
