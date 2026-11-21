@@ -1052,6 +1052,17 @@ mod tests {
     }
 
     #[test]
+    fn corrupt_index_yields_index_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        cache.ensure_dirs().unwrap();
+        std::fs::write(cache.index_path(), "not json").unwrap();
+
+        assert!(matches!(cache.read_index(), Err(Error::IndexParse { .. })));
+        assert!(matches!(cache.put("k", &src, None), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn cache_policy_parse_aliases() {
         // Each variant has additional aliases beyond the canonical `to_string()` form.
         // These branches are otherwise untouched by `cache_policy_roundtrip`.
