@@ -2091,6 +2091,29 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// With both workspace and marketplace disabled, init produces no actions:
+    /// nothing created and nothing found, so the "nothing to do" warning is skipped.
+    #[test]
+    fn init_with_nothing_requested_returns_no_actions() {
+        let (tmp, _guard) = make_temp_dir("nothing-requested");
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: true,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &default_adaptors(), &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions, got {actions:?}");
+
+        cleanup(&tmp);
+    }
+
     /// Existing `aipm.toml` declares `engines = ["claude"]` but the
     /// wizard answer chose Copilot. Init must succeed (idempotent),
     /// leave the file unchanged, and emit a tracing::warn event naming
