@@ -363,6 +363,16 @@ mod tests {
     }
 
     #[test]
+    fn copy_dir_recursive_missing_source_returns_io_error() {
+        let temp = make_temp();
+        let missing = temp.path().join("missing-src");
+        let dest = temp.path().join("dest");
+
+        let result = copy_dir_recursive(&missing, &dest);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn acquire_local_from_source_not_found() {
         let temp = make_temp();
         let nonexistent = temp.path().join("does-not-exist");
