@@ -688,6 +688,23 @@ mod tests {
     }
 
     #[test]
+    fn put_tolerates_already_removed_old_entry_dir() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let spec = "vanished-spec";
+
+        let src1 = temp.path().join("src1");
+        std::fs::create_dir_all(&src1).unwrap_or_else(|_| {});
+        std::fs::write(src1.join("version.txt"), "v1").unwrap_or_else(|_| {});
+        let dir1 = cache.put(spec, &src1, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(dir1.exists());
+        std::fs::remove_dir_all(&dir1).unwrap_or_else(|_| {});
+
+        let dir2 = cache.put(spec, &src1, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(dir2.exists());
+        assert!(!dir1.exists());
+    }
+
+    #[test]
     fn put_replaces_old_entry_dir() {
         let (temp, cache) = test_cache(Policy::Auto);
         let spec = "replace-spec";
