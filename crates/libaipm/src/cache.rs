@@ -998,6 +998,16 @@ mod tests {
     }
 
     #[test]
+    fn get_with_unreadable_index_returns_io_error() {
+        // Index path is a directory: it exists but read_to_string fails.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(cache.index_path()).unwrap_or_else(|_| {});
+
+        let result = cache.get("some-spec");
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn put_source_with_symlink_is_silently_skipped() {
         // Covers the `else if file_type.is_file()` False branch in
