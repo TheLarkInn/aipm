@@ -291,6 +291,29 @@ mod tests {
     }
 
     #[test]
+    fn take_skipped_returns_empty_when_mutex_poisoned() {
+        let shared: Arc<Mutex<Vec<SkipReason>>> = Arc::new(Mutex::new(Vec::new()));
+        let clone = Arc::clone(&shared);
+        let _ = std::thread::spawn(move || {
+            let _guard = clone.lock();
+            std::panic::resume_unwind(Box::new("poison"));
+        })
+        .join();
+        assert!(shared.is_poisoned());
+        assert!(take_skipped(&shared).is_empty());
+    }
+
+    #[test]
+    fn take_skipped_returns_recorded_entries() {
+        let shared: Arc<Mutex<Vec<SkipReason>>> =
+            Arc::new(Mutex::new(vec![SkipReason::SkipDirByName {
+                path: PathBuf::from("x/node_modules"),
+                name: "node_modules".to_string(),
+            }]));
+        assert_eq!(take_skipped(&shared).len(), 1);
+    }
+
+    #[test]
     fn results_are_sorted() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path();
