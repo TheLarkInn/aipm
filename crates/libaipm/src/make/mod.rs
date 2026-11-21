@@ -860,6 +860,19 @@ mod tests {
     }
 
     #[test]
+    fn marketplace_helpers_handle_missing_and_invalid_json() {
+        let fs = MockFs::new();
+        let missing = Path::new("/nowhere/marketplace.json");
+        assert!(!is_plugin_registered(&fs, missing, "x"));
+        assert_eq!(read_marketplace_name(&fs, missing), "local-repo-plugins");
+
+        let invalid = Path::new("/bad/marketplace.json");
+        fs.seed(invalid, b"not json");
+        assert!(!is_plugin_registered(&fs, invalid, "x"));
+        assert_eq!(read_marketplace_name(&fs, invalid), "local-repo-plugins");
+    }
+
+    #[test]
     fn make_plugin_already_registered_in_marketplace() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
