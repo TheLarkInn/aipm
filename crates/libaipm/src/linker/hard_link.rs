@@ -186,4 +186,24 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_fails_when_target_dir_is_a_file() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, b"not a dir").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
+
+    #[test]
+    fn assemble_fails_when_target_parent_is_a_file() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"file").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &blocker.join("pkg"));
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
 }
