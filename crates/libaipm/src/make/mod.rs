@@ -1253,4 +1253,63 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// `Fs` wrapper that can fail directory creation or file writes.
+    struct FailingFs {
+        inner: MockFs,
+        fail_dirs: bool,
+        fail_writes: bool,
+    }
+
+    impl crate::fs::Fs for FailingFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            if self.fail_dirs {
+                return Err(std::io::Error::other("mkdir failed"));
+            }
+            self.inner.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            if self.fail_writes {
+                return Err(std::io::Error::other("write failed"));
+            }
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_create_dir_error() {
+        let fs = FailingFs { inner: MockFs::new(), fail_dirs: true, fail_writes: false };
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/project/.ai"),
+            name: "x",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        assert!(plugin(&opts, &fs).is_err());
+    }
+
+    #[test]
+    fn make_plugin_propagates_write_error() {
+        let fs = FailingFs { inner: MockFs::new(), fail_dirs: false, fail_writes: true };
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/project/.ai"),
+            name: "x",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        assert!(plugin(&opts, &fs).is_err());
+    }
 }
