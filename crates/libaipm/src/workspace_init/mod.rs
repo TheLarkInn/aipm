@@ -1165,6 +1165,28 @@ mod tests {
     }
 
     #[test]
+    fn init_with_no_phases_requested_produces_no_actions() {
+        // Neither created nor found actions exist, so the `any_found` operand of
+        // the tail "nothing to do" warning is evaluated as false.
+        let (tmp, _guard) = make_temp_dir("no-phases");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_no_starter_still_configures_tools() {
         let (tmp, _guard) = make_temp_dir("no-starter-tools");
         let adaptors = default_adaptors();
