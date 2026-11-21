@@ -711,6 +711,23 @@ mod tests {
     }
 
     #[test]
+    fn put_preserves_installed_flag_on_replace() {
+        let (temp, mut cache) = test_cache(Policy::Auto);
+        cache.gc_days = 0;
+        let spec = "installed-spec";
+
+        let src = temp.path().join("src");
+        std::fs::create_dir_all(&src).unwrap_or_else(|_| {});
+        std::fs::write(src.join("a.txt"), "a").unwrap_or_else(|_| {});
+        let _ = cache.put(spec, &src, None);
+        let _ = cache.mark_installed(spec, true);
+        let dir2 = cache.put(spec, &src, None).unwrap_or_else(|_| PathBuf::new());
+
+        let _ = cache.gc();
+        assert!(dir2.exists(), "installed entry must survive gc after re-put");
+    }
+
+    #[test]
     fn gc_removes_unreferenced_directories() {
         let temp = make_temp();
         let mut cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
