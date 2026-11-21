@@ -1233,6 +1233,8 @@ mod tests {
         /// When set, is_file returns true and read_to_string returns PermissionDenied.
         /// Simulates a readable-looking but unreadable file (e.g. permission error).
         fail_read_path: Mutex<Option<PathBuf>>,
+        /// When true, create_dir_all returns PermissionDenied.
+        fail_create_dir: bool,
     }
 
     impl MockFs {
@@ -1244,6 +1246,7 @@ mod tests {
                 written: Mutex::new(HashMap::new()),
                 fail_write_path: Mutex::new(None),
                 fail_read_path: Mutex::new(None),
+                fail_create_dir: false,
             }
         }
 
@@ -1286,6 +1289,9 @@ mod tests {
         }
 
         fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            if self.fail_create_dir {
+                return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "mock"));
+            }
             Ok(())
         }
 
@@ -3711,6 +3717,26 @@ mod tests {
 
     // --- map_err error-path tests ---
     // These cover the closure bodies inside .map_err() that only execute on IO errors.
+
+    #[test]
+    fn emit_plugin_returns_error_when_create_dir_fails() {
+        let mut fs = MockFs::new();
+        fs.fail_create_dir = true;
+        let artifact = make_skill_artifact();
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn emit_plugin_with_name_returns_error_when_create_dir_fails() {
+        let mut fs = MockFs::new();
+        fs.fail_create_dir = true;
+        let artifact = make_skill_artifact();
+        let result = emit_plugin_with_name(&artifact, "p", Path::new("/ai"), true, &fs);
+        assert!(result.is_err());
+    }
 
     #[test]
     fn emit_command_as_skill_returns_error_on_read_failure() {
