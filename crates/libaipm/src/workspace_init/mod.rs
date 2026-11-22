@@ -2397,4 +2397,29 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    /// Covers the `any_found == false` branch of the tail "nothing to do" check:
+    /// with workspace and marketplace both disabled, init creates and finds nothing
+    /// and must return an empty action list without warning.
+    #[test]
+    #[tracing_test::traced_test]
+    fn init_with_nothing_requested_emits_no_actions_or_warning() {
+        let (tmp, _guard) = make_temp_dir("nothing-requested");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+        assert!(!logs_contain("found nothing to do"));
+
+        cleanup(&tmp);
+    }
 }
