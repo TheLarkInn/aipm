@@ -1253,4 +1253,20 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    #[test]
+    fn update_engine_settings_root_marketplace_dir_is_noop() {
+        let fs = MockFs::new();
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/"),
+            name: "root-plugin",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        let mut actions = Vec::new();
+        let result =
+            update_engine_settings(&opts, &fs, Path::new("/marketplace.json"), &mut actions);
+        assert!(result.is_ok());
+        assert!(actions.is_empty(), "no actions expected when marketplace_dir has no parent");
+    }
 }
