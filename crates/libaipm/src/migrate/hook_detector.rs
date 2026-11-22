@@ -383,6 +383,8 @@ mod tests {
         assert!(is_relative_script("check.sh", Path::new(".")));
         assert!(is_relative_script("validate.py", Path::new(".")));
         assert!(is_relative_script("lint.js", Path::new(".")));
+        // Empty path
+        assert!(!is_relative_script("", Path::new(".")));
         // Bare commands (not scripts)
         assert!(!is_relative_script("echo", Path::new(".")));
         assert!(!is_relative_script("npx", Path::new(".")));
