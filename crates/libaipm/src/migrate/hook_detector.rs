@@ -442,6 +442,16 @@ mod tests {
     }
 
     #[test]
+    fn extract_hook_script_references_accepts_dot_slash_command() {
+        // A command starting with "./" short-circuits the `starts_with("./")` check.
+        let hooks = serde_json::json!({
+            "PreToolUse": [{ "type": "command", "command": "./run.sh --flag" }]
+        });
+        let scripts = extract_hook_script_references(&hooks, Path::new("."));
+        assert_eq!(scripts, vec![PathBuf::from("./run.sh")]);
+    }
+
+    #[test]
     fn is_relative_script_unrecognized_extension_returns_false() {
         // A bare filename with an extension that is not .sh/.py/.js should return false —
         // exercises the Some(ext) branch of extension().is_some_and(…) where the closure
