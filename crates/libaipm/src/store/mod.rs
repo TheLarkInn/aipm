@@ -631,4 +631,13 @@ mod tests {
         let result = store.store_package(nonexistent);
         assert!(result.is_err(), "expected store_package to fail on missing directory");
     }
+
+    /// When `.lock` already exists as a directory, creating the lock file fails.
+    #[test]
+    fn lock_errors_when_lock_path_is_directory() {
+        let (tmp, store) = make_store();
+        std::fs::create_dir_all(tmp.path().join(".lock")).unwrap();
+        let result = store.lock();
+        assert!(result.is_err(), "expected lock() to fail when .lock is a directory");
+    }
 }
