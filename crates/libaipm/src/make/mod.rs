@@ -1253,4 +1253,55 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Fs whose `create_dir_all` fails once `allowed` calls have succeeded.
+    struct FailingDirFs {
+        inner: MockFs,
+        allowed: std::sync::atomic::AtomicUsize,
+    }
+
+    impl crate::fs::Fs for FailingDirFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            use std::sync::atomic::Ordering;
+            if self.allowed.load(Ordering::SeqCst) == 0 {
+                return Err(std::io::Error::other("mkdir denied"));
+            }
+            self.allowed.fetch_sub(1, Ordering::SeqCst);
+            self.inner.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_create_dir_errors() {
+        for allowed in [0, 1] {
+            let fs = FailingDirFs {
+                inner: MockFs::new(),
+                allowed: std::sync::atomic::AtomicUsize::new(allowed),
+            };
+            let opts = PluginOpts {
+                marketplace_dir: Path::new("/project/.ai"),
+                name: "denied",
+                engine: "claude",
+                features: &[Feature::Skill],
+            };
+            let result = plugin(&opts, &fs);
+            assert!(matches!(result, Err(Error::Io(_))), "allowed={allowed}");
+        }
+    }
 }
