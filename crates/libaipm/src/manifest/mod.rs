@@ -707,6 +707,16 @@ engines = ["unknown-future-engine"]
     }
 
     #[test]
+    fn manifest_workspace_engines_non_list_fails_to_parse() {
+        let toml = r#"
+[workspace]
+members = [".ai/*"]
+engines = "claude"
+"#;
+        assert!(parse(toml).is_err(), "expected parse error for non-list engines");
+    }
+
+    #[test]
     fn manifest_workspace_engines_mixed_known_and_unknown_drops_unknowns() {
         let toml = r#"
 [workspace]
