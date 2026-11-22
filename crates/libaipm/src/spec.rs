@@ -1621,4 +1621,42 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    /// A `fmt::Write` sink that fails once more than `limit` bytes are written.
+    struct LimitedWriter {
+        limit: usize,
+        written: usize,
+    }
+
+    impl std::fmt::Write for LimitedWriter {
+        fn write_str(&mut self, s: &str) -> std::fmt::Result {
+            self.written += s.len();
+            if self.written > self.limit {
+                Err(std::fmt::Error)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    fn assert_display_fails_at_every_offset<T: std::fmt::Display>(value: &T) {
+        use std::fmt::Write;
+        let len = value.to_string().len();
+        for limit in 0..len {
+            let mut w = LimitedWriter { limit, written: 0 };
+            assert!(write!(w, "{value}").is_err(), "limit {limit}");
+        }
+    }
+
+    #[test]
+    fn display_propagates_write_errors_for_git_and_marketplace() -> Result<(), String> {
+        let git = parse("git:https://github.com/org/repo:plugins/foo@main");
+        let market = parse("market:hello-skills@owner/repo#main");
+        let (Spec::Git(g), Spec::Marketplace(m)) = (&git, &market) else {
+            return Err("unexpected spec variants".to_string());
+        };
+        assert_display_fails_at_every_offset(g);
+        assert_display_fails_at_every_offset(m);
+        Ok(())
+    }
 }
