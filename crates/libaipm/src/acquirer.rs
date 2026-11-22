@@ -363,6 +363,25 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_public_rejects_file_source() {
+        // Tests run with the crate directory as cwd, so `Cargo.toml` is a relative file.
+        let temp = make_temp();
+        let path = ValidatedPath::new("Cargo.toml").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::LocalNotDirectory { .. })));
+    }
+
+    #[test]
+    fn acquire_local_public_copies_then_validates() {
+        let temp = make_temp();
+        let path = ValidatedPath::new("src").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        // `src` is not a valid plugin, but the copy step must have run first.
+        assert!(result.is_err());
+        assert!(temp.path().join("src").is_dir());
+    }
+
+    #[test]
     fn acquire_local_from_source_not_found() {
         let temp = make_temp();
         let nonexistent = temp.path().join("does-not-exist");
