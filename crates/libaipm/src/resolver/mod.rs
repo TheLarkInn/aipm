@@ -717,6 +717,19 @@ mod tests {
     }
 
     #[test]
+    fn resolve_same_major_conflict_without_alternatives_errors() {
+        let mut reg = MockRegistry::new();
+        reg.add_package("a", vec![("1.0.0", vec![dep("c", "=1.0.0")])]);
+        reg.add_package("b", vec![("1.0.0", vec![dep("c", "=1.1.0")])]);
+        reg.add_package("c", vec![("1.0.0", vec![]), ("1.1.0", vec![])]);
+
+        let deps = vec![root_dep("a", "^1.0"), root_dep("b", "^1.0")];
+        let result = resolve(&deps, &BTreeMap::new(), &reg);
+
+        assert!(matches!(result, Err(Error::Conflict(_))));
+    }
+
+    #[test]
     fn resolve_package_not_found() {
         let reg = MockRegistry::new();
         let deps = vec![root_dep("nonexistent", "^1.0")];
