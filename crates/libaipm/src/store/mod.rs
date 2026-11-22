@@ -606,6 +606,18 @@ mod tests {
         assert!(result.is_err(), "expected lock() to fail when store path is a file");
     }
 
+    /// `lock()` must fail when the `.lock` path is occupied by a directory,
+    /// because `File::create` cannot open a directory for writing.
+    #[test]
+    fn lock_errors_when_lock_path_is_a_directory() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(tmp.path().join(".lock")).unwrap();
+
+        let store = Store::new(tmp.path().to_path_buf());
+        let result = store.lock();
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error from lock()");
+    }
+
     /// Verify that `store_file()` returns an error when directory creation
     /// for the prefix shard fails (e.g., parent path is a file, not a dir).
     #[cfg(unix)]
