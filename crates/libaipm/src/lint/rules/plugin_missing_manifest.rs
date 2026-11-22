@@ -72,6 +72,13 @@ mod tests {
     use crate::lint::rules::test_helpers::MockFs;
 
     #[test]
+    fn path_without_grandparent_yields_no_diagnostics() {
+        let fs = MockFs::new();
+        let result = MissingManifest.check_file(Path::new("marketplace.json"), &fs);
+        assert!(result.is_ok_and(|d| d.is_empty()));
+    }
+
+    #[test]
     fn all_plugins_have_manifest_no_diagnostic() {
         let mut fs = MockFs::new();
         let ai_path = PathBuf::from(".ai");
