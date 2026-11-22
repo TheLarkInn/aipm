@@ -2397,4 +2397,30 @@ mod tests {
 
         cleanup(&tmp);
     }
+
+    /// Covers the `any_found == false` side of the tail-warning guard: with every
+    /// phase disabled nothing is created or found, so `init` does nothing and
+    /// reports no actions.
+    #[test]
+    fn init_with_all_phases_disabled_reports_no_actions() {
+        let (tmp, _guard) = make_temp_dir("all-disabled");
+
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::COPILOT,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init should succeed");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "expected no actions: {actions:?}");
+
+        cleanup(&tmp);
+    }
 }
