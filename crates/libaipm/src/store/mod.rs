@@ -631,4 +631,24 @@ mod tests {
         let result = store.store_package(nonexistent);
         assert!(result.is_err(), "expected store_package to fail on missing directory");
     }
+
+    /// An unreadable file inside a package directory makes `store_package`
+    /// propagate the I/O error from `collect_files`.
+    #[cfg(unix)]
+    #[test]
+    fn store_package_errors_on_unreadable_file() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let (_tmp, store) = make_store();
+        let pkg = tempfile::tempdir().unwrap();
+        let file = pkg.path().join("secret.txt");
+        std::fs::write(&file, b"data").unwrap();
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+        // Root bypasses permission checks, so only assert when the file is truly unreadable.
+        if std::fs::read(&file).is_err() {
+            let result = store.store_package(pkg.path());
+            assert!(matches!(result, Err(Error::Io { .. })));
+        }
+    }
 }
