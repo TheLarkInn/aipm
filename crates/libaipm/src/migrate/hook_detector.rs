@@ -451,6 +451,16 @@ mod tests {
     }
 
     #[test]
+    fn extract_hook_script_references_dot_slash_command_short_circuits() {
+        // A "./"-prefixed command is accepted by the starts_with("./") check before
+        // is_relative_script is consulted.
+        let hooks: serde_json::Value =
+            serde_json::json!({"PreToolUse": [{"type": "command", "command": "./run.sh --flag"}]});
+        let scripts = extract_hook_script_references(&hooks, Path::new("."));
+        assert_eq!(scripts, vec![PathBuf::from("./run.sh")]);
+    }
+
+    #[test]
     fn detect_read_error_propagated() {
         // settings.json is registered as existing but is absent from the files map,
         // so read_to_string returns NotFound — exercises the `?` error-propagation
