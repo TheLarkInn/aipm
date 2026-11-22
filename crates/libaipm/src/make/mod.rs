@@ -951,6 +951,30 @@ mod tests {
     }
 
     #[test]
+    fn is_plugin_registered_false_for_invalid_json() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/marketplace.json");
+        fs.seed(path, b"not valid json {{{");
+        assert!(!is_plugin_registered(&fs, path, "anything"));
+    }
+
+    #[test]
+    fn is_plugin_registered_false_for_missing_plugins_key() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/marketplace.json");
+        fs.seed(path, b"{}");
+        assert!(!is_plugin_registered(&fs, path, "anything"));
+    }
+
+    #[test]
+    fn read_marketplace_name_fallback_missing_name_key() {
+        let fs = MockFs::new();
+        let path = Path::new("/project/marketplace.json");
+        fs.seed(path, b"{}");
+        assert_eq!(read_marketplace_name(&fs, path), "local-repo-plugins");
+    }
+
+    #[test]
     fn read_marketplace_name_fallback_invalid_json() {
         let fs = MockFs::new();
         let path = Path::new("/project/marketplace.json");
