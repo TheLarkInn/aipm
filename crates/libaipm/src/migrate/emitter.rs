@@ -1799,6 +1799,24 @@ mod tests {
     }
 
     #[test]
+    fn emit_skill_files_keeps_unreferenced_scripts_file() {
+        let mut fs = MockFs::new();
+        fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
+        fs.files.insert(
+            PathBuf::from("/src/skills/deploy/scripts/helper.sh"),
+            "#!/bin/bash\necho helper".to_string(),
+        );
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let mut artifact = make_skill_artifact();
+        artifact.files = vec![PathBuf::from("SKILL.md"), PathBuf::from("scripts/helper.sh")];
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok());
+        // A scripts/ file that is not referenced stays inside the skill directory.
+        assert!(fs.get_written(Path::new("/ai/deploy/skills/deploy/scripts/helper.sh")).is_some());
+    }
+
+    #[test]
     fn emit_skill_with_missing_script() {
         let mut fs = MockFs::new();
         fs.files.insert(PathBuf::from("/src/skills/deploy/SKILL.md"), "Deploy content".to_string());
