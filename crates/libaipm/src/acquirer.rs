@@ -373,6 +373,18 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_dest_creation_fails() {
+        let temp = make_temp();
+        let dest_file = temp.path().join("dest-is-a-file");
+        std::fs::write(&dest_file, "x").unwrap_or_else(|_| {});
+
+        // "src" exists relative to the crate dir (test cwd), so only the dest step can fail.
+        let path = ValidatedPath::new("src").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &dest_file, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
+
+    #[test]
     fn acquire_local_not_directory() {
         let temp = make_temp();
         let file_path = temp.path().join("not-a-dir");
