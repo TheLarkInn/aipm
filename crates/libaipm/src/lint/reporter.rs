@@ -1455,6 +1455,30 @@ mod tests {
     }
 
     #[test]
+    fn human_reporter_summary_warnings_only() {
+        let mock_fs = MockFs::new();
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome { error_count: 0, warning_count: 2, ..Outcome::default() };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("2 warning(s) emitted"));
+        assert!(!output.contains("error(s) emitted"));
+    }
+
+    #[test]
+    fn human_reporter_summary_errors_only() {
+        let mock_fs = MockFs::new();
+        let reporter = make_human_reporter(&mock_fs);
+        let outcome = Outcome { error_count: 3, warning_count: 0, ..Outcome::default() };
+        let mut buf = Vec::new();
+        reporter.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("3 error(s) emitted"));
+        assert!(!output.contains("warning(s) emitted"));
+    }
+
+    #[test]
     fn human_reporter_col_only_span() {
         let mut mock_fs = MockFs::new();
         mock_fs.files.insert(
