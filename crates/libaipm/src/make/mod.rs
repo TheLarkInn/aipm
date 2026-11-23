@@ -1253,4 +1253,51 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Filesystem whose `create_dir_all` fails on the Nth call (0-based).
+    struct FailingDirFs {
+        calls: std::sync::atomic::AtomicUsize,
+        fail_on: usize,
+    }
+
+    impl crate::fs::Fs for FailingDirFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            let n = self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if n == self.fail_on {
+                Err(std::io::Error::other("injected create_dir_all failure"))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::new(std::io::ErrorKind::NotFound, "not used"))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_create_dir_errors() {
+        for fail_on in 0..2 {
+            let fs = FailingDirFs { calls: std::sync::atomic::AtomicUsize::new(0), fail_on };
+            let opts = PluginOpts {
+                marketplace_dir: Path::new("/project/.ai"),
+                name: "my-skill",
+                engine: "claude",
+                features: &[Feature::Skill],
+            };
+            assert!(plugin(&opts, &fs).is_err(), "expected error when call {fail_on} fails");
+        }
+    }
 }
