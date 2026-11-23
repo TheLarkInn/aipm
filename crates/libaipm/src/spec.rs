@@ -899,6 +899,40 @@ mod tests {
         assert_eq!(original, deserialized);
     }
 
+    // ---- Display error propagation ----
+
+    /// Writer that fails once `remaining` successful writes are used up.
+    struct FailingWriter {
+        remaining: usize,
+    }
+
+    impl std::fmt::Write for FailingWriter {
+        fn write_str(&mut self, _: &str) -> std::fmt::Result {
+            if self.remaining == 0 {
+                return Err(std::fmt::Error);
+            }
+            self.remaining -= 1;
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn display_propagates_write_errors() {
+        use std::fmt::Write;
+        let git = parse("git:https://example.com/r.git:sub/dir@main");
+        let market = parse("marketplace:plugin@github:org/repo#main");
+        for spec in [git, market] {
+            let mut ok_len = 0;
+            while write!(FailingWriter { remaining: ok_len }, "{spec}").is_err() {
+                ok_len += 1;
+                if ok_len > 64 {
+                    break;
+                }
+            }
+            assert!(ok_len > 1 && ok_len <= 64, "spec {spec} never succeeded");
+        }
+    }
+
     // ---- Duplicate folder name detection ----
 
     #[test]
