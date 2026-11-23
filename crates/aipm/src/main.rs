@@ -1469,6 +1469,22 @@ mod tests {
         );
     }
 
+    /// A rule table with only `level` (no `ignore`, no custom options) still
+    /// produces a `Detailed` override via the short-circuited `level.is_some()` check.
+    #[test]
+    fn load_lint_config_level_only_rule_table_creates_override() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("aipm.toml"),
+            "[workspace.lints.\"skill/oversized\"]\nlevel = \"warn\"\n",
+        )
+        .unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert!(config.rule_options("skill/oversized").is_empty());
+        assert!(config.severity_override("skill/oversized").is_some());
+    }
+
     /// Custom option keys are recorded even when `level` is absent, so that
     /// users can configure e.g. `lines = 200` without also specifying `level`.
     #[test]
