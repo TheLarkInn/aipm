@@ -943,6 +943,28 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_claude_without_marketplace_parent_skips_settings() {
+        let fs = MockFs::new();
+        // An empty path has no parent, so there is no project root for `.claude/`.
+        let marketplace_dir = Path::new("");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "rootless",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs).unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+        assert!(result.actions.iter().any(|a| matches!(a, Action::PluginCreated { .. })));
+        assert!(!result.actions.iter().any(|a| matches!(
+            a,
+            Action::PluginEnabled { .. } | Action::PluginAlreadyEnabled { .. }
+        )));
+    }
+
+    #[test]
     fn read_marketplace_name_fallback_missing_file() {
         let fs = MockFs::new();
         let path = Path::new("/nonexistent/marketplace.json");
