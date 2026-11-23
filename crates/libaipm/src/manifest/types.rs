@@ -388,4 +388,24 @@ mod tests {
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
     }
+
+    /// An empty array through the JSON deserializer instantiation yields an empty set.
+    #[test]
+    fn engine_set_serde_empty_array_returns_empty_set() {
+        use serde::de::IntoDeserializer;
+        let de = serde_json::json!([]);
+        let result: Result<Option<EngineSet>, _> =
+            engine_set_serde::deserialize(de.into_deserializer());
+        assert_eq!(result.ok().flatten(), Some(EngineSet::empty()));
+    }
+
+    /// A non-empty array through the JSON deserializer instantiation resolves engines.
+    #[test]
+    fn engine_set_serde_named_engine_returns_set() {
+        use serde::de::IntoDeserializer;
+        let de = serde_json::json!(["claude"]);
+        let result: Result<Option<EngineSet>, _> =
+            engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.ok().flatten().is_some_and(|s| !s.is_empty()));
+    }
 }
