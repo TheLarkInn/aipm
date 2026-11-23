@@ -175,6 +175,16 @@ mod tests {
         }
     }
 
+    /// A second `init` call cannot replace the global subscriber, so it must
+    /// fail with `SetGlobal` regardless of whether the first call succeeded.
+    #[test]
+    fn init_twice_returns_set_global_error() {
+        let _guard = ENV_LOCK.lock();
+        let _first = init(LevelFilter::OFF, LogFormat::Text);
+        let second = init(LevelFilter::OFF, LogFormat::Json);
+        assert!(matches!(second, Err(Error::SetGlobal { .. })));
+    }
+
     #[test]
     fn error_display() {
         let e = Error::FileAppender { reason: "test".to_string() };
