@@ -186,4 +186,18 @@ mod tests {
         let result = assemble(&store, &file_hashes, &target);
         assert!(result.is_err(), "assemble to '/' should fail, got: {result:?}");
     }
+
+    #[test]
+    fn assemble_target_is_file_returns_io_error() {
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("target-is-a-file");
+        std::fs::write(&target, b"not a directory").expect("write file");
+
+        // exists() is true but remove_dir_all fails on a regular file.
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(
+            matches!(&result, Err(Error::Io { path, .. }) if path == &target),
+            "expected Io error for file target, got: {result:?}"
+        );
+    }
 }
