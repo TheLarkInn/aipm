@@ -602,4 +602,10 @@ mod tests {
         let diags = lint_file_diagnostics(&file_path);
         assert!(diags.is_empty(), "expected empty vec when lint errors, got: {diags:?}");
     }
+
+    #[test]
+    fn find_workspace_dir_reaches_fs_root_without_marker_returns_parent() {
+        let file = Path::new("/aipm_no_such_dir_xyz/SKILL.md");
+        assert_eq!(find_workspace_dir(file), PathBuf::from("/aipm_no_such_dir_xyz"));
+    }
 }
