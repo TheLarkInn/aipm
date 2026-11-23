@@ -622,6 +622,22 @@ mod tests {
         assert!(result.is_err(), "expected store_file() to fail when prefix dir creation fails");
     }
 
+    /// A dangling symlink at the target path makes `exists()` false but the
+    /// subsequent write fails, exercising the write-error branch.
+    #[cfg(unix)]
+    #[test]
+    fn store_file_errors_when_target_is_dangling_symlink() {
+        let (tmp, store) = make_store();
+        let content = b"dangling symlink content";
+        let hex = hash::sha512_hex(content);
+        let target = layout::hash_to_path(store.path(), &hex).unwrap();
+        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(tmp.path().join("missing-dir").join("file"), &target).unwrap();
+
+        let result = store.store_file(content);
+        assert!(result.is_err(), "expected store_file() to fail writing through dangling symlink");
+    }
+
     /// When `collect_files` cannot read a directory because it does not exist,
     /// `store_package` should propagate the I/O error.
     #[test]
