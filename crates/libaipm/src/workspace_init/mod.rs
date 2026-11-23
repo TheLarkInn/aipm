@@ -1716,6 +1716,26 @@ mod tests {
     }
 
     #[test]
+    fn init_with_no_phases_requested_produces_no_actions() {
+        // Neither created nor found actions: the tail "nothing to do" warning
+        // must not fire (`any_found` is false).
+        let (tmp, _guard) = make_temp_dir("no-phases");
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::ALL,
+            engines_support: None,
+        };
+        let result = init(&opts, &default_adaptors(), &crate::fs::Real);
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_adaptor_skips_when_settings_already_configured() {
         // Pre-populate .claude/settings.json with the marketplace and starter plugin
         // already present AND `.github/copilot-instructions.md` so both default
