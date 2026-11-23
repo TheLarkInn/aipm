@@ -1138,4 +1138,60 @@ mod tests {
             "expected PathNotFound error when subpath is a file, got: {result:?}"
         );
     }
+
+    /// Covers the error-propagation branch of `acquire_with_redirect` when the
+    /// initial `acquire_git` call fails (invalid clone URL).
+    #[test]
+    fn acquire_with_redirect_propagates_clone_error() {
+        let temp = make_temp();
+        let source = crate::spec::GitSource {
+            url: "not-a-valid-url://nowhere".to_string(),
+            path: None,
+            git_ref: None,
+        };
+        let result = acquire_with_redirect(&source, temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::GitClone { .. })),
+            "expected GitClone error, got: {result:?}"
+        );
+    }
+
+    /// Covers the `validate_plugin` error branch of `acquire_git`: a cloned
+    /// repo without a recognised plugin structure fails validation.
+    #[test]
+    fn acquire_git_invalid_plugin_structure_returns_validation_error() {
+        let source_temp = make_temp();
+        let src = source_temp.path();
+
+        let git = |args: &[&str]| {
+            std::process::Command::new("git")
+                .args(args)
+                .current_dir(src)
+                .env("GIT_AUTHOR_NAME", "Test")
+                .env("GIT_AUTHOR_EMAIL", "test@example.com")
+                .env("GIT_COMMITTER_NAME", "Test")
+                .env("GIT_COMMITTER_EMAIL", "test@example.com")
+                .output()
+        };
+
+        let Ok(init) = git(&["init", "-b", "main"]) else { return };
+        if !init.status.success() {
+            return;
+        }
+        let _ = std::fs::write(src.join("random.txt"), "data");
+        let _ = git(&["add", "."]);
+        let _ = git(&["commit", "-m", "init"]);
+
+        let dest_temp = make_temp();
+        let git_source = crate::spec::GitSource {
+            url: src.to_string_lossy().to_string(),
+            path: None,
+            git_ref: None,
+        };
+        let result = acquire_git(&git_source, dest_temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::Validation(_))),
+            "expected Validation error, got: {result:?}"
+        );
+    }
 }
