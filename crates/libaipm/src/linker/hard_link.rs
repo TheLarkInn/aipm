@@ -147,6 +147,37 @@ mod tests {
     }
 
     #[test]
+    fn assemble_replaces_existing_target_dir() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash = store.store_file(b"fresh").expect("store file");
+
+        let target = tmp.path().join("links").join("existing-pkg");
+        std::fs::create_dir_all(&target).expect("create target");
+        std::fs::write(target.join("stale.txt"), b"stale").expect("write stale");
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("new.txt"), hash);
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(result.is_ok(), "assemble failed: {result:?}");
+        assert!(!target.join("stale.txt").exists());
+        assert!(target.join("new.txt").exists());
+    }
+
+    #[test]
+    fn assemble_target_is_file_returns_io_error() {
+        // A plain file at target_dir takes the exists() path; remove_dir_all fails.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, b"x").expect("write file");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(matches!(&result, Err(Error::Io { path, .. }) if *path == target));
+    }
+
+    #[test]
     fn assemble_missing_hash_returns_error() {
         // A valid-format hash that was never stored — link_to returns NotFound,
         // covering the error mapping on the store.link_to call.
