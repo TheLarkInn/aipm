@@ -1621,4 +1621,49 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    // ---- Display error propagation ----
+
+    /// Writer that fails once more than `limit` write calls have been made.
+    struct LimitedWriter {
+        calls: usize,
+        limit: usize,
+    }
+
+    impl std::fmt::Write for LimitedWriter {
+        fn write_str(&mut self, _s: &str) -> std::fmt::Result {
+            self.calls += 1;
+            if self.calls > self.limit {
+                Err(std::fmt::Error)
+            } else {
+                Ok(())
+            }
+        }
+    }
+
+    fn fails_with_limit(spec: &Spec, limit: usize) -> bool {
+        use std::fmt::Write;
+        let mut w = LimitedWriter { calls: 0, limit };
+        write!(w, "{spec}").is_err()
+    }
+
+    #[test]
+    fn display_git_propagates_write_errors() {
+        let spec = parse("git:https://example.com/org/repo.git:plugins/helper@abc123");
+        assert!(matches!(spec, Spec::Git(_)));
+        for limit in 0..6 {
+            assert!(fails_with_limit(&spec, limit), "limit {limit} should fail");
+        }
+        assert!(!fails_with_limit(&spec, 100));
+    }
+
+    #[test]
+    fn display_marketplace_propagates_write_errors() {
+        let spec = parse("market:plugin@org/repo#main");
+        assert!(matches!(spec, Spec::Marketplace(_)));
+        for limit in 0..6 {
+            assert!(fails_with_limit(&spec, limit), "limit {limit} should fail");
+        }
+        assert!(!fails_with_limit(&spec, 100));
+    }
 }
