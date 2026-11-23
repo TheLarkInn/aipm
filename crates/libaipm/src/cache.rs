@@ -871,6 +871,27 @@ mod tests {
     }
 
     #[test]
+    fn read_index_empty_file_returns_default() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "").is_ok());
+
+        let index = cache.read_index();
+        assert!(index.is_ok_and(|i| i.entries.is_empty()));
+    }
+
+    #[test]
+    fn with_index_corrupt_index_returns_parse_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+
+        let result = cache.mark_installed("spec", true);
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+        assert!(matches!(cache.read_index(), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn skip_cache_put_returns_error() {
         let (_temp, cache) = test_cache(Policy::SkipCache);
         let src = _temp.path().join("src");
