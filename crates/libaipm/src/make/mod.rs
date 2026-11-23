@@ -1253,4 +1253,52 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Delegates to `MockFs` but fails `create_dir_all` for any `.claude` directory.
+    struct FailClaudeDirFs(MockFs);
+
+    impl crate::fs::Fs for FailClaudeDirFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.0.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            if path.file_name().is_some_and(|n| n == ".claude") {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::PermissionDenied,
+                    "cannot create .claude",
+                ));
+            }
+            self.0.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.0.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.0.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.0.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn make_plugin_claude_settings_dir_failure_propagates() {
+        let fs = FailClaudeDirFs(MockFs::new());
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs.0, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "fail-plugin",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(matches!(result, Err(Error::Io(_))), "expected Io error");
+    }
 }
