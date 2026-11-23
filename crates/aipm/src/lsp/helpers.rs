@@ -260,6 +260,16 @@ mod tests {
         assert_eq!(find_workspace_dir(&file), dir.path());
     }
 
+    #[test]
+    fn workspace_dir_filesystem_root_without_marker_returns_root() {
+        // "/" has no parent, so the upward walk terminates at the root.
+        let root = Path::new("/");
+        if root.join("aipm.toml").exists() || root.join(".ai").exists() {
+            return;
+        }
+        assert_eq!(find_workspace_dir(root), PathBuf::from("/"));
+    }
+
     // ── to_lsp_diagnostic ────────────────────────────────────────────────────
 
     #[test]
