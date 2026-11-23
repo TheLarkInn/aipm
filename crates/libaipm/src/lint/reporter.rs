@@ -1122,6 +1122,23 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_no_task_complete_when_counts_are_zero_despite_diagnostics() {
+        let outcome = Outcome {
+            diagnostics: vec![ci_azure_diag_on("a.md", "rule/one", 1)],
+            error_count: 0,
+            warning_count: 0,
+            sources_scanned: vec![],
+            ..Outcome::default()
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+
+        assert!(output.contains("##[endgroup]"));
+        assert!(!output.contains("##vso[task.complete"));
+    }
+
+    #[test]
     fn ci_azure_task_complete_on_warnings_only() {
         let outcome = Outcome {
             diagnostics: vec![
