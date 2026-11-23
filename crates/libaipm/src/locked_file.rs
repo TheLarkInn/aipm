@@ -90,6 +90,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn open_path_without_parent_returns_io_error() {
+        let result = LockedFile::open(Path::new("/"));
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn open_creates_parent_directories() {
         let temp = tempfile::tempdir().unwrap_or_else(|_| {
             // fallback: should never happen in tests
