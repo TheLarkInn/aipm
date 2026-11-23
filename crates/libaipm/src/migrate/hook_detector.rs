@@ -451,6 +451,14 @@ mod tests {
     }
 
     #[test]
+    fn is_relative_script_rejects_empty_and_absolute_paths() {
+        assert!(!is_relative_script("", Path::new(".")));
+        assert!(!is_relative_script("/usr/bin/run.sh", Path::new(".")));
+        assert!(!is_relative_script("C:\\tools\\run.sh", Path::new(".")));
+        assert!(!is_relative_script("D:/tools/run.sh", Path::new(".")));
+    }
+
+    #[test]
     fn detect_read_error_propagated() {
         // settings.json is registered as existing but is absent from the files map,
         // so read_to_string returns NotFound — exercises the `?` error-propagation
