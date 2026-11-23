@@ -836,6 +836,30 @@ mod tests {
     }
 
     #[test]
+    fn init_with_nothing_requested_yields_no_actions() {
+        // With workspace and marketplace both disabled, no action is created or
+        // found, so the "nothing to do" warning branch (`any_found` false) is skipped.
+        let (tmp, _guard) = make_temp_dir("nothing-requested");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty());
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_both_creates_everything() {
         let (tmp, _guard) = make_temp_dir("both");
         let adaptors = default_adaptors();
