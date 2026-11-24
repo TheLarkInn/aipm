@@ -554,6 +554,15 @@ mod tests {
     }
 
     #[test]
+    fn mark_installed_and_set_ttl_ignore_missing_entry() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.mark_installed("missing-spec", true).is_ok());
+        assert!(cache.set_entry_ttl("missing-spec", Some(10)).is_ok());
+        let index = cache.read_index().unwrap_or_default();
+        assert!(!index.entries.contains_key("missing-spec"));
+    }
+
+    #[test]
     fn cache_miss_returns_none() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let result = cache.get("github:owner/repo:plugin@main");
