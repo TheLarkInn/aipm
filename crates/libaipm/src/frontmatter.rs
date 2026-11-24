@@ -735,6 +735,19 @@ mod tests {
     }
 
     #[test]
+    fn parse_empty_valued_keys_without_continuation() {
+        // `name:` is flushed mid-loop by the following key; `tools:` is flushed at the end.
+        let content = "---\nname:\ndescription: x\ntools:\n---\nbody";
+        let fm = parse(content).ok().flatten();
+        assert_eq!(fm.as_ref().and_then(|f| f.fields.get("name")).map(String::as_str), Some(""));
+        assert_eq!(
+            fm.as_ref().and_then(|f| f.fields.get("description")).map(String::as_str),
+            Some("x")
+        );
+        assert_eq!(fm.as_ref().and_then(|f| f.fields.get("tools")).map(String::as_str), Some(""));
+    }
+
+    #[test]
     fn field_value_range_trailing_spaces_trim() {
         // Trailing spaces should not extend end_col
         assert_eq!(field_value_range("name: my-skill   ", "name"), Some((7, 15)));
