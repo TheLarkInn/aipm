@@ -1253,4 +1253,26 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    #[test]
+    fn read_marketplace_name_falls_back_on_missing_or_invalid_json() {
+        let fs = MockFs::new();
+        let missing = Path::new("/p/.ai/missing.json");
+        assert_eq!(read_marketplace_name(&fs, missing), "local-repo-plugins");
+
+        let bad = Path::new("/p/.ai/bad.json");
+        fs.seed(bad, b"not json");
+        assert_eq!(read_marketplace_name(&fs, bad), "local-repo-plugins");
+    }
+
+    #[test]
+    fn is_plugin_registered_false_on_missing_or_invalid_json() {
+        let fs = MockFs::new();
+        let missing = Path::new("/p/.ai/missing.json");
+        assert!(!is_plugin_registered(&fs, missing, "x"));
+
+        let bad = Path::new("/p/.ai/bad.json");
+        fs.seed(bad, b"not json");
+        assert!(!is_plugin_registered(&fs, bad, "x"));
+    }
 }
