@@ -143,6 +143,23 @@ mod tests {
     }
 
     #[test]
+    fn find_marketplace_detects_every_engine_manifest() {
+        for engine in libaipm_engine_spec::Engine::ALL.iter().copied() {
+            let rel = crate::engine::marketplace_manifest_path(engine);
+            let fs = MockFs::new();
+            if !rel.is_empty() {
+                fs.add_file(&format!("/project/.ai/{rel}"));
+            }
+            let result = find_marketplace(Path::new("/project/src"), &fs);
+            if rel.is_empty() {
+                assert!(result.is_err());
+            } else {
+                assert_eq!(result.unwrap_or_default(), PathBuf::from("/project/.ai"));
+            }
+        }
+    }
+
+    #[test]
     fn find_marketplace_root_returns_error() {
         let fs = MockFs::new();
 
