@@ -631,4 +631,23 @@ mod tests {
         let result = store.store_package(nonexistent);
         assert!(result.is_err(), "expected store_package to fail on missing directory");
     }
+
+    /// `lock()` fails when `.lock` already exists as a directory.
+    #[test]
+    fn lock_errors_when_lock_path_is_directory() {
+        let (tmp, store) = make_store();
+        std::fs::create_dir_all(tmp.path().join(".lock")).unwrap();
+        assert!(store.lock().is_err(), "expected lock() to fail when .lock is a directory");
+    }
+
+    /// `link_to` propagates the error when the target's parent cannot be created.
+    #[test]
+    fn link_to_errors_when_target_parent_uncreatable() {
+        let (tmp, store) = make_store();
+        let hash = store.store_file(b"link me").unwrap();
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"file").unwrap();
+        let result = store.link_to(&hash, &blocker.join("child").join("target"));
+        assert!(result.is_err(), "expected link_to to fail when parent dir is uncreatable");
+    }
 }
