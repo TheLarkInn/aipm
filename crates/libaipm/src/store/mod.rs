@@ -574,6 +574,19 @@ mod tests {
         assert_eq!(written, content);
     }
 
+    #[test]
+    fn link_to_errors_when_target_parent_is_a_file() {
+        let (tmp, store) = make_store();
+        let hash = store.store_file(b"parent error").unwrap();
+
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"not a dir").unwrap();
+        let target = blocker.join("child").join("linked-file");
+
+        let result = store.link_to(&hash, &target);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got {result:?}");
+    }
+
     #[cfg(unix)]
     #[test]
     fn store_package_skips_symlinks() {
