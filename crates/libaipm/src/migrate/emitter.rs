@@ -4187,6 +4187,38 @@ mod tests {
     /// `.mcp.json` destination, the `map_err` closure executes and `emit_plugin` returns
     /// an `Err` wrapping the io error.
     #[test]
+    fn emit_plugin_returns_error_on_manifest_write_failure() {
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/src/skills/deploy/SKILL.md"),
+            "---\nname: deploy\n---\nContent".to_string(),
+        );
+        fs.set_fail_write(PathBuf::from("/ai/deploy/aipm.toml"));
+
+        let artifact = make_skill_artifact();
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_err(), "should fail when aipm.toml write fails");
+    }
+
+    #[test]
+    fn emit_plugin_returns_error_on_plugin_json_write_failure() {
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/src/skills/deploy/SKILL.md"),
+            "---\nname: deploy\n---\nContent".to_string(),
+        );
+        fs.set_fail_write(PathBuf::from("/ai/deploy/.claude-plugin/plugin.json"));
+
+        let artifact = make_skill_artifact();
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_err(), "should fail when plugin.json write fails");
+    }
+
+    #[test]
     fn emit_mcp_config_returns_error_on_write_failure() {
         let fs = MockFs::new();
         fs.set_fail_write(PathBuf::from("/ai/project-mcp-servers/.mcp.json"));
