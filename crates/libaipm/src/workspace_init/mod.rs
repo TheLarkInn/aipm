@@ -742,6 +742,30 @@ mod tests {
         cleanup(&tmp);
     }
 
+    /// With both phases disabled nothing is created or found, so the
+    /// "found nothing to do" tail warning is skipped (`any_found` is false).
+    #[test]
+    fn init_with_all_phases_disabled_is_a_no_op() {
+        let (tmp, _guard) = make_temp_dir("noop-init");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: true,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok_and(|r| r.actions.is_empty()));
+        assert!(!tmp.join("aipm.toml").exists());
+        assert!(!tmp.join(".ai").exists());
+
+        cleanup(&tmp);
+    }
+
     #[test]
     fn init_marketplace_creates_tree() {
         let (tmp, _guard) = make_temp_dir("mp-create");
