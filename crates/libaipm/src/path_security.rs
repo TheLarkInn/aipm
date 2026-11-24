@@ -137,6 +137,24 @@ mod tests {
     }
 
     #[test]
+    fn validate_path_null_byte() {
+        let result = validate_plugin_path("foo\0bar");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
+    #[test]
+    fn validate_path_embedded_double_dot() {
+        let result = validate_plugin_path("foo..bar");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
+    #[test]
+    fn validate_path_encoded_traversal_uppercase() {
+        let result = validate_plugin_path("foo%2E%2Ebar");
+        assert!(matches!(result, Err(PathValidationError::PathTraversal)));
+    }
+
+    #[test]
     fn validate_absolute_path_unix() {
         let result = validate_plugin_path("/etc/passwd");
         assert!(matches!(result, Err(PathValidationError::AbsolutePath)));
