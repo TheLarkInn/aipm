@@ -1613,6 +1613,12 @@ mod tests {
     }
 
     #[test]
+    fn marketplace_location_without_slash_is_invalid() {
+        let result = "market:hello@noslash".parse::<Spec>();
+        assert!(matches!(result, Err(Error::Marketplace { .. })));
+    }
+
+    #[test]
     fn spec_deserialize_non_string_returns_error() {
         // Covers the `String::deserialize(deserializer)?` error branch in the
         // `Deserialize for Spec` impl (line 293).  When the JSON token is not
