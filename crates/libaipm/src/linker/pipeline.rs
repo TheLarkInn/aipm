@@ -148,6 +148,20 @@ mod tests {
     }
 
     #[test]
+    fn link_package_propagates_assemble_error_for_missing_hash() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("aipm.toml"), "0".repeat(64));
+        let links_dir = tmp.path().join(".aipm/links");
+        let plugins_dir = tmp.path().join("claude-plugins");
+
+        let result = link_package(&store, &file_hashes, "bad-pkg", &links_dir, &plugins_dir);
+        assert!(result.is_err(), "expected assemble failure, got {result:?}");
+        assert!(!plugins_dir.join("bad-pkg").exists());
+    }
+
+    #[test]
     fn unlink_nonexistent_is_noop() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let links_dir = tmp.path().join(".aipm/links");
