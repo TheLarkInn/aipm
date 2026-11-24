@@ -3918,6 +3918,27 @@ mod tests {
     }
 
     #[test]
+    fn copy_referenced_scripts_skips_missing_script() {
+        let mut fs = MockFs::new();
+        fs.files.insert(
+            PathBuf::from("/src/skills/deploy/SKILL.md"),
+            "---\nname: deploy\n---\nContent".to_string(),
+        );
+
+        let mut artifact = make_skill_artifact();
+        artifact.referenced_scripts = vec![PathBuf::from("scripts/missing.sh")];
+
+        let existing = HashSet::new();
+        let mut counter = 0;
+        let result = emit_plugin(&artifact, Path::new("/ai"), &existing, &mut counter, true, &fs);
+        assert!(result.is_ok(), "missing referenced script should be skipped: {result:?}");
+        assert!(
+            fs.get_written(Path::new("/ai/deploy/scripts/missing.sh")).is_none(),
+            "missing script must not be written"
+        );
+    }
+
+    #[test]
     fn copy_referenced_scripts_returns_error_on_read_failure() {
         // Script exists and is_file returns true (via fail_read_path), but read fails.
         let mut fs = MockFs::new();
