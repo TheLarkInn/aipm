@@ -2,6 +2,20 @@
 
 <!-- Entries are prepended (newest first). -->
 
+## 2026-11-24 — claude v2.1.331
+
+| Field | Change |
+|-------|--------|
+| `tool_calls` | **Added** — TaskCreate, TaskGet, TaskUpdate, TaskList, EnterPlanMode, Workflow, CronCreate, CronDelete, CronList, ScheduleWakeup, RemoteTrigger, Monitor, ProposeGoal, Artifact, PushNotification, RefreshMcpTools, ReadMcpResourceDir, ReportFindings, SendFeedback, ReadNotifications (from `sdk-tools.d.ts` and binary strings) |
+| `hook_events` | **Added** — PostToolBatch, UserPromptExpansion, PreModelSwitch, PostModelSwitch, PermissionDenied, DirectoryAdded, MessageDisplay |
+| `tool_compatibility.engine_exclusive_tools` | **Added** — all new Claude tools above (unsupported by copilot) |
+
+Previously recorded `Stop`, `Setup`, `ToolError` hook events were not found in the event table string list; kept pending manual confirmation.
+
+## 2026-11-24 — copilot v1.0.115
+
+Version bumped from 1.0.40. The package is now a native single-file binary (`@github/copilot-linux-x64`) whose JS is not recoverable via plain string extraction, so tool and hook catalogs could not be re-verified; existing entries retained.
+
 ## 2026-05-05 — claude v2.1.128
 
 | Field | Change |
