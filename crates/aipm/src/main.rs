@@ -1672,6 +1672,23 @@ mod tests {
         assert!(config.rule_options("some-rule").is_empty());
     }
 
+    /// A per-rule table with only `level` set must produce a `Detailed` override,
+    /// exercising the `level.is_some()` True branch of the short-circuit condition.
+    #[test]
+    fn load_lint_config_level_only_rule_creates_detailed_override() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("aipm.toml"),
+            "[workspace.lints.\"some-rule\"]\nlevel = \"warn\"\n",
+        )
+        .unwrap();
+
+        let config = load_lint_config(tmp.path());
+        assert!(config.rule_overrides.contains_key("some-rule"), "override must be recorded");
+        assert_eq!(config.severity_override("some-rule"), Some(libaipm::lint::Severity::Warning));
+        assert!(config.rule_ignore_paths("some-rule").is_empty());
+    }
+
     /// `day_of_year_to_month_day` returns early via the `if remaining < days_in_month`
     /// branch when a day falls within the first month.  With `day = 0` the very
     /// first guard fires (0 < 31) and returns January 1, exercising the True
