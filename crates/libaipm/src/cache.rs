@@ -1020,6 +1020,20 @@ mod tests {
     }
 
     #[test]
+    fn get_with_corrupt_index_returns_index_parse_error() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(std::fs::create_dir_all(&cache.root).is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+        assert!(matches!(cache.get("any:key"), Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
+    fn policy_deserialize_rejects_unknown_value() {
+        assert!(serde_json::from_str::<Policy>("\"bogus\"").is_err());
+        assert!(matches!(serde_json::from_str::<Policy>("\"auto\""), Ok(Policy::Auto)));
+    }
+
+    #[test]
     fn put_handles_already_removed_old_entry_dir() {
         // Covers the `if old_dir.exists()` False branch in put():
         // Store a first entry, then manually remove its directory to simulate
