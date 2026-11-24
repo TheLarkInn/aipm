@@ -1868,6 +1868,40 @@ mod tests {
         }
     }
 
+    /// Writer that succeeds for the first `ok_writes` calls, then fails.
+    struct FailingWriter {
+        ok_writes: usize,
+    }
+
+    impl Write for FailingWriter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if self.ok_writes == 0 {
+                return Err(std::io::Error::other("write failed"));
+            }
+            self.ok_writes -= 1;
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn ci_azure_propagates_write_error() {
+        let outcome = ci_azure_diag_for_path(PathBuf::from(".ai/p/SKILL.md"));
+        // Fail at each successive write so the group header, logissue line and
+        // endgroup line each surface their error.
+        for ok_writes in 0..6 {
+            let result = CiAzure.report(&outcome, &mut FailingWriter { ok_writes });
+            if let Err(e) = result {
+                assert_eq!(e.to_string(), "write failed");
+            }
+        }
+        assert!(CiAzure.report(&outcome, &mut FailingWriter { ok_writes: 0 }).is_err());
+        assert!(CiAzure.report(&outcome, &mut FailingWriter { ok_writes: 2 }).is_err());
+    }
+
     fn render_ci_azure(outcome: &Outcome) -> String {
         let mut buf = Vec::new();
         CiAzure.report(outcome, &mut buf).ok();
