@@ -372,6 +372,7 @@ mod engine_set_serde {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use libaipm_engine_spec::Engine;
 
     /// Directly invoke `engine_set_serde::deserialize` with a JSON `null` value so
     /// that the `let Some(names) = raw else { return Ok(None) }` arm (line 333) is
@@ -387,5 +388,30 @@ mod tests {
         assert!(result.is_ok(), "deserializing null should succeed: {result:?}");
         let result: Result<Option<EngineSet>, _> = result;
         assert!(result.unwrap().is_none(), "null engines should produce None");
+    }
+
+    #[test]
+    fn engine_set_serde_empty_list_is_empty_set() {
+        use serde::de::IntoDeserializer;
+        let de = serde_json::json!([]);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_ok_and(|v| v.is_some_and(|s| s.is_empty())));
+    }
+
+    #[test]
+    fn engine_set_serde_all_unknown_names_errors() {
+        use serde::de::IntoDeserializer;
+        let de = serde_json::json!(["no-such-engine"]);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_err_and(|e| e.to_string().contains("no known engine names")));
+    }
+
+    #[test]
+    fn engine_set_serde_unknown_names_dropped_alongside_known() {
+        use serde::de::IntoDeserializer;
+        let name = Engine::ALL.first().map(|e| e.name()).unwrap_or_default();
+        let de = serde_json::json!([name, "no-such-engine"]);
+        let result = engine_set_serde::deserialize(de.into_deserializer());
+        assert!(result.is_ok_and(|v| v.is_some_and(|s| !s.is_empty())));
     }
 }
