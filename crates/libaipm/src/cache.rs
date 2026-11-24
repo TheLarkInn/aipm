@@ -952,6 +952,17 @@ mod tests {
     }
 
     #[test]
+    fn get_with_corrupt_index_returns_index_parse_error() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let root = temp.path().join("cache");
+        assert!(std::fs::create_dir_all(&root).is_ok());
+        assert!(std::fs::write(root.join("cache_index.json"), "not json").is_ok());
+
+        let result = cache.get("any-spec");
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn is_enabled_for_each_policy() {
         assert!(Cache::with_root(PathBuf::new(), Policy::Auto).is_enabled());
         assert!(Cache::with_root(PathBuf::new(), Policy::CacheOnly).is_enabled());
