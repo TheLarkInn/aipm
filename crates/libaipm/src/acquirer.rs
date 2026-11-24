@@ -614,6 +614,28 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the full success path of `acquire_local`: a valid plugin located
+    /// via a CWD-relative `ValidatedPath` is copied and validated.
+    #[test]
+    fn acquire_local_success_via_relative_path() {
+        let src_root = tempfile::Builder::new().prefix("acq-local-").tempdir_in(".");
+        let Ok(src_root) = src_root else { return };
+        let plugin = src_root.path().join("my-plugin");
+        std::fs::create_dir_all(plugin.join(".claude-plugin")).unwrap_or_else(|_| {});
+        std::fs::write(plugin.join(".claude-plugin/plugin.json"), "{}").unwrap_or_else(|_| {});
+
+        let rel = plugin
+            .strip_prefix(std::env::current_dir().unwrap_or_default())
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let path = ValidatedPath::new(&rel).unwrap_or_else(|_| std::process::abort());
+        let dest = make_temp();
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(result.is_ok(), "expected success, got: {result:?}");
+        let out = result.unwrap_or_else(|_| PathBuf::new());
+        assert!(out.join(".claude-plugin/plugin.json").exists());
+    }
+
     /// Covers the `acquire_local` path where the source path exists on disk but
     /// is a regular file rather than a directory (False at "not found" check,
     /// True at "not a dir" check).
