@@ -449,6 +449,16 @@ mod tests {
     }
 
     #[test]
+    fn parse_empty_value_key_followed_by_another_key() {
+        let content = "---\nname:\nother: x\n---\nbody";
+        let fm = parse(content).ok().and_then(|o| o);
+        let name = fm.as_ref().and_then(|f| f.fields.get("name"));
+        assert_eq!(name.map(String::as_str), Some(""));
+        let other = fm.as_ref().and_then(|f| f.fields.get("other"));
+        assert_eq!(other.map(String::as_str), Some("x"));
+    }
+
+    #[test]
     fn parse_multiline_key_then_eof_no_continuation() {
         // A key with empty value at the end of frontmatter (no continuation lines)
         let content = "---\nname:\n---\nbody";
