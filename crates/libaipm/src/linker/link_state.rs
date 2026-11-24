@@ -237,6 +237,22 @@ mod tests {
     }
 
     #[test]
+    fn add_remove_list_propagate_read_errors() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        // A directory used as links.toml makes the initial read fail.
+        let dir_as_file = tmp.path().to_path_buf();
+        let entry = LinkEntry {
+            name: "pkg".to_string(),
+            path: PathBuf::from("/x"),
+            linked_at: "2026-01-01T00:00:00Z".to_string(),
+        };
+
+        assert!(add(FS, &dir_as_file, entry).is_err());
+        assert!(remove(FS, &dir_as_file, "pkg").is_err());
+        assert!(list(FS, &dir_as_file).is_err());
+    }
+
+    #[test]
     fn write_to_root_returns_error() {
         // write_file_with_parents on "/" fails with EISDIR or permission error.
         let result = write(FS, Path::new("/"), &State::default());
