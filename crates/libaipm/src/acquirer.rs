@@ -627,6 +627,34 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the full success path of `acquire_local` using a relative
+    /// plugin directory created under the current working directory.
+    #[test]
+    fn acquire_local_relative_valid_plugin_succeeds() {
+        let src_holder = tempfile::tempdir_in(".").unwrap_or_else(|_| std::process::abort());
+        let name = src_holder
+            .path()
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or_else(|| std::process::abort())
+            .to_string();
+        let _ = make_local_plugin_at(src_holder.path());
+
+        let dest = make_temp();
+        let path = ValidatedPath::new(&name).unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, dest.path(), Engine::Claude);
+        assert!(result.is_ok(), "expected success, got: {result:?}");
+        let plugin_path = result.unwrap_or_else(|_| PathBuf::new());
+        assert!(plugin_path.join(".claude-plugin/plugin.json").exists());
+        assert!(plugin_path.join("README.md").exists());
+    }
+
+    fn make_local_plugin_at(dir: &Path) -> std::io::Result<()> {
+        std::fs::create_dir_all(dir.join(".claude-plugin"))?;
+        std::fs::write(dir.join(".claude-plugin/plugin.json"), "{}")?;
+        std::fs::write(dir.join("README.md"), "hello")
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
