@@ -1138,4 +1138,21 @@ mod tests {
             "expected PathNotFound error when subpath is a file, got: {result:?}"
         );
     }
+
+    /// Covers the error-propagation path of the first `acquire_git(...)?` in
+    /// `acquire_with_redirect`: a failed clone is returned directly.
+    #[test]
+    fn acquire_with_redirect_initial_clone_failure_propagates() {
+        let temp = make_temp();
+        let source = crate::spec::GitSource {
+            url: "not-a-valid-url://nowhere".to_string(),
+            path: None,
+            git_ref: None,
+        };
+        let result = acquire_with_redirect(&source, temp.path(), Engine::Claude);
+        assert!(
+            matches!(result, Err(Error::GitClone { .. })),
+            "expected GitClone error, got: {result:?}"
+        );
+    }
 }
