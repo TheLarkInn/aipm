@@ -425,6 +425,23 @@ mod tests {
     }
 
     #[test]
+    fn copy_dir_recursive_missing_source_returns_io_error() {
+        let temp = make_temp();
+        let result = copy_dir_recursive(&temp.path().join("missing"), &temp.path().join("dst"));
+        assert!(matches!(result, Err(Error::Io { .. })), "got: {result:?}");
+    }
+
+    #[test]
+    fn copy_dir_recursive_missing_dest_returns_copy_failed() {
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        std::fs::create_dir_all(&src).unwrap_or_else(|_| {});
+        std::fs::write(src.join("a.txt"), "x").unwrap_or_else(|_| {});
+        let result = copy_dir_recursive(&src, &temp.path().join("no-such-dst"));
+        assert!(matches!(result, Err(Error::CopyFailed { .. })), "got: {result:?}");
+    }
+
+    #[test]
     fn copy_dir_recursive_skips_git_dir() {
         let temp = make_temp();
         let src = temp.path().join("src");
