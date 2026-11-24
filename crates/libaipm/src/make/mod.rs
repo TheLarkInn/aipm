@@ -1253,4 +1253,70 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Fs wrapper that fails writes to paths ending in `fail_suffix`, and
+    /// fails every `create_dir_all` when `fail_dirs` is set.
+    struct FailFs {
+        inner: MockFs,
+        fail_suffix: &'static str,
+        fail_dirs: bool,
+    }
+
+    impl crate::fs::Fs for FailFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            if self.fail_dirs {
+                return Err(std::io::Error::other("injected dir failure"));
+            }
+            self.inner.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            if !self.fail_suffix.is_empty() && path.to_string_lossy().ends_with(self.fail_suffix) {
+                return Err(std::io::Error::other("injected write failure"));
+            }
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    /// Covers the `?` error branch on `create_dir_all(&plugin_dir)` in `plugin()`.
+    #[test]
+    fn make_plugin_propagates_create_dir_failure() {
+        let fs = FailFs { inner: MockFs::new(), fail_suffix: "", fail_dirs: true };
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs.inner, marketplace_dir);
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "dir-fail",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        assert!(plugin(&opts, &fs).is_err());
+    }
+
+    /// Covers the `?` error branch on `write_file` in `scaffold_mcp`.
+    #[test]
+    fn make_plugin_propagates_mcp_write_failure() {
+        let fs = FailFs { inner: MockFs::new(), fail_suffix: ".mcp.json", fail_dirs: false };
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs.inner, marketplace_dir);
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "mcp-fail",
+            engine: "claude",
+            features: &[Feature::Mcp],
+        };
+        assert!(plugin(&opts, &fs).is_err());
+    }
 }
