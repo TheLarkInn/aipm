@@ -260,6 +260,14 @@ mod tests {
         assert_eq!(find_workspace_dir(&file), dir.path());
     }
 
+    #[test]
+    fn workspace_dir_stops_at_filesystem_root() {
+        if Path::new("/aipm.toml").exists() || Path::new("/.ai").exists() {
+            return;
+        }
+        assert_eq!(find_workspace_dir(Path::new("/orphan.md")), PathBuf::from("/"));
+    }
+
     // ── to_lsp_diagnostic ────────────────────────────────────────────────────
 
     #[test]
