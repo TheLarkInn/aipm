@@ -554,6 +554,24 @@ mod tests {
     }
 
     #[test]
+    fn put_replacing_entry_tolerates_missing_old_dir() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let key = "github:owner/repo:plugin@main";
+        assert!(cache.put(key, &src, None).is_ok());
+
+        if let Ok(read) = std::fs::read_dir(cache.entries_dir()) {
+            for entry in read.flatten() {
+                let _ = std::fs::remove_dir_all(entry.path());
+            }
+        }
+
+        let result = cache.put(key, &src, None);
+        assert!(result.is_ok());
+        assert!(matches!(cache.get(key), Ok(Some(_))));
+    }
+
+    #[test]
     fn cache_miss_returns_none() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let result = cache.get("github:owner/repo:plugin@main");
