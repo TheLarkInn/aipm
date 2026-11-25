@@ -332,6 +332,16 @@ mod tests {
     }
 
     #[test]
+    fn detect_propagates_read_dir_error() {
+        let mut fs = MockFs::new();
+        fs.exists.insert(PathBuf::from("/src/agents"));
+
+        let detector = CopilotAgentDetector;
+        let result = detector.detect(Path::new("/src"), &fs);
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn has_agent_md_suffix_edge_cases() {
         assert!(has_agent_md_suffix("foo.agent.md"));
         assert!(!has_agent_md_suffix(".agent.md")); // name would be empty, too short
