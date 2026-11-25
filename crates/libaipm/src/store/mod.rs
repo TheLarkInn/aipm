@@ -351,6 +351,20 @@ mod tests {
     }
 
     #[test]
+    fn link_to_errors_when_parent_dir_creation_fails() {
+        let (_tmp, store) = make_store();
+        let hash = store.store_file(b"content").unwrap();
+
+        let target_dir = tempfile::tempdir().unwrap();
+        let blocker = target_dir.path().join("blocker");
+        std::fs::write(&blocker, b"a regular file").unwrap();
+        let target = blocker.join("child").join("file");
+
+        let result = store.link_to(&hash, &target);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn link_to_creates_parent_directories() {
         let (_tmp, store) = make_store();
         let content = b"nested link target";
