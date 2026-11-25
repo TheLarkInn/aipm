@@ -1093,6 +1093,38 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_emits_already_enabled_when_settings_has_plugin() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs, marketplace_dir);
+        let settings = serde_json::json!({
+            "enabledPlugins": { "enabled-plugin@test-marketplace": true }
+        });
+        fs.seed(Path::new("/project/.claude/settings.json"), settings.to_string().as_bytes());
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "enabled-plugin",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(result.is_ok());
+        let result = result.unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+
+        assert!(
+            result.actions.iter().any(|a| matches!(
+                a,
+                Action::PluginAlreadyEnabled { plugin_key }
+                    if plugin_key == "enabled-plugin@test-marketplace"
+            )),
+            "expected PluginAlreadyEnabled"
+        );
+        assert!(!result.actions.iter().any(|a| matches!(a, Action::PluginEnabled { .. })));
+    }
+
+    #[test]
     fn make_plugin_emits_already_registered_for_existing_plugin() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
