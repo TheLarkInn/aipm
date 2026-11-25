@@ -387,6 +387,19 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_file_path_returns_not_directory() {
+        let temp = make_temp();
+        let file_path = temp.path().join("plain-file");
+        assert!(std::fs::write(&file_path, "data").is_ok());
+
+        let path = ValidatedPath::new(file_path.to_string_lossy().as_ref());
+        if let Ok(path) = path {
+            let result = acquire_local(&path, temp.path(), Engine::Claude);
+            assert!(matches!(result, Err(Error::LocalNotDirectory { .. })));
+        }
+    }
+
+    #[test]
     fn acquire_local_validates_structure() {
         let temp = make_temp();
         // Create a directory without any marker files or aipm.toml
