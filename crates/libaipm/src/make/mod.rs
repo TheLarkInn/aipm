@@ -1056,6 +1056,49 @@ mod tests {
         );
     }
 
+    struct FailCreateDirFs(MockFs);
+
+    impl crate::fs::Fs for FailCreateDirFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.0.exists(path)
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"))
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.0.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.0.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.0.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn update_engine_settings_propagates_create_dir_error() {
+        let fs = FailCreateDirFs(MockFs::new());
+        let marketplace_dir = Path::new("/project/.ai");
+        let marketplace_json = marketplace_dir.join(".claude-plugin").join("marketplace.json");
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "fail-dir",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        let mut actions = Vec::new();
+
+        let result = update_engine_settings(&opts, &fs, &marketplace_json, &mut actions);
+
+        assert!(result.is_err());
+        assert!(actions.is_empty());
+    }
+
     #[test]
     fn make_plugin_both_engine_updates_settings() {
         // Covers the `opts.engine == "both"` branch: the first condition
