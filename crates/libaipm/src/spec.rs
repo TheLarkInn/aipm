@@ -1621,4 +1621,12 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    #[test]
+    fn parse_unknown_prefix_with_colon_falls_back_to_registry() {
+        // A colon with a prefix that is not a known source type must fall
+        // through to the registry parser instead of the source parser.
+        let spec = parse("unknown:pkg");
+        assert_eq!(spec, Spec::Registry { name: "unknown:pkg".to_string(), version_req: None });
+    }
 }
