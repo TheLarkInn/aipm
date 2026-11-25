@@ -2718,6 +2718,28 @@ no-ver = { features = ["x"] }
         assert!(plugin_a.dependencies.contains(&"reg-dep ^3.0".to_string()));
     }
 
+    #[test]
+    fn resolve_workspace_deps_cycle_and_simple_dep() {
+        let mut members = BTreeMap::new();
+        let a = make_member(
+            "plugin-a",
+            "1.0.0",
+            "[dependencies]\nplugin-b = { workspace = \"*\" }\nreg-dep = \"^1.0\"\n",
+        );
+        let b =
+            make_member("plugin-b", "2.0.0", "[dependencies]\nplugin-a = { workspace = \"*\" }\n");
+        members.insert("plugin-a".to_string(), a);
+        members.insert("plugin-b".to_string(), b);
+
+        let ws_deps = vec!["plugin-a".to_string()];
+        let result = resolve_workspace_deps(&ws_deps, &members, &BTreeSet::new());
+        assert!(result.is_ok(), "cycle should resolve: {:?}", result.err());
+        let resolved = result.unwrap_or_default();
+        assert_eq!(resolved.len(), 2);
+        let plugin_a = resolved.iter().find(|r| r.name == "plugin-a");
+        assert!(plugin_a.is_some_and(|r| r.dependencies.contains(&"reg-dep ^1.0".to_string())));
+    }
+
     // =========================================================================
     // resolve_workspace_deps: duplicate initial names
     // =========================================================================
