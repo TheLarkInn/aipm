@@ -135,6 +135,13 @@ mod tests {
     }
 
     #[test]
+    fn open_path_without_parent_returns_io_error() {
+        // The filesystem root has no parent and cannot be opened for writing.
+        let result = LockedFile::open(Path::new("/"));
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn lock_released_on_drop() {
         let temp = tempfile::tempdir().unwrap_or_else(|_| unreachable_tempdir());
         let path = temp.path().join("test.json");
