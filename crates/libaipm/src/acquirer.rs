@@ -614,6 +614,20 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the `copy_dir_recursive(&source, &dest)?` error branch in
+    /// `acquire_local`: a directory squatting on the destination file path
+    /// makes the copy fail.
+    #[test]
+    fn acquire_local_copy_failure_propagates() {
+        let temp = make_temp();
+        let path = ValidatedPath::new("tests").unwrap_or_else(|_| std::process::abort());
+        let blocker = temp.path().join("tests").join("bdd.rs");
+        std::fs::create_dir_all(&blocker).unwrap_or_else(|_| {});
+
+        let result = acquire_local(&path, temp.path(), Engine::Claude);
+        assert!(matches!(result, Err(Error::CopyFailed { .. })), "got: {result:?}");
+    }
+
     /// Covers the `acquire_local` path where the source path exists on disk but
     /// is a regular file rather than a directory (False at "not found" check,
     /// True at "not a dir" check).
