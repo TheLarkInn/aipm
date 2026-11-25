@@ -711,6 +711,28 @@ mod tests {
     }
 
     #[test]
+    fn put_tolerates_already_removed_old_entry_dir() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let spec = "vanished-spec";
+
+        let src1 = temp.path().join("src1");
+        std::fs::create_dir_all(&src1).unwrap_or_else(|_| {});
+        std::fs::write(src1.join("version.txt"), "v1").unwrap_or_else(|_| {});
+        let dir1 = cache.put(spec, &src1, None).unwrap_or_else(|_| PathBuf::new());
+        assert!(dir1.exists());
+
+        // Old directory disappears before the entry is replaced.
+        let _ = std::fs::remove_dir_all(&dir1);
+
+        let src2 = temp.path().join("src2");
+        std::fs::create_dir_all(&src2).unwrap_or_else(|_| {});
+        std::fs::write(src2.join("version.txt"), "v2").unwrap_or_else(|_| {});
+        let dir2 = cache.put(spec, &src2, None);
+        assert!(dir2.is_ok());
+        assert!(dir2.is_ok_and(|d| d.exists()));
+    }
+
+    #[test]
     fn gc_removes_unreferenced_directories() {
         let temp = make_temp();
         let mut cache = Cache::with_root(temp.path().join("cache"), Policy::Auto);
