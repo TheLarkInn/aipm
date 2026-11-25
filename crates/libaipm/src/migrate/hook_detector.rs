@@ -442,6 +442,13 @@ mod tests {
     }
 
     #[test]
+    fn is_relative_script_windows_drive_path_is_not_relative() {
+        // `Path::is_absolute` does not recognise `C:\...` on Unix, so the manual
+        // drive-prefix check is the only thing rejecting it.
+        assert!(!is_relative_script("C:\\tools\\check.sh", Path::new(".")));
+    }
+
+    #[test]
     fn is_relative_script_unrecognized_extension_returns_false() {
         // A bare filename with an extension that is not .sh/.py/.js should return false —
         // exercises the Some(ext) branch of extension().is_some_and(…) where the closure
