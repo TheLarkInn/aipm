@@ -943,6 +943,20 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_errors_when_marketplace_json_missing() {
+        let fs = MockFs::new();
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/project/.ai"),
+            name: "no-marketplace",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs);
+        assert!(matches!(result, Err(Error::Io(_))));
+    }
+
+    #[test]
     fn read_marketplace_name_fallback_missing_file() {
         let fs = MockFs::new();
         let path = Path::new("/nonexistent/marketplace.json");
