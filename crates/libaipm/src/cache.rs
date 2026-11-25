@@ -1137,4 +1137,28 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn with_index_treats_empty_index_file_as_default() {
+        // Covers the `content.is_empty()` branch in `with_index`: an existing but
+        // empty index file must be treated as a default index, not a parse error.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "").is_ok());
+
+        let result = cache.with_index(|index| {
+            index.entries.clear();
+        });
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn with_index_errors_on_invalid_index_json() {
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+
+        let result = cache.with_index(|_| {});
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
 }
