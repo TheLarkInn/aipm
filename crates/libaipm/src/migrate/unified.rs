@@ -563,6 +563,28 @@ mod tests {
     }
 
     #[test]
+    fn enumerate_sources_returns_literal_source_when_dir_exists() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        std::fs::create_dir_all(root.join(".claude")).expect("create .claude");
+
+        let opts = Options {
+            dir: root,
+            source: Some(".claude"),
+            dry_run: false,
+            destructive: false,
+            max_depth: None,
+            manifest: false,
+        };
+        let sources = enumerate_sources(&opts).expect("enumerate succeeds");
+        assert_eq!(sources.len(), 1);
+        let first = sources.first().expect("one source");
+        assert_eq!(first.source_dir, root.join(".claude"));
+        assert_eq!(first.source_type, ".claude");
+        assert!(first.package_name.is_none());
+    }
+
+    #[test]
     fn discover_options_from_options_maps_correctly() {
         let opts = Options {
             dir: Path::new("/repo"),
