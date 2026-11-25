@@ -984,6 +984,21 @@ mod tests {
     }
 
     #[test]
+    fn mark_installed_and_gc_with_empty_index_file_succeed() {
+        // Covers the `content.is_empty()` True branch in with_index() for the
+        // mark_installed and gc closures: an empty index is a fresh cache.
+        let (temp, cache) = test_cache(Policy::Auto);
+        let cache_root = temp.path().join("cache");
+        std::fs::create_dir_all(&cache_root).unwrap_or_else(|_| {});
+        std::fs::write(cache.index_path(), "").unwrap_or_else(|_| {});
+
+        assert!(cache.mark_installed("missing-spec", true).is_ok());
+
+        std::fs::write(cache.index_path(), "").unwrap_or_else(|_| {});
+        assert!(cache.gc().is_ok());
+    }
+
+    #[test]
     fn get_with_empty_index_file_returns_none() {
         // Covers the `content.is_empty()` True branch in read_index():
         // when the index file exists but is empty, treat it as a fresh cache.
