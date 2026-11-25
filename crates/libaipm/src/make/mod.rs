@@ -1253,4 +1253,59 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Fs wrapper whose `create_dir_all` fails on the Nth call (0-based).
+    struct FailingDirFs {
+        inner: MockFs,
+        fail_at: usize,
+        calls: std::sync::atomic::AtomicUsize,
+    }
+
+    impl crate::fs::Fs for FailingDirFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.inner.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            let n = self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if n == self.fail_at {
+                return Err(std::io::Error::other("injected create_dir_all failure"));
+            }
+            self.inner.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            self.inner.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.inner.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.inner.read_dir(path)
+        }
+    }
+
+    /// Covers the `?` error branches on `create_dir_all` in `plugin()` (plugin dir,
+    /// `.claude-plugin` dir) and in `scaffold_skill`.
+    #[test]
+    fn make_plugin_propagates_create_dir_all_errors() {
+        let marketplace_dir = Path::new("/project/.ai");
+        for fail_at in 0..3 {
+            let inner = MockFs::new();
+            seed_marketplace(&inner, marketplace_dir);
+            let fs = FailingDirFs { inner, fail_at, calls: std::sync::atomic::AtomicUsize::new(0) };
+            let opts = PluginOpts {
+                marketplace_dir,
+                name: "failing",
+                engine: "claude",
+                features: &[Feature::Skill],
+            };
+            assert!(
+                matches!(plugin(&opts, &fs), Err(Error::Io(_))),
+                "expected Io error when create_dir_all call {fail_at} fails"
+            );
+        }
+    }
 }
