@@ -1432,6 +1432,12 @@ mod tests {
     }
 
     #[test]
+    fn marketplace_location_without_slash_is_invalid() {
+        let result = "marketplace:plugin@justaname".parse::<Spec>();
+        assert!(matches!(result, Err(Error::Marketplace { .. })));
+    }
+
+    #[test]
     fn serde_deserialize_invalid() {
         // Exercise serde deserialize error path
         let result: Result<Spec, _> = serde_json::from_str("\"\"");
