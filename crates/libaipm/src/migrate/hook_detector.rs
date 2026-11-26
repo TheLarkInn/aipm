@@ -422,6 +422,7 @@ mod tests {
         assert!(!has_windows_drive_prefix(""));
         assert!(!has_windows_drive_prefix("C:"));
         assert!(!has_windows_drive_prefix("CC:\\bad"));
+        assert!(!has_windows_drive_prefix("C:file"));
     }
 
     #[test]
