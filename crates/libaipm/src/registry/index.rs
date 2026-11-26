@@ -224,6 +224,13 @@ mod tests {
     // --- read_package_index tests ---
 
     #[test]
+    fn read_package_invalid_name_errors() {
+        let tmp = tempfile::tempdir().unwrap();
+        let result = read_package(tmp.path(), "");
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     fn read_package_index_from_disk() {
         let tmp = tempfile::tempdir().unwrap();
         let index_dir = tmp.path();
