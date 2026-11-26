@@ -1253,4 +1253,40 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    #[test]
+    fn update_engine_settings_reports_already_enabled_on_second_call() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs, marketplace_dir);
+        let marketplace_json = marketplace_dir.join(".claude-plugin").join("marketplace.json");
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "twice",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let mut actions = Vec::new();
+        assert!(update_engine_settings(&opts, &fs, &marketplace_json, &mut actions).is_ok());
+        assert!(update_engine_settings(&opts, &fs, &marketplace_json, &mut actions).is_ok());
+
+        assert!(matches!(actions.first(), Some(Action::PluginEnabled { .. })));
+        assert!(matches!(actions.get(1), Some(Action::PluginAlreadyEnabled { .. })));
+    }
+
+    #[test]
+    fn update_engine_settings_without_parent_dir_is_noop() {
+        let fs = MockFs::new();
+        let opts = PluginOpts {
+            marketplace_dir: Path::new("/"),
+            name: "rootless",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let mut actions = Vec::new();
+        assert!(update_engine_settings(&opts, &fs, Path::new("/m.json"), &mut actions).is_ok());
+        assert!(actions.is_empty());
+    }
 }
