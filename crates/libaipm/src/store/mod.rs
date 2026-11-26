@@ -631,4 +631,26 @@ mod tests {
         let result = store.store_package(nonexistent);
         assert!(result.is_err(), "expected store_package to fail on missing directory");
     }
+
+    /// `collect_files` must propagate the I/O error when a file cannot be read.
+    #[cfg(unix)]
+    #[test]
+    fn store_package_errors_on_unreadable_file() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let (_tmp, store) = make_store();
+        let pkg = tempfile::tempdir().unwrap();
+        let file = pkg.path().join("secret.txt");
+        std::fs::write(&file, b"data").unwrap();
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+        // Privileged users (e.g. root) can still read the file; nothing to assert then.
+        let still_readable = std::fs::read(&file).is_ok();
+        let result = store.store_package(pkg.path());
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+        if !still_readable {
+            assert!(result.is_err(), "expected store_package to fail on unreadable file");
+        }
+    }
 }
