@@ -172,5 +172,6 @@ mod tests {
         let mut counter = Counter(0);
         write_summary(&mut counter, sc(1, 0, 0, 0), 1, &[".github".to_string()]).expect("ok");
         assert!(counter.0 > 0);
+        assert!(counter.flush().is_ok());
     }
 }
