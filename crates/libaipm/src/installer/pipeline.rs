@@ -2452,6 +2452,37 @@ b = "^2.0"
     }
 
     #[test]
+    fn resolve_link_override_unknown_member_errors() {
+        let members = BTreeMap::new();
+        let ws_deps = vec!["ghost".to_string()];
+        let mut overrides = BTreeSet::new();
+        overrides.insert("ghost".to_string());
+
+        let err = resolve_workspace_deps(&ws_deps, &members, &overrides)
+            .err()
+            .map(|e| format!("{e}"))
+            .unwrap_or_default();
+        assert!(err.contains("has an aipm link override but is not a workspace member"));
+    }
+
+    #[test]
+    fn resolve_link_override_invalid_version_errors() {
+        let mut members = BTreeMap::new();
+        let mut m = make_member("bad-ver", "1.0.0", "");
+        m.version = "not-semver".to_string();
+        members.insert("bad-ver".to_string(), m);
+        let ws_deps = vec!["bad-ver".to_string()];
+        let mut overrides = BTreeSet::new();
+        overrides.insert("bad-ver".to_string());
+
+        let err = resolve_workspace_deps(&ws_deps, &members, &overrides)
+            .err()
+            .map(|e| format!("{e}"))
+            .unwrap_or_default();
+        assert!(err.contains("invalid version"));
+    }
+
+    #[test]
     fn resolve_error_unknown_member() {
         let members = BTreeMap::new();
         let ws_deps = vec!["nonexistent".to_string()];
