@@ -629,6 +629,29 @@ mod tests {
     }
 
     #[test]
+    fn make_plugin_both_engine_enables_in_settings() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "both-engines",
+            engine: "both",
+            features: &[Feature::Skill],
+        };
+
+        assert!(plugin(&opts, &fs).is_ok());
+
+        let content =
+            fs.get_content(Path::new("/project/.claude/settings.json")).unwrap_or_default();
+        let v: serde_json::Value = serde_json::from_str(&content).unwrap_or_default();
+        let plugin_key =
+            v.get("enabledPlugins").and_then(|e| e.get("both-engines@test-marketplace"));
+        assert_eq!(plugin_key, Some(&serde_json::json!(true)));
+    }
+
+    #[test]
     fn make_plugin_copilot_no_settings() {
         let fs = MockFs::new();
         let marketplace_dir = Path::new("/project/.ai");
