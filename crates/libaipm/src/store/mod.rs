@@ -272,6 +272,17 @@ mod tests {
     }
 
     #[test]
+    fn store_file_io_error_when_store_root_is_a_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let blocker = tmp.path().join("not-a-dir");
+        std::fs::write(&blocker, b"x").unwrap();
+        let store = Store::new(blocker);
+
+        let result = store.store_file(b"content");
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn store_file_is_idempotent() {
         let (_tmp, store) = make_store();
         let content = b"idempotent content";
