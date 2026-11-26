@@ -712,6 +712,14 @@ mod tests {
     }
 
     #[test]
+    fn parse_marketplace_rejects_nested_github_path() {
+        for loc in ["a/b/c", "owner/"] {
+            let result = format!("market:plug@{loc}").parse::<Spec>();
+            assert!(matches!(result, Err(Error::Marketplace { .. })), "accepted {loc}");
+        }
+    }
+
+    #[test]
     fn parse_marketplace_with_ref() {
         let spec = parse("market:hello-skills@owner/repo#main");
         assert_eq!(spec.source_name(), "marketplace");
