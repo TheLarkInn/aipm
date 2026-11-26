@@ -372,6 +372,20 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// `acquire_local` returns `Error::Io` when the destination directory
+    /// cannot be created because its parent is a regular file.
+    #[test]
+    fn acquire_local_dest_creation_fails_returns_io_error() {
+        let temp = make_temp();
+        let blocker = temp.path().join("blocker");
+        std::fs::write(&blocker, "file").unwrap_or_else(|_| {});
+
+        // `src` exists relative to the crate directory, which is the test cwd.
+        let path = ValidatedPath::new("src").unwrap_or_else(|_| std::process::abort());
+        let result = acquire_local(&path, &blocker, Engine::Claude);
+        assert!(matches!(result, Err(Error::Io { .. })), "expected Io error, got: {result:?}");
+    }
+
     #[test]
     fn acquire_local_not_directory() {
         let temp = make_temp();
