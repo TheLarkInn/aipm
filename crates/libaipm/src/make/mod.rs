@@ -1253,4 +1253,22 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Covers the `parent()` `None` branch in `update_engine_settings`: a
+    /// marketplace dir with no parent means no `.claude/` settings are written.
+    #[test]
+    fn update_engine_settings_skips_when_marketplace_dir_has_no_parent() {
+        let fs = MockFs::new();
+        let opts = PluginOpts {
+            marketplace_dir: Path::new(""),
+            name: "orphan",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+        let mut actions = Vec::new();
+        let result =
+            update_engine_settings(&opts, &fs, Path::new("marketplace.json"), &mut actions);
+        assert!(result.is_ok());
+        assert!(actions.is_empty());
+    }
 }
