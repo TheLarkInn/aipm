@@ -1825,6 +1825,27 @@ mod tests {
     }
 
     #[test]
+    fn init_with_all_phases_disabled_produces_no_actions() {
+        // Neither created nor found actions exist, so the "nothing to do"
+        // tail warning (`!any_created && any_found`) short-circuits on `any_found`.
+        let (tmp, _guard) = make_temp_dir("all-phases-disabled");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::empty(),
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real).expect("init should succeed");
+        assert!(result.actions.is_empty());
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_with_empty_scaffold_runs_no_adaptors() {
         // engines_scaffold = empty. No adaptors run; no engine roots
         // appear on disk.
