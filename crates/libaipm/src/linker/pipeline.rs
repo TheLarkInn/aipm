@@ -148,6 +148,19 @@ mod tests {
     }
 
     #[test]
+    fn link_package_fails_when_plugin_target_is_real_directory() {
+        let (tmp, store, file_hashes) = setup();
+        let links_dir = tmp.path().join(".aipm/links");
+        let plugins_dir = tmp.path().join("claude-plugins");
+
+        // A real (non-link) directory occupies the plugin link location.
+        std::fs::create_dir_all(plugins_dir.join("my-pkg")).expect("create blocking dir");
+
+        let result = link_package(&store, &file_hashes, "my-pkg", &links_dir, &plugins_dir);
+        assert!(matches!(result, Err(Error::TargetExists { .. })), "got: {result:?}");
+    }
+
+    #[test]
     fn unlink_nonexistent_is_noop() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let links_dir = tmp.path().join(".aipm/links");
