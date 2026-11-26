@@ -144,6 +144,35 @@ mod tests {
     }
 
     #[test]
+    fn discover_skips_unclassified_files() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        touch(&root.join("src/unrelated.txt"));
+        touch(&root.join(".claude/skills/x/SKILL.md"));
+        let set =
+            discover(root, &DiscoverOptions::default(), &Real).expect("discover should succeed");
+        assert_eq!(set.counts().total(), 1);
+    }
+
+    /// A TRACE-level subscriber forces evaluation of the `trace!` field
+    /// expressions in the classification loop.
+    #[test]
+    fn discover_evaluates_trace_fields_when_enabled() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        touch(&root.join(".claude/skills/x/SKILL.md"));
+        let subscriber = tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::TRACE)
+            .with_writer(std::io::sink)
+            .finish();
+        let set = tracing::subscriber::with_default(subscriber, || {
+            discover(root, &DiscoverOptions::default(), &Real)
+        })
+        .expect("discover should succeed");
+        assert_eq!(set.counts().skills, 1);
+    }
+
+    #[test]
     fn discover_carries_walker_skipped_dirs() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path();
