@@ -1253,4 +1253,27 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// A marketplace dir with no parent (filesystem root) cannot locate a
+    /// `.claude/` sibling, so no settings action is emitted.
+    #[test]
+    fn make_plugin_claude_engine_without_parent_skips_settings() {
+        let fs = MockFs::new();
+        let marketplace_dir = Path::new("/");
+        seed_marketplace(&fs, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "rooted",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        let result = plugin(&opts, &fs).unwrap_or_else(|_| PluginResult { actions: Vec::new() });
+        assert!(result.actions.iter().any(|a| matches!(a, Action::PluginCreated { .. })));
+        assert!(!result.actions.iter().any(|a| matches!(
+            a,
+            Action::PluginEnabled { .. } | Action::PluginAlreadyEnabled { .. }
+        )));
+    }
 }
