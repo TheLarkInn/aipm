@@ -538,6 +538,21 @@ mod tests {
     }
 
     #[test]
+    fn put_overwrite_tolerates_missing_old_dir() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+
+        let first = cache.put("spec", &src, None);
+        assert!(first.is_ok());
+        if let Ok(dir) = first {
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+
+        let second = cache.put("spec", &src, None);
+        assert!(second.is_ok_and(|p| p.exists()));
+    }
+
+    #[test]
     fn cache_policy_roundtrip() {
         for policy in [
             Policy::Auto,
