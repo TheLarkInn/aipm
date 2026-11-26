@@ -1253,4 +1253,48 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// `Fs` whose `write_file` always fails, exercising the error branches of
+    /// the `?` operators in the feature scaffolding helpers.
+    struct FailingWriteFs(MockFs);
+
+    impl crate::fs::Fs for FailingWriteFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.0.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            self.0.create_dir_all(path)
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Err(std::io::Error::other("disk full"))
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.0.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.0.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_write_errors() {
+        let inner = MockFs::new();
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&inner, marketplace_dir);
+        let fs = FailingWriteFs(inner);
+
+        for feature in [Feature::Skill, Feature::Agent, Feature::Hook] {
+            let opts = PluginOpts {
+                marketplace_dir,
+                name: "failing",
+                engine: "claude",
+                features: &[feature],
+            };
+            assert!(plugin(&opts, &fs).is_err(), "write failure should propagate");
+        }
+    }
 }
