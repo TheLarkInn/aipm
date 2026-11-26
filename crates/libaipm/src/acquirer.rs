@@ -373,6 +373,18 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_from_dest_creation_fails() {
+        let temp = make_temp();
+        let _src = make_local_plugin(&temp, "source-plugin");
+        let blocker = temp.path().join("blocker");
+        std::fs::write(&blocker, "file").unwrap_or_else(|_| {});
+        let source_path = temp.path().join("source-plugin");
+
+        let result = acquire_local_from(&source_path, &blocker, Engine::Claude, "source-plugin");
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn acquire_local_not_directory() {
         let temp = make_temp();
         let file_path = temp.path().join("not-a-dir");
