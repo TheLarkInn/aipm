@@ -1092,6 +1092,18 @@ mod tests {
     }
 
     #[test]
+    fn touch_entry_with_corrupt_index_returns_index_parse_error() {
+        // Covers the parse-error branch in with_index(): a non-empty index file
+        // containing invalid JSON must surface Error::IndexParse.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        assert!(cache.ensure_dirs().is_ok());
+        assert!(std::fs::write(cache.index_path(), "not json").is_ok());
+
+        let result = cache.touch_entry("any-spec");
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
+
+    #[test]
     #[cfg(unix)]
     fn gc_silently_skips_non_utf8_entry_names() {
         // Covers the None branch of `entry.file_name().to_str()` in gc():
