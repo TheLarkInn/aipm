@@ -622,6 +622,26 @@ mod tests {
         assert!(result.is_err(), "expected store_file() to fail when prefix dir creation fails");
     }
 
+    /// `lock()` must surface an error when the lock file path is a directory.
+    #[test]
+    fn lock_errors_when_lock_path_is_a_directory() {
+        let (_tmp, store) = make_store();
+        std::fs::create_dir_all(store.path().join(".lock")).unwrap();
+        let result = store.lock();
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    /// `link_to()` must fail when the target's parent path is a regular file.
+    #[test]
+    fn link_to_errors_when_target_parent_is_a_file() {
+        let (tmp, store) = make_store();
+        let hash = store.store_file(b"link parent test").unwrap();
+        let blocker = tmp.path().join("blocker");
+        std::fs::write(&blocker, b"file").unwrap();
+        let result = store.link_to(&hash, &blocker.join("child"));
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
     /// When `collect_files` cannot read a directory because it does not exist,
     /// `store_package` should propagate the I/O error.
     #[test]
