@@ -1137,4 +1137,16 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn with_index_corrupt_index_returns_parse_error() {
+        // Covers the Err branch of the JSON parse in with_index() for a non-empty, invalid index.
+        let (_temp, cache) = test_cache(Policy::Auto);
+        let _ = cache.ensure_dirs();
+        let _ = std::fs::write(cache.index_path(), "not json");
+
+        let result = cache.with_index(|_| {});
+
+        assert!(matches!(result, Err(Error::IndexParse { .. })));
+    }
 }
