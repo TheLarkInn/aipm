@@ -1080,6 +1080,18 @@ mod tests {
     }
 
     #[test]
+    fn cleanup_plan_non_skill_artifact_labelled_file() {
+        // A removable non-skill artifact is labelled "file" rather than "directory".
+        let mut artifact = make_artifact("reviewer", ArtifactKind::Agent);
+        artifact.source_path = PathBuf::from(".claude/agents/reviewer.md");
+        let artifacts = vec![artifact];
+        let existing = HashSet::new();
+        let report = generate_report(&artifacts, &existing, ".claude", false, true, &[]);
+        assert!(report.contains("reviewer.md` (file)"), "expected file label:\n{report}");
+        assert!(!report.contains("(directory)"), "unexpected directory label:\n{report}");
+    }
+
+    #[test]
     fn cleanup_plan_skipped_other_kind_shows_shared_configuration_reason() {
         // An artifact whose source_path filename is "settings.json"
         // (→ should_skip_for_report returns true) but whose kind is Agent
