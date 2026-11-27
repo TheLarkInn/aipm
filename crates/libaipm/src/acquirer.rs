@@ -363,6 +363,17 @@ mod tests {
     }
 
     #[test]
+    fn acquire_local_from_dest_parent_is_file_returns_io_error() {
+        let temp = make_temp();
+        let src = make_local_plugin(&temp, "plugin");
+        let blocker = temp.path().join("blocker");
+        std::fs::write(&blocker, "file").unwrap_or_else(|_| {});
+
+        let result = acquire_local_from(&src, &blocker, Engine::Claude, "plugin");
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn acquire_local_from_source_not_found() {
         let temp = make_temp();
         let nonexistent = temp.path().join("does-not-exist");
