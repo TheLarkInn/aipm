@@ -554,6 +554,23 @@ mod tests {
     }
 
     #[test]
+    fn cache_put_overwrite_with_missing_old_dir() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let spec = "github:owner/repo:plugin@main";
+        let src = create_source_plugin(&temp);
+
+        let first = cache.put(spec, &src, None);
+        assert!(first.is_ok());
+        let first_dir = first.unwrap_or_default();
+        // Remove the old entry directory so the cleanup finds nothing to delete.
+        assert!(std::fs::remove_dir_all(&first_dir).is_ok());
+
+        let second = cache.put(spec, &src, None);
+        assert!(second.is_ok());
+        assert_ne!(second.unwrap_or_default(), first_dir);
+    }
+
+    #[test]
     fn cache_miss_returns_none() {
         let (_temp, cache) = test_cache(Policy::Auto);
         let result = cache.get("github:owner/repo:plugin@main");
