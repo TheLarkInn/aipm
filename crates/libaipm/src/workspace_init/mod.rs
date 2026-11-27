@@ -774,6 +774,28 @@ mod tests {
     }
 
     #[test]
+    fn init_with_all_phases_disabled_emits_no_actions() {
+        let (tmp, _guard) = make_temp_dir("all-disabled");
+        let adaptors = default_adaptors();
+        let opts = Options {
+            dir: &tmp,
+            workspace: false,
+            marketplace: false,
+            no_starter: false,
+            manifest: false,
+            marketplace_name: "local-repo-plugins",
+            engines_scaffold: libaipm_engine_spec::EngineSet::CLAUDE,
+            engines_support: None,
+        };
+        let result = init(&opts, &adaptors, &crate::fs::Real);
+        assert!(result.is_ok(), "init with nothing requested must succeed: {result:?}");
+        let actions = result.ok().map(|r| r.actions).unwrap_or_default();
+        assert!(actions.is_empty(), "no phases requested => no actions, got: {actions:?}");
+
+        cleanup(&tmp);
+    }
+
+    #[test]
     fn init_workspace_is_idempotent_when_aipm_toml_exists() {
         let (tmp, _guard) = make_temp_dir("ws-idempotent");
 
