@@ -1621,4 +1621,10 @@ mod tests {
         let result: Result<Spec, _> = serde_json::from_str("42");
         assert!(result.is_err());
     }
+
+    #[test]
+    fn parse_marketplace_location_rejects_empty_repo_and_nested_path() {
+        assert!("marketplace:plug@owner/".parse::<Spec>().is_err());
+        assert!("marketplace:plug@owner/repo/extra".parse::<Spec>().is_err());
+    }
 }
