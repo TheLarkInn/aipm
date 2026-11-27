@@ -853,6 +853,26 @@ mod tests {
     }
 
     #[test]
+    fn put_overwrite_tolerates_missing_old_dir() {
+        let (temp, cache) = test_cache(Policy::Auto);
+        let src = create_source_plugin(&temp);
+        let _ = cache.put("spec", &src, None);
+
+        let index = cache.read_index().unwrap_or_default();
+        let old_dir = index.entries.get("spec").map(|e| cache.entries_dir().join(&e.dir_name));
+        assert!(old_dir.is_some());
+        if let Some(dir) = &old_dir {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+
+        let result = cache.put("spec", &src, None);
+        assert!(result.is_ok());
+        let new_dir = result.unwrap_or_default();
+        assert!(new_dir.exists());
+        assert_ne!(Some(new_dir), old_dir);
+    }
+
+    #[test]
     fn auto_returns_none_when_dir_missing() {
         let (temp, cache) = test_cache(Policy::Auto);
         let src = create_source_plugin(&temp);
