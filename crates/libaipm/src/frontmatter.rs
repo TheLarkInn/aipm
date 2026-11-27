@@ -221,6 +221,18 @@ mod tests {
     }
 
     #[test]
+    fn parse_leading_blank_lines_and_tab_continuation() {
+        let content = "\n\n---\nhooks:\n\tfirst\n  second\nname: x\n---\nbody";
+        let fm = parse(content).ok().and_then(|o| o);
+        assert_eq!(fm.as_ref().map(|f| f.start_line), Some(3));
+        assert_eq!(
+            fm.as_ref().and_then(|f| f.fields.get("hooks").cloned()),
+            Some("first\nsecond".to_string())
+        );
+        assert_eq!(fm.as_ref().and_then(|f| f.field_lines.get("name").copied()), Some(7));
+    }
+
+    #[test]
     fn parse_no_frontmatter() {
         let content = "just plain text";
         let result = parse(content);
