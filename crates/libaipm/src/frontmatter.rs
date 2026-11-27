@@ -741,6 +741,13 @@ mod tests {
     }
 
     #[test]
+    fn parse_trailing_key_with_empty_value_and_no_continuation() {
+        let content = "---\nname: test\nhooks:\n---\nbody";
+        let fm = parse(content).ok().and_then(|o| o);
+        assert_eq!(fm.as_ref().and_then(|f| f.fields.get("hooks")).map(String::as_str), Some(""));
+    }
+
+    #[test]
     fn field_value_range_description_field() {
         // Longer key prefix
         assert_eq!(
