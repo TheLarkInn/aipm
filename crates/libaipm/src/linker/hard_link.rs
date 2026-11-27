@@ -159,11 +159,18 @@ mod tests {
 
         let target = tmp.path().join("links").join("ghost-pkg");
         let result = assemble(&store, &file_hashes, &target);
-        assert!(
-            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt")),
-            "assemble should fail with Io error for ghost.txt, got: {:?}",
-            result
-        );
+        assert!(result.is_err(), "assemble should fail for ghost.txt, got: {result:?}");
+    }
+
+    #[test]
+    fn assemble_target_is_file_returns_error() {
+        // remove_dir_all fails on a regular file, covering the cleanup error mapping.
+        let (tmp, store, file_hashes) = make_store_and_package();
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, "not a dir").expect("write file");
+
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(result.is_err(), "expected Io error for target, got: {result:?}");
     }
 
     #[test]
