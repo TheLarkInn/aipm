@@ -224,3 +224,20 @@ fn list_after_install_shows_workspace_packages() {
         .stdout(predicate::str::contains("print-clock"))
         .stdout(predicate::str::contains("get-current-time"));
 }
+
+// =========================================================================
+// update: no-dependency workspace reports an empty update
+// =========================================================================
+
+#[test]
+fn update_with_no_dependencies_reports_zero_packages() {
+    let (_tmp, dir) = setup_fixture("workspace-no-deps");
+    let home = tempfile::tempdir().unwrap();
+
+    aipm()
+        .env("HOME", home.path())
+        .args(["update", "--dir", dir.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Updated 0 package(s), 0 up-to-date, 0 removed"));
+}
