@@ -816,6 +816,59 @@ mod tests {
         assert_eq!(content.unwrap_or_default(), "", ".gitkeep should be empty");
     }
 
+    /// Fs whose `create_dir_all` or `write_file` can be forced to fail.
+    struct FailingFs {
+        fail_create_dir: bool,
+    }
+
+    impl crate::fs::Fs for FailingFs {
+        fn exists(&self, _: &Path) -> bool {
+            false
+        }
+
+        fn create_dir_all(&self, _: &Path) -> std::io::Result<()> {
+            if self.fail_create_dir {
+                Err(std::io::Error::other("create_dir_all failed"))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn write_file(&self, _: &Path, _: &[u8]) -> std::io::Result<()> {
+            Err(std::io::Error::other("write_file failed"))
+        }
+
+        fn read_to_string(&self, _: &Path) -> std::io::Result<String> {
+            Err(std::io::Error::other("not used"))
+        }
+
+        fn read_dir(&self, _: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[test]
+    fn scaffold_extension_propagates_create_dir_error() {
+        let fs = FailingFs { fail_create_dir: true };
+        let mut components = crate::generate::plugin_json::Components::default();
+        let mut actions = Vec::new();
+        let result = scaffold_extension(&fs, Path::new("/p"), &mut components, &mut actions);
+        assert!(matches!(result, Err(Error::Io(_))));
+        assert!(actions.is_empty());
+        assert!(components.extensions.is_none());
+    }
+
+    #[test]
+    fn scaffold_extension_propagates_write_error() {
+        let fs = FailingFs { fail_create_dir: false };
+        let mut components = crate::generate::plugin_json::Components::default();
+        let mut actions = Vec::new();
+        let result = scaffold_extension(&fs, Path::new("/p"), &mut components, &mut actions);
+        assert!(matches!(result, Err(Error::Io(_))));
+        assert_eq!(actions.len(), 1);
+        assert!(components.extensions.is_none());
+    }
+
     #[test]
     fn make_plugin_mcp_feature() {
         let fs = MockFs::new();
