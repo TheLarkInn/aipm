@@ -804,6 +804,34 @@ mod tests {
     }
 
     #[test]
+    fn ci_azure_errors_do_not_emit_succeeded_with_issues() {
+        let outcome = Outcome {
+            diagnostics: vec![Diagnostic {
+                rule_id: "test/rule".into(),
+                severity: Severity::Error,
+                message: "msg".into(),
+                file_path: PathBuf::from("a.md"),
+                line: Some(1),
+                col: Some(1),
+                end_line: None,
+                end_col: None,
+                source_type: ".ai".into(),
+                help_text: None,
+                help_url: None,
+            }],
+            error_count: 1,
+            warning_count: 1,
+            sources_scanned: vec![],
+            ..Outcome::default()
+        };
+        let mut buf = Vec::new();
+        CiAzure.report(&outcome, &mut buf).ok();
+        let output = String::from_utf8(buf).unwrap_or_default();
+        assert!(output.contains("##[endgroup]"));
+        assert!(!output.contains("SucceededWithIssues"));
+    }
+
+    #[test]
     fn ci_azure_defaults_line_col() {
         let outcome = Outcome {
             diagnostics: vec![Diagnostic {
