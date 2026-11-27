@@ -176,6 +176,15 @@ mod tests {
     }
 
     #[test]
+    fn init_twice_returns_set_global_error() {
+        // The global subscriber can only be installed once per process, so the
+        // second call must fail regardless of whether the first succeeded.
+        let _ = init(LevelFilter::OFF, LogFormat::Text);
+        let second = init(LevelFilter::OFF, LogFormat::Json);
+        assert!(matches!(second, Err(Error::SetGlobal { .. })));
+    }
+
+    #[test]
     fn error_display() {
         let e = Error::FileAppender { reason: "test".to_string() };
         assert!(e.to_string().contains("file appender"));
