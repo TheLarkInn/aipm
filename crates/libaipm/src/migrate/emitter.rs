@@ -4359,4 +4359,12 @@ mod tests {
         assert!(result.contains("run.sh"));
         assert!(result.contains("--verbose"));
     }
+
+    #[test]
+    fn rewrite_single_command_absolute_path_unchanged() {
+        // Covers the True branch of `path.is_absolute()` in `rewrite_single_command`:
+        // an already-absolute script path is returned verbatim.
+        let result = rewrite_single_command("/usr/bin/run.sh --flag", Path::new("/project"));
+        assert_eq!(result, "/usr/bin/run.sh --flag");
+    }
 }
