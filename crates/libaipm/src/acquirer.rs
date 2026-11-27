@@ -1138,4 +1138,20 @@ mod tests {
             "expected PathNotFound error when subpath is a file, got: {result:?}"
         );
     }
+
+    #[test]
+    fn copy_dir_recursive_errors_when_dest_subdir_is_a_file() {
+        let temp = make_temp();
+        let src = temp.path().join("src");
+        let dst = temp.path().join("dst");
+        std::fs::create_dir_all(src.join("sub")).unwrap_or_else(|_| {});
+        std::fs::create_dir_all(&dst).unwrap_or_else(|_| {});
+        std::fs::write(dst.join("sub"), "blocker").unwrap_or_else(|_| {});
+
+        let result = copy_dir_recursive(&src, &dst);
+        assert!(
+            matches!(result, Err(Error::Io { .. })),
+            "expected Io error when destination subdir path is a file, got: {result:?}"
+        );
+    }
 }
