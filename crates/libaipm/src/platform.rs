@@ -69,7 +69,10 @@ impl<'de> Deserialize<'de> for Platform {
 
 /// Return the [`Platform`] identifier for the current runtime OS.
 pub fn current_platforms() -> Vec<Platform> {
-    let os = std::env::consts::OS;
+    platforms_for_os(std::env::consts::OS)
+}
+
+fn platforms_for_os(os: &str) -> Vec<Platform> {
     match os {
         "windows" => vec![Platform::Windows],
         "linux" => vec![Platform::Linux],
@@ -145,6 +148,14 @@ mod tests {
     #[test]
     fn compatibility_universal_when_no_platforms() {
         assert_eq!(check_platform_compatibility(None), Compatibility::Universal);
+    }
+
+    #[test]
+    fn platforms_for_os_maps_every_known_os() {
+        assert_eq!(platforms_for_os("windows"), vec![Platform::Windows]);
+        assert_eq!(platforms_for_os("linux"), vec![Platform::Linux]);
+        assert_eq!(platforms_for_os("macos"), vec![Platform::MacOs]);
+        assert!(platforms_for_os("plan9").is_empty());
     }
 
     #[test]
