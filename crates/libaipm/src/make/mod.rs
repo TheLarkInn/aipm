@@ -1253,4 +1253,49 @@ mod tests {
             "must not emit PluginRegistered when plugin was already registered"
         );
     }
+
+    /// Delegates to `MockFs` but fails every write to `plugin.json`.
+    struct FailPluginJsonFs(MockFs);
+
+    impl crate::fs::Fs for FailPluginJsonFs {
+        fn exists(&self, path: &Path) -> bool {
+            self.0.exists(path)
+        }
+
+        fn create_dir_all(&self, path: &Path) -> std::io::Result<()> {
+            self.0.create_dir_all(path)
+        }
+
+        fn write_file(&self, path: &Path, content: &[u8]) -> std::io::Result<()> {
+            if path.file_name().is_some_and(|n| n == "plugin.json") {
+                return Err(std::io::Error::other("disk full"));
+            }
+            self.0.write_file(path, content)
+        }
+
+        fn read_to_string(&self, path: &Path) -> std::io::Result<String> {
+            self.0.read_to_string(path)
+        }
+
+        fn read_dir(&self, path: &Path) -> std::io::Result<Vec<crate::fs::DirEntry>> {
+            self.0.read_dir(path)
+        }
+    }
+
+    #[test]
+    fn make_plugin_propagates_plugin_json_write_error() {
+        let fs = FailPluginJsonFs(MockFs::new());
+        let marketplace_dir = Path::new("/project/.ai");
+        seed_marketplace(&fs.0, marketplace_dir);
+
+        let opts = PluginOpts {
+            marketplace_dir,
+            name: "broken",
+            engine: "claude",
+            features: &[Feature::Skill],
+        };
+
+        assert!(plugin(&opts, &fs).is_err());
+        assert!(!fs.0.exists(&marketplace_dir.join("broken").join(".claude-plugin/plugin.json")));
+    }
 }
