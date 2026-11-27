@@ -159,11 +159,39 @@ mod tests {
 
         let target = tmp.path().join("links").join("ghost-pkg");
         let result = assemble(&store, &file_hashes, &target);
-        assert!(
-            matches!(&result, Err(Error::Io { path, .. }) if path.ends_with("ghost.txt")),
-            "assemble should fail with Io error for ghost.txt, got: {:?}",
-            result
-        );
+        let path = match result {
+            Err(Error::Io { path, .. }) => path,
+            other => return assert!(false, "expected Io error, got: {other:?}"),
+        };
+        assert!(path.ends_with("ghost.txt"));
+    }
+
+    #[test]
+    fn assemble_parent_dir_blocked_by_file_returns_error() {
+        // "a" is linked as a file first, so creating the parent dir for "a/b" fails.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let hash = store.store_file(b"content").expect("store file");
+
+        let mut file_hashes = BTreeMap::new();
+        file_hashes.insert(PathBuf::from("a"), hash.clone());
+        file_hashes.insert(PathBuf::from("a/b"), hash);
+
+        let target = tmp.path().join("links").join("blocked-pkg");
+        let result = assemble(&store, &file_hashes, &target);
+        assert!(result.is_err(), "expected Io error for parent dir, got: {result:?}");
+    }
+
+    #[test]
+    fn assemble_target_is_file_returns_error() {
+        // remove_dir_all on a regular file fails, covering the cleanup error mapping.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let store = store::Store::new(tmp.path().join("store"));
+        let target = tmp.path().join("target-file");
+        std::fs::write(&target, "x").expect("write file");
+
+        let result = assemble(&store, &BTreeMap::new(), &target);
+        assert!(result.is_err(), "got: {result:?}");
     }
 
     #[test]
