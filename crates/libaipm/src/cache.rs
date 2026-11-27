@@ -1137,4 +1137,16 @@ mod tests {
 
         assert!(result.is_ok(), "gc must succeed even when entries dir is unreadable");
     }
+
+    #[test]
+    fn malformed_index_file_returns_index_parse_error() {
+        // Covers the `IndexParse` error mapping in read_index() and with_index():
+        // a non-empty index file that is not valid JSON must surface as an error.
+        let (temp, cache) = test_cache(Policy::Auto);
+        std::fs::create_dir_all(temp.path().join("cache")).unwrap();
+        std::fs::write(cache.index_path(), "not json").unwrap();
+
+        assert!(matches!(cache.get("some-spec"), Err(Error::IndexParse { .. })));
+        assert!(matches!(cache.gc(), Err(Error::IndexParse { .. })));
+    }
 }
