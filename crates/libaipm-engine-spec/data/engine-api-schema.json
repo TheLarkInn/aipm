@@ -1,7 +1,7 @@
 {
   "$schema": "../../../schemas/engine-api.schema.json",
   "meta_schema_version": "2.0.0",
-  "generated_at": "2026-05-05T13:04:12Z",
+  "generated_at": "2026-11-24T17:46:06Z",
   "engines": [
     {
       "name": "claude",
@@ -15,8 +15,8 @@
     }
   ],
   "versions": {
-    "claude": "2.1.128",
-    "copilot": "1.0.40"
+    "claude": "2.1.331",
+    "copilot": "1.0.115"
   },
   "apis": {
     "claude": {
@@ -206,6 +206,126 @@
           ],
           "deprecated": false,
           "notes": "Stop a running task"
+        },
+        {
+          "name": "TaskCreate",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "TaskGet",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "TaskUpdate",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "TaskList",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "EnterPlanMode",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "Workflow",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "CronCreate",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "CronDelete",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "CronList",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "ScheduleWakeup",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "RemoteTrigger",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "Monitor",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "ProposeGoal",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "Artifact",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "PushNotification",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "RefreshMcpTools",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "ReadMcpResourceDir",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "ReportFindings",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "SendFeedback",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
+        },
+        {
+          "name": "ReadNotifications",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 sdk-tools.d.ts / binary strings; first recorded 2026-11-24."
         }
       ],
       "hook_events": [
@@ -343,6 +463,48 @@
           "name": "FileChanged",
           "aliases": [],
           "deprecated": false
+        },
+        {
+          "name": "PostToolBatch",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 hook event table."
+        },
+        {
+          "name": "UserPromptExpansion",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 hook event table."
+        },
+        {
+          "name": "PreModelSwitch",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 hook event table."
+        },
+        {
+          "name": "PostModelSwitch",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 hook event table."
+        },
+        {
+          "name": "PermissionDenied",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 hook event table."
+        },
+        {
+          "name": "DirectoryAdded",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 hook event table."
+        },
+        {
+          "name": "MessageDisplay",
+          "aliases": [],
+          "deprecated": false,
+          "notes": "Present in 2.1.331 hook event table."
         }
       ],
       "features": [
@@ -2070,6 +2232,166 @@
         "unsupported_by": [
           "claude"
         ]
+      },
+      "TaskCreate": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskGet": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskUpdate": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "TaskList": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "EnterPlanMode": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Workflow": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "CronCreate": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "CronDelete": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "CronList": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ScheduleWakeup": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "RemoteTrigger": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Monitor": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ProposeGoal": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "Artifact": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "PushNotification": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "RefreshMcpTools": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ReadMcpResourceDir": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ReportFindings": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "SendFeedback": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
+      },
+      "ReadNotifications": {
+        "supported_by": [
+          "claude"
+        ],
+        "unsupported_by": [
+          "copilot"
+        ]
       }
     }
   },
@@ -2123,7 +2445,7 @@
         "Skills can be discovered from project (.github/skills/) and personal (~/.copilot/skills/) paths",
         "GEMINI.md is also recognized as a convention file (multi-engine repo support)",
         "MCP supports three transports: stdio, sse, http",
-        "Plugin strict mode defaults to true \u2014 schema validation is strict by default",
+        "Plugin strict mode defaults to true — schema validation is strict by default",
         "managed-agents-2026-04-01 feature flag gates managed agent functionality",
         "skills-2025-10-02 feature flag gates skills API",
         "copilot_cli_mcp_allowlist and copilot_cli_mcp_enterprise_allowlist flags gate MCP server access"
