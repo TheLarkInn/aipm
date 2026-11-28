@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.25.2] - 2026-11-28
+
+### Bug Fixes
+- Resolve clippy::manual_is_variant_and from Rust 1.98 stable (3704870)
+
+### Testing
+- Cover mkdir failure branch in LockedFile::open (b3ed660)
+
+### Lodestone
+- Fix-clippy-rust-1-100 ([#6679](https://github.com/TheLarkInn/aipm/pull/6679)) (45a3b79)
+
 ## [0.25.1] - 2026-08-14
 
 ### Documentation
