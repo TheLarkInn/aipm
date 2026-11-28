@@ -242,4 +242,15 @@ mod tests {
         let result = write(FS, Path::new("/"), &State::default());
         assert!(result.is_err());
     }
+
+    #[test]
+    fn add_remove_list_propagate_read_errors_for_invalid_toml() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("links.toml");
+        std::fs::write(&path, "not = [valid toml").expect("write");
+
+        assert!(matches!(add(FS, &path, make_entry("pkg-a", "/work/a")), Err(Error::Io { .. })));
+        assert!(matches!(remove(FS, &path, "pkg-a"), Err(Error::Io { .. })));
+        assert!(matches!(list(FS, &path), Err(Error::Io { .. })));
+    }
 }
