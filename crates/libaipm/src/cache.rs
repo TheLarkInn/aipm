@@ -1052,6 +1052,20 @@ mod tests {
     }
 
     #[test]
+    fn put_fails_when_cache_root_parent_is_a_file() {
+        // `ensure_dirs` cannot create the entries dir beneath a regular file,
+        // so `put` must surface an I/O error rather than proceed.
+        let temp = make_temp();
+        let blocker = temp.path().join("blocker");
+        std::fs::write(&blocker, "x").unwrap_or_else(|_| {});
+        let cache = Cache::with_root(blocker.join("cache"), Policy::Auto);
+        let src = create_source_plugin(&temp);
+
+        let result = cache.put("spec-key", &src, None);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
+
+    #[test]
     fn cache_policy_parse_aliases() {
         // Each variant has additional aliases beyond the canonical `to_string()` form.
         // These branches are otherwise untouched by `cache_policy_roundtrip`.
