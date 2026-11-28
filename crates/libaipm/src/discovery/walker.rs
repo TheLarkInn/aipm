@@ -291,6 +291,14 @@ mod tests {
     }
 
     #[test]
+    fn missing_root_returns_walk_failed() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let missing = tmp.path().join("does-not-exist");
+        let err = walk(&missing, &DiscoverOptions::default()).expect_err("walk should fail");
+        assert!(matches!(err, Error::WalkFailed(_)));
+    }
+
+    #[test]
     fn results_are_sorted() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path();
