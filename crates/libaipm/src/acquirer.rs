@@ -627,6 +627,28 @@ mod tests {
         assert!(result.is_err());
     }
 
+    /// Covers the `acquire_local` success path end-to-end: a valid plugin
+    /// placed under the CWD is copied into the destination and validated.
+    #[test]
+    fn acquire_local_success_copies_and_validates() {
+        let Ok(src_root) = tempfile::tempdir_in(".") else { return };
+        let Some(root_name) = src_root.path().file_name().and_then(|n| n.to_str()) else {
+            return;
+        };
+        let plugin = src_root.path().join("my-plugin");
+        std::fs::create_dir_all(plugin.join(".claude-plugin")).unwrap_or_else(|_| {});
+        std::fs::write(plugin.join(".claude-plugin/plugin.json"), "{}").unwrap_or_else(|_| {});
+
+        let rel = format!("{root_name}/my-plugin");
+        let path = ValidatedPath::new(&rel).unwrap_or_else(|_| std::process::abort());
+        let dest_temp = make_temp();
+        let result = acquire_local(&path, dest_temp.path(), Engine::Claude);
+        assert!(result.is_ok());
+        let dest = result.unwrap_or_else(|_| PathBuf::new());
+        assert_eq!(dest, dest_temp.path().join("my-plugin"));
+        assert!(dest.join(".claude-plugin/plugin.json").exists());
+    }
+
     /// Helper: acquire from an explicit source path (bypasses `ValidatedPath`
     /// CWD-relative resolution which doesn't work in temp dirs).
     fn acquire_local_from(
