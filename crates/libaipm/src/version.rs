@@ -328,7 +328,7 @@ mod tests {
     fn stable_version_is_not_prerelease() {
         let v = Version::parse("1.0.0");
         assert!(v.is_ok());
-        assert!(v.ok().is_some_and(|v| !v.is_prerelease()));
+        assert!(v.is_ok_and(|v| !v.is_prerelease()));
     }
 
     #[test]
