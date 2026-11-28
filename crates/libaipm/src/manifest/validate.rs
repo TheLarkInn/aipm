@@ -265,6 +265,13 @@ mod tests {
     }
 
     #[test]
+    fn invalid_scoped_segments() {
+        assert!(!is_valid_name_strict("@Bad/pkg")); // invalid scope, valid package
+        assert!(!is_valid_name_strict("@scope/Bad")); // valid scope, invalid package
+        assert!(!is_valid_name_strict("@noslash")); // missing slash
+    }
+
+    #[test]
     fn invalid_names() {
         assert!(!is_valid_name_strict(""));
         assert!(!is_valid_name_strict("My-Plugin")); // uppercase
