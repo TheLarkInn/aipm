@@ -631,4 +631,21 @@ mod tests {
         let result = store.store_package(nonexistent);
         assert!(result.is_err(), "expected store_package to fail on missing directory");
     }
+
+    /// A dangling symlink at the target path makes `exists()` false but the
+    /// subsequent write fail, exercising the write error branch.
+    #[cfg(unix)]
+    #[test]
+    fn store_file_errors_when_write_fails() {
+        let (tmp, store) = make_store();
+        let content = b"write failure content";
+        let hex = hash::sha512_hex(content);
+        let target = layout::hash_to_path(tmp.path(), &hex).unwrap();
+        let prefix_dir = layout::hash_prefix_dir(tmp.path(), &hex).unwrap();
+        std::fs::create_dir_all(&prefix_dir).unwrap();
+        std::os::unix::fs::symlink(tmp.path().join("missing-dir").join("file"), &target).unwrap();
+
+        let result = store.store_file(content);
+        assert!(matches!(result, Err(Error::Io { .. })));
+    }
 }
