@@ -247,18 +247,16 @@ fn generate_engine_entry(
     let manifest_search_paths = collect_strs(api.map(|a| a.manifest_search_paths.as_slice()));
     let settings_paths = collect_strs(api.map(|a| a.settings_paths.as_slice()));
     let folder_conventions = collect_strs(api.map(|a| a.folder_conventions.as_slice()));
-    let convention_file_entries: Vec<TokenStream> = api
-        .map(|a| {
-            a.convention_files
-                .iter()
-                .map(|cf| {
-                    let filename = cf.filename.as_str();
-                    let paths: Vec<&str> = cf.convention_paths.iter().map(String::as_str).collect();
-                    quote! { (#filename, &[#( #paths ),*]) }
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    let convention_file_entries: Vec<TokenStream> = api.map_or_else(Vec::new, |a| {
+        a.convention_files
+            .iter()
+            .map(|cf| {
+                let filename = cf.filename.as_str();
+                let paths: Vec<&str> = cf.convention_paths.iter().map(String::as_str).collect();
+                quote! { (#filename, &[#( #paths ),*]) }
+            })
+            .collect()
+    });
 
     let marker_paths = marker_paths_for(&bootstrap.name);
     let marketplace_manifest_path = marketplace_manifest_path_for(&bootstrap.name);
@@ -282,7 +280,7 @@ fn generate_engine_entry(
 }
 
 fn collect_strs(slice: Option<&[String]>) -> Vec<&str> {
-    slice.map(|s| s.iter().map(String::as_str).collect()).unwrap_or_default()
+    slice.map_or_else(Vec::new, |s| s.iter().map(String::as_str).collect())
 }
 
 fn generate_tool_compatibility(parsed: &types::EngineApiSchemaFile) -> TokenStream {
@@ -322,9 +320,8 @@ fn generate_hook_events_by_engine(parsed: &types::EngineApiSchemaFile) -> TokenS
         .map(|bootstrap| {
             let variant = Ident::new(&to_pascal_case(&bootstrap.name), Span::call_site());
             let api = parsed.apis.get(&bootstrap.name);
-            let events: Vec<TokenStream> = api
-                .map(|a| a.hook_events.iter().map(hook_event_token).collect())
-                .unwrap_or_default();
+            let events: Vec<TokenStream> =
+                api.map_or_else(Vec::new, |a| a.hook_events.iter().map(hook_event_token).collect());
             quote! {
                 (Engine::#variant, &[ #( #events ),* ])
             }
@@ -460,8 +457,7 @@ fn generate_features_by_engine(parsed: &types::EngineApiSchemaFile) -> TokenStre
             let kinds: Vec<types::FeatureKind> = parsed
                 .apis
                 .get(&bootstrap.name)
-                .map(|a| a.features.iter().map(|f| f.kind).collect())
-                .unwrap_or_default();
+                .map_or_else(Vec::new, |a| a.features.iter().map(|f| f.kind).collect());
             let set_expr = feature_set_expression(&kinds);
             quote! { (Engine::#variant, #set_expr) }
         })

@@ -924,11 +924,10 @@ pub(crate) fn load_lint_config(dir: &Path) -> libaipm::lint::config::Config {
                 .get("level")
                 .and_then(toml::Value::as_str)
                 .and_then(libaipm::lint::Severity::from_str_config);
-            let ignore: Vec<String> = table
-                .get("ignore")
-                .and_then(toml::Value::as_array)
-                .map(|arr| arr.iter().filter_map(toml::Value::as_str).map(String::from).collect())
-                .unwrap_or_default();
+            let ignore: Vec<String> =
+                table.get("ignore").and_then(toml::Value::as_array).map_or_else(Vec::new, |arr| {
+                    arr.iter().filter_map(toml::Value::as_str).map(String::from).collect()
+                });
 
             let options: std::collections::BTreeMap<String, toml::Value> = table
                 .iter()

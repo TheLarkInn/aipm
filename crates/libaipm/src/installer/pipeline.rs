@@ -308,7 +308,7 @@ fn link_resolved_packages(
 
 /// Extract direct dependency names from a manifest.
 fn extract_dep_names(manifest: &manifest::types::Manifest) -> BTreeSet<String> {
-    manifest.dependencies.as_ref().map(|deps| deps.keys().cloned().collect()).unwrap_or_default()
+    manifest.dependencies.as_ref().map_or_else(BTreeSet::new, |deps| deps.keys().cloned().collect())
 }
 
 /// Convert manifest dependencies into resolver `Dependency` structs.
@@ -454,11 +454,8 @@ fn resolve_workspace_deps(
         }
 
         // Collect dependency strings for lockfile
-        let transitive_deps: Vec<String> = member
-            .manifest
-            .dependencies
-            .as_ref()
-            .map(|deps| {
+        let transitive_deps: Vec<String> =
+            member.manifest.dependencies.as_ref().map_or_else(Vec::new, |deps| {
                 deps.iter()
                     .map(|(dep_name, spec)| {
                         let req = match spec {
@@ -473,8 +470,7 @@ fn resolve_workspace_deps(
                         format!("{dep_name} {req}")
                     })
                     .collect()
-            })
-            .unwrap_or_default();
+            });
 
         let version = Version::parse(&member.version).map_err(|e| {
             Error::Resolution(format!(
