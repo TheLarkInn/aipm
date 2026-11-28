@@ -82,10 +82,7 @@ pub fn discover_source_dirs(
     // Filter out .ai/ directory to avoid scanning marketplace plugins
     builder.filter_entry(|entry| {
         let file_name = entry.file_name().to_string_lossy();
-        if entry.file_type().is_some_and(|ft| ft.is_dir()) && file_name == ".ai" {
-            return false;
-        }
-        true
+        !(entry.file_type().is_some_and(|ft| ft.is_dir()) && file_name == ".ai")
     });
 
     let mut discovered = Vec::new();

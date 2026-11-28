@@ -45,7 +45,7 @@ impl Adapter for CopilotSkillAdapter {
 
         // Name precedence: frontmatter `name` field, else the directory name.
         let dir_name =
-            entry_dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            entry_dir.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
         let name = metadata.name.clone().unwrap_or(dir_name);
 
         Ok(Artifact {
@@ -90,7 +90,7 @@ impl Adapter for ClaudeSkillAdapter {
             skill_common::extract_script_references(&content, "${CLAUDE_SKILL_DIR}/");
 
         let dir_name =
-            entry_dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            entry_dir.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
         let name = metadata.name.clone().unwrap_or(dir_name);
 
         Ok(Artifact {

@@ -118,7 +118,7 @@ pub fn walk(project_root: &Path, opts: &DiscoverOptions) -> Result<WalkResult, E
 /// happen — the closure was dropped when `builder` went out of scope — but
 /// the fallback keeps the function infallible).
 fn take_skipped(shared: &Arc<Mutex<Vec<SkipReason>>>) -> Vec<SkipReason> {
-    shared.lock().map(|g| g.clone()).unwrap_or_default()
+    shared.lock().map_or_else(|_| Vec::new(), |g| g.clone())
 }
 
 #[cfg(test)]
