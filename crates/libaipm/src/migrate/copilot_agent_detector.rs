@@ -53,7 +53,7 @@ impl Detector for CopilotAgentDetector {
 
             // .agent.md takes precedence
             if is_agent_md || !by_name.contains_key(&stem) {
-                by_name.insert(stem, (agents_dir.join(&entry.name), entry.name.clone()));
+                by_name.insert(stem, (agents_dir.join(&entry.name), entry.name));
             }
         }
 

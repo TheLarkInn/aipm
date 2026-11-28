@@ -42,7 +42,7 @@ impl Adapter for CopilotAgentAdapter {
         // Name precedence: frontmatter `name` field, else the file stem
         // (sans the `.agent.md` suffix when present).
         let file_name =
-            feat.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            feat.path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
         let stem_from_filename = if has_agent_md_suffix(&file_name) {
             file_name[..file_name.len() - ".agent.md".len()].to_string()
         } else {
@@ -100,7 +100,7 @@ impl Adapter for ClaudeAgentAdapter {
         let metadata = skill_common::parse_frontmatter(&content, &feat.path)?;
 
         let file_name =
-            feat.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            feat.path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
         let stem_from_filename = Path::new(&file_name)
             .file_stem()
             .map_or_else(String::new, |s| s.to_string_lossy().into_owned());
