@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.25.2] - 2026-11-28
+
+### Lodestone
+- Fix-clippy-rust-1-100 ([#6679](https://github.com/TheLarkInn/aipm/pull/6679)) (45a3b79)
+
 ## [0.25.1] - 2026-08-14
 
 ### Documentation
