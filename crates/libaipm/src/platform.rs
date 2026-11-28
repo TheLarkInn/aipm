@@ -211,6 +211,12 @@ mod tests {
     }
 
     #[test]
+    fn platform_deserialize_non_string_is_error() {
+        let result: Result<Platform, _> = serde_json::from_str("42");
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn platform_deserialize_known_values() {
         // Exercises the `Deserialize` impl for `Platform` (serde path).
         let linux: Result<Platform, _> = serde_json::from_str("\"linux\"");
