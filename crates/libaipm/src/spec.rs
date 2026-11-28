@@ -764,6 +764,17 @@ mod tests {
     }
 
     #[test]
+    fn parse_marketplace_invalid_github_location_shapes() {
+        for input in ["market:p@owner/", "market:p@owner/repo/extra", "market:p@noslash"] {
+            let result = input.parse::<Spec>();
+            assert!(
+                matches!(result, Err(Error::Marketplace { .. })),
+                "expected Marketplace error for {input}"
+            );
+        }
+    }
+
+    #[test]
     fn parse_marketplace_empty_ref_after_hash() {
         let result = "market:hello@owner/repo#".parse::<Spec>();
         assert!(result.is_err());
